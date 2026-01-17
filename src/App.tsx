@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { PrivacyModeProvider } from "@/hooks/usePrivacyMode";
 import { MenuStyleProvider } from "@/hooks/useMenuStyle";
@@ -38,21 +39,39 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Wrapper to check if user needs password update
+// Wrapper to check if user needs password update and redirect if no access
 function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
   const { user, needsPasswordUpdate, loading, hasSystemAccess } = useAuth();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // Se usuário logado sem acesso ao sistema, redireciona para access-denied
+    if (!loading && user && !hasSystemAccess) {
+      navigate('/access-denied', { replace: true });
+    }
+  }, [loading, user, hasSystemAccess, navigate]);
   
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-primary text-xl">Carregando...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }
   
-  // Se não tem acesso ao sistema (role = 'user'), redireciona para access-denied
+  // Aguarda o redirecionamento acontecer via useEffect
   if (user && !hasSystemAccess) {
-    return <Navigate to="/access-denied" replace />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Redirecionando...</p>
+        </div>
+      </div>
+    );
   }
   
   if (user && needsPasswordUpdate) {

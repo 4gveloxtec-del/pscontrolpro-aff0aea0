@@ -60,7 +60,6 @@ const getCachedData = (userId: string): { profile: Profile | null; role: AppRole
     // CRITICAL: If cached user ID doesn't match current user, clear ALL cache
     // This prevents role bleeding between different users on the same device
     if (cachedUserId && cachedUserId !== userId) {
-      console.log('[Auth] User changed, clearing stale cache');
       clearCachedData();
       return { profile: null, role: null };
     }
@@ -72,7 +71,6 @@ const getCachedData = (userId: string): { profile: Profile | null; role: AppRole
     if (profileStr) {
       const profile = JSON.parse(profileStr);
       if (profile.id !== userId) {
-        console.log('[Auth] Cached profile ID mismatch, clearing cache');
         clearCachedData();
         return { profile: null, role: null };
       }
@@ -131,7 +129,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Safety timeout to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('[Auth] Loading timeout reached, forcing state update');
         setLoading(false);
       }
     }, 5000);
@@ -142,7 +139,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMounted) return;
         
         if (error) {
-          console.error('[Auth] Error getting session:', error);
           clearCachedData();
           setLoading(false);
           return;
@@ -172,8 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
         }
       })
-      .catch((error) => {
-        console.error('[Auth] Failed to get session:', error);
+      .catch(() => {
         if (isMounted) {
           clearCachedData();
           setLoading(false);
@@ -228,24 +223,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isMounted) return;
 
       if (profileResult.error) {
-        console.warn('[Auth] Failed to fetch profile:', profileResult.error);
+        // Silently handle profile fetch errors
       }
       if (roleResult.error) {
-        console.warn('[Auth] Failed to fetch role:', roleResult.error);
+        // Silently handle role fetch errors
       }
 
       const nextProfile = (profileResult.data as Profile | null) ?? null;
       const nextRole = (roleResult.data?.role as AppRole | null) ?? null;
 
-      // IMPORTANT: Always overwrite state (and cache) with fresh data,
-      // including null, to prevent stale roles (e.g. admin) from persisting.
+      // Always overwrite state with fresh data
       setProfile(nextProfile);
       setRole(nextRole);
 
-      // Update cache with fresh data (even when null)
+      // Update cache with fresh data
       setCachedData(userId, nextProfile, nextRole);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
+    } catch {
+      // Silently handle fetch errors
     } finally {
       if (isMounted) {
         setLoading(false);
