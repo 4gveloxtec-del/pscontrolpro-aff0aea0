@@ -836,6 +836,56 @@ export type Database = {
           },
         ]
       }
+      server_apps: {
+        Row: {
+          app_type: string
+          created_at: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          notes: string | null
+          seller_id: string
+          server_id: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          app_type?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          notes?: string | null
+          seller_id: string
+          server_id: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          app_type?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          notes?: string | null
+          seller_id?: string
+          server_id?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_apps_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       servers: {
         Row: {
           created_at: string | null

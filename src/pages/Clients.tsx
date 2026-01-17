@@ -341,6 +341,23 @@ export default function Clients() {
   // Fetch reseller apps (custom apps created by the reseller)
   const { data: resellerApps = [] } = useResellerApps(user?.id);
 
+  // Fetch server apps for the selected server
+  const { data: serverApps = [] } = useQuery({
+    queryKey: ['server-apps-for-client', formData.server_id],
+    queryFn: async () => {
+      if (!formData.server_id) return [];
+      const { data, error } = await supabase
+        .from('server_apps' as any)
+        .select('*')
+        .eq('server_id', formData.server_id)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return (data || []) as unknown as { id: string; name: string; icon: string; app_type: 'own' | 'partnership'; }[];
+    },
+    enabled: !!formData.server_id,
+  });
+
   // Fetch templates for bulk loyalty messages
   const { data: templates = [] } = useQuery({
     queryKey: ['templates-loyalty', user?.id],
@@ -2107,14 +2124,25 @@ export default function Clients() {
                   <div className="space-y-2">
                     <Label>Tipo de Aplicativo</Label>
                     <Select
-                      value={formData.app_type === 'own' && formData.app_name && resellerApps.some(a => a.name === formData.app_name) 
-                        ? `reseller_${formData.app_name}` 
-                        : formData.app_type}
+                      value={
+                        formData.app_name && serverApps.some(a => a.name === formData.app_name)
+                          ? `serverapp_${formData.app_name}`
+                          : formData.app_type === 'own' && formData.app_name && resellerApps.some(a => a.name === formData.app_name) 
+                            ? `reseller_${formData.app_name}` 
+                            : formData.app_type
+                      }
                       onValueChange={(v) => {
+                        // If selecting a server app (starts with 'serverapp_')
+                        if (v.startsWith('serverapp_')) {
+                          const appName = v.replace('serverapp_', '');
+                          setFormData({ ...formData, app_type: 'server', app_name: appName });
+                        }
                         // If selecting a reseller app (starts with 'reseller_'), set the app_name too
-                        if (v.startsWith('reseller_')) {
+                        else if (v.startsWith('reseller_')) {
                           const appName = v.replace('reseller_', '');
                           setFormData({ ...formData, app_type: 'own', app_name: appName });
+                        } else if (v === 'server') {
+                          setFormData({ ...formData, app_type: 'server', app_name: '' });
                         } else {
                           setFormData({ ...formData, app_type: v as 'server' | 'own', app_name: v === 'server' ? '' : formData.app_name });
                         }
@@ -2124,11 +2152,41 @@ export default function Clients() {
                         <SelectValue placeholder="Selecione o tipo de app" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="server">📡 App do Servidor</SelectItem>
+                        <SelectItem value="server">📡 App Padrão do Servidor</SelectItem>
+                        
+                        {/* Server Apps - Own */}
+                        {serverApps.filter(a => a.app_type === 'own').length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                              📦 Apps Próprios ({selectedServer?.name})
+                            </div>
+                            {serverApps.filter(a => a.app_type === 'own').map((app) => (
+                              <SelectItem key={app.id} value={`serverapp_${app.name}`}>
+                                {app.icon} {app.name}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Server Apps - Partnership */}
+                        {serverApps.filter(a => a.app_type === 'partnership').length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                              🤝 Apps Parceria ({selectedServer?.name})
+                            </div>
+                            {serverApps.filter(a => a.app_type === 'partnership').map((app) => (
+                              <SelectItem key={app.id} value={`serverapp_${app.name}`}>
+                                {app.icon} {app.name}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Reseller Apps */}
                         {resellerApps.length > 0 && (
                           <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                              Meus Apps (até 10)
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                              🏪 Meus Apps Globais
                             </div>
                             {resellerApps.map((app) => (
                               <SelectItem key={app.id} value={`reseller_${app.name}`}>
@@ -2137,15 +2195,21 @@ export default function Clients() {
                             ))}
                           </>
                         )}
-                        <SelectItem value="own">📱 Outro App (Personalizado)</SelectItem>
+                        
+                        <div className="border-t mt-1 pt-1">
+                          <SelectItem value="own">📱 Outro App (Personalizado)</SelectItem>
+                        </div>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      💡 Configure até 10 apps próprios em Configurações → Meus Aplicativos
-                    </p>
                     
-                    {/* Show input for custom app name when 'own' is selected but no reseller app chosen */}
-                    {formData.app_type === 'own' && !resellerApps.some(a => a.name === formData.app_name) && (
+                    {serverApps.length === 0 && formData.server_id && (
+                      <p className="text-xs text-muted-foreground">
+                        💡 Cadastre apps próprios ou parceria em Servidores → Apps
+                      </p>
+                    )}
+                    
+                    {/* Show input for custom app name when 'own' is selected but no app chosen */}
+                    {formData.app_type === 'own' && !resellerApps.some(a => a.name === formData.app_name) && !serverApps.some(a => a.name === formData.app_name) && (
                       <div className="space-y-1">
                         <Label className="text-xs">Nome do Aplicativo</Label>
                         <Input
