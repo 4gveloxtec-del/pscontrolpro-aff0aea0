@@ -1,6 +1,6 @@
 import { useState, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { LazyAccountsDisplay } from '@/components/LazyAccountsDisplay';
 import { PremiumAccount } from '@/components/ClientPremiumAccounts';
 

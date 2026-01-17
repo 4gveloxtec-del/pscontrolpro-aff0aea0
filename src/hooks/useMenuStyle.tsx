@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export type MenuStyle = 'default' | 'compact' | 'icons-only';
