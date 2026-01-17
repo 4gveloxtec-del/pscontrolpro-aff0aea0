@@ -42,7 +42,7 @@ export function useWhatsAppConfig() {
 
     try {
       setError(null);
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await (supabase as any)
         .from('whatsapp_api_config')
         .select('*')
         .eq('user_id', user.id)
@@ -80,7 +80,7 @@ export function useWhatsAppConfig() {
       
       if (config?.id) {
         // Update existing
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('whatsapp_api_config')
           .update({
             api_url: newConfig.api_url,
@@ -100,7 +100,7 @@ export function useWhatsAppConfig() {
         setConfig(prev => prev ? { ...prev, ...newConfig } : null);
       } else {
         // Insert new
-        const { data, error: insertError } = await supabase
+        const { data, error: insertError } = await (supabase as any)
           .from('whatsapp_api_config')
           .insert({
             user_id: user.id,
@@ -134,7 +134,7 @@ export function useWhatsAppConfig() {
     if (!config?.id) return;
 
     try {
-      await supabase
+      await (supabase as any)
         .from('whatsapp_api_config')
         .update({
           is_connected: isConnected,
@@ -158,7 +158,7 @@ export function useWhatsAppConfig() {
     if (!user?.id) return false;
 
     try {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('client_notification_tracking')
         .select('id')
         .eq('client_id', clientId)
@@ -182,7 +182,7 @@ export function useWhatsAppConfig() {
     if (!user?.id) return;
 
     try {
-      await supabase.from('client_notification_tracking').insert({
+      await (supabase as any).from('client_notification_tracking').insert({
         client_id: clientId,
         seller_id: user.id,
         notification_type: notificationType,
@@ -199,7 +199,7 @@ export function useWhatsAppConfig() {
     if (!user?.id) return [];
 
     try {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('client_notification_tracking')
         .select('*, clients(name)')
         .eq('seller_id', user.id)
