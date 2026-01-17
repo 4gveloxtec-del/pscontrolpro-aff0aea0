@@ -15,6 +15,15 @@ interface ExpiringClient {
   plan_name: string | null;
 }
 
+interface Bill {
+  id: string;
+  description: string;
+  recipient_name: string;
+  amount: number;
+  due_date: string;
+  seller_id: string;
+}
+
 function formatExpirationMessage(client: ExpiringClient, today: Date): { title: string; body: string; urgency: string } {
   const expDate = new Date(client.expiration_date + 'T00:00:00');
   const todayStart = new Date(today);
@@ -51,6 +60,45 @@ function formatExpirationMessage(client: ExpiringClient, today: Date): { title: 
   return {
     title: `${emoji} ${client.name}`,
     body: `${timeText}${planInfo} • ${expDateFormatted}`,
+    urgency
+  };
+}
+
+function formatBillMessage(bill: Bill, today: Date): { title: string; body: string; urgency: string } {
+  const dueDate = new Date(bill.due_date + 'T00:00:00');
+  const todayStart = new Date(today);
+  todayStart.setHours(0, 0, 0, 0);
+  
+  const diffTime = dueDate.getTime() - todayStart.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  const dueDateFormatted = dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  
+  let urgency: string;
+  let emoji: string;
+  let timeText: string;
+  
+  if (diffDays <= 0) {
+    urgency = 'expired';
+    emoji = '🔴';
+    timeText = diffDays === 0 ? 'Vence HOJE!' : 'VENCIDA!';
+  } else if (diffDays === 1) {
+    urgency = 'critical';
+    emoji = '🟠';
+    timeText = 'Vence amanhã';
+  } else if (diffDays === 2) {
+    urgency = 'warning';
+    emoji = '🟡';
+    timeText = 'Vence em 2 dias';
+  } else {
+    urgency = 'info';
+    emoji = '🔵';
+    timeText = `Vence em ${diffDays} dias`;
+  }
+  
+  return {
+    title: `${emoji} Conta: ${bill.description}`,
+    body: `${timeText} • R$ ${bill.amount.toFixed(2)} • ${bill.recipient_name} • ${dueDateFormatted}`,
     urgency
   };
 }
@@ -317,15 +365,109 @@ serve(async (req) => {
       results.push({ sellerId, clientsNotified, totalClients: clients.length });
     }
 
-    console.log('[check-expirations] Completed. Client notifications sent:', notificationsSent, 'Seller notifications sent:', sellerNotificationsSent);
+    // ========== CHECK BILLS TO PAY ==========
+    console.log('[check-expirations] Checking bills to pay...');
+
+    const { data: pendingBills, error: billsError } = await supabase
+      .from('bills_to_pay')
+      .select('id, description, recipient_name, amount, due_date, seller_id')
+      .eq('is_paid', false)
+      .gte('due_date', todayStr)
+      .lte('due_date', threeDaysStr)
+      .order('due_date');
+
+    if (billsError) {
+      console.error('[check-expirations] Error fetching bills:', billsError);
+    }
+
+    console.log('[check-expirations] Found pending bills:', pendingBills?.length || 0);
+
+    let billsNotificationsSent = 0;
+
+    if (pendingBills && pendingBills.length > 0) {
+      // Group bills by seller
+      const billsBySeller: Record<string, Bill[]> = {};
+      for (const bill of pendingBills) {
+        if (!billsBySeller[bill.seller_id]) {
+          billsBySeller[bill.seller_id] = [];
+        }
+        billsBySeller[bill.seller_id].push(bill);
+      }
+
+      // Get push subscriptions for sellers with pending bills
+      const billSellerIds = Object.keys(billsBySeller);
+      const { data: billSubscriptions } = await supabase
+        .from('push_subscriptions')
+        .select('user_id, endpoint')
+        .in('user_id', billSellerIds);
+
+      // Send notifications for each bill
+      for (const [sellerId, bills] of Object.entries(billsBySeller)) {
+        const hasSubscription = billSubscriptions?.some(s => s.user_id === sellerId);
+        
+        if (!hasSubscription) continue;
+
+        // Sort by due date
+        const sortedBills = bills.sort((a, b) => {
+          const dateA = new Date(a.due_date);
+          const dateB = new Date(b.due_date);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+        for (const bill of sortedBills) {
+          const { title, body, urgency } = formatBillMessage(bill, today);
+          
+          try {
+            if (billsNotificationsSent > 0) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            const response = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                userId: sellerId,
+                title,
+                body,
+                tag: `bill-${bill.id}`,
+                data: { 
+                  type: 'bill-reminder', 
+                  billId: bill.id,
+                  billDescription: bill.description,
+                  dueDate: bill.due_date,
+                  amount: bill.amount,
+                  urgency
+                }
+              }),
+            });
+
+            const result = await response.json();
+            
+            if (result.sent > 0) {
+              billsNotificationsSent++;
+              console.log(`[check-expirations] ✓ Bill notified: ${bill.description} (${urgency})`);
+            }
+          } catch (error) {
+            console.error(`[check-expirations] Error notifying about bill ${bill.description}:`, error);
+          }
+        }
+      }
+    }
+
+    console.log('[check-expirations] Completed. Client notifications:', notificationsSent, 'Seller notifications:', sellerNotificationsSent, 'Bills notifications:', billsNotificationsSent);
 
     return new Response(JSON.stringify({ 
       message: 'Expiration check completed',
       totalExpiringClients: expiringClients.length,
       totalExpiringSellers: expiringSellers?.length || 0,
+      totalPendingBills: pendingBills?.length || 0,
       sellersChecked: sellerIds.length,
       clientNotificationsSent: notificationsSent,
       sellerNotificationsSent,
+      billsNotificationsSent,
       results
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

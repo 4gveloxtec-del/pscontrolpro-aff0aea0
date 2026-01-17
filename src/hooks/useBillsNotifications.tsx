@@ -1,0 +1,145 @@
+import { useEffect, useCallback } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { differenceInDays, startOfToday } from 'date-fns';
+
+const LAST_BILLS_CHECK_KEY = 'last_bills_notification_check';
+const NOTIFICATION_PREF_KEY = 'push_notifications_enabled';
+
+interface Bill {
+  id: string;
+  description: string;
+  recipient_name: string;
+  amount: number;
+  due_date: string;
+}
+
+export function useBillsNotifications() {
+  const { user, isSeller } = useAuth();
+
+  const isNotificationsEnabled = useCallback(() => {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission !== 'granted') return false;
+    return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+  }, []);
+
+  const showBillsNotification = useCallback((bills: Bill[]) => {
+    if (!isNotificationsEnabled()) return;
+
+    const today = startOfToday();
+    
+    // Contas vencidas (ontem ou antes)
+    const overdueList = bills.filter(b => 
+      differenceInDays(new Date(b.due_date), today) < 0
+    );
+    
+    // Contas para hoje
+    const todayList = bills.filter(b => 
+      differenceInDays(new Date(b.due_date), today) === 0
+    );
+    
+    // Contas para amanhã
+    const tomorrowList = bills.filter(b => 
+      differenceInDays(new Date(b.due_date), today) === 1
+    );
+
+    // Contas vencidas - prioridade máxima
+    if (overdueList.length > 0) {
+      const totalOverdue = overdueList.reduce((sum, b) => sum + b.amount, 0);
+      const descriptions = overdueList.slice(0, 3).map(b => b.description).join(', ');
+      const extra = overdueList.length > 3 ? ` +${overdueList.length - 3}` : '';
+      
+      new Notification('🔴 Contas VENCIDAS!', {
+        body: `${overdueList.length} conta(s): ${descriptions}${extra}\nTotal: R$ ${totalOverdue.toFixed(2)}`,
+        icon: '/icon-192.png',
+        tag: 'bills-overdue',
+        requireInteraction: true,
+      });
+    }
+
+    // Contas para hoje
+    if (todayList.length > 0) {
+      const totalToday = todayList.reduce((sum, b) => sum + b.amount, 0);
+      const descriptions = todayList.slice(0, 3).map(b => b.description).join(', ');
+      const extra = todayList.length > 3 ? ` +${todayList.length - 3}` : '';
+      
+      setTimeout(() => {
+        new Notification('📅 Pagar HOJE!', {
+          body: `${descriptions}${extra}\nTotal: R$ ${totalToday.toFixed(2)}`,
+          icon: '/icon-192.png',
+          tag: 'bills-today',
+          requireInteraction: true,
+        });
+      }, overdueList.length > 0 ? 2000 : 0);
+    }
+
+    // Contas para amanhã (só mostra se não tiver vencidas nem hoje)
+    if (tomorrowList.length > 0 && overdueList.length === 0 && todayList.length === 0) {
+      const totalTomorrow = tomorrowList.reduce((sum, b) => sum + b.amount, 0);
+      
+      new Notification('Lembrete: Contas amanhã', {
+        body: `${tomorrowList.length} conta(s) - Total: R$ ${totalTomorrow.toFixed(2)}`,
+        icon: '/icon-192.png',
+        tag: 'bills-tomorrow',
+      });
+    }
+  }, [isNotificationsEnabled]);
+
+  const checkBills = useCallback(async () => {
+    if (!user?.id || !isSeller) return;
+    if (!isNotificationsEnabled()) return;
+
+    // Verificar se já notificou hoje
+    const lastCheck = localStorage.getItem(LAST_BILLS_CHECK_KEY);
+    const today = startOfToday().toISOString().split('T')[0];
+    
+    if (lastCheck === today) return;
+
+    try {
+      const { data: bills, error } = await supabase
+        .from('bills_to_pay')
+        .select('id, description, recipient_name, amount, due_date')
+        .eq('seller_id', user.id)
+        .eq('is_paid', false)
+        .not('due_date', 'is', null);
+
+      if (error) throw error;
+
+      const todayDate = startOfToday();
+      const pendingBills = (bills || []).filter(b => {
+        if (!b.due_date || !b.amount) return false;
+        const days = differenceInDays(new Date(b.due_date), todayDate);
+        // Incluir atrasados (negativos), hoje (0), e amanhã (1)
+        return days <= 1;
+      }) as Bill[];
+
+      if (pendingBills.length > 0) {
+        showBillsNotification(pendingBills);
+        localStorage.setItem(LAST_BILLS_CHECK_KEY, today);
+      }
+    } catch (error) {
+      console.error('Error checking bills:', error);
+    }
+  }, [user?.id, isSeller, isNotificationsEnabled, showBillsNotification]);
+
+  // Verificar ao montar e a cada hora
+  useEffect(() => {
+    if (!user?.id || !isSeller) return;
+
+    // Verificação inicial após 7 segundos (depois das outras notificações)
+    const initialTimeout = setTimeout(checkBills, 7000);
+
+    // Verificar a cada hora
+    const interval = setInterval(checkBills, 60 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [user?.id, isSeller, checkBills]);
+
+  return {
+    checkBills,
+    isNotificationsEnabled: isNotificationsEnabled(),
+  };
+}
