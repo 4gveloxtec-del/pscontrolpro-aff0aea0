@@ -1,13 +1,15 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldX, LogOut, Clock, Mail, MessageCircle, AlertTriangle } from 'lucide-react';
+import { ShieldX, LogOut, Clock, Mail, MessageCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 export default function AccessDenied() {
   const { profile, signOut, role, hasSystemAccess } = useAuth();
   const navigate = useNavigate();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Se o usuário ainda está em período de teste, redirecionar para dashboard
   useEffect(() => {
@@ -20,6 +22,20 @@ export default function AccessDenied() {
     const phone = '5531998518865';
     const message = `Olá! Me chamo ${profile?.full_name || profile?.email} e gostaria de continuar usando o sistema PSControl como revendedor. Meu período de teste expirou.`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  const handleSignOut = async () => {
+    try {
+      setIsLoggingOut(true);
+      await signOut();
+      toast.success('Sessão encerrada com sucesso!');
+      // Force navigation to auth page after logout
+      window.location.href = '/auth';
+    } catch (error) {
+      console.error('Erro ao sair:', error);
+      toast.error('Erro ao encerrar sessão. Tente novamente.');
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -71,9 +87,18 @@ export default function AccessDenied() {
               Ativar Conta via WhatsApp
             </Button>
 
-            <Button variant="ghost" onClick={signOut} className="w-full gap-2">
-              <LogOut className="h-4 w-4" />
-              Sair da Conta
+            <Button 
+              variant="ghost" 
+              onClick={handleSignOut} 
+              disabled={isLoggingOut}
+              className="w-full gap-2"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="h-4 w-4" />
+              )}
+              {isLoggingOut ? 'Saindo...' : 'Sair da Conta'}
             </Button>
           </div>
         </CardContent>
