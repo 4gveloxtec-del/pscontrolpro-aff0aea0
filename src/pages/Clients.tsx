@@ -6,6 +6,7 @@ import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { useOfflineClients } from '@/hooks/useOfflineClients';
 import { useSentMessages } from '@/hooks/useSentMessages';
 import { useRenewalMutation } from '@/hooks/useRenewalMutation';
+import { useClientValidation } from '@/hooks/useClientValidation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -149,6 +150,7 @@ export default function Clients() {
   const { isOffline, lastSync, syncClients: syncOfflineClients, loading: offlineLoading } = useOfflineClients();
   const { isSent, getSentInfo, clearSentMark, sentCount, clearAllSentMarks } = useSentMessages();
   const { renewClient: executeRenewal, isRenewing, isPending: isRenewalPending, calculateNewExpiration } = useRenewalMutation(user?.id);
+  const { validateForCreate, validateForUpdate, validateForDelete, acquireLock, releaseLock, isLocked } = useClientValidation();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
@@ -542,13 +544,37 @@ export default function Clients() {
   // Maximum clients per shared credential (global limit)
   const MAX_CLIENTS_PER_CREDENTIAL = 3;
 
-  // Validate required fields before saving
-  const validateClientData = (data: Record<string, unknown>): string | null => {
-    if (!data.name || (data.name as string).trim() === '') {
-      return 'Nome do cliente é obrigatório';
+  // Enhanced validation with preventive system
+  const validateAndCorrectClientData = useCallback((
+    data: Record<string, unknown>,
+    operation: 'create' | 'update',
+    clientId?: string
+  ): { isValid: boolean; correctedData: Record<string, unknown>; errorMessage?: string } => {
+    const validationResult = operation === 'create' 
+      ? validateForCreate(data)
+      : validateForUpdate(data, clientId!);
+    
+    if (validationResult.blocked) {
+      return { 
+        isValid: false, 
+        correctedData: data, 
+        errorMessage: 'Aguarde, operação em andamento' 
+      };
     }
-    return null;
-  };
+    
+    if (!validationResult.isValid && validationResult.errors.length > 0) {
+      return { 
+        isValid: false, 
+        correctedData: data, 
+        errorMessage: validationResult.errors[0] 
+      };
+    }
+    
+    return { 
+      isValid: true, 
+      correctedData: validationResult.data as Record<string, unknown> 
+    };
+  }, [validateForCreate, validateForUpdate]);
 
   // Check for duplicate login/mac on the same server
   const checkDuplicates = async (
@@ -577,14 +603,17 @@ export default function Clients() {
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; expiration_date: string; phone?: string | null; email?: string | null; device?: string | null; dns?: string | null; plan_id?: string | null; plan_name?: string | null; plan_price?: number | null; server_id?: string | null; server_name?: string | null; login?: string | null; password?: string | null; is_paid?: boolean; notes?: string | null; screens?: string; category?: string | null; has_paid_apps?: boolean; paid_apps_duration?: string | null; paid_apps_expiration?: string | null; telegram?: string | null; premium_password?: string | null }) => {
-      // Validate required fields
-      const validationError = validateClientData(data as Record<string, unknown>);
-      if (validationError) {
-        throw new Error(validationError);
+      // Preventive validation with auto-correction
+      const validation = validateAndCorrectClientData(data as Record<string, unknown>, 'create');
+      if (!validation.isValid) {
+        throw new Error(validation.errorMessage || 'Dados inválidos');
       }
+      
+      // Use corrected data
+      const correctedData = validation.correctedData as typeof data;
 
       // Extract screens before spreading - it's not a column in the clients table
-      const { screens, ...clientData } = data;
+      const { screens, ...clientData } = correctedData;
       
       // If using shared credit, use the ORIGINAL encrypted credentials to ensure matching
       // Otherwise, check if credentials already exist and use those, or encrypt new ones
@@ -597,15 +626,15 @@ export default function Clients() {
         finalLogin = selectedSharedCredit.encryptedLogin;
         finalPassword = selectedSharedCredit.encryptedPassword || null;
         // Generate fingerprint for shared credit credentials
-        if (data.login) {
-          credentialsFingerprint = await generateFingerprint(data.login, data.password || '');
+        if (correctedData.login) {
+          credentialsFingerprint = await generateFingerprint(correctedData.login, correctedData.password || '');
         }
-      } else if (data.server_id && data.login) {
+      } else if (correctedData.server_id && correctedData.login) {
         // Check if there's already a client with these credentials on this server
         const existingCredentials = await findExistingClientWithCredentials(
-          data.server_id,
-          data.login,
-          data.password || ''
+          correctedData.server_id,
+          correctedData.login,
+          correctedData.password || ''
         );
         
         if (existingCredentials) {
@@ -623,18 +652,18 @@ export default function Clients() {
         } else {
           // New credentials - encrypt them and generate fingerprint
           const [encrypted, fingerprint] = await Promise.all([
-            encryptCredentials(data.login || null, data.password || null),
-            generateFingerprint(data.login, data.password || '')
+            encryptCredentials(correctedData.login || null, correctedData.password || null),
+            generateFingerprint(correctedData.login, correctedData.password || '')
           ]);
           finalLogin = encrypted.login;
           finalPassword = encrypted.password;
           credentialsFingerprint = fingerprint;
         }
-      } else if (data.login) {
+      } else if (correctedData.login) {
         // Has login but no server - encrypt and generate fingerprint
         const [encrypted, fingerprint] = await Promise.all([
-          encryptCredentials(data.login || null, data.password || null),
-          generateFingerprint(data.login, data.password || '')
+          encryptCredentials(correctedData.login || null, correctedData.password || null),
+          generateFingerprint(correctedData.login, correctedData.password || '')
         ]);
         finalLogin = encrypted.login;
         finalPassword = encrypted.password;
@@ -659,8 +688,8 @@ export default function Clients() {
       // No need to insert into panel_clients - the SharedCreditPicker counts directly from clients table
       
       // If it's a credit-based server and NOT using shared credit, register the screens used
-      if (!selectedSharedCredit && data.server_id && insertedData?.id) {
-        const server = servers.find(s => s.id === data.server_id);
+      if (!selectedSharedCredit && correctedData.server_id && insertedData?.id) {
+        const server = servers.find(s => s.id === correctedData.server_id);
         if (server?.is_credit_based) {
           const screensUsed = parseInt(screens || '1');
           const category = formData.category;
@@ -787,23 +816,26 @@ export default function Clients() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Client> }) => {
-      // Validate required fields
-      const validationError = validateClientData(data as Record<string, unknown>);
-      if (validationError) {
-        throw new Error(validationError);
+      // Preventive validation with auto-correction
+      const validation = validateAndCorrectClientData(data as Record<string, unknown>, 'update', id);
+      if (!validation.isValid) {
+        throw new Error(validation.errorMessage || 'Dados inválidos');
       }
+      
+      // Use corrected data
+      const correctedData = validation.correctedData as Partial<Client>;
 
       // Encrypt login and password if they were changed
-      let updateData: Record<string, unknown> = { ...data };
+      let updateData: Record<string, unknown> = { ...correctedData };
 
       // Never send form-only fields to the clients table
       const { screens: _screens, ...cleanUpdateData } = updateData as Record<string, any>;
       updateData = cleanUpdateData;
 
-      if (data.login !== undefined || data.password !== undefined) {
-        const serverId = (data as any).server_id;
-        const plainLogin = (data as any).login || '';
-        const plainPassword = (data as any).password || '';
+      if (correctedData.login !== undefined || correctedData.password !== undefined) {
+        const serverId = (correctedData as any).server_id;
+        const plainLogin = (correctedData as any).login || '';
+        const plainPassword = (correctedData as any).password || '';
         
         // If we have shared credit selected, use those encrypted credentials
         if (selectedSharedCredit?.encryptedLogin) {
@@ -984,9 +1016,24 @@ export default function Clients() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('clients').delete().eq('id', id);
-      if (error) throw error;
-      return id;
+      // Preventive check - ensure not locked
+      const validation = validateForDelete(id);
+      if (validation.blocked) {
+        throw new Error('Aguarde, operação em andamento');
+      }
+      
+      // Acquire lock
+      if (!acquireLock(id)) {
+        throw new Error('Aguarde, operação em andamento');
+      }
+      
+      try {
+        const { error } = await supabase.from('clients').delete().eq('id', id);
+        if (error) throw error;
+        return id;
+      } finally {
+        releaseLock(id);
+      }
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['clients'] });
