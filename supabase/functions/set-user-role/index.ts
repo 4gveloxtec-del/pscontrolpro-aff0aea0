@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type AppRole = "admin" | "seller";
+type AppRole = "admin" | "seller" | "user";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -56,8 +56,8 @@ serve(async (req) => {
     const user_id = typeof body.user_id === "string" ? body.user_id.trim() : null;
     const role = (body.role as AppRole) ?? null;
 
-    if (!role || (role !== "admin" && role !== "seller")) {
-      return new Response(JSON.stringify({ error: "Invalid role" }), {
+    if (!role || !["admin", "seller", "user"].includes(role)) {
+      return new Response(JSON.stringify({ error: "Invalid role. Must be admin, seller, or user" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

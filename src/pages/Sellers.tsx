@@ -106,7 +106,7 @@ export default function Sellers() {
   const [roleFixEmail, setRoleFixEmail] = useState('');
 
   const setUserRoleMutation = useMutation({
-    mutationFn: async (payload: { email: string; role: 'admin' | 'seller' }) => {
+    mutationFn: async (payload: { email?: string; user_id?: string; role: 'admin' | 'seller' | 'user' }) => {
       const { data: result, error } = await supabase.functions.invoke('set-user-role', {
         body: payload,
         headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -118,7 +118,9 @@ export default function Sellers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sellers'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
       toast.success('Permissão atualizada!');
+      setRoleFixEmail('');
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -129,8 +131,9 @@ export default function Sellers() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const { data: sellers = [], isLoading } = useQuery({
-    queryKey: ['sellers'],
+  // Fetch all users with their roles
+  const { data: allUsersData = { sellers: [], pendingUsers: [] }, isLoading } = useQuery({
+    queryKey: ['sellers', 'pending-users'],
     queryFn: async () => {
       const { data: profiles, error } = await supabase
         .from('profiles')
@@ -142,7 +145,15 @@ export default function Sellers() {
         .from('user_roles')
         .select('user_id, role');
 
+      const roleMap: Record<string, string> = {};
+      roles?.forEach(r => {
+        roleMap[r.user_id] = r.role;
+      });
+
       const adminIds = roles?.filter(r => r.role === 'admin').map(r => r.user_id) || [];
+      const sellerIds = roles?.filter(r => r.role === 'seller').map(r => r.user_id) || [];
+      // Use string comparison for 'user' role since DB type might not include it yet
+      const userIds = roles?.filter(r => (r.role as string) === 'user').map(r => r.user_id) || [];
       
       // Get client counts for each seller
       const { data: clientCounts } = await supabase
@@ -155,11 +166,23 @@ export default function Sellers() {
         countMap[c.seller_id] = (countMap[c.seller_id] || 0) + 1;
       });
       
-      return (profiles as Seller[])
-        .filter(p => !adminIds.includes(p.id))
-        .map(p => ({ ...p, client_count: countMap[p.id] || 0 }));
+      const allProfiles = profiles as Seller[];
+      
+      // Sellers (revendedores ativos)
+      const sellers = allProfiles
+        .filter(p => sellerIds.includes(p.id))
+        .map(p => ({ ...p, client_count: countMap[p.id] || 0, userRole: 'seller' as const }));
+      
+      // Pending users (aguardando aprovação)
+      const pendingUsers = allProfiles
+        .filter(p => userIds.includes(p.id))
+        .map(p => ({ ...p, client_count: 0, userRole: 'user' as const }));
+      
+      return { sellers, pendingUsers };
     },
   });
+
+  const { sellers, pendingUsers } = allUsersData;
 
   // Fetch admin templates for sellers
   const { data: sellerTemplates = [] } = useQuery({
@@ -609,6 +632,47 @@ export default function Sellers() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pending Users Section - Users awaiting approval */}
+      {pendingUsers.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-warning/30" />
+            <span className="text-sm font-semibold text-warning px-3 py-1 bg-warning/10 rounded-full">
+              ⏳ {pendingUsers.length} Usuário(s) Aguardando Aprovação
+            </span>
+            <div className="h-px flex-1 bg-warning/30" />
+          </div>
+          
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingUsers.map((user) => (
+              <Card key={user.id} className="border-warning/50 bg-warning/5">
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold truncate">{user.full_name || user.email.split('@')[0]}</h4>
+                      <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                      {user.whatsapp && (
+                        <p className="text-xs text-muted-foreground">{user.whatsapp}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-success hover:bg-success/90"
+                        disabled={setUserRoleMutation.isPending}
+                        onClick={() => setUserRoleMutation.mutate({ user_id: user.id, role: 'seller' })}
+                      >
+                        ✓ Aprovar como Vendedor
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Sellers List */}
       {isLoading ? (

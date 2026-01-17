@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type AppRole = 'admin' | 'seller';
+type AppRole = 'admin' | 'seller' | 'user';
 
 interface Profile {
   id: string;
@@ -24,6 +24,8 @@ interface AuthContextType {
   role: AppRole | null;
   isAdmin: boolean;
   isSeller: boolean;
+  isUser: boolean;
+  hasSystemAccess: boolean; // true se admin ou seller
   loading: boolean;
   needsPasswordUpdate: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -292,14 +294,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const isAdmin = role === 'admin';
+  const isSeller = role === 'seller';
+  const isUser = role === 'user';
+  const hasSystemAccess = isAdmin || isSeller;
+
   return (
     <AuthContext.Provider value={{
       user,
       session,
       profile,
       role,
-      isAdmin: role === 'admin',
-      isSeller: role === 'seller',
+      isAdmin,
+      isSeller,
+      isUser,
+      hasSystemAccess,
       loading,
       needsPasswordUpdate: profile?.needs_password_update ?? false,
       signIn,

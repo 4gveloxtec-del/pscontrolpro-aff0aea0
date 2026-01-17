@@ -122,8 +122,11 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-xs text-sidebar-foreground/60 truncate">
             {profile?.full_name || profile?.email}
           </p>
-          <p className="text-xs text-primary font-medium">
-            {isAdmin ? 'Administrador' : 'Vendedor'}
+          <p className={cn(
+            "text-xs font-medium",
+            isAdmin ? "text-primary" : isSeller ? "text-success" : "text-warning"
+          )}>
+            {isAdmin ? 'Administrador' : isSeller ? 'Vendedor' : 'Usuário'}
           </p>
         </div>
         <Button
@@ -140,7 +143,7 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppLayout() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasSystemAccess } = useAuth();
   const isMobile = useIsMobile();
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -161,6 +164,11 @@ export function AppLayout() {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Se usuário não tem acesso ao sistema (role = 'user'), redireciona
+  if (!hasSystemAccess) {
+    return <Navigate to="/access-denied" replace />;
   }
 
   const handleShare = async () => {
