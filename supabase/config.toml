@@ -1,1 +1,7 @@
 project_id = "kgtqnjhmwsvswhrczqaf"
+
+[functions.reset-trial]
+verify_jwt = false
+
+[functions.set-user-role]
+verify_jwt = false
