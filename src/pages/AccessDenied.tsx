@@ -28,16 +28,14 @@ export default function AccessDenied() {
   const handleResetTrial = async () => {
     setResetting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await supabase.functions.invoke('reset-trial', {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-      });
+      const { data, error } = await supabase.functions.invoke('reset-trial');
 
-      if (response.error) {
-        throw new Error(response.error.message);
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       toast.success('Período de teste reiniciado! Recarregando...');
