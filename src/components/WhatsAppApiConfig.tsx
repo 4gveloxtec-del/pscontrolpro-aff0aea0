@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useWhatsAppConfig } from '@/hooks/useWhatsAppConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,86 +16,51 @@ import {
   EyeOff,
   Loader2,
   Send,
-  Zap
+  Zap,
+  Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface WhatsAppConfig {
-  id?: string;
-  user_id: string;
-  api_url: string;
-  api_token: string;
-  instance_name: string;
-  is_connected: boolean;
-  auto_send_enabled: boolean;
-  last_check_at: string | null;
-}
-
 export function WhatsAppApiConfig() {
   const { user, isAdmin } = useAuth();
+  const { config, isLoading, saveConfig, recordNotificationSent, wasNotificationSent } = useWhatsAppConfig();
+  
   const [showToken, setShowToken] = useState(false);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [config, setConfig] = useState<WhatsAppConfig | null>(null);
+  const [isRunningAutomation, setIsRunningAutomation] = useState(false);
   const [formData, setFormData] = useState({
     api_url: '',
     api_token: '',
     instance_name: '',
     auto_send_enabled: false,
+    is_connected: false,
   });
 
-  // Fetch existing config
+  // Load config into form
   useEffect(() => {
-    async function fetchConfig() {
-      if (!user?.id) return;
-      try {
-        const { data, error } = await supabase
-          .from('whatsapp_api_config' as any)
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        if (!error && data) {
-          const configData = data as unknown as WhatsAppConfig;
-          setConfig(configData);
-          setFormData({
-            api_url: configData.api_url || '',
-            api_token: configData.api_token || '',
-            instance_name: configData.instance_name || '',
-            auto_send_enabled: configData.auto_send_enabled || false,
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching config:', err);
-      } finally {
-        setIsLoading(false);
-      }
+    if (config) {
+      setFormData({
+        api_url: config.api_url || '',
+        api_token: config.api_token || '',
+        instance_name: config.instance_name || '',
+        auto_send_enabled: config.auto_send_enabled || false,
+        is_connected: config.is_connected || false,
+      });
     }
-    fetchConfig();
-  }, [user?.id]);
+  }, [config]);
 
   // Save config
   const handleSave = async () => {
-    if (!user?.id) return;
     setIsSaving(true);
     try {
-      if (config?.id) {
-        await supabase
-          .from('whatsapp_api_config' as any)
-          .update({
-            ...formData,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', config.id);
-      } else {
-        await supabase
-          .from('whatsapp_api_config' as any)
-          .insert({
-            user_id: user.id,
-            ...formData,
-          });
-      }
+      saveConfig({
+        api_url: formData.api_url,
+        api_token: formData.api_token,
+        instance_name: formData.instance_name,
+        auto_send_enabled: formData.auto_send_enabled,
+        is_connected: formData.is_connected,
+      });
       toast.success('Configuração salva!');
     } catch (error: any) {
       toast.error(error.message);
@@ -128,14 +94,62 @@ export function WhatsAppApiConfig() {
 
       if (data.connected) {
         toast.success('WhatsApp conectado!');
-        setConfig(prev => prev ? { ...prev, is_connected: true } : null);
+        const newConfig = { ...formData, is_connected: true };
+        setFormData(newConfig);
+        saveConfig(newConfig);
       } else {
         toast.error('WhatsApp não conectado.');
+        const newConfig = { ...formData, is_connected: false };
+        setFormData(newConfig);
+        saveConfig(newConfig);
       }
     } catch (error: any) {
       toast.error('Erro: ' + error.message);
     } finally {
       setIsCheckingConnection(false);
+    }
+  };
+
+  // Run automation manually
+  const runAutomation = async () => {
+    if (!formData.is_connected) {
+      toast.error('Conecte o WhatsApp primeiro');
+      return;
+    }
+
+    setIsRunningAutomation(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-automation', {
+        body: {
+          sellerId: user?.id,
+          config: {
+            api_url: formData.api_url,
+            api_token: formData.api_token,
+            instance_name: formData.instance_name,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      // Record sent notifications locally
+      if (data.results) {
+        for (const result of data.results) {
+          if (result.clientId && result.notificationType && result.expirationDate) {
+            recordNotificationSent(result.clientId, result.notificationType, result.expirationDate);
+          }
+        }
+      }
+
+      if (data.sent > 0) {
+        toast.success(`${data.sent} mensagem(ns) enviada(s)!`);
+      } else {
+        toast.info('Nenhum cliente para notificar hoje');
+      }
+    } catch (error: any) {
+      toast.error('Erro: ' + error.message);
+    } finally {
+      setIsRunningAutomation(false);
     }
   };
 
@@ -178,15 +192,15 @@ export function WhatsAppApiConfig() {
       {/* Connection Status */}
       <div className={cn(
         "p-4 rounded-lg border flex items-center gap-4",
-        config?.is_connected 
+        formData.is_connected 
           ? "bg-success/10 border-success/30" 
           : "bg-destructive/10 border-destructive/30"
       )}>
         <div className={cn(
           "w-12 h-12 rounded-full flex items-center justify-center",
-          config?.is_connected ? "bg-success/20" : "bg-destructive/20"
+          formData.is_connected ? "bg-success/20" : "bg-destructive/20"
         )}>
-          {config?.is_connected ? (
+          {formData.is_connected ? (
             <Wifi className="h-6 w-6 text-success" />
           ) : (
             <WifiOff className="h-6 w-6 text-destructive" />
@@ -194,11 +208,11 @@ export function WhatsAppApiConfig() {
         </div>
         <div className="flex-1">
           <p className="font-medium">
-            {config?.is_connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
+            {formData.is_connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
           </p>
           <p className="text-sm text-muted-foreground">
-            {config?.is_connected 
-              ? 'Mensagens automáticas ativas' 
+            {formData.is_connected 
+              ? 'Pronto para enviar mensagens' 
               : 'Configure a API para ativar'}
           </p>
         </div>
@@ -262,7 +276,7 @@ export function WhatsAppApiConfig() {
         <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
           <div>
             <Label>Envio Automático</Label>
-            <p className="text-sm text-muted-foreground">Enviar mensagens automaticamente</p>
+            <p className="text-sm text-muted-foreground">Habilitar envio automático</p>
           </div>
           <Switch
             checked={formData.auto_send_enabled}
@@ -275,11 +289,21 @@ export function WhatsAppApiConfig() {
             {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Salvar
           </Button>
-          {config?.is_connected && (
-            <Button variant="outline" onClick={sendTestMessage}>
-              <Send className="h-4 w-4 mr-2" />
-              Testar
-            </Button>
+          {formData.is_connected && (
+            <>
+              <Button variant="outline" onClick={sendTestMessage}>
+                <Send className="h-4 w-4 mr-2" />
+                Testar
+              </Button>
+              <Button variant="secondary" onClick={runAutomation} disabled={isRunningAutomation}>
+                {isRunningAutomation ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Executar
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -300,7 +324,8 @@ export function WhatsAppApiConfig() {
             <>
               <li>• Apps Pagos: notifica 30 dias, 3 dias e no vencimento</li>
               <li>• IPTV/Planos: notifica 3 dias e no vencimento</li>
-              <li>• Cada mensagem é enviada apenas uma vez por ciclo</li>
+              <li>• Clique em "Executar" para enviar as mensagens do dia</li>
+              <li>• O tracking é feito localmente no navegador</li>
             </>
           )}
         </ul>

@@ -17,6 +17,9 @@ interface Client {
   plan_price: number;
   has_paid_apps: boolean;
   paid_apps_expiration: string;
+  login: string;
+  password: string;
+  server_name: string;
 }
 
 interface Profile {
@@ -34,8 +37,6 @@ interface WhatsAppConfig {
   api_url: string;
   api_token: string;
   instance_name: string;
-  is_connected: boolean;
-  auto_send_enabled: boolean;
 }
 
 // Send message via Evolution API
@@ -105,6 +106,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Parse request body for config and options
+    const body = await req.json().catch(() => ({}));
+    const { config: manualConfig, sellerId, skipTracking } = body;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
@@ -121,175 +126,32 @@ serve(async (req) => {
     console.log('Running WhatsApp automation check...');
     console.log(`Today: ${todayStr}, +3 days: ${in3DaysStr}, +30 days: ${in30DaysStr}`);
 
-    // Get all WhatsApp configs with auto_send enabled
-    const { data: configs } = await supabase
-      .from('whatsapp_api_config')
-      .select('*')
-      .eq('auto_send_enabled', true)
-      .eq('is_connected', true);
-
-    if (!configs || configs.length === 0) {
-      console.log('No active WhatsApp configurations found');
-      return new Response(
-        JSON.stringify({ message: 'No active configurations', sent: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Found ${configs.length} active configurations`);
-
     let totalSent = 0;
     const results: any[] = [];
+    const clientsToNotify: any[] = [];
 
-    // Get admin config for reseller notifications
-    const { data: adminRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
-
-    const adminIds = adminRoles?.map(r => r.user_id) || [];
-    
-    // Get admin WhatsApp config
-    const { data: adminConfigs } = await supabase
-      .from('whatsapp_api_config')
-      .select('*')
-      .in('user_id', adminIds)
-      .eq('auto_send_enabled', true)
-      .eq('is_connected', true);
-
-    const adminConfig = adminConfigs?.[0] as WhatsAppConfig | undefined;
-
-    // PART 1: Admin → Reseller notifications
-    if (adminConfig) {
-      console.log('Processing admin to reseller notifications...');
-
-      // Get admin profile for template variables
-      const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', adminConfig.user_id)
-        .single();
-
-      // Get app price
-      const { data: appPriceSetting } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'app_monthly_price')
-        .single();
-
-      const appPrice = appPriceSetting?.value || '25';
-
-      // Get resellers expiring in 3 days or today
-      const { data: expiringResellers } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`subscription_expires_at.eq.${todayStr},subscription_expires_at.eq.${in3DaysStr}`)
-        .eq('is_active', true);
-
-      // Get admin templates
-      const { data: adminTemplates } = await supabase
-        .from('whatsapp_templates')
-        .select('*')
-        .eq('seller_id', adminConfig.user_id);
-
-      for (const reseller of expiringResellers || []) {
-        if (!reseller.whatsapp) continue;
-
-        const expirationDate = new Date(reseller.subscription_expires_at);
-        const daysLeft = daysUntil(reseller.subscription_expires_at);
-
-        let notificationType = '';
-        let templateType = '';
-
-        if (daysLeft === 0) {
-          notificationType = 'plano_vencimento';
-          templateType = 'expired';
-        } else if (daysLeft === 3) {
-          notificationType = 'plano_3_dias';
-          templateType = 'expiring_3days';
-        } else {
-          continue;
-        }
-
-        // Check if notification already sent
-        const { data: existing } = await supabase
-          .from('reseller_notification_tracking')
-          .select('id')
-          .eq('reseller_id', reseller.id)
-          .eq('notification_type', notificationType)
-          .eq('expiration_cycle_date', reseller.subscription_expires_at)
-          .single();
-
-        if (existing) {
-          console.log(`Notification ${notificationType} already sent to reseller ${reseller.id}`);
-          continue;
-        }
-
-        // Find template
-        const template = adminTemplates?.find(t => 
-          t.type === templateType && t.name.toLowerCase().includes('vendedor')
-        );
-
-        if (!template) {
-          console.log(`No template found for ${templateType} vendedor`);
-          continue;
-        }
-
-        // Replace variables
-        const message = replaceVariables(template.message, {
-          nome: reseller.full_name || 'Revendedor',
-          email: reseller.email,
-          whatsapp: reseller.whatsapp,
-          vencimento: formatDate(reseller.subscription_expires_at),
-          valor: appPrice,
-          pix: adminProfile?.pix_key || '',
-          empresa: adminProfile?.company_name || '',
-        });
-
-        // Send message
-        const sent = await sendEvolutionMessage(adminConfig, reseller.whatsapp, message);
-
-        if (sent) {
-          // Record notification
-          await supabase.from('reseller_notification_tracking').insert({
-            reseller_id: reseller.id,
-            notification_type: notificationType,
-            expiration_cycle_date: reseller.subscription_expires_at,
-            sent_via: 'whatsapp',
-          });
-
-          totalSent++;
-          results.push({
-            type: 'reseller',
-            reseller: reseller.full_name,
-            notificationType,
-          });
-        }
-      }
-    }
-
-    // PART 2: Reseller → Client notifications
-    for (const config of configs) {
-      console.log(`Processing notifications for seller ${config.user_id}`);
-
+    // If manual config provided, use that
+    if (manualConfig && sellerId) {
+      console.log(`Processing manual automation for seller ${sellerId}`);
+      
       // Get seller profile
       const { data: sellerProfile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', config.user_id)
+        .eq('id', sellerId)
         .single();
 
       // Get seller templates
       const { data: templates } = await supabase
         .from('whatsapp_templates')
         .select('*')
-        .eq('seller_id', config.user_id);
+        .eq('seller_id', sellerId);
 
       // Get clients expiring in relevant timeframes
       const { data: clients } = await supabase
         .from('clients')
         .select('*')
-        .eq('seller_id', config.user_id)
+        .eq('seller_id', sellerId)
         .eq('is_archived', false)
         .or(`expiration_date.eq.${todayStr},expiration_date.eq.${in3DaysStr},expiration_date.eq.${in30DaysStr}`);
 
@@ -310,24 +172,9 @@ serve(async (req) => {
           notificationType = isPaidApp ? 'app_3_dias' : 'iptv_3_dias';
           templateType = 'expiring_3days';
         } else if (daysLeft === 30 && isPaidApp) {
-          // Only paid apps get 30-day notification
           notificationType = 'app_30_dias';
           templateType = 'billing';
         } else {
-          continue;
-        }
-
-        // Check if notification already sent
-        const { data: existing } = await supabase
-          .from('client_notification_tracking')
-          .select('id')
-          .eq('client_id', client.id)
-          .eq('notification_type', notificationType)
-          .eq('expiration_cycle_date', client.expiration_date)
-          .single();
-
-        if (existing) {
-          console.log(`Notification ${notificationType} already sent to client ${client.id}`);
           continue;
         }
 
@@ -357,25 +204,29 @@ serve(async (req) => {
           servico: client.category || 'IPTV',
         });
 
+        // Add to list for frontend tracking
+        clientsToNotify.push({
+          clientId: client.id,
+          clientName: client.name,
+          phone: client.phone,
+          notificationType,
+          templateType,
+          message,
+          expirationDate: client.expiration_date,
+        });
+
         // Send message
-        const sent = await sendEvolutionMessage(config, client.phone, message);
+        const sent = await sendEvolutionMessage(manualConfig, client.phone, message);
 
         if (sent) {
-          // Record notification
-          await supabase.from('client_notification_tracking').insert({
-            client_id: client.id,
-            seller_id: config.user_id,
-            notification_type: notificationType,
-            expiration_cycle_date: client.expiration_date,
-            sent_via: 'whatsapp',
-          });
-
           totalSent++;
           results.push({
             type: 'client',
-            seller: config.user_id,
+            seller: sellerId,
             client: client.name,
+            clientId: client.id,
             notificationType,
+            expirationDate: client.expiration_date,
           });
         }
 
@@ -391,7 +242,9 @@ serve(async (req) => {
         success: true, 
         message: 'Automation complete',
         sent: totalSent,
-        results 
+        results,
+        clientsToNotify,
+        dateChecked: todayStr,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
