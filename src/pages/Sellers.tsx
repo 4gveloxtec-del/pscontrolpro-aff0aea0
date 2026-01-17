@@ -102,6 +102,29 @@ export default function Sellers() {
   const [newSellerWhatsapp, setNewSellerWhatsapp] = useState('');
   const [newSellerDays, setNewSellerDays] = useState('30');
 
+  // Quick role fix (when someone was created as admin by mistake)
+  const [roleFixEmail, setRoleFixEmail] = useState('');
+
+  const setUserRoleMutation = useMutation({
+    mutationFn: async (payload: { email: string; role: 'admin' | 'seller' }) => {
+      const { data: result, error } = await supabase.functions.invoke('set-user-role', {
+        body: payload,
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sellers'] });
+      toast.success('Permissão atualizada!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -539,6 +562,53 @@ export default function Sellers() {
           </TabsList>
         </Tabs>
       </div>
+
+      {/* Quick role fix */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="role-fix-email">Corrigir permissão (se virou ADM por engano)</Label>
+              <Input
+                id="role-fix-email"
+                type="email"
+                placeholder="email@exemplo.com"
+                value={roleFixEmail}
+                onChange={(e) => setRoleFixEmail(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Digite o email do usuário e defina como Vendedor. (Isso corrige casos como o Sandel.)
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                disabled={!roleFixEmail || setUserRoleMutation.isPending}
+                onClick={() =>
+                  setUserRoleMutation.mutate({
+                    email: roleFixEmail,
+                    role: 'seller',
+                  })
+                }
+              >
+                {setUserRoleMutation.isPending ? 'Ajustando...' : 'Definir como Vendedor'}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={!roleFixEmail || setUserRoleMutation.isPending}
+                onClick={() =>
+                  setUserRoleMutation.mutate({
+                    email: roleFixEmail,
+                    role: 'admin',
+                  })
+                }
+              >
+                Definir como ADM
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Sellers List */}
       {isLoading ? (
