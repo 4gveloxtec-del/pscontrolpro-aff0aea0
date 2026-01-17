@@ -18,9 +18,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Server, DollarSign, Edit, Trash2, Coins, ExternalLink, Monitor, Wifi, Calendar, Users, Image, Sparkles, Search, Link, CheckCircle2 } from 'lucide-react';
+import { Plus, Server, DollarSign, Edit, Trash2, Coins, ExternalLink, Monitor, Wifi, Calendar, Users, Image, Sparkles, Search, Link, CheckCircle2, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ServerCreditClients } from '@/components/ServerCreditClients';
+import { ServerAppsManager } from '@/components/ServerAppsManager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ServerData {
@@ -67,6 +68,7 @@ export default function Servers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<ServerData | null>(null);
   const [creditClientsServer, setCreditClientsServer] = useState<ServerData | null>(null);
+  const [appsServer, setAppsServer] = useState<ServerData | null>(null);
   const [templateApplied, setTemplateApplied] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -905,6 +907,16 @@ export default function Servers() {
                     <p className="text-sm text-muted-foreground mb-4">{server.notes}</p>
                   )}
                   <div className="flex items-center gap-2 pt-3 border-t border-border">
+                    {/* Apps Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setAppsServer(server)}
+                    >
+                      <Smartphone className="h-4 w-4 mr-1" />
+                      Apps
+                    </Button>
                     {((server.iptv_per_credit || 0) > 0 || (server.p2p_per_credit || 0) > 0) && (
                       <Button 
                         variant="outline" 
@@ -952,6 +964,16 @@ export default function Servers() {
           creditPrice={creditClientsServer.credit_price || 0}
           isOpen={!!creditClientsServer}
           onClose={() => setCreditClientsServer(null)}
+        />
+      )}
+
+      {/* Server Apps Manager Dialog */}
+      {appsServer && (
+        <ServerAppsManager
+          serverId={appsServer.id}
+          serverName={appsServer.name}
+          isOpen={!!appsServer}
+          onClose={() => setAppsServer(null)}
         />
       )}
     </div>

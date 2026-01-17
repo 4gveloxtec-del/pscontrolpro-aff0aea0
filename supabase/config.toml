@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.create-default-data]
 verify_jwt = false
+
+[functions.setup-server-apps]
+verify_jwt = false
