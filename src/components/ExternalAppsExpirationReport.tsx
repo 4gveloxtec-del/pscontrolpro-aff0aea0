@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +58,7 @@ export function ExternalAppsExpirationReport() {
         .order('expiration_date', { ascending: true });
 
       if (error) throw error;
-      return (data || []) as ExternalAppExpiration[];
+      return (data || []) as unknown as ExternalAppExpiration[];
     },
     enabled: !!user?.id,
   });

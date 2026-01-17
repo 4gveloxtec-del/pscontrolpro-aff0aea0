@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { X, Bell, Clock, AlertTriangle, MessageCircle, ChevronDown, Calendar, Repeat, AppWindow, UserX, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

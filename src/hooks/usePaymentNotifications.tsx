@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { differenceInDays, startOfToday, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseExternal as supabase } from '@/lib/supabase-external';
 
 const VAPID_PUBLIC_KEY_STORAGE = 'vapid_public_key';
 const PUSH_SUBSCRIPTION_STORAGE = 'push_subscription_active';
