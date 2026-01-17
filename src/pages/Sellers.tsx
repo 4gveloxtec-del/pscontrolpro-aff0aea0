@@ -109,7 +109,6 @@ export default function Sellers() {
     mutationFn: async (payload: { email?: string; user_id?: string; role: 'admin' | 'seller' | 'user' }) => {
       const { data: result, error } = await supabase.functions.invoke('set-user-role', {
         body: payload,
-        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
 
       if (error) throw error;
@@ -131,7 +130,6 @@ export default function Sellers() {
     mutationFn: async (userId: string) => {
       const { data: result, error } = await supabase.functions.invoke('reset-trial', {
         body: { user_id: userId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
 
       if (error) throw error;

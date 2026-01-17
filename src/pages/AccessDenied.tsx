@@ -1,16 +1,13 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldX, LogOut, Clock, Mail, MessageCircle, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ShieldX, LogOut, Clock, Mail, MessageCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export default function AccessDenied() {
-  const { profile, signOut, role, trialInfo, hasSystemAccess, isAdmin } = useAuth();
+  const { profile, signOut, role, hasSystemAccess } = useAuth();
   const navigate = useNavigate();
-  const [resetting, setResetting] = useState(false);
 
   // Se o usuário ainda está em período de teste, redirecionar para dashboard
   useEffect(() => {
@@ -25,40 +22,10 @@ export default function AccessDenied() {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  const handleResetTrial = async () => {
-    setResetting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('reset-trial');
-
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      toast.success('Período de teste reiniciado! Recarregando...');
-      
-      // Clear cache and reload
-      localStorage.removeItem('cached_profile');
-      localStorage.removeItem('cached_role');
-      localStorage.removeItem('cached_user_id');
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } catch (error: any) {
-      toast.error('Erro ao reiniciar teste: ' + error.message);
-    } finally {
-      setResetting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-destructive/5 via-transparent to-warning/10 pointer-events-none" />
-      
+
       <Card className="w-full max-w-md relative z-10 border-destructive/50">
         <CardHeader className="text-center">
           <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
@@ -69,7 +36,7 @@ export default function AccessDenied() {
             Seu teste gratuito de 5 dias terminou. Entre em contato para continuar usando o sistema.
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           <div className="bg-muted/50 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2 text-sm">
@@ -90,34 +57,21 @@ export default function AccessDenied() {
           </div>
 
           <div className="text-center text-sm text-muted-foreground">
-            <p>Gostou do sistema? Entre em contato para ativar sua conta como <strong>Revendedor</strong> e continuar gerenciando seus clientes!</p>
+            <p>
+              Gostou do sistema? Entre em contato para ativar sua conta como <strong>Revendedor</strong> e continuar gerenciando seus clientes!
+            </p>
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button 
+            <Button
               onClick={openAdminWhatsApp}
-              className="w-full gap-2 bg-green-600 hover:bg-green-700"
+              className="w-full gap-2 bg-success text-success-foreground hover:bg-success/90"
             >
               <MessageCircle className="h-4 w-4" />
               Ativar Conta via WhatsApp
             </Button>
-            
-            {/* Botão para reiniciar teste (para testes/admin) */}
-            <Button 
-              variant="outline"
-              onClick={handleResetTrial}
-              disabled={resetting}
-              className="w-full gap-2"
-            >
-              <RotateCcw className={`h-4 w-4 ${resetting ? 'animate-spin' : ''}`} />
-              {resetting ? 'Reiniciando...' : 'Reiniciar Período de Teste'}
-            </Button>
-            
-            <Button 
-              variant="ghost" 
-              onClick={signOut}
-              className="w-full gap-2"
-            >
+
+            <Button variant="ghost" onClick={signOut} className="w-full gap-2">
               <LogOut className="h-4 w-4" />
               Sair da Conta
             </Button>
