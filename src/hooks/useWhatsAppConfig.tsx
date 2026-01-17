@@ -10,7 +10,7 @@ interface WhatsAppConfig {
   instance_name: string;
   is_connected: boolean;
   auto_send_enabled: boolean;
-  last_check_at?: string | null;
+  last_connection_check?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -23,6 +23,7 @@ interface NotificationRecord {
   expiration_cycle_date: string;
   sent_at: string;
   sent_via: string;
+  service_type?: string;
   clients?: { name: string };
 }
 
@@ -41,15 +42,13 @@ export function useWhatsAppConfig() {
 
     try {
       setError(null);
-      // Using 'as any' because table may not exist in generated types
-      const { data, error: fetchError } = await (supabase
-        .from('whatsapp_api_config' as any)
+      const { data, error: fetchError } = await supabase
+        .from('whatsapp_api_config')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle() as any);
+        .maybeSingle();
 
       if (fetchError) {
-        // Table might not exist
         if (fetchError.code === '42P01') {
           console.log('WhatsApp config table does not exist yet');
           setError('Tabela não existe. Execute o setup primeiro.');
@@ -81,8 +80,8 @@ export function useWhatsAppConfig() {
       
       if (config?.id) {
         // Update existing
-        const { error: updateError } = await (supabase
-          .from('whatsapp_api_config' as any)
+        const { error: updateError } = await supabase
+          .from('whatsapp_api_config')
           .update({
             api_url: newConfig.api_url,
             api_token: newConfig.api_token,
@@ -91,7 +90,7 @@ export function useWhatsAppConfig() {
             auto_send_enabled: newConfig.auto_send_enabled,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', config.id) as any);
+          .eq('id', config.id);
 
         if (updateError) {
           setError(updateError.message);
@@ -101,8 +100,8 @@ export function useWhatsAppConfig() {
         setConfig(prev => prev ? { ...prev, ...newConfig } : null);
       } else {
         // Insert new
-        const { data, error: insertError } = await (supabase
-          .from('whatsapp_api_config' as any)
+        const { data, error: insertError } = await supabase
+          .from('whatsapp_api_config')
           .insert({
             user_id: user.id,
             api_url: newConfig.api_url,
@@ -112,7 +111,7 @@ export function useWhatsAppConfig() {
             auto_send_enabled: newConfig.auto_send_enabled,
           })
           .select()
-          .single() as any);
+          .single();
 
         if (insertError) {
           setError(insertError.message);
@@ -135,14 +134,14 @@ export function useWhatsAppConfig() {
     if (!config?.id) return;
 
     try {
-      await (supabase
-        .from('whatsapp_api_config' as any)
+      await supabase
+        .from('whatsapp_api_config')
         .update({
           is_connected: isConnected,
-          last_check_at: new Date().toISOString(),
+          last_connection_check: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', config.id) as any);
+        .eq('id', config.id);
 
       setConfig(prev => prev ? { ...prev, is_connected: isConnected } : null);
     } catch (err) {
@@ -159,13 +158,13 @@ export function useWhatsAppConfig() {
     if (!user?.id) return false;
 
     try {
-      const { data } = await (supabase
-        .from('client_notification_tracking' as any)
+      const { data } = await supabase
+        .from('client_notification_tracking')
         .select('id')
         .eq('client_id', clientId)
         .eq('notification_type', notificationType)
         .eq('expiration_cycle_date', expirationDate)
-        .maybeSingle() as any);
+        .maybeSingle();
 
       return !!data;
     } catch {
@@ -183,13 +182,13 @@ export function useWhatsAppConfig() {
     if (!user?.id) return;
 
     try {
-      await (supabase.from('client_notification_tracking' as any).insert({
+      await supabase.from('client_notification_tracking').insert({
         client_id: clientId,
         seller_id: user.id,
         notification_type: notificationType,
         expiration_cycle_date: expirationDate,
         sent_via: sentVia,
-      }) as any);
+      });
     } catch (err) {
       console.error('Error recording notification:', err);
     }
@@ -200,14 +199,14 @@ export function useWhatsAppConfig() {
     if (!user?.id) return [];
 
     try {
-      const { data } = await (supabase
-        .from('client_notification_tracking' as any)
+      const { data } = await supabase
+        .from('client_notification_tracking')
         .select('*, clients(name)')
         .eq('seller_id', user.id)
         .order('sent_at', { ascending: false })
-        .limit(limit) as any);
+        .limit(limit);
 
-      return (data || []) as NotificationRecord[];
+      return (data || []) as unknown as NotificationRecord[];
     } catch {
       return [];
     }
