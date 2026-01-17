@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,

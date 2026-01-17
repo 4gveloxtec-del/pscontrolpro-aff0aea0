@@ -1,4 +1,4 @@
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BruteForceHook {
   checkLoginAttempt: (email: string) => Promise<{ isBlocked: boolean; remainingAttempts: number }>;

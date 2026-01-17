@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
-
+// Usa o Lovable Cloud para autenticação e dados principais
+import { supabase } from '@/integrations/supabase/client';
 type AppRole = 'admin' | 'seller' | 'user';
 
 interface Profile {
@@ -234,8 +234,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Silently handle role fetch errors
       }
 
-      const nextProfile = (profileResult.data as Profile | null) ?? null;
-      const nextRole = (roleResult.data?.role as AppRole | null) ?? null;
+      let nextProfile = (profileResult.data as Profile | null) ?? null;
+      let nextRole = (roleResult.data?.role as AppRole | null) ?? null;
+
+      // Se o usuário não tem role, tentar corrigir automaticamente
+      if (!nextRole && session?.access_token) {
+        console.log('[useAuth] User has no role, attempting to fix...');
+        try {
+          const { data: fixData, error: fixError } = await supabase.functions.invoke('fix-user-roles', {
+            headers: { Authorization: `Bearer ${session.access_token}` }
+          });
+          
+          if (!fixError && fixData?.role) {
+            console.log('[useAuth] Role fixed:', fixData.role);
+            nextRole = fixData.role as AppRole;
+            
+            // Re-fetch profile in case it was also created
+            const { data: newProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (newProfile) {
+              nextProfile = newProfile as Profile;
+            }
+          }
+        } catch (e) {
+          console.error('[useAuth] Failed to fix role:', e);
+        }
+      }
 
       // Always overwrite state with fresh data
       setProfile(nextProfile);

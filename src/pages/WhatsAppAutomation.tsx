@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
+import { supabaseWhatsApp } from '@/lib/supabase-external';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';

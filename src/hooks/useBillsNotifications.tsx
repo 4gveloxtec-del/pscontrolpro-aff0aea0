@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, startOfToday } from 'date-fns';
 
 const LAST_BILLS_CHECK_KEY = 'last_bills_notification_check';

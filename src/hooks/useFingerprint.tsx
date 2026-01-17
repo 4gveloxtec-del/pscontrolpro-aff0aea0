@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FingerprintHook {
   generateFingerprint: (login: string, password: string) => Promise<string>;

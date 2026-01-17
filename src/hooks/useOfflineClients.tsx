@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 

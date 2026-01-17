@@ -1,4 +1,4 @@
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Checks if a password has been exposed in data breaches using the
