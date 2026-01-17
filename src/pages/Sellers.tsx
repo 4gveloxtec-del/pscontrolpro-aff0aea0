@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Search, UserCog, Calendar, Plus, Shield, Trash2, Key, UserPlus, Copy, Check, RefreshCw, FlaskConical, Users, MessageCircle, Send } from 'lucide-react';
+import { Search, UserCog, Calendar, Plus, Shield, Trash2, Key, UserPlus, Copy, Check, RefreshCw, FlaskConical, Users, MessageCircle, Send, RotateCcw } from 'lucide-react';
 import { format, addDays, isBefore, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -124,6 +124,27 @@ export default function Sellers() {
     },
     onError: (error: Error) => {
       toast.error(error.message);
+    },
+  });
+
+  const resetTrialMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data: result, error } = await supabase.functions.invoke('reset-trial', {
+        body: { user_id: userId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sellers'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
+      toast.success('Período de teste reiniciado! (5 dias a partir de hoje)');
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao resetar teste: ' + error.message);
     },
   });
 
@@ -656,14 +677,24 @@ export default function Sellers() {
                         <p className="text-xs text-muted-foreground">{user.whatsapp}</p>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                       <Button
                         size="sm"
-                        className="flex-1 bg-success hover:bg-success/90"
+                        className="w-full bg-success hover:bg-success/90"
                         disabled={setUserRoleMutation.isPending}
                         onClick={() => setUserRoleMutation.mutate({ user_id: user.id, role: 'seller' })}
                       >
                         ✓ Aprovar como Vendedor
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-1"
+                        disabled={resetTrialMutation.isPending}
+                        onClick={() => resetTrialMutation.mutate(user.id)}
+                      >
+                        <RotateCcw className={`h-3 w-3 ${resetTrialMutation.isPending ? 'animate-spin' : ''}`} />
+                        Reiniciar Teste (5 dias)
                       </Button>
                     </div>
                   </div>
