@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { Plus, MessageSquare, Edit, Trash2, Copy, Info, Tv, Wifi, Crown, Tag, Send, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { GenerateDefaultData } from '@/components/GenerateDefaultData';
 
 interface Template {
   id: string;
@@ -112,7 +113,7 @@ const sellerVariables = [
 
 
 export default function Templates() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, profile } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -364,13 +365,22 @@ const getCategoryIcon = (name: string) => {
           <p className="text-muted-foreground">Crie mensagens personalizadas para IPTV, SSH e Contas Premium</p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            setEditingTemplate(null);
-            resetForm();
-          }
-        }}>
+        <div className="flex gap-2 flex-wrap">
+          {user && (
+            <GenerateDefaultData 
+              userId={user.id} 
+              isAdmin={isAdmin} 
+              companyName={profile?.full_name || undefined}
+            />
+          )}
+
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingTemplate(null);
+              resetForm();
+            }
+          }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -470,6 +480,7 @@ const getCategoryIcon = (name: string) => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Add New Category */}

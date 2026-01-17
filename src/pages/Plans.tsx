@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { Plus, Package, DollarSign, Clock, Edit, Trash2, Monitor, RefreshCw, Crown, PlusCircle, X, Sparkles, Box } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { GenerateDefaultData } from '@/components/GenerateDefaultData';
 
 interface Plan {
   id: string;
@@ -53,7 +54,7 @@ const DEFAULT_CATEGORIES = ['IPTV', 'P2P', 'SSH', 'Premium'];
 type DurationFilter = 'all' | 30 | 90 | 180 | 365;
 
 export default function Plans() {
-  const { user } = useAuth();
+  const { user, isAdmin, profile } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
@@ -432,6 +433,14 @@ export default function Plans() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          {user && (
+            <GenerateDefaultData 
+              userId={user.id} 
+              isAdmin={isAdmin} 
+              companyName={profile?.full_name || undefined}
+            />
+          )}
+          
           <Button 
             variant="outline" 
             className="gap-2"
