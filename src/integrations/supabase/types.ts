@@ -1929,6 +1929,7 @@ export type Database = {
           instance_name: string
           is_connected: boolean | null
           last_connection_check: string | null
+          original_instance_name: string | null
           plan_expires_at: string | null
           plan_status: string
           seller_id: string
@@ -1948,6 +1949,7 @@ export type Database = {
           instance_name?: string
           is_connected?: boolean | null
           last_connection_check?: string | null
+          original_instance_name?: string | null
           plan_expires_at?: string | null
           plan_status?: string
           seller_id: string
@@ -1967,6 +1969,7 @@ export type Database = {
           instance_name?: string
           is_connected?: boolean | null
           last_connection_check?: string | null
+          original_instance_name?: string | null
           plan_expires_at?: string | null
           plan_status?: string
           seller_id?: string
