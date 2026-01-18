@@ -704,6 +704,13 @@ export type Database = {
             referencedRelation: "shared_panels"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "panel_clients_panel_id_fkey"
+            columns: ["panel_id"]
+            isOneToOne: false
+            referencedRelation: "shared_panels_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       plans: {
@@ -904,6 +911,42 @@ export type Database = {
           notification_type?: string
           reseller_id?: string
           sent_at?: string | null
+        }
+        Relationships: []
+      }
+      security_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          ip_address: string | null
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1253,7 +1296,99 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      shared_panels_safe: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string | null
+          iptv_per_credit: number | null
+          is_active: boolean | null
+          login: string | null
+          monthly_cost: number | null
+          name: string | null
+          notes: string | null
+          p2p_per_credit: number | null
+          panel_type: string | null
+          password_status: string | null
+          seller_id: string | null
+          total_slots: number | null
+          updated_at: string | null
+          url: string | null
+          used_iptv_slots: number | null
+          used_p2p_slots: number | null
+          used_slots: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          iptv_per_credit?: number | null
+          is_active?: boolean | null
+          login?: string | null
+          monthly_cost?: number | null
+          name?: string | null
+          notes?: string | null
+          p2p_per_credit?: number | null
+          panel_type?: string | null
+          password_status?: never
+          seller_id?: string | null
+          total_slots?: number | null
+          updated_at?: string | null
+          url?: string | null
+          used_iptv_slots?: number | null
+          used_p2p_slots?: number | null
+          used_slots?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          iptv_per_credit?: number | null
+          is_active?: boolean | null
+          login?: string | null
+          monthly_cost?: number | null
+          name?: string | null
+          notes?: string | null
+          p2p_per_credit?: number | null
+          panel_type?: string | null
+          password_status?: never
+          seller_id?: string | null
+          total_slots?: number | null
+          updated_at?: string | null
+          url?: string | null
+          used_iptv_slots?: number | null
+          used_p2p_slots?: number | null
+          used_slots?: number | null
+        }
+        Relationships: []
+      }
+      whatsapp_global_config_public: {
+        Row: {
+          api_token_status: string | null
+          api_url: string | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_token_status?: never
+          api_url?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_token_status?: never
+          api_url?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       check_and_block_expired_instances: {
