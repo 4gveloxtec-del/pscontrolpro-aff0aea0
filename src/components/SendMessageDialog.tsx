@@ -21,7 +21,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Send, Copy, MessageCircle, CreditCard, Tv, Wifi, Crown, Tag, Loader2, WifiOff, Calendar, RefreshCw, Bell, MoreHorizontal, CheckCircle } from 'lucide-react';
+import { Send, Copy, MessageCircle, CreditCard, Tv, Wifi, Crown, Tag, Loader2, WifiOff, Calendar, RefreshCw, Bell, MoreHorizontal, CheckCircle, Zap } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -106,6 +106,7 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
   const [durationFilter, setDurationFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isSendingViaApi, setIsSendingViaApi] = useState(false);
   
   // Use refs to cache decrypted credentials per client - avoids re-decrypting on every open
   const [credentialsCache, setCredentialsCache] = useState<Record<string, {
@@ -341,6 +342,42 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
     },
     enabled: !!user?.id,
   });
+
+  // Check if WhatsApp API is available
+  const { data: sellerInstance } = useQuery({
+    queryKey: ['whatsapp-seller-instance-dialog', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('*')
+        .eq('seller_id', user!.id)
+        .single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const { data: globalConfig } = useQuery({
+    queryKey: ['whatsapp-global-config-dialog'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_global_config')
+        .select('*')
+        .eq('is_active', true)
+        .single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+  });
+
+  const canSendViaApi = !!(
+    platform === 'whatsapp' &&
+    client.phone &&
+    sellerInstance?.is_connected &&
+    !sellerInstance?.instance_blocked &&
+    globalConfig?.is_active
+  );
   // Get client's plan duration
   const clientPlanDuration = client.plan_id 
     ? plans.find(p => p.id === client.plan_id)?.duration_days 
@@ -641,6 +678,63 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
     }
   };
 
+  const handleSendViaApi = async () => {
+    if (!message.trim() || !client.phone) return;
+
+    setIsSendingViaApi(true);
+    try {
+      const phoneNumber = client.phone.replace(/\D/g, '');
+      
+      // Call evolution-api edge function
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'send-message',
+          instanceName: sellerInstance?.instance_name,
+          phone: phoneNumber,
+          message: message,
+        },
+      });
+
+      if (error) throw error;
+
+      // Save to history
+      await saveHistoryMutation.mutateAsync({
+        message_content: message,
+        template_id: selectedTemplate || null,
+      });
+
+      // Track notification if template was used
+      if (selectedTemplate) {
+        const template = templates.find(t => t.id === selectedTemplate);
+        const templateType = template?.type || 'custom';
+        
+        // Save to client_notification_tracking
+        await supabase.from('client_notification_tracking').insert({
+          client_id: client.id,
+          seller_id: user!.id,
+          notification_type: templateType,
+          expiration_cycle_date: client.expiration_date,
+          sent_via: 'api',
+          service_type: 'main',
+        });
+      }
+
+      // Mark as sent locally
+      const templateName = selectedTemplate ? templates.find(t => t.id === selectedTemplate)?.name : undefined;
+      const messageType = selectedTemplate ? templates.find(t => t.id === selectedTemplate)?.type || 'custom' : 'custom';
+      markAsSent(client.id, templateName, 'whatsapp', messageType);
+
+      toast.success('Mensagem enviada via API!');
+      onMessageSent?.();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error sending via API:', error);
+      toast.error('Erro ao enviar via API: ' + (error.message || 'Tente novamente'));
+    } finally {
+      setIsSendingViaApi(false);
+    }
+  };
+
   const canSend = platform === 'whatsapp' ? !!client.phone : !!client.telegram;
 
   return (
@@ -856,14 +950,29 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
 
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={handleCopy} disabled={!message.trim()}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={handleCopy} disabled={!message.trim()} className="w-full sm:w-auto">
             <Copy className="h-4 w-4 mr-2" />
             Copiar
           </Button>
-          <Button onClick={handleSend} disabled={!message.trim() || !canSend}>
+          {canSendViaApi && (
+            <Button 
+              onClick={handleSendViaApi} 
+              disabled={!message.trim() || isSendingViaApi}
+              variant="default"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+            >
+              {isSendingViaApi ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-2" />
+              )}
+              Enviar via API
+            </Button>
+          )}
+          <Button onClick={handleSend} disabled={!message.trim() || !canSend} className="w-full sm:w-auto">
             <Send className="h-4 w-4 mr-2" />
-            {platform === 'telegram' ? 'Abrir Telegram' : 'Enviar via WhatsApp'}
+            {platform === 'telegram' ? 'Abrir Telegram' : 'Abrir WhatsApp'}
           </Button>
         </DialogFooter>
       </DialogContent>
