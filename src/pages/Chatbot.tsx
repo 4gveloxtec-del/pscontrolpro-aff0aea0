@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -83,12 +83,25 @@ export default function Chatbot() {
 
   // Settings form
   const [settingsForm, setSettingsForm] = useState({
-    is_enabled: settings?.is_enabled || false,
-    response_delay_min: settings?.response_delay_min || 2,
-    response_delay_max: settings?.response_delay_max || 5,
-    ignore_groups: settings?.ignore_groups ?? true,
-    ignore_own_messages: settings?.ignore_own_messages ?? true,
+    is_enabled: false,
+    response_delay_min: 2,
+    response_delay_max: 5,
+    ignore_groups: true,
+    ignore_own_messages: true,
   });
+
+  // Sincroniza o formulário com o que vem do backend (persistência após recarregar)
+  useEffect(() => {
+    if (!settings) return;
+    setSettingsForm(prev => ({
+      ...prev,
+      is_enabled: settings.is_enabled ?? false,
+      response_delay_min: settings.response_delay_min ?? 2,
+      response_delay_max: settings.response_delay_max ?? 5,
+      ignore_groups: settings.ignore_groups ?? true,
+      ignore_own_messages: settings.ignore_own_messages ?? true,
+    }));
+  }, [settings]);
 
   const resetForm = () => {
     setFormData({
