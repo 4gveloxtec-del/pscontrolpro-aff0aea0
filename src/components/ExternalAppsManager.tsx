@@ -30,6 +30,7 @@ export interface ExternalApp {
   id: string;
   name: string;
   website_url: string | null;
+  download_url: string | null;
   auth_type: 'mac_key' | 'email_password';
   is_active: boolean;
   seller_id: string;
@@ -45,6 +46,7 @@ export function ExternalAppsManager() {
   const [formData, setFormData] = useState({
     name: '',
     website_url: '',
+    download_url: '',
     auth_type: 'mac_key' as 'mac_key' | 'email_password',
     price: 0,
     cost: 0,
@@ -119,6 +121,7 @@ export function ExternalAppsManager() {
     setFormData({
       name: '',
       website_url: '',
+      download_url: '',
       auth_type: 'mac_key',
       price: 0,
       cost: 0,
@@ -131,6 +134,7 @@ export function ExternalAppsManager() {
     setFormData({
       name: app.name,
       website_url: app.website_url || '',
+      download_url: app.download_url || '',
       auth_type: app.auth_type,
       price: app.price || 0,
       cost: app.cost || 0,
@@ -201,6 +205,19 @@ export function ExternalAppsManager() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Link oficial do site do aplicativo para ativação
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="download_url">Link de Download (opcional)</Label>
+                <Input
+                  id="download_url"
+                  type="url"
+                  value={formData.download_url}
+                  onChange={(e) => setFormData({ ...formData, download_url: e.target.value })}
+                  placeholder="https://exemplo.com/download"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Link para enviar ao cliente baixar o app. Use nos templates: <code className="bg-muted px-1 rounded">{'{link_download_app}'}</code>
                 </p>
               </div>
               <div className="space-y-2">
@@ -343,17 +360,30 @@ export function ExternalAppsManager() {
                         Venda: R$ {(app.price || 0).toFixed(2)} | Custo: R$ {(app.cost || 0).toFixed(2)}
                       </p>
                     )}
-                    {app.website_url && (
-                      <a
-                        href={app.website_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline flex items-center gap-1 mt-2"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Abrir site
-                      </a>
-                    )}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {app.website_url && (
+                        <a
+                          href={app.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Site
+                        </a>
+                      )}
+                      {app.download_url && (
+                        <a
+                          href={app.download_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Download
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-1">
                     <Button

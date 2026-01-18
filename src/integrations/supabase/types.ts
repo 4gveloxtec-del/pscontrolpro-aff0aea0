@@ -516,6 +516,7 @@ export type Database = {
           auth_type: string
           cost: number | null
           created_at: string | null
+          download_url: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -528,6 +529,7 @@ export type Database = {
           auth_type?: string
           cost?: number | null
           created_at?: string | null
+          download_url?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -540,6 +542,7 @@ export type Database = {
           auth_type?: string
           cost?: number | null
           created_at?: string | null
+          download_url?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
