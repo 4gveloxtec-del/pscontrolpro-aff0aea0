@@ -119,7 +119,7 @@ export function useRenewalMutation(userId: string | undefined) {
 
     try {
       // Fetch fresh data to avoid stale closures
-      const [instanceResult, configResult, profileResult] = await Promise.all([
+      const [instanceResult, configResult, profileResult, clientResult] = await Promise.all([
         supabase
           .from('whatsapp_seller_instances')
           .select('*')
@@ -135,11 +135,17 @@ export function useRenewalMutation(userId: string | undefined) {
           .select('company_name, full_name, pix_key')
           .eq('id', userId!)
           .single(),
+        supabase
+          .from('clients')
+          .select('login, password')
+          .eq('id', data.clientId)
+          .single(),
       ]);
 
       const instance = instanceResult.data;
       const config = configResult.data;
       const profile = profileResult.data;
+      const client = clientResult.data as { login: string | null; password: string | null } | null;
 
       console.log('[Renewal] Fetched config:', { 
         hasInstance: !!instance, 
@@ -201,6 +207,9 @@ export function useRenewalMutation(userId: string | undefined) {
 
       // Replace variables in template
       const empresa = profile?.company_name || profile?.full_name || '';
+      const login = client?.login || '';
+      const senha = client?.password || '';
+
       const message = template.message
         .replace(/{nome}/gi, data.clientName)
         .replace(/{vencimento}/gi, format(new Date(newExpirationDate), 'dd/MM/yyyy'))
@@ -208,7 +217,10 @@ export function useRenewalMutation(userId: string | undefined) {
         .replace(/{valor}/gi, data.planPrice?.toFixed(2) || '0.00')
         .replace(/{preco}/gi, data.planPrice?.toFixed(2) || '0.00')
         .replace(/{empresa}/gi, empresa)
-        .replace(/{pix}/gi, profile?.pix_key || '');
+        .replace(/{pix}/gi, profile?.pix_key || '')
+        .replace(/{login}/gi, login)
+        .replace(/{usuario}/gi, login)
+        .replace(/{senha}/gi, senha);
 
       const phoneNumber = data.clientPhone.replace(/\D/g, '');
 
