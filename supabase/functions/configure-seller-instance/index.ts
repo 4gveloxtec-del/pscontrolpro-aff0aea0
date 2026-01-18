@@ -549,6 +549,60 @@ serve(async (req) => {
         );
       }
 
+      case 'disconnect': {
+        // Get seller's instance
+        const { data: instance } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('instance_name')
+          .eq('seller_id', user.id)
+          .maybeSingle();
+
+        if (!instance?.instance_name) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Nenhuma instância configurada' }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get global config
+        const { data: globalConfig } = await supabase
+          .from('whatsapp_global_config')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (globalConfig) {
+          try {
+            const baseUrl = normalizeApiUrl(globalConfig.api_url);
+            // Try to logout the instance
+            const logoutUrl = `${baseUrl}/instance/logout/${instance.instance_name}`;
+            
+            await fetch(logoutUrl, {
+              method: 'DELETE',
+              headers: { 'apikey': globalConfig.api_token },
+            });
+          } catch (error) {
+            console.log('Logout error (continuing anyway):', error);
+          }
+        }
+
+        // Update local status
+        await supabase
+          .from('whatsapp_seller_instances')
+          .update({ 
+            is_connected: false,
+            last_connection_check: new Date().toISOString()
+          })
+          .eq('seller_id', user.id);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Desconectado com sucesso' }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Ação inválida' }),

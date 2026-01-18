@@ -12,7 +12,8 @@ import {
   AlertCircle,
   PartyPopper,
   RefreshCw,
-  Smartphone
+  Smartphone,
+  Unplug
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -39,6 +40,7 @@ export function SimplifiedWhatsAppConfig() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [status, setStatus] = useState<InstanceStatus | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -209,6 +211,34 @@ export function SimplifiedWhatsAppConfig() {
       toast.error('Erro: ' + err.message);
     } finally {
       setIsLoadingQr(false);
+    }
+  };
+
+  // Disconnect instance
+  const handleDisconnect = async () => {
+    if (!confirm('Tem certeza que deseja desconectar? Você precisará escanear o QR Code novamente.')) {
+      return;
+    }
+    
+    setIsDisconnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+        body: { action: 'disconnect' },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success('WhatsApp desconectado');
+        setStatus(prev => prev ? { ...prev, is_connected: false } : null);
+        setQrCode(null);
+      } else {
+        toast.error(data.error || 'Erro ao desconectar');
+      }
+    } catch (err: any) {
+      toast.error('Erro: ' + err.message);
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
@@ -392,15 +422,39 @@ export function SimplifiedWhatsAppConfig() {
           </Card>
         )}
 
-        {/* Success state */}
+        {/* Success state with disconnect option */}
         {status?.configured && status?.is_connected && (
-          <Alert className="border-green-500 bg-green-50 dark:bg-green-900/20">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800 dark:text-green-400">
-              <strong>Tudo pronto!</strong> Seu WhatsApp está conectado e o chatbot está ativo.
-              Seus clientes receberão mensagens automáticas de vencimento.
-            </AlertDescription>
-          </Alert>
+          <Card className="border-green-500 bg-green-50 dark:bg-green-900/20">
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-green-800 dark:text-green-400">
+                      Tudo pronto!
+                    </p>
+                    <p className="text-sm text-green-700 dark:text-green-500">
+                      Seu WhatsApp está conectado e o chatbot está ativo.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleDisconnect}
+                  disabled={isDisconnecting}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  {isDisconnecting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Unplug className="h-4 w-4 mr-2" />
+                  )}
+                  Desconectar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </>

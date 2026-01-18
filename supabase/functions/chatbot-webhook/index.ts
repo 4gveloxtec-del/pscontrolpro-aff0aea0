@@ -1088,6 +1088,20 @@ serve(async (req) => {
         parsedUrl = new URL(rawUrl, "https://placeholder.co");
       }
 
+      // Quick ping endpoint to check if webhook is online
+      const ping = parsedUrl.searchParams.get("ping");
+      if (ping === "true") {
+        return new Response(
+          JSON.stringify({ 
+            status: "ok", 
+            message: "Chatbot webhook is online",
+            timestamp: new Date().toISOString(),
+            version: "2.0.0",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const testApi = parsedUrl.searchParams.get("test_api") === "true";
       const testSend = parsedUrl.searchParams.get("test_send") === "true";
       const testPhone = parsedUrl.searchParams.get("phone") || "";
@@ -1427,27 +1441,148 @@ serve(async (req) => {
     
     const globalConfig: GlobalConfig = globalConfigData;
     
-    // Find seller by instance name
-    const { data: sellerInstance } = await supabase
+    // Find seller by instance name - check multiple fields for flexibility
+    const instanceNameLower = instanceName.toLowerCase();
+    
+    // First try exact match on instance_name
+    let { data: sellerInstance } = await supabase
       .from("whatsapp_seller_instances")
-      .select("seller_id, is_connected, instance_blocked")
+      .select("seller_id, is_connected, instance_blocked, instance_name, original_instance_name, plan_status")
       .ilike("instance_name", instanceName)
       .maybeSingle();
     
-    if (!sellerInstance || sellerInstance.instance_blocked) {
-      console.log("Seller instance not found or blocked");
+    // If not found, try original_instance_name
+    if (!sellerInstance) {
+      const { data: byOriginal } = await supabase
+        .from("whatsapp_seller_instances")
+        .select("seller_id, is_connected, instance_blocked, instance_name, original_instance_name, plan_status")
+        .ilike("original_instance_name", instanceName)
+        .maybeSingle();
+      sellerInstance = byOriginal;
+    }
+    
+    // If still not found, try partial match (contains)
+    if (!sellerInstance) {
+      const { data: byPartial } = await supabase
+        .from("whatsapp_seller_instances")
+        .select("seller_id, is_connected, instance_blocked, instance_name, original_instance_name, plan_status")
+        .or(`instance_name.ilike.%${instanceNameLower}%,original_instance_name.ilike.%${instanceNameLower}%`)
+        .maybeSingle();
+      sellerInstance = byPartial;
+    }
+    
+    // Log detailed info about lookup result
+    console.log("Instance lookup result:", JSON.stringify({
+      searchedFor: instanceName,
+      found: !!sellerInstance,
+      instanceName: sellerInstance?.instance_name,
+      originalInstanceName: sellerInstance?.original_instance_name,
+      isBlocked: sellerInstance?.instance_blocked,
+      planStatus: sellerInstance?.plan_status,
+    }));
+    
+    if (!sellerInstance) {
+      console.log("Seller instance NOT FOUND for:", instanceName);
+      
+      // Log to system health for monitoring
+      await supabase.from("system_health_logs").insert({
+        component_name: "chatbot-webhook",
+        event_type: "instance_not_found",
+        severity: "warning",
+        message: `Instance "${instanceName}" not found in database`,
+        details: {
+          searchedInstanceName: instanceName,
+          remoteJid,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      
       await auditWebhook(supabase, {
-        status: "ignored",
-        reason: "Instance not found or blocked",
+        status: "error",
+        reason: `Instance "${instanceName}" not found - check if reseller configured correctly`,
         event: payload.event,
         instanceName,
         remoteJid,
       });
+      
       return new Response(
-        JSON.stringify({ status: "ignored", reason: "Instance not found or blocked" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ 
+          status: "error", 
+          reason: "Instance not found",
+          help: "O revendedor precisa configurar a instância no painel primeiro",
+          instanceSearched: instanceName,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Check if blocked
+    if (sellerInstance.instance_blocked) {
+      console.log("Seller instance BLOCKED:", sellerInstance.instance_name);
+      
+      await supabase.from("system_health_logs").insert({
+        component_name: "chatbot-webhook",
+        event_type: "instance_blocked",
+        severity: "info",
+        message: `Instance "${instanceName}" is blocked`,
+        details: {
+          instanceName: sellerInstance.instance_name,
+          planStatus: sellerInstance.plan_status,
+          remoteJid,
+        },
+      });
+      
+      await auditWebhook(supabase, {
+        status: "blocked",
+        reason: "Instance blocked due to plan status",
+        event: payload.event,
+        instanceName,
+        remoteJid,
+        sellerId: sellerInstance.seller_id,
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          status: "blocked", 
+          reason: "Instance blocked",
+          planStatus: sellerInstance.plan_status,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Check plan status
+    if (sellerInstance.plan_status === "expired" || sellerInstance.plan_status === "suspended") {
+      console.log("Seller plan expired/suspended:", sellerInstance.plan_status);
+      
+      // Auto-block the instance
+      await supabase
+        .from("whatsapp_seller_instances")
+        .update({
+          instance_blocked: true,
+          blocked_at: new Date().toISOString(),
+          blocked_reason: `Plano ${sellerInstance.plan_status}`,
+        })
+        .eq("seller_id", sellerInstance.seller_id);
+      
+      await supabase.from("system_health_logs").insert({
+        component_name: "chatbot-webhook",
+        event_type: "auto_blocked",
+        severity: "warning",
+        message: `Instance auto-blocked due to ${sellerInstance.plan_status} plan`,
+        details: {
+          sellerId: sellerInstance.seller_id,
+          instanceName: sellerInstance.instance_name,
+        },
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          status: "blocked", 
+          reason: `Plan ${sellerInstance.plan_status}`,
+          autoBlocked: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
