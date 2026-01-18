@@ -20,13 +20,14 @@ import {
   QrCode,
   PowerOff,
   Ban,
-  CreditCard
+  CreditCard,
+  Lock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function WhatsAppSellerConfig() {
-  const { user } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const { 
     instance, 
     isLoading, 
@@ -50,6 +51,23 @@ export function WhatsAppSellerConfig() {
     auto_send_enabled: false,
     is_connected: false,
   });
+
+  // Check if user has a paid plan (not in free trial)
+  const hasPaidPlan = (() => {
+    if (isAdmin) return true; // Admins always have access
+    if (!profile) return false;
+    
+    // is_permanent = true means they have permanent access
+    if (profile.is_permanent) return true;
+    
+    // subscription_expires_at set and not expired means paid plan
+    if (profile.subscription_expires_at) {
+      const expiresAt = new Date(profile.subscription_expires_at);
+      return expiresAt > new Date();
+    }
+    
+    return false;
+  })();
 
   // Load instance into form
   useEffect(() => {
@@ -279,55 +297,55 @@ export function WhatsAppSellerConfig() {
     );
   }
 
-  // Check if global API is properly configured and active
-  const apiConfigured = globalConfig?.api_url && globalConfig?.api_token;
-  const apiInactive = !isApiActive || !apiConfigured;
-
-  // If API is inactive AND user has no instance configured, show simplified form
-  if (apiInactive && !formData.instance_name && !instance?.instance_name) {
+  // Show warning if user doesn't have a paid plan (free trial)
+  if (!hasPaidPlan) {
     return (
       <div className="space-y-4">
-        <Alert className="border-warning bg-warning/10">
-          <AlertCircle className="h-4 w-4 text-warning" />
-          <AlertDescription className="text-warning-foreground">
-            <strong>Aguardando ativação da API pelo administrador.</strong>
-            <br />
-            Você pode configurar sua instância agora. Quando a API for ativada, 
-            basta escanear o QR Code para começar a usar.
+        <Alert className="border-amber-500 bg-amber-500/10">
+          <Lock className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="font-medium text-amber-700 dark:text-amber-400">
+            🔒 Recurso Exclusivo para Planos Pagos
           </AlertDescription>
         </Alert>
-
-        {/* Allow saving instance name even with API inactive */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nome da Sua Instância</Label>
-            <Input
-              value={formData.instance_name}
-              onChange={(e) => setFormData({ ...formData, instance_name: e.target.value })}
-              placeholder="minha-revenda"
-            />
-            <p className="text-xs text-muted-foreground">
-              Configure agora para ficar pronto quando a API for ativada
+        
+        <div className="p-6 rounded-lg bg-amber-500/10 border border-amber-500/30 text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/20 flex items-center justify-center">
+            <Lock className="h-8 w-8 text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-amber-700 dark:text-amber-400">
+              API de WhatsApp Indisponível no Teste Grátis
+            </h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              O envio automático de mensagens via WhatsApp está disponível apenas para usuários com planos pagos.
             </p>
           </div>
-
-          <Button onClick={handleSave} disabled={isSaving || !formData.instance_name}>
-            {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Salvar Configuração
-          </Button>
-        </div>
-        
-        <div className="p-4 rounded-lg bg-muted/50 border text-center">
-          <p className="text-sm text-muted-foreground mb-2">
-            Enquanto a API estiver desativada, você pode enviar mensagens manualmente:
-          </p>
-          <Button variant="outline" onClick={() => window.open('https://wa.me/', '_blank')}>
+          <div className="pt-4 border-t border-amber-500/20 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              ✅ Você pode usar o sistema normalmente para gerenciar clientes
+            </p>
+            <p className="text-sm text-muted-foreground">
+              ✅ Envie mensagens manualmente abrindo o WhatsApp Web
+            </p>
+            <p className="text-sm text-amber-600 dark:text-amber-400 font-medium mt-3">
+              📞 Entre em contato com o administrador para ativar seu plano
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="mt-4"
+            onClick={() => window.open('https://wa.me/', '_blank')}
+          >
             Abrir WhatsApp Web
           </Button>
         </div>
       </div>
     );
   }
+
+  // Check if global API is properly configured and active
+  const apiConfigured = globalConfig?.api_url && globalConfig?.api_token;
+  const apiInactive = !isApiActive || !apiConfigured;
 
   return (
     <div className="space-y-6">
