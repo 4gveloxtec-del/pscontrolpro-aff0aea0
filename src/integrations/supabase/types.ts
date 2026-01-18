@@ -457,6 +457,7 @@ export type Database = {
       custom_products: {
         Row: {
           created_at: string | null
+          download_url: string | null
           icon: string | null
           id: string
           is_active: boolean | null
@@ -466,6 +467,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          download_url?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
@@ -475,6 +477,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          download_url?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
