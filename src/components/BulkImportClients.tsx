@@ -232,24 +232,42 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
       return '';
     };
 
-    // Parse date in formats: dd/mm/yyyy, yyyy-mm-dd
+    // Parse date in formats: dd/mm/yyyy, yyyy-mm-dd, yyyy/mm/dd
     const parseDate = (dateStr: string): string | null => {
       if (!dateStr) return null;
-      const trimmed = dateStr.trim();
+      const trimmed = dateStr.trim().replace(/^["']|["']$/g, '');
       
-      // dd/mm/yyyy format
+      if (!trimmed) return null;
+      
+      // dd/mm/yyyy format (Brazilian)
       const brMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (brMatch) {
         const [, day, month, year] = brMatch;
         return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       }
       
-      // yyyy-mm-dd format
-      const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      // yyyy-mm-dd format (ISO)
+      const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
       if (isoMatch) {
-        return trimmed;
+        const [, year, month, day] = isoMatch;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       }
       
+      // yyyy/mm/dd format
+      const isoSlashMatch = trimmed.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+      if (isoSlashMatch) {
+        const [, year, month, day] = isoSlashMatch;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      
+      // dd-mm-yyyy format
+      const brDashMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+      if (brDashMatch) {
+        const [, day, month, year] = brDashMatch;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      
+      console.warn('parseDate: Unrecognized date format:', trimmed);
       return null;
     };
 
@@ -267,7 +285,7 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
       
       // If we have header mapping (exported format), use it
       if (hasHeader && headerIdx) {
-        const get = (idx: number | null) => (idx === null ? '' : (parts[idx] ?? ''));
+        const get = (idx: number | null) => (idx === null ? '' : (parts[idx] ?? '').trim().replace(/^["']|["']$/g, ''));
         
         const name = get(headerIdx.name);
         const phone = get(headerIdx.phone);
@@ -277,6 +295,9 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
         const server = get(headerIdx.server);
         const priceInput = get(headerIdx.price);
         const expirationInput = get(headerIdx.expiration);
+        
+        // Debug logging for expiration parsing
+        console.log('Parsing row:', rowNumber, '| expirationIdx:', headerIdx.expiration, '| raw value:', parts[headerIdx.expiration ?? -1], '| expirationInput:', expirationInput);
         
         if (!name || name.length < 2 || isUuid(name)) {
           return { 
@@ -297,6 +318,9 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
         const phoneDigits = digitsOnly(phone);
         const parsedPrice = parsePrice(priceInput);
         const parsedExpiration = parseDate(expirationInput);
+        
+        // Debug log parsed expiration
+        console.log('Row', rowNumber, '| expirationInput:', expirationInput, '| parsedExpiration:', parsedExpiration);
         
         // Auto-detect plan based on expiration date and category
         const detectedPlan = findMatchingPlan(parsedExpiration, category);
