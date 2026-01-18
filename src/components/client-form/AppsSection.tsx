@@ -4,11 +4,12 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Server, Store, Package, Handshake, Eye, EyeOff, AppWindow } from 'lucide-react';
+import { Server, Store, Package, Handshake, Eye, EyeOff, AppWindow, Plus, ExternalLink } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { ClientExternalApps } from '@/components/ClientExternalApps';
+import { useNavigate } from 'react-router-dom';
 
 interface ServerApp {
   id: string;
@@ -88,6 +89,8 @@ export function AppsSection({
   paidAppsData,
   onPaidAppsChange,
 }: AppsSectionProps) {
+  const navigate = useNavigate();
+  
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -179,12 +182,35 @@ export function AppsSection({
                 </Badge>
               )}
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/servers')}
+              className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+            >
+              <Plus className="h-3 w-3" />
+              Gerenciar Apps
+              <ExternalLink className="h-3 w-3" />
+            </Button>
           </div>
 
           {serverApps.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Nenhum app cadastrado para este servidor. Cadastre em Servidores → Apps.
-            </p>
+            <div className="flex flex-col items-center gap-2 py-3">
+              <p className="text-xs text-muted-foreground text-center">
+                Nenhum app cadastrado para este servidor.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/servers')}
+                className="h-7 text-xs gap-1"
+              >
+                <Plus className="h-3 w-3" />
+                Cadastrar Apps do Servidor
+              </Button>
+            </div>
           ) : (
             <>
               {/* Filter by app type */}
@@ -262,9 +288,9 @@ export function AppsSection({
       {(viewMode === 'reseller' || viewMode === 'both') && (
         <Collapsible open={isResellerVisible} onOpenChange={setIsResellerVisible}>
           <div className="space-y-3 p-4 rounded-lg bg-card border border-border">
-            <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
                   <div className="p-1.5 rounded-md bg-accent/10">
                     <Store className="h-4 w-4 text-accent-foreground" />
                   </div>
@@ -272,22 +298,36 @@ export function AppsSection({
                   <Badge variant="secondary" className="text-xs font-normal">
                     {externalApps.length + (hasPaidApps ? 1 : 0)} app(s)
                   </Badge>
+                  <Button type="button" variant="ghost" size="sm" className="gap-1 h-6 px-2 text-xs text-muted-foreground hover:text-foreground">
+                    {isResellerVisible ? (
+                      <>
+                        <EyeOff className="h-3 w-3" />
+                        Ocultar
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-3 w-3" />
+                        Mostrar
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Button type="button" variant="ghost" size="sm" className="gap-1 h-7 text-xs text-muted-foreground hover:text-foreground">
-                  {isResellerVisible ? (
-                    <>
-                      <EyeOff className="h-3.5 w-3.5" />
-                      Ocultar
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="h-3.5 w-3.5" />
-                      Mostrar
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CollapsibleTrigger>
+              </CollapsibleTrigger>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/external-apps');
+                }}
+                className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+              >
+                <Plus className="h-3 w-3" />
+                Gerenciar Apps
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+            </div>
 
             <CollapsibleContent className="space-y-4 pt-2">
               {/* External Apps */}
