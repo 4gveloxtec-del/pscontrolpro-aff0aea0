@@ -38,7 +38,7 @@ export function WhatsAppSellerConfig() {
     refetch 
   } = useWhatsAppSellerInstance();
 
-  const { config: globalConfig, isApiActive } = useWhatsAppGlobalConfig();
+  const { config: globalConfig, isApiActive, isLoading: isLoadingConfig } = useWhatsAppGlobalConfig();
   
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -237,7 +237,7 @@ export function WhatsAppSellerConfig() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingConfig) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -279,11 +279,12 @@ export function WhatsAppSellerConfig() {
     );
   }
 
-  // Show warning if global API is inactive - but allow saving instance name
-  const apiInactive = !isApiActive;
+  // Check if global API is properly configured and active
+  const apiConfigured = globalConfig?.api_url && globalConfig?.api_token;
+  const apiInactive = !isApiActive || !apiConfigured;
 
-  // If API is inactive, show warning but allow configuration
-  if (apiInactive && !formData.instance_name) {
+  // If API is inactive AND user has no instance configured, show simplified form
+  if (apiInactive && !formData.instance_name && !instance?.instance_name) {
     return (
       <div className="space-y-4">
         <Alert className="border-warning bg-warning/10">
