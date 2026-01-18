@@ -15,8 +15,8 @@ import {
   Database,
   Image,
   MessageSquare,
-  ChevronDown,
-  GraduationCap
+  GraduationCap,
+  HeartPulse
 } from 'lucide-react';
 
 interface NavItem {
@@ -28,6 +28,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Vendedores', href: '/admin/sellers', icon: Users },
+  { label: 'Autocura', href: '/admin/system-health', icon: HeartPulse },
   { label: 'Relatórios', href: '/admin/reports', icon: FileText },
   { label: 'Backup', href: '/admin/backup', icon: Database },
   { label: 'Ícones Servidores', href: '/admin/server-icons', icon: Image },
