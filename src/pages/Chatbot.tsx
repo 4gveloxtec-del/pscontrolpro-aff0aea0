@@ -325,314 +325,314 @@ export default function Chatbot() {
 
         {/* Rules Tab */}
         <TabsContent value="rules" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Minhas Regras</h2>
-              <Button onClick={() => { resetForm(); setShowRuleDialog(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Regra
-              </Button>
-            </div>
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">Minhas Regras</h2>
+            <Button onClick={() => { resetForm(); setShowRuleDialog(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Regra
+            </Button>
+          </div>
 
-            {rules.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Bot className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Nenhuma regra configurada</h3>
-                  <p className="text-muted-foreground text-center mb-4">
-                    Crie sua primeira regra ou use um template para começar
-                  </p>
-                  <div className="flex gap-2">
-                    <Button onClick={() => { resetForm(); setShowRuleDialog(true); }}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Criar Regra
-                    </Button>
-                    <Button variant="outline" onClick={() => setActiveTab('templates')}>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Ver Templates
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {rules.map((rule) => (
-                  <Card key={rule.id} className={!rule.is_active ? 'opacity-60' : ''}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-medium">{rule.name}</h3>
-                            <Badge variant={rule.is_active ? 'default' : 'secondary'}>
-                              {rule.is_active ? 'Ativo' : 'Inativo'}
-                            </Badge>
-                            <Badge variant="outline">
-                              {COOLDOWN_MODES[rule.cooldown_mode]?.asterisks}
-                            </Badge>
-                            <Badge variant="outline" className="flex items-center gap-1">
-                              {(() => {
-                                const Icon = CONTACT_FILTERS[rule.contact_filter]?.icon || Users;
-                                return <Icon className="h-3 w-3" />;
-                              })()}
-                              {CONTACT_FILTERS[rule.contact_filter]?.label}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Gatilho: <code className="bg-muted px-1 rounded">{rule.trigger_text}</code>
-                          </p>
-                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                            {rule.response_content.text}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => openEditRule(rule)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => { setDeletingItem({ type: 'rule', id: rule.id }); setShowDeleteDialog(true); }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Templates Tab */}
-          <TabsContent value="templates" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Templates Disponíveis</h2>
-              {isAdmin && (
-                <Button onClick={() => { resetForm(); setShowTemplateDialog(true); }}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Template
-                </Button>
-              )}
-            </div>
-
-            {templates.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Copy className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Nenhum template disponível</h3>
-                  <p className="text-muted-foreground text-center">
-                    {isAdmin ? 'Crie templates para seus revendedores usarem' : 'Aguarde o administrador criar templates'}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {templates.map((template) => (
-                  <Card key={template.id}>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-base">{template.name}</CardTitle>
-                          {template.description && (
-                            <CardDescription>{template.description}</CardDescription>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          {isAdmin && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={() => openEditTemplate(template)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => { setDeletingItem({ type: 'template', id: template.id }); setShowDeleteDialog(true); }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline">{COOLDOWN_MODES[template.cooldown_mode]?.asterisks}</Badge>
-                          <Badge variant="outline">{RESPONSE_TYPES[template.response_type]?.label}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {template.response_content.text}
-                        </p>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full mt-2"
-                          onClick={() => handleUseTemplate(template)}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                          Usar Template
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Contacts Tab */}
-          <TabsContent value="contacts" className="space-y-4">
-            <h2 className="text-lg font-semibold">Contatos Recentes</h2>
-            
-            {contacts.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Users className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Nenhum contato ainda</h3>
-                  <p className="text-muted-foreground text-center">
-                    Os contatos aparecerão aqui quando interagirem com o chatbot
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <ScrollArea className="h-[400px]">
-                  <div className="divide-y">
-                    {contacts.map((contact) => (
-                      <div key={contact.id} className="p-4 flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{contact.name || contact.phone}</p>
-                            <Badge variant="outline" className="text-xs">
-                              {CONTACT_FILTERS[contact.contact_status]?.label}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{contact.phone}</p>
-                        </div>
-                        <div className="text-right text-sm text-muted-foreground">
-                          <p>{contact.interaction_count} interações</p>
-                          <p>
-                            {format(new Date(contact.last_interaction_at), "dd/MM HH:mm", { locale: ptBR })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-4">
-            <h2 className="text-lg font-semibold">Configurações do Chatbot</h2>
-            
+          {rules.length === 0 ? (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Configurações Gerais</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Chatbot Ativo</Label>
-                    <p className="text-sm text-muted-foreground">Ativar respostas automáticas</p>
-                  </div>
-                  <Switch
-                    checked={settingsForm.is_enabled}
-                    onCheckedChange={(checked) => setSettingsForm(prev => ({ ...prev, is_enabled: checked }))}
-                  />
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Ignorar Grupos</Label>
-                    <p className="text-sm text-muted-foreground">Não responder mensagens de grupos</p>
-                  </div>
-                  <Switch
-                    checked={settingsForm.ignore_groups}
-                    onCheckedChange={(checked) => setSettingsForm(prev => ({ ...prev, ignore_groups: checked }))}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Ignorar Próprias Mensagens</Label>
-                    <p className="text-sm text-muted-foreground">Não processar mensagens enviadas por você</p>
-                  </div>
-                  <Switch
-                    checked={settingsForm.ignore_own_messages}
-                    onCheckedChange={(checked) => setSettingsForm(prev => ({ ...prev, ignore_own_messages: checked }))}
-                  />
-                </div>
-                
-                <Separator />
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Delay Mínimo (segundos)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={settingsForm.response_delay_min}
-                      onChange={(e) => setSettingsForm(prev => ({ ...prev, response_delay_min: parseInt(e.target.value) || 2 }))}
-                    />
-                  </div>
-                  <div>
-                    <Label>Delay Máximo (segundos)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={60}
-                      value={settingsForm.response_delay_max}
-                      onChange={(e) => setSettingsForm(prev => ({ ...prev, response_delay_max: parseInt(e.target.value) || 5 }))}
-                    />
-                  </div>
-                </div>
-                
-                <Button onClick={handleSaveSettings} disabled={isSaving}>
-                  {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Salvar Configurações
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Webhook da Evolution API</CardTitle>
-                <CardDescription>
-                  Configure este webhook na sua instância da Evolution API para receber mensagens
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Input value={getWebhookUrl()} readOnly className="font-mono text-sm" />
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(getWebhookUrl());
-                      toast.success('URL copiada!');
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Bot className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhuma regra configurada</h3>
+                <p className="text-muted-foreground text-center mb-4">
+                  Crie sua primeira regra ou use um template para começar
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={() => { resetForm(); setShowRuleDialog(true); }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Regra
+                  </Button>
+                  <Button variant="outline" onClick={() => setActiveTab('templates')}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Ver Templates
                   </Button>
                 </div>
-                <div className="bg-muted p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Como configurar:</h4>
-                  <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                    <li>Acesse o painel da Evolution API</li>
-                    <li>Vá em Configurações da Instância → Webhook</li>
-                    <li>Cole a URL acima no campo de Webhook</li>
-                    <li>Habilite o evento <code>messages.upsert</code></li>
-                    <li>Salve as configurações</li>
-                  </ol>
-                </div>
               </CardContent>
             </Card>
+          ) : (
+            <div className="grid gap-4">
+              {rules.map((rule) => (
+                <Card key={rule.id} className={!rule.is_active ? 'opacity-60' : ''}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-medium">{rule.name}</h3>
+                          <Badge variant={rule.is_active ? 'default' : 'secondary'}>
+                            {rule.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                          <Badge variant="outline">
+                            {COOLDOWN_MODES[rule.cooldown_mode]?.asterisks}
+                          </Badge>
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            {(() => {
+                              const Icon = CONTACT_FILTERS[rule.contact_filter]?.icon || Users;
+                              return <Icon className="h-3 w-3" />;
+                            })()}
+                            {CONTACT_FILTERS[rule.contact_filter]?.label}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Gatilho: <code className="bg-muted px-1 rounded">{rule.trigger_text}</code>
+                        </p>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                          {rule.response_content.text}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => openEditRule(rule)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => { setDeletingItem({ type: 'rule', id: rule.id }); setShowDeleteDialog(true); }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Templates Tab */}
+        <TabsContent value="templates" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">Templates Disponíveis</h2>
+            {isAdmin && (
+              <Button onClick={() => { resetForm(); setShowTemplateDialog(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Template
+              </Button>
+            )}
+          </div>
+
+          {templates.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Copy className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhum template disponível</h3>
+                <p className="text-muted-foreground text-center">
+                  {isAdmin ? 'Crie templates para seus revendedores usarem' : 'Aguarde o administrador criar templates'}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {templates.map((template) => (
+                <Card key={template.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">{template.name}</CardTitle>
+                        {template.description && (
+                          <CardDescription>{template.description}</CardDescription>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        {isAdmin && (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={() => openEditTemplate(template)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => { setDeletingItem({ type: 'template', id: template.id }); setShowDeleteDialog(true); }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline">{COOLDOWN_MODES[template.cooldown_mode]?.asterisks}</Badge>
+                        <Badge variant="outline">{RESPONSE_TYPES[template.response_type]?.label}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {template.response_content.text}
+                      </p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => handleUseTemplate(template)}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                        Usar Template
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Contacts Tab */}
+        <TabsContent value="contacts" className="space-y-4">
+          <h2 className="text-lg font-semibold">Contatos Recentes</h2>
+          
+          {contacts.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhum contato ainda</h3>
+                <p className="text-muted-foreground text-center">
+                  Os contatos aparecerão aqui quando interagirem com o chatbot
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <ScrollArea className="h-[400px]">
+                <div className="divide-y">
+                  {contacts.map((contact) => (
+                    <div key={contact.id} className="p-4 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{contact.name || contact.phone}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {CONTACT_FILTERS[contact.contact_status]?.label}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{contact.phone}</p>
+                      </div>
+                      <div className="text-right text-sm text-muted-foreground">
+                        <p>{contact.interaction_count} interações</p>
+                        <p>
+                          {format(new Date(contact.last_interaction_at), "dd/MM HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="space-y-4">
+          <h2 className="text-lg font-semibold">Configurações do Chatbot</h2>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Configurações Gerais</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Chatbot Ativo</Label>
+                  <p className="text-sm text-muted-foreground">Ativar respostas automáticas</p>
+                </div>
+                <Switch
+                  checked={settingsForm.is_enabled}
+                  onCheckedChange={(checked) => setSettingsForm(prev => ({ ...prev, is_enabled: checked }))}
+                />
+              </div>
+              
+              <Separator />
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Ignorar Grupos</Label>
+                  <p className="text-sm text-muted-foreground">Não responder mensagens de grupos</p>
+                </div>
+                <Switch
+                  checked={settingsForm.ignore_groups}
+                  onCheckedChange={(checked) => setSettingsForm(prev => ({ ...prev, ignore_groups: checked }))}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Ignorar Próprias Mensagens</Label>
+                  <p className="text-sm text-muted-foreground">Não processar mensagens enviadas por você</p>
+                </div>
+                <Switch
+                  checked={settingsForm.ignore_own_messages}
+                  onCheckedChange={(checked) => setSettingsForm(prev => ({ ...prev, ignore_own_messages: checked }))}
+                />
+              </div>
+              
+              <Separator />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Delay Mínimo (segundos)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={settingsForm.response_delay_min}
+                    onChange={(e) => setSettingsForm(prev => ({ ...prev, response_delay_min: parseInt(e.target.value) || 2 }))}
+                  />
+                </div>
+                <div>
+                  <Label>Delay Máximo (segundos)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={settingsForm.response_delay_max}
+                    onChange={(e) => setSettingsForm(prev => ({ ...prev, response_delay_max: parseInt(e.target.value) || 5 }))}
+                  />
+                </div>
+              </div>
+              
+              <Button onClick={handleSaveSettings} disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Salvar Configurações
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Webhook da Evolution API</CardTitle>
+              <CardDescription>
+                Configure este webhook na sua instância da Evolution API para receber mensagens
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Input value={getWebhookUrl()} readOnly className="font-mono text-sm" />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(getWebhookUrl());
+                    toast.success('URL copiada!');
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="bg-muted p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Como configurar:</h4>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                  <li>Acesse o painel da Evolution API</li>
+                  <li>Vá em Configurações da Instância → Webhook</li>
+                  <li>Cole a URL acima no campo de Webhook</li>
+                  <li>Habilite o evento <code>messages.upsert</code></li>
+                  <li>Salve as configurações</li>
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

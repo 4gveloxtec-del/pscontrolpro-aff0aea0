@@ -40,6 +40,7 @@ import AdminServerTemplates from "./pages/AdminServerTemplates";
 import WhatsAppAutomation from "./pages/WhatsAppAutomation";
 import MessageHistory from "./pages/MessageHistory";
 import Tutorials from "./pages/Tutorials";
+import Chatbot from "./pages/Chatbot";
 import ForcePasswordUpdate from "./pages/ForcePasswordUpdate";
 import NotFound from "./pages/NotFound";
 
@@ -150,6 +151,7 @@ const AppRoutes = () => {
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
+          <Route path="/chatbot" element={<Chatbot />} />
           
           {/* Seller-only routes (revendedor) */}
           <Route path="/clients" element={<Clients />} />
