@@ -1,8 +1,11 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 // Usa o Lovable Cloud para autenticação e dados principais
 import { supabase } from '@/integrations/supabase/client';
 type AppRole = 'admin' | 'seller' | 'user';
+
+// Default trial days (can be overridden by app_settings)
+const DEFAULT_TRIAL_DAYS = 5;
 
 interface Profile {
   id: string;
@@ -128,6 +131,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [isVerifyingRole, setIsVerifyingRole] = useState(false);
+  const [trialDays, setTrialDays] = useState<number>(DEFAULT_TRIAL_DAYS);
+
+  // Fetch trial days from app_settings
+  useEffect(() => {
+    const fetchTrialDays = async () => {
+      try {
+        const { data } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'seller_trial_days')
+          .maybeSingle();
+        
+        if (data?.value) {
+          const days = parseInt(data.value, 10);
+          if (!isNaN(days) && days > 0) {
+            setTrialDays(days);
+          }
+        }
+      } catch {
+        // Use default if fetch fails
+      }
+    };
+
+    fetchTrialDays();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -343,15 +371,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSeller = role === 'seller';
   const isUser = role === 'user';
   
-  // Calcular período de teste de 5 dias para usuários 'user'
-  const TRIAL_DAYS = 5;
+  // Calcular período de teste usando o valor dinâmico do banco
   const trialInfo = (() => {
     if (!profile?.created_at || role !== 'user') {
       return { isInTrial: false, daysRemaining: 0, trialExpired: false };
     }
     
     const createdAt = new Date(profile.created_at);
-    const trialEndDate = new Date(createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+    const trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
     const now = new Date();
     const daysRemaining = Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
