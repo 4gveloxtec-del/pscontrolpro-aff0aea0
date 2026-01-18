@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 /**
- * Hook que troca dinamicamente o manifest do PWA baseado na rota
+ * Hook que detecta se o app está em modo ADM e gerencia o manifest/tema dinamicamente
  * - Rotas /admin/* usam manifest-admin.json
  * - Outras rotas usam manifest.json (revendedor)
  */
@@ -11,6 +11,7 @@ export function useAdminManifest() {
   
   useEffect(() => {
     const isAdminRoute = location.pathname.startsWith('/admin');
+    
     const manifestLink = document.querySelector('link[rel="manifest"]');
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     const appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]');
@@ -34,7 +35,7 @@ export function useAdminManifest() {
       
       // Registrar service worker do admin
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw-admin.js', { scope: '/admin' })
+        navigator.serviceWorker.register('/sw-admin.js', { scope: '/' })
           .catch(() => {
             // Silently fail
           });

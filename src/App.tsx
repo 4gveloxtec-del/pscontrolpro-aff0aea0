@@ -45,6 +45,21 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Componente para detectar ?panel=admin e redirecionar corretamente
+function RootRedirect() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const panelParam = searchParams.get('panel');
+  
+  // Se veio do PWA ADM (?panel=admin), redireciona para /admin
+  if (panelParam === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+  
+  // Caso contrário, vai para auth (comportamento padrão do revendedor)
+  return <Navigate to="/auth" replace />;
+}
+
 // Wrapper to check if user needs password update and redirect if no access
 function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
   const { user, needsPasswordUpdate, loading, hasSystemAccess } = useAuth();
@@ -92,7 +107,8 @@ const AppRoutes = () => {
     <BrowserRouter>
       <AdminManifestProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/auth" replace />} />
+        {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
+        <Route path="/" element={<RootRedirect />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/access-denied" element={<AccessDenied />} />
