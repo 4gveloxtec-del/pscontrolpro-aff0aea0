@@ -41,6 +41,7 @@ import WhatsAppAutomation from "./pages/WhatsAppAutomation";
 import MessageHistory from "./pages/MessageHistory";
 import Tutorials from "./pages/Tutorials";
 import Chatbot from "./pages/Chatbot";
+import SystemHealth from "./pages/SystemHealth";
 import ForcePasswordUpdate from "./pages/ForcePasswordUpdate";
 import NotFound from "./pages/NotFound";
 
@@ -135,6 +136,7 @@ const AppRoutes = () => {
           <Route path="/admin/server-icons" element={<ServerIcons />} />
           <Route path="/admin/server-templates" element={<AdminServerTemplates />} />
           <Route path="/admin/tutorials" element={<Tutorials />} />
+          <Route path="/admin/system-health" element={<SystemHealth />} />
           <Route path="/admin/settings" element={<Settings />} />
         </Route>
         {/* ============ FIM ADMIN PWA ROUTES ============ */}

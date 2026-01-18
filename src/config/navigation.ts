@@ -17,6 +17,7 @@ import {
   AppWindow,
   UsersRound,
   Bot,
+  HeartPulse,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -75,6 +76,7 @@ export const navGroups: NavGroup[] = [
       { title: 'Tutoriais', href: '/tutorials', icon: PlayCircle },
       { title: 'Vendedores', href: '/sellers', icon: UserCog, adminOnly: true },
       { title: 'Templates Servidores', href: '/server-templates', icon: Server, adminOnly: true },
+      { title: 'Autocura', href: '/admin/system-health', icon: HeartPulse, adminOnly: true },
       { title: 'Relatórios', href: '/reports', icon: BarChart3, adminOnly: true },
       { title: 'Backup', href: '/backup', icon: Database, adminOnly: true },
       { title: 'Configurações', href: '/settings', icon: Settings },
