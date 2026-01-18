@@ -90,17 +90,17 @@ export function PlanSelector({
 
   // Group and sort plans
   const sortedPlans = useMemo(() => {
-    return [...plans].sort((a, b) => {
+    return [...plans].filter(p => p && p.name).sort((a, b) => {
       // First by duration
-      if (a.duration_days !== b.duration_days) {
-        return a.duration_days - b.duration_days;
+      if ((a.duration_days || 0) !== (b.duration_days || 0)) {
+        return (a.duration_days || 0) - (b.duration_days || 0);
       }
       // Then by screens
       if ((a.screens || 1) !== (b.screens || 1)) {
         return (a.screens || 1) - (b.screens || 1);
       }
-      // Then by name
-      return a.name.localeCompare(b.name);
+      // Then by name (with null safety)
+      return (a.name || '').localeCompare(b.name || '');
     });
   }, [plans]);
 
