@@ -7,13 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, Smartphone, Save } from 'lucide-react';
+import { Plus, Trash2, Edit, Smartphone, Save, Download, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface ResellerApp {
   id: string;
   name: string;
   icon: string;
+  download_url: string | null;
   seller_id: string;
   is_active: boolean;
 }
@@ -28,7 +29,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ResellerApp | null>(null);
-  const [formData, setFormData] = useState({ name: '', icon: '📱' });
+  const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '' });
 
   // Fetch reseller apps - using custom_products with a specific naming convention
   const { data: resellerApps = [], isLoading } = useQuery({
@@ -45,6 +46,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
         id: item.id,
         name: item.name.replace('APP_REVENDEDOR:', ''),
         icon: item.icon || '📱',
+        download_url: item.download_url,
         seller_id: item.seller_id,
         is_active: item.is_active
       })) as ResellerApp[];
@@ -53,7 +55,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; icon: string }) => {
+    mutationFn: async (data: { name: string; icon: string; download_url: string }) => {
       // Check if already has 10 apps
       if (resellerApps.length >= 10) {
         throw new Error('Limite de 10 apps atingido');
@@ -64,6 +66,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
         .insert({
           name: `APP_REVENDEDOR:${data.name}`,
           icon: data.icon,
+          download_url: data.download_url || null,
           seller_id: sellerId,
           is_active: true
         });
@@ -81,12 +84,13 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string } }) => {
       const { error } = await supabase
         .from('custom_products')
         .update({
           name: `APP_REVENDEDOR:${data.name}`,
           icon: data.icon,
+          download_url: data.download_url || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -121,13 +125,13 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', icon: '📱' });
+    setFormData({ name: '', icon: '📱', download_url: '' });
     setEditingApp(null);
   };
 
   const handleEdit = (app: ResellerApp) => {
     setEditingApp(app);
-    setFormData({ name: app.name, icon: app.icon });
+    setFormData({ name: app.name, icon: app.icon, download_url: app.download_url || '' });
     setIsDialogOpen(true);
   };
 
@@ -214,6 +218,20 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                       maxLength={50}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="download_url">Link de Download</Label>
+                    <Input
+                      id="download_url"
+                      type="url"
+                      value={formData.download_url}
+                      onChange={(e) => setFormData({ ...formData, download_url: e.target.value })}
+                      placeholder="https://exemplo.com/app.apk"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      📱 Funciona para: Android TV Box, Android TV e Celular Android
+                    </p>
+                  </div>
                 </div>
 
                 <DialogFooter>
@@ -263,6 +281,17 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {app.download_url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-green-600 hover:text-green-700"
+                      onClick={() => window.open(app.download_url!, '_blank')}
+                      title="Download APK"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
