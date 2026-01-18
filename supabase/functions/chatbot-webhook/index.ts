@@ -29,6 +29,51 @@ interface WebhookPayload {
   sender?: string;
 }
 
+type RawWebhookPayload = Record<string, unknown>;
+
+function normalizeWebhookPayload(raw: RawWebhookPayload): WebhookPayload {
+  // Evolution / Baileys payloads can vary a lot depending on version/config.
+  const event =
+    (raw?.event as string | undefined) ??
+    (raw?.type as string | undefined) ??
+    ((raw?.data as any)?.event as string | undefined) ??
+    ((raw?.data as any)?.type as string | undefined) ??
+    "";
+
+  const instance =
+    (raw?.instance as string | undefined) ??
+    (raw?.instanceName as string | undefined) ??
+    ((raw?.data as any)?.instance as string | undefined) ??
+    ((raw?.data as any)?.instanceName as string | undefined) ??
+    "";
+
+  // Try to locate the actual message object
+  let data: IncomingMessage | undefined = undefined;
+  const candidates: unknown[] = [
+    raw?.data,
+    (raw as any)?.message,
+    (raw as any)?.messages?.[0],
+    (raw as any)?.data?.data,
+    (raw as any)?.data?.message,
+    (raw as any)?.data?.messages?.[0],
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    const msg = c as any;
+    if (msg?.key?.remoteJid) {
+      data = msg as IncomingMessage;
+      break;
+    }
+  }
+
+  return {
+    event: String(event || ""),
+    instance: String(instance || ""),
+    data,
+    sender: (raw?.sender as string | undefined) ?? undefined,
+  };
+}
+
 interface ChatbotRule {
   id: string;
   name: string;
@@ -556,26 +601,57 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse webhook payload
-    const payload: WebhookPayload = await req.json();
-    
-    console.log("Webhook received:", JSON.stringify(payload, null, 2));
-    
-    // Only process incoming messages
-    if (payload.event !== "messages.upsert") {
+    // Parse webhook payload (normalize across versions)
+    let rawPayload: Record<string, unknown> | null = null;
+    try {
+      rawPayload = (await req.json()) as Record<string, unknown>;
+    } catch {
+      rawPayload = null;
+    }
+
+    if (!rawPayload) {
+      return new Response(JSON.stringify({ status: "ignored", reason: "Invalid JSON" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const payload: WebhookPayload = normalizeWebhookPayload(rawPayload);
+
+    console.log(
+      "Webhook received:",
+      JSON.stringify(
+        {
+          event: payload.event,
+          instance: payload.instance,
+          hasData: Boolean(payload.data),
+        },
+        null,
+        2
+      )
+    );
+
+    // Only process incoming messages (but some providers omit `event`)
+    if (payload.event && payload.event !== "messages.upsert") {
       return new Response(JSON.stringify({ status: "ignored", reason: "Not a message event" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    
+
     const message = payload.data;
-    if (!message) {
+    if (!message?.key?.remoteJid) {
       return new Response(JSON.stringify({ status: "ignored", reason: "No message data" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    
-    const instanceName = payload.instance;
+
+    const instanceName = (payload.instance || "").trim();
+    if (!instanceName) {
+      return new Response(JSON.stringify({ status: "ignored", reason: "No instance name" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const remoteJid = message.key.remoteJid;
     const fromMe = message.key.fromMe;
     const pushName = message.pushName || "";
