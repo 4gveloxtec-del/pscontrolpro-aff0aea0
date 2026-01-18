@@ -1666,6 +1666,171 @@ export type Database = {
         }
         Relationships: []
       }
+      system_health_config: {
+        Row: {
+          auto_repair_enabled: boolean | null
+          check_interval_seconds: number | null
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          max_repair_attempts: number | null
+          notify_admin_on_critical: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_repair_enabled?: boolean | null
+          check_interval_seconds?: number | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          max_repair_attempts?: number | null
+          notify_admin_on_critical?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_repair_enabled?: boolean | null
+          check_interval_seconds?: number | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          max_repair_attempts?: number | null
+          notify_admin_on_critical?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      system_health_logs: {
+        Row: {
+          component_name: string
+          created_at: string | null
+          details: Json | null
+          event_type: string
+          id: string
+          message: string
+          repair_action: string | null
+          severity: string
+          was_auto_repaired: boolean | null
+        }
+        Insert: {
+          component_name: string
+          created_at?: string | null
+          details?: Json | null
+          event_type: string
+          id?: string
+          message: string
+          repair_action?: string | null
+          severity?: string
+          was_auto_repaired?: boolean | null
+        }
+        Update: {
+          component_name?: string
+          created_at?: string | null
+          details?: Json | null
+          event_type?: string
+          id?: string
+          message?: string
+          repair_action?: string | null
+          severity?: string
+          was_auto_repaired?: boolean | null
+        }
+        Relationships: []
+      }
+      system_health_status: {
+        Row: {
+          component_name: string
+          component_type: string
+          consecutive_failures: number | null
+          created_at: string | null
+          id: string
+          last_check_at: string | null
+          last_error: string | null
+          last_repair_at: string | null
+          last_repair_success: boolean | null
+          metadata: Json | null
+          repair_attempts: number | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          component_name: string
+          component_type: string
+          consecutive_failures?: number | null
+          created_at?: string | null
+          id?: string
+          last_check_at?: string | null
+          last_error?: string | null
+          last_repair_at?: string | null
+          last_repair_success?: boolean | null
+          metadata?: Json | null
+          repair_attempts?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          component_name?: string
+          component_type?: string
+          consecutive_failures?: number | null
+          created_at?: string | null
+          id?: string
+          last_check_at?: string | null
+          last_error?: string | null
+          last_repair_at?: string | null
+          last_repair_success?: boolean | null
+          metadata?: Json | null
+          repair_attempts?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      system_repair_actions: {
+        Row: {
+          action_config: Json | null
+          action_name: string
+          action_type: string
+          component_name: string
+          created_at: string | null
+          executions_today: number | null
+          id: string
+          is_active: boolean | null
+          is_safe: boolean | null
+          last_execution_at: string | null
+          max_daily_executions: number | null
+          requires_confirmation: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          action_config?: Json | null
+          action_name: string
+          action_type: string
+          component_name: string
+          created_at?: string | null
+          executions_today?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_safe?: boolean | null
+          last_execution_at?: string | null
+          max_daily_executions?: number | null
+          requires_confirmation?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          action_config?: Json | null
+          action_name?: string
+          action_type?: string
+          component_name?: string
+          created_at?: string | null
+          executions_today?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_safe?: boolean | null
+          last_execution_at?: string | null
+          max_daily_executions?: number | null
+          requires_confirmation?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       tutorials: {
         Row: {
           created_at: string
