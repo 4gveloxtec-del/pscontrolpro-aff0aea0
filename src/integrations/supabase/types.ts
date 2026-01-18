@@ -960,6 +960,7 @@ export type Database = {
         Row: {
           app_type: string
           created_at: string | null
+          download_url: string | null
           icon: string | null
           id: string
           is_active: boolean | null
@@ -973,6 +974,7 @@ export type Database = {
         Insert: {
           app_type?: string
           created_at?: string | null
+          download_url?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
@@ -986,6 +988,7 @@ export type Database = {
         Update: {
           app_type?: string
           created_at?: string | null
+          download_url?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null

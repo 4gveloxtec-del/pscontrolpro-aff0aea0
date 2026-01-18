@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Smartphone, Edit, Trash2, ExternalLink, Handshake, Package } from 'lucide-react';
+import { Plus, Smartphone, Edit, Trash2, ExternalLink, Handshake, Package, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ServerApp {
@@ -36,6 +36,7 @@ interface ServerApp {
   app_type: 'own' | 'partnership';
   icon: string;
   website_url: string | null;
+  download_url: string | null;
   notes: string | null;
   is_active: boolean;
   created_at: string;
@@ -60,6 +61,7 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
     app_type: 'own' as 'own' | 'partnership',
     icon: '📱',
     website_url: '',
+    download_url: '',
     notes: '',
     is_active: true,
   });
@@ -135,6 +137,7 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
       app_type: 'own',
       icon: '📱',
       website_url: '',
+      download_url: '',
       notes: '',
       is_active: true,
     });
@@ -148,6 +151,7 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
       app_type: formData.app_type,
       icon: formData.icon,
       website_url: formData.website_url || null,
+      download_url: formData.download_url || null,
       notes: formData.notes || null,
       is_active: formData.is_active,
     };
@@ -166,6 +170,7 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
       app_type: app.app_type,
       icon: app.icon,
       website_url: app.website_url || '',
+      download_url: app.download_url || '',
       notes: app.notes || '',
       is_active: app.is_active,
     });
@@ -279,6 +284,20 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
                       onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
                       placeholder="https://app.exemplo.com"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="download_url">Link de Download</Label>
+                    <Input
+                      id="download_url"
+                      type="url"
+                      value={formData.download_url}
+                      onChange={(e) => setFormData({ ...formData, download_url: e.target.value })}
+                      placeholder="https://exemplo.com/app.apk"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      📱 Funciona para: Android TV Box, Android TV e Celular Android
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -407,12 +426,24 @@ function AppCard({
         </div>
       </div>
       <div className="flex items-center gap-1">
+        {app.download_url && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-green-600 hover:text-green-700"
+            onClick={() => window.open(app.download_url!, '_blank')}
+            title="Download APK"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        )}
         {app.website_url && (
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             onClick={() => window.open(app.website_url!, '_blank')}
+            title="Abrir Site"
           >
             <ExternalLink className="h-4 w-4" />
           </Button>
