@@ -1917,12 +1917,15 @@ export type Database = {
       }
       whatsapp_seller_instances: {
         Row: {
+          auto_configured_at: string | null
           auto_send_enabled: boolean | null
           blocked_at: string | null
           blocked_reason: string | null
+          configuration_error: string | null
           created_at: string | null
           id: string
           instance_blocked: boolean
+          instance_link: string | null
           instance_name: string
           is_connected: boolean | null
           last_connection_check: string | null
@@ -1930,14 +1933,18 @@ export type Database = {
           plan_status: string
           seller_id: string
           updated_at: string | null
+          webhook_auto_configured: boolean | null
         }
         Insert: {
+          auto_configured_at?: string | null
           auto_send_enabled?: boolean | null
           blocked_at?: string | null
           blocked_reason?: string | null
+          configuration_error?: string | null
           created_at?: string | null
           id?: string
           instance_blocked?: boolean
+          instance_link?: string | null
           instance_name?: string
           is_connected?: boolean | null
           last_connection_check?: string | null
@@ -1945,14 +1952,18 @@ export type Database = {
           plan_status?: string
           seller_id: string
           updated_at?: string | null
+          webhook_auto_configured?: boolean | null
         }
         Update: {
+          auto_configured_at?: string | null
           auto_send_enabled?: boolean | null
           blocked_at?: string | null
           blocked_reason?: string | null
+          configuration_error?: string | null
           created_at?: string | null
           id?: string
           instance_blocked?: boolean
+          instance_link?: string | null
           instance_name?: string
           is_connected?: boolean | null
           last_connection_check?: string | null
@@ -1960,6 +1971,7 @@ export type Database = {
           plan_status?: string
           seller_id?: string
           updated_at?: string | null
+          webhook_auto_configured?: boolean | null
         }
         Relationships: []
       }

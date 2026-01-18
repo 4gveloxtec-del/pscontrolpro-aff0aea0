@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.chatbot-webhook]
 verify_jwt = false
+
+[functions.configure-seller-instance]
+verify_jwt = false

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { WhatsAppGlobalConfig } from '@/components/WhatsAppGlobalConfig';
 import { WhatsAppSellerConfig } from '@/components/WhatsAppSellerConfig';
+import { SimplifiedWhatsAppConfig } from '@/components/SimplifiedWhatsAppConfig';
 import { ManualMessageSender } from '@/components/ManualMessageSender';
 import { useWhatsAppGlobalConfig } from '@/hooks/useWhatsAppGlobalConfig';
 import { useWhatsAppSellerInstance } from '@/hooks/useWhatsAppSellerInstance';
@@ -354,15 +355,20 @@ export default function WhatsAppAutomation() {
         <TabsContent value="config">
           <Card>
             <CardHeader>
-              <CardTitle>Minha Instância WhatsApp</CardTitle>
+              <CardTitle>
+                {isAdmin ? 'Minha Instância WhatsApp' : 'Conectar WhatsApp'}
+              </CardTitle>
               <CardDescription>
                 {isAdmin 
                   ? 'Configure sua própria instância para enviar mensagens aos revendedores'
-                  : 'Conecte seu WhatsApp para enviar mensagens aos clientes'
+                  : 'Cole o link da sua instância para ativar o envio automático'
                 }
               </CardDescription>
             </CardHeader>
-            <CardContent><WhatsAppSellerConfig /></CardContent>
+            <CardContent>
+              {/* Admin uses full config, resellers use simplified */}
+              {isAdmin ? <WhatsAppSellerConfig /> : <SimplifiedWhatsAppConfig />}
+            </CardContent>
           </Card>
         </TabsContent>
 
