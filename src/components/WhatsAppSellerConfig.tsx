@@ -58,11 +58,14 @@ export function WhatsAppSellerConfig() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [qrCountdown, setQrCountdown] = useState(50);
   const [formData, setFormData] = useState({
     instance_name: '',
     auto_send_enabled: false,
     is_connected: false,
   });
+
+  const QR_REFRESH_INTERVAL = 50; // seconds
 
   // Celebration confetti effect
   const triggerCelebration = useCallback(() => {
@@ -129,6 +132,66 @@ export function WhatsAppSellerConfig() {
       });
     }
   }, [instance]);
+
+  // QR Code countdown and auto-refresh
+  useEffect(() => {
+    if (!qrCode) {
+      setQrCountdown(QR_REFRESH_INTERVAL);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setQrCountdown((prev) => {
+        if (prev <= 1) {
+          // Auto refresh QR code
+          refreshQrCode();
+          return QR_REFRESH_INTERVAL;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [qrCode]);
+
+  // Refresh QR Code function (silent, no loading state change)
+  const refreshQrCode = async () => {
+    if (!formData.instance_name || !globalConfig?.api_url || !globalConfig?.api_token) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'get_qrcode',
+          config: {
+            api_url: globalConfig.api_url,
+            api_token: globalConfig.api_token,
+            instance_name: formData.instance_name,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.qrcode) {
+        setQrCode(data.qrcode);
+        setQrCountdown(QR_REFRESH_INTERVAL);
+      } else if (data.connected) {
+        const wasDisconnected = !formData.is_connected;
+        setFormData(prev => ({ ...prev, is_connected: true }));
+        await updateConnectionStatus(true);
+        setQrCode(null);
+        
+        if (wasDisconnected) {
+          triggerCelebration();
+          await sendWelcomeMessage();
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing QR code:', error);
+    }
+  };
 
   // Save instance config
   const handleSave = async () => {
@@ -530,21 +593,69 @@ export function WhatsAppSellerConfig() {
       {/* QR Code Display - Redesigned with Animation */}
       {qrCode && (
         <div className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-gradient-to-b from-background to-muted/30 animate-fade-in">
-          {/* Header */}
+          {/* Header with Countdown */}
           <div className="bg-primary/5 border-b border-primary/20 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center animate-pulse">
-                <QrCode className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center animate-pulse">
+                  <QrCode className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Escaneie o QR Code</h3>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                    Aguardando leitura...
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Escaneie o QR Code</h3>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                  </span>
-                  Aguardando leitura...
-                </p>
+              
+              {/* Countdown Timer */}
+              <div className="flex items-center gap-2">
+                <div className="relative w-12 h-12">
+                  {/* Background circle */}
+                  <svg className="w-12 h-12 transform -rotate-90">
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                      className="text-muted/30"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      fill="none"
+                      strokeLinecap="round"
+                      className="text-primary transition-all duration-1000"
+                      style={{
+                        strokeDasharray: `${2 * Math.PI * 20}`,
+                        strokeDashoffset: `${2 * Math.PI * 20 * (1 - qrCountdown / QR_REFRESH_INTERVAL)}`,
+                      }}
+                    />
+                  </svg>
+                  {/* Countdown number */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={cn(
+                      "text-sm font-bold tabular-nums",
+                      qrCountdown <= 10 ? "text-warning" : "text-primary"
+                    )}>
+                      {qrCountdown}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground hidden sm:block">
+                  <p className="font-medium">Atualização</p>
+                  <p>automática</p>
+                </div>
               </div>
             </div>
           </div>
