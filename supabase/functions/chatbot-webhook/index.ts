@@ -1113,13 +1113,95 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
+      // Check for specific instance diagnosis
+      const diagnoseInstance = parsedUrl.searchParams.get("diagnose") || "";
+      
       const { data: chatbotSettings } = await supabase
         .from("chatbot_settings")
-        .select("seller_id, is_enabled");
+        .select("seller_id, is_enabled, ignore_groups, ignore_own_messages, typing_enabled");
 
       const { data: chatbotRules } = await supabase
         .from("chatbot_rules")
-        .select("seller_id, name, is_active, trigger_text, response_type");
+        .select("seller_id, name, is_active, trigger_text, response_type, is_global_trigger, priority");
+      
+      const { data: chatbotFlows } = await supabase
+        .from("chatbot_flows")
+        .select("seller_id, name, is_active, is_main_menu");
+      
+      // If diagnose parameter is provided, show detailed info for that instance
+      let diagnosisResult: any = null;
+      if (diagnoseInstance) {
+        const matchedInstance = instances?.find(
+          (i: any) => i.instance_name.toLowerCase() === diagnoseInstance.toLowerCase()
+        );
+        
+        if (!matchedInstance) {
+          diagnosisResult = {
+            status: "ERROR",
+            message: `Instância "${diagnoseInstance}" NÃO encontrada no banco de dados`,
+            available_instances: instances?.map((i: any) => i.instance_name) || [],
+            action_required: "Configure o nome da instância em WhatsApp Automação → Config",
+          };
+        } else {
+          const sellerId = matchedInstance.seller_id;
+          const sellerSettings = chatbotSettings?.find((s: any) => s.seller_id === sellerId);
+          const sellerRules = chatbotRules?.filter((r: any) => r.seller_id === sellerId && r.is_active) || [];
+          const sellerFlows = chatbotFlows?.filter((f: any) => f.seller_id === sellerId && f.is_active) || [];
+          
+          const problems: string[] = [];
+          
+          if (matchedInstance.instance_blocked) {
+            problems.push("❌ Instância está BLOQUEADA");
+          }
+          if (!matchedInstance.is_connected) {
+            problems.push("⚠️ Instância não está conectada");
+          }
+          if (!sellerSettings) {
+            problems.push("❌ Configurações do chatbot não encontradas - acesse Chatbot → Configurações");
+          } else if (!sellerSettings.is_enabled) {
+            problems.push("❌ Chatbot está DESATIVADO - ative em Chatbot → Configurações");
+          }
+          if (sellerRules.length === 0 && sellerFlows.length === 0) {
+            problems.push("⚠️ Nenhuma regra ou fluxo ativo - crie regras em Chatbot → Regras");
+          }
+          
+          diagnosisResult = {
+            status: problems.length === 0 ? "OK" : "PROBLEMS_FOUND",
+            instance: {
+              name: matchedInstance.instance_name,
+              is_connected: matchedInstance.is_connected,
+              is_blocked: matchedInstance.instance_blocked,
+              plan_status: matchedInstance.plan_status,
+            },
+            chatbot: {
+              is_enabled: sellerSettings?.is_enabled ?? false,
+              settings: sellerSettings || null,
+            },
+            rules: {
+              total_active: sellerRules.length,
+              list: sellerRules.map((r: any) => ({
+                name: r.name,
+                trigger: r.trigger_text,
+                type: r.response_type,
+                is_global: r.is_global_trigger,
+                priority: r.priority,
+              })),
+            },
+            flows: {
+              total_active: sellerFlows.length,
+              has_main_menu: sellerFlows.some((f: any) => f.is_main_menu),
+              list: sellerFlows.map((f: any) => ({
+                name: f.name,
+                is_main_menu: f.is_main_menu,
+              })),
+            },
+            problems,
+            action_required: problems.length > 0 
+              ? problems.join(" | ") 
+              : "Tudo OK! O chatbot deve responder às mensagens.",
+          };
+        }
+      }
 
       let apiTestResult: any = null;
       let sendTestResult: any = null;
@@ -1216,10 +1298,13 @@ serve(async (req) => {
             query: {
               test_api: testApi,
               test_send: testSend,
+              diagnose: diagnoseInstance || null,
               instance: testInstance || null,
               phone: testPhone ? "(provided)" : null,
               text: testText !== "Teste do chatbot" ? "(custom)" : "(default)",
             },
+            // If diagnosing a specific instance, show only that result prominently
+            diagnosis: diagnosisResult,
             instances: instances || [],
             globalConfig: globalConfig
               ? {
@@ -1233,6 +1318,7 @@ serve(async (req) => {
             globalConfigError: globalConfigError?.message || null,
             chatbotSettings: chatbotSettings || [],
             chatbotRules: chatbotRules || [],
+            chatbotFlows: chatbotFlows || [],
             apiTestResult,
             sendTestResult,
           },
