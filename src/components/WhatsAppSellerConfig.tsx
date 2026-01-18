@@ -418,61 +418,131 @@ export function WhatsAppSellerConfig() {
 
   return (
     <div className="space-y-6">
-      {/* Connection Status */}
+      {/* Connection Status Card */}
       <div className={cn(
-        "p-4 rounded-lg border flex items-center gap-4",
+        "relative overflow-hidden rounded-2xl border-2 transition-all duration-300",
         formData.is_connected 
-          ? "bg-success/10 border-success/30" 
-          : "bg-destructive/10 border-destructive/30"
+          ? "bg-gradient-to-br from-success/10 via-success/5 to-transparent border-success/40 shadow-lg shadow-success/10" 
+          : "bg-gradient-to-br from-destructive/10 via-destructive/5 to-transparent border-destructive/40"
       )}>
+        {/* Decorative background */}
         <div className={cn(
-          "w-12 h-12 rounded-full flex items-center justify-center",
-          formData.is_connected ? "bg-success/20" : "bg-destructive/20"
-        )}>
-          {formData.is_connected ? (
-            <Wifi className="h-6 w-6 text-success" />
-          ) : (
-            <WifiOff className="h-6 w-6 text-destructive" />
-          )}
+          "absolute inset-0 opacity-5",
+          formData.is_connected ? "bg-[radial-gradient(circle_at_top_right,hsl(var(--success)),transparent_50%)]" : ""
+        )} />
+        
+        <div className="relative p-5 flex items-center gap-4">
+          <div className={cn(
+            "w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300",
+            formData.is_connected 
+              ? "bg-success/20 ring-4 ring-success/20" 
+              : "bg-destructive/20 ring-4 ring-destructive/20"
+          )}>
+            {formData.is_connected ? (
+              <Wifi className="h-7 w-7 text-success" />
+            ) : (
+              <WifiOff className="h-7 w-7 text-destructive" />
+            )}
+          </div>
+          <div className="flex-1">
+            <p className={cn(
+              "font-semibold text-lg",
+              formData.is_connected ? "text-success" : "text-destructive"
+            )}>
+              {formData.is_connected ? '✓ WhatsApp Conectado' : 'WhatsApp Desconectado'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {formData.is_connected 
+                ? `Instância ${formData.instance_name || 'ativa'} pronta para envios` 
+                : 'Configure e escaneie o QR Code para conectar'}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={checkConnection}
+            disabled={isCheckingConnection}
+            className="rounded-xl hover:bg-background/50"
+          >
+            {isCheckingConnection ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-5 w-5" />
+            )}
+          </Button>
         </div>
-        <div className="flex-1">
-          <p className="font-medium">
-            {formData.is_connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {formData.is_connected 
-              ? 'Sua instância está ativa' 
-              : 'Escaneie o QR Code para conectar'}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={checkConnection}
-          disabled={isCheckingConnection}
-        >
-          {isCheckingConnection ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </Button>
       </div>
 
-      {/* QR Code Display */}
+      {/* QR Code Display - Redesigned */}
       {qrCode && (
-        <div className="p-4 rounded-lg border bg-white flex flex-col items-center gap-4">
-          <p className="text-sm font-medium">Escaneie o QR Code com seu WhatsApp</p>
-          <img src={qrCode} alt="QR Code WhatsApp" className="w-64 h-64" />
-          <Button variant="outline" size="sm" onClick={checkConnection}>
-            Já escaneei
-          </Button>
+        <div className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-gradient-to-b from-background to-muted/30">
+          {/* Header */}
+          <div className="bg-primary/5 border-b border-primary/20 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <QrCode className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Escaneie o QR Code</h3>
+                <p className="text-xs text-muted-foreground">Use o WhatsApp no seu celular</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* QR Code Container */}
+          <div className="p-6 flex flex-col items-center">
+            <div className="relative">
+              {/* Decorative corner brackets */}
+              <div className="absolute -top-2 -left-2 w-6 h-6 border-l-4 border-t-4 border-primary rounded-tl-lg" />
+              <div className="absolute -top-2 -right-2 w-6 h-6 border-r-4 border-t-4 border-primary rounded-tr-lg" />
+              <div className="absolute -bottom-2 -left-2 w-6 h-6 border-l-4 border-b-4 border-primary rounded-bl-lg" />
+              <div className="absolute -bottom-2 -right-2 w-6 h-6 border-r-4 border-b-4 border-primary rounded-br-lg" />
+              
+              {/* QR Code Image */}
+              <div className="p-3 bg-white rounded-xl shadow-lg">
+                <img 
+                  src={qrCode} 
+                  alt="QR Code WhatsApp" 
+                  className="w-56 h-56 sm:w-64 sm:h-64"
+                />
+              </div>
+            </div>
+            
+            {/* Instructions */}
+            <div className="mt-6 space-y-3 text-center max-w-xs">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">1</div>
+                <span>Abra o WhatsApp no celular</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">2</div>
+                <span>Vá em <strong>Dispositivos conectados</strong></span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">3</div>
+                <span>Toque em <strong>Conectar dispositivo</strong></span>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={checkConnection} 
+              className="mt-6 rounded-xl px-6"
+              disabled={isCheckingConnection}
+            >
+              {isCheckingConnection ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Já escaneei o código
+            </Button>
+          </div>
         </div>
       )}
 
       {/* API Inactive Warning Banner */}
       {apiInactive && (
-        <Alert className="border-warning bg-warning/10">
+        <Alert className="border-warning bg-warning/10 rounded-xl">
           <AlertCircle className="h-4 w-4 text-warning" />
           <AlertDescription className="text-warning-foreground">
             <strong>API aguardando ativação.</strong> Você pode salvar suas configurações, 
@@ -481,24 +551,40 @@ export function WhatsAppSellerConfig() {
         </Alert>
       )}
 
-      {/* Form */}
-      <div className="space-y-4">
+      {/* Configuration Form */}
+      <div className="rounded-2xl border bg-card p-5 space-y-5">
+        <div className="flex items-center gap-3 pb-3 border-b">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <QrCode className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Configurações da Instância</h3>
+            <p className="text-xs text-muted-foreground">Configure sua conexão WhatsApp</p>
+          </div>
+        </div>
+
         <div className="space-y-2">
-          <Label>Nome da Sua Instância</Label>
+          <Label className="text-sm font-medium">Nome da Sua Instância</Label>
           <Input
             value={formData.instance_name}
             onChange={(e) => setFormData({ ...formData, instance_name: e.target.value })}
             placeholder="minha-revenda"
+            className="rounded-xl h-11"
           />
           <p className="text-xs text-muted-foreground">
-            Identificador único da sua conexão WhatsApp
+            Identificador único da sua conexão WhatsApp (sem espaços ou caracteres especiais)
           </p>
         </div>
 
-        <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
-          <div>
-            <Label>Envio Automático</Label>
-            <p className="text-sm text-muted-foreground">Enviar mensagens automaticamente</p>
+        <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Send className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <Label className="font-medium">Envio Automático</Label>
+              <p className="text-xs text-muted-foreground">Notificar clientes automaticamente</p>
+            </div>
           </div>
           <Switch
             checked={formData.auto_send_enabled}
@@ -506,8 +592,8 @@ export function WhatsAppSellerConfig() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button onClick={handleSave} disabled={isSaving}>
+        <div className="grid grid-cols-2 gap-3 pt-2">
+          <Button onClick={handleSave} disabled={isSaving} className="rounded-xl h-11">
             {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Salvar
           </Button>
@@ -518,21 +604,27 @@ export function WhatsAppSellerConfig() {
               onClick={getQrCode} 
               disabled={isLoadingQr || !formData.instance_name || apiInactive}
               title={apiInactive ? 'Aguardando ativação da API pelo administrador' : ''}
+              className="rounded-xl h-11"
             >
               {isLoadingQr ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
-              {apiInactive ? 'API Inativa' : 'Conectar WhatsApp'}
+              {apiInactive ? 'API Inativa' : 'Conectar'}
             </Button>
           ) : (
-            <Button variant="secondary" onClick={sendTestMessage} disabled={apiInactive}>
+            <Button 
+              variant="secondary" 
+              onClick={sendTestMessage} 
+              disabled={apiInactive}
+              className="rounded-xl h-11"
+            >
               <Send className="h-4 w-4 mr-2" />
-              Testar
+              Testar Envio
             </Button>
           )}
         </div>
 
         {formData.is_connected && (
           <Button 
-            className="w-full" 
+            className="w-full rounded-xl h-11 mt-2" 
             variant="outline"
             onClick={runAutomation} 
             disabled={isRunningAutomation}
@@ -547,15 +639,35 @@ export function WhatsAppSellerConfig() {
         )}
       </div>
 
-      {/* Info */}
-      <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
-        <span className="font-medium text-sm">Como Funciona</span>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Sua instância é conectada à API global do administrador</li>
-          <li>• Apenas seus clientes receberão mensagens pela sua instância</li>
-          <li>• O administrador não tem acesso às suas conversas</li>
-          <li>• Apps Pagos: notifica 30 dias, 3 dias e no vencimento</li>
-          <li>• IPTV/Planos: notifica 3 dias e no vencimento</li>
+      {/* How it Works Info Card */}
+      <div className="rounded-2xl bg-gradient-to-br from-primary/5 via-primary/3 to-transparent border border-primary/20 overflow-hidden">
+        <div className="px-5 py-4 border-b border-primary/10 bg-primary/5">
+          <span className="font-semibold text-sm flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-primary" />
+            Como Funciona
+          </span>
+        </div>
+        <ul className="p-5 text-sm text-muted-foreground space-y-2">
+          <li className="flex items-start gap-2">
+            <span className="text-primary mt-0.5">•</span>
+            Sua instância é conectada à API global do administrador
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-primary mt-0.5">•</span>
+            Apenas seus clientes receberão mensagens pela sua instância
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-primary mt-0.5">•</span>
+            O administrador não tem acesso às suas conversas
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-primary mt-0.5">•</span>
+            <strong>Apps Pagos:</strong> notifica 30 dias, 3 dias e no vencimento
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-primary mt-0.5">•</span>
+            <strong>IPTV/Planos:</strong> notifica 3 dias e no vencimento
+          </li>
         </ul>
       </div>
     </div>
