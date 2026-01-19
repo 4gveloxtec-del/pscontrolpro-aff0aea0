@@ -228,13 +228,23 @@ export default function Backup() {
     setRestoreResult(null);
 
     try {
+      const availableModules = Object.keys(backupFile.data || {}).filter((k) => {
+        const arr = (backupFile.data as any)[k];
+        return Array.isArray(arr) && arr.length > 0;
+      });
+
+      // If user selected everything, send modules=[] so backend imports ALL modules present in the file.
+      const isFullImport = selectedModules.length >= availableModules.length;
+      const modulesForJob = isFullImport ? availableModules : selectedModules;
+      const modulesForBackend = isFullImport ? [] : selectedModules;
+
       // Create an import job to track progress (0-100%)
       const { data: job, error: jobError } = await supabase
         .from('backup_import_jobs')
         .insert({
           admin_id: user.id,
           mode: restoreMode,
-          modules: selectedModules,
+          modules: modulesForJob,
           status: 'queued',
           progress: 0,
           total_items: 0,
@@ -244,7 +254,7 @@ export default function Backup() {
         .single();
 
       if (jobError) throw jobError;
-      
+
       // Enable floating notification for background tracking
       setFloatingJobId(job.id);
       setShowFloatingNotification(true);
@@ -259,7 +269,7 @@ export default function Backup() {
         body: {
           backup: backupFile,
           mode: restoreMode,
-          modules: selectedModules,
+          modules: modulesForBackend,
           jobId: job.id,
         },
         headers: {
@@ -306,6 +316,21 @@ export default function Backup() {
     setSelectedModules(moduleConfig.map(m => m.key));
   };
 
+  const getAvailableModulesFromBackup = () => {
+    if (!backupFile?.data) return [] as string[];
+    return Object.keys(backupFile.data).filter((k) => {
+      const arr = (backupFile.data as any)[k];
+      return Array.isArray(arr) && arr.length > 0;
+    });
+  };
+
+  const getModuleCount = (key: string) => {
+    const fromStats = (backupFile?.stats as any)?.[key];
+    if (typeof fromStats === 'number' && fromStats > 0) return fromStats;
+    const arr = (backupFile?.data as any)?.[key];
+    return Array.isArray(arr) ? arr.length : 0;
+  };
+
   const toggleModule = (key: string) => {
     setSelectedModules(prev => 
       prev.includes(key) 
@@ -315,10 +340,7 @@ export default function Backup() {
   };
 
   const selectAllModules = () => {
-    const available = Object.keys(backupFile?.data || {}).filter(
-      k => (backupFile?.data[k as keyof typeof backupFile.data] as any)?.length > 0
-    );
-    setSelectedModules(available);
+    setSelectedModules(getAvailableModulesFromBackup());
   };
 
   const deselectAllModules = () => {
@@ -568,9 +590,8 @@ export default function Backup() {
                     <ScrollArea className="flex-1 max-h-[200px]">
                       <div className="grid grid-cols-2 gap-2 pr-4">
                         {moduleConfig.map(m => {
-                          const count = backupFile.stats?.[m.key] || 0;
+                          const count = getModuleCount(m.key);
                           const hasData = count > 0;
-                          
                           return (
                             <div 
                               key={m.key} 
@@ -603,12 +624,9 @@ export default function Backup() {
                     </ScrollArea>
                   </div>
 
-                  {/* Summary */}
                   <div className="p-3 bg-primary/10 rounded-lg text-sm">
-                    <strong>Resumo:</strong> {selectedModules.length} módulos selecionados, 
-                    {' '}{Object.entries(backupFile.stats || {})
-                      .filter(([k]) => selectedModules.includes(k))
-                      .reduce((sum, [, v]) => sum + (v as number), 0)} itens a importar
+                    <strong>Resumo:</strong> {selectedModules.length} módulos selecionados,
+                    {' '}{selectedModules.reduce((sum, key) => sum + getModuleCount(key), 0)} itens a importar
                   </div>
                 </div>
               )}
