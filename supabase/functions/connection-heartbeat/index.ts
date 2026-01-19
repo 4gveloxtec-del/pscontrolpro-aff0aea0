@@ -14,34 +14,51 @@ function normalizeApiUrl(url: string): string {
   return cleanUrl;
 }
 
-// Check Evolution API connection status
+// Check Evolution API connection status with retry
 async function checkEvolutionConnection(
   apiUrl: string,
   apiToken: string,
-  instanceName: string
+  instanceName: string,
+  retries = 2
 ): Promise<{ connected: boolean; state?: string; error?: string }> {
-  try {
-    const baseUrl = normalizeApiUrl(apiUrl);
-    const url = `${baseUrl}/instance/connectionState/${instanceName}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'apikey': apiToken },
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const baseUrl = normalizeApiUrl(apiUrl);
+      const url = `${baseUrl}/instance/connectionState/${instanceName}`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'apikey': apiToken },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { connected: false, error: `API error: ${response.status}`, state: 'error' };
+      if (!response.ok) {
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        return { connected: false, error: `API error: ${response.status}`, state: 'error' };
+      }
+
+      const result = await response.json();
+      const state = result?.instance?.state || result?.state || 'unknown';
+      const isConnected = state === 'open';
+      
+      return { connected: isConnected, state };
+    } catch (error: any) {
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return { connected: false, error: error.message, state: 'error' };
     }
-
-    const result = await response.json();
-    const state = result?.instance?.state || result?.state || 'unknown';
-    const isConnected = state === 'open';
-    
-    return { connected: isConnected, state };
-  } catch (error) {
-    return { connected: false, error: (error as Error).message, state: 'error' };
   }
+  return { connected: false, error: 'Max retries exceeded', state: 'error' };
 }
 
 // Attempt to reconnect without QR code (restart instance)
@@ -66,7 +83,7 @@ async function attemptReconnect(
 
     if (restartResponse.ok) {
       // Wait a bit and check connection
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       const checkResult = await checkEvolutionConnection(apiUrl, apiToken, instanceName);
       if (checkResult.connected) {
@@ -113,13 +130,128 @@ serve(async (req) => {
     // Health check ping
     if (url.searchParams.get("ping") === "true") {
       return new Response(
-        JSON.stringify({ status: "ok", service: "connection-heartbeat" }),
+        JSON.stringify({ 
+          status: "ok", 
+          service: "connection-heartbeat",
+          timestamp: new Date().toISOString(),
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const body = await req.json().catch(() => ({}));
-    const { action, seller_id } = body;
+    const { action, seller_id, webhook_event } = body;
+
+    // ============================================================
+    // WEBHOOK HANDLER - Receive events from Evolution API
+    // ============================================================
+    if (action === 'webhook' || webhook_event) {
+      console.log('[Webhook] Received event:', JSON.stringify(body, null, 2));
+      
+      const event = webhook_event || body.event;
+      const instanceName = body.instance || body.data?.instance?.instanceName;
+      const eventData = body.data || body;
+      
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ error: 'Instance name required' }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Find seller by instance name
+      const { data: instance } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('seller_id, instance_name, is_connected')
+        .or(`instance_name.eq.${instanceName},original_instance_name.eq.${instanceName}`)
+        .maybeSingle();
+
+      if (!instance) {
+        console.log('[Webhook] Instance not found:', instanceName);
+        return new Response(
+          JSON.stringify({ error: 'Instance not found' }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Handle different webhook events
+      let newConnectionState = instance.is_connected;
+      let sessionValid = true;
+      let alertType: string | null = null;
+      let alertMessage = '';
+
+      switch (event) {
+        case 'connection.update':
+          const state = eventData.state || eventData.connection?.state;
+          newConnectionState = state === 'open';
+          if (!newConnectionState && state === 'close') {
+            alertType = 'connection_lost';
+            alertMessage = 'Conexão com WhatsApp perdida';
+          }
+          break;
+
+        case 'qrcode.updated':
+          // QR code generated means not connected
+          newConnectionState = false;
+          sessionValid = true; // Session still valid, just needs scan
+          break;
+
+        case 'instance.ready':
+          newConnectionState = true;
+          sessionValid = true;
+          break;
+
+        case 'connection.lost':
+        case 'logout':
+          newConnectionState = false;
+          sessionValid = false;
+          alertType = 'session_invalid';
+          alertMessage = 'Sessão do WhatsApp encerrada';
+          break;
+      }
+
+      // Update instance status
+      await supabase
+        .from('whatsapp_seller_instances')
+        .update({
+          is_connected: newConnectionState,
+          session_valid: sessionValid,
+          last_heartbeat_at: new Date().toISOString(),
+          last_evolution_state: event,
+          offline_since: newConnectionState ? null : (instance.is_connected ? new Date().toISOString() : undefined),
+          heartbeat_failures: newConnectionState ? 0 : undefined,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('seller_id', instance.seller_id);
+
+      // Log event
+      await supabase.rpc('log_connection_event', {
+        p_seller_id: instance.seller_id,
+        p_instance_name: instance.instance_name,
+        p_event_type: event,
+        p_event_source: 'webhook',
+        p_previous_state: instance.is_connected ? 'connected' : 'disconnected',
+        p_new_state: newConnectionState ? 'connected' : 'disconnected',
+        p_is_connected: newConnectionState,
+        p_metadata: { webhook_data: eventData },
+      });
+
+      // Create alert if needed
+      if (alertType) {
+        await supabase.rpc('create_connection_alert', {
+          p_seller_id: instance.seller_id,
+          p_instance_name: instance.instance_name,
+          p_alert_type: alertType,
+          p_severity: 'critical',
+          p_message: alertMessage,
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, processed: event }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Get global Evolution API config
     const { data: globalConfig } = await supabase

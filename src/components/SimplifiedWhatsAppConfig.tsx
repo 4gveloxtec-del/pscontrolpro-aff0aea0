@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,8 @@ import {
   PartyPopper,
   RefreshCw,
   Smartphone,
-  Unplug
+  Unplug,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import confetti from 'canvas-confetti';
+import { RealTimeConnectionStatus } from './RealTimeConnectionStatus';
 
 interface InstanceStatus {
   configured: boolean;
@@ -33,6 +35,8 @@ interface InstanceStatus {
   webhook_configured?: boolean;
   blocked?: boolean;
   auto_send_enabled?: boolean;
+  last_heartbeat?: string;
+  evolution_state?: string;
 }
 
 export function SimplifiedWhatsAppConfig() {
@@ -45,8 +49,11 @@ export function SimplifiedWhatsAppConfig() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [qrCountdown, setQrCountdown] = useState(50);
+  const connectionCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const previousConnectedRef = useRef<boolean | null>(null);
 
   const QR_REFRESH_INTERVAL = 50;
+  const CONNECTION_CHECK_INTERVAL = 3000; // Check every 3s while showing QR
 
   // Celebration confetti effect
   const triggerCelebration = useCallback(() => {
@@ -84,36 +91,100 @@ export function SimplifiedWhatsAppConfig() {
     setTimeout(() => setShowCelebration(false), 5000);
   }, []);
 
-  // Load current status
-  const loadStatus = useCallback(async () => {
+  // Load current status from backend (source of truth)
+  const loadStatus = useCallback(async (silent = false) => {
     if (!user?.id) return;
 
     try {
+      if (!silent) setIsLoading(true);
+      
       const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
         body: { action: 'check_status' },
       });
 
       if (error) throw error;
 
+      // Check for connection change
+      if (previousConnectedRef.current !== null && 
+          previousConnectedRef.current === false && 
+          data.is_connected === true) {
+        // Connection restored!
+        setQrCode(null);
+        triggerCelebration();
+        toast.success('WhatsApp conectado com sucesso!');
+      }
+      
+      previousConnectedRef.current = data.is_connected ?? false;
       setStatus(data);
     } catch (err: any) {
       console.error('Error loading status:', err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, triggerCelebration]);
 
+  // Initial load
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
 
-  // QR Code countdown and auto-refresh
+  // Subscribe to realtime instance changes (auto-healing)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`instance-config-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_seller_instances',
+          filter: `seller_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newData = payload.new as any;
+          
+          // Auto-update status without refresh
+          setStatus(prev => prev ? {
+            ...prev,
+            is_connected: newData.is_connected,
+            webhook_configured: newData.webhook_auto_configured,
+          } : null);
+
+          // If connected while showing QR, celebrate!
+          if (newData.is_connected && qrCode) {
+            setQrCode(null);
+            triggerCelebration();
+            toast.success('WhatsApp conectado com sucesso!');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, qrCode, triggerCelebration]);
+
+  // QR Code countdown and auto-refresh + connection check
   useEffect(() => {
     if (!qrCode) {
       setQrCountdown(QR_REFRESH_INTERVAL);
+      // Clear connection check interval when no QR
+      if (connectionCheckRef.current) {
+        clearInterval(connectionCheckRef.current);
+        connectionCheckRef.current = null;
+      }
       return;
     }
 
+    // Start checking connection status while QR is displayed
+    connectionCheckRef.current = setInterval(() => {
+      loadStatus(true); // Silent check
+    }, CONNECTION_CHECK_INTERVAL);
+
+    // QR countdown timer
     const timer = setInterval(() => {
       setQrCountdown((prev) => {
         if (prev <= 1) {
@@ -124,8 +195,14 @@ export function SimplifiedWhatsAppConfig() {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [qrCode]);
+    return () => {
+      clearInterval(timer);
+      if (connectionCheckRef.current) {
+        clearInterval(connectionCheckRef.current);
+        connectionCheckRef.current = null;
+      }
+    };
+  }, [qrCode, loadStatus]);
 
   // Refresh QR Code
   const refreshQrCode = async () => {
@@ -323,7 +400,7 @@ export function SimplifiedWhatsAppConfig() {
           </Card>
         )}
 
-        {/* Configured - Show status */}
+        {/* Configured - Show real-time status */}
         {status?.configured && (
           <Card>
             <CardHeader>
@@ -336,34 +413,20 @@ export function SimplifiedWhatsAppConfig() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Status indicators */}
-              <div className="flex flex-wrap gap-3">
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm",
-                  status.is_connected 
-                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                    : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                )}>
-                  {status.is_connected ? (
-                    <>
-                      <Wifi className="h-4 w-4" />
-                      Conectado
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="h-4 w-4" />
-                      Desconectado
-                    </>
-                  )}
+              {/* Real-time connection status */}
+              <RealTimeConnectionStatus 
+                variant="card" 
+                showLastSync={true}
+                heartbeatInterval={30}
+              />
+              
+              {/* Chatbot status indicator */}
+              {status.webhook_configured && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 w-fit">
+                  <Activity className="h-4 w-4" />
+                  Chatbot Ativo
                 </div>
-
-                {status.webhook_configured && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Chatbot Ativo
-                  </div>
-                )}
-              </div>
+              )}
             </CardContent>
           </Card>
         )}
