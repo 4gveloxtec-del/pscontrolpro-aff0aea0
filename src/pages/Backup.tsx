@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
+
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -26,7 +25,6 @@ import {
   Upload, 
   AlertTriangle, 
   CheckCircle, 
-  Rocket,
   FileJson,
   Trash2,
   Shield,
@@ -41,6 +39,7 @@ import {
   Package,
   FolderOpen
 } from 'lucide-react';
+import { BackupImportNotification } from '@/components/BackupImportNotification';
 
 interface CleanBackupData {
   version: string;
@@ -110,45 +109,16 @@ export default function Backup() {
     warnings?: string[];
   } | null>(null);
 
-  const [importJobId, setImportJobId] = useState<string | null>(null);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [importProcessed, setImportProcessed] = useState(0);
-  const [importTotal, setImportTotal] = useState(0);
+  // Floating notification for background import
+  const [floatingJobId, setFloatingJobId] = useState<string | null>(null);
+  const [showFloatingNotification, setShowFloatingNotification] = useState(false);
 
   const [selectedModules, setSelectedModules] = useState<string[]>(
     moduleConfig.map(m => m.key)
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!importJobId || !isRestoring) return;
-
-    const channel = supabase
-      .channel(`backup-import-job:${importJobId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'backup_import_jobs',
-          filter: `id=eq.${importJobId}`,
-        },
-        (payload) => {
-          const row = payload.new as any;
-          if (!row) return;
-          if (typeof row.progress === 'number') setImportProgress(row.progress);
-          if (typeof row.status === 'string') setImportStatus(row.status);
-          if (typeof row.processed_items === 'number') setImportProcessed(row.processed_items);
-          if (typeof row.total_items === 'number') setImportTotal(row.total_items);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [importJobId, isRestoring]);
+  // Note: Progress tracking is now handled by the BackupImportNotification component
 
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
@@ -253,15 +223,9 @@ export default function Backup() {
   const executeRestore = async () => {
     if (!backupFile || !user) return;
 
-    let jobIdForError: string | null = null;
-
     setConfirmCleanDialogOpen(false);
     setIsRestoring(true);
     setRestoreResult(null);
-    setImportProgress(0);
-    setImportStatus('queued');
-    setImportProcessed(0);
-    setImportTotal(0);
 
     try {
       // Create an import job to track progress (0-100%)
@@ -280,15 +244,18 @@ export default function Backup() {
         .single();
 
       if (jobError) throw jobError;
-      setImportJobId(job.id);
-      jobIdForError = job.id;
+      
+      // Enable floating notification for background tracking
+      setFloatingJobId(job.id);
+      setShowFloatingNotification(true);
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
       const token = sessionData.session?.access_token;
       if (!token) throw new Error('Sessão inválida. Faça login novamente.');
 
-      const { data, error } = await supabase.functions.invoke('complete-backup-import', {
+      // Start the import in background - don't wait for completion
+      supabase.functions.invoke('complete-backup-import', {
         body: {
           backup: backupFile,
           mode: restoreMode,
@@ -298,96 +265,37 @@ export default function Backup() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error('[Backup] complete-backup-import error:', error);
+          // Error will be shown via the floating notification
+        } else if (data) {
+          setRestoreResult(data);
+        }
+      }).catch((err) => {
+        console.error('[Backup] Unexpected error:', err);
       });
 
-      if (error) {
-        // NOTE: supabase-js may not expose a Response object. Prefer error.context fields.
-        console.error('[Backup] complete-backup-import error:', error);
-
-        let message = (error as any)?.message || 'Erro ao restaurar backup';
-
-        try {
-          const ctx = (error as any)?.context;
-
-          // supabase-js usually provides { status, statusText, body }
-          if (ctx) {
-            const statusLine = ctx.status ? `HTTP ${ctx.status}${ctx.statusText ? ` ${ctx.statusText}` : ''}` : '';
-
-            let bodyText = '';
-            let bodyObj: any = null;
-
-            if (typeof ctx.body === 'string') {
-              bodyText = ctx.body;
-              try {
-                bodyObj = JSON.parse(bodyText);
-              } catch {
-                bodyObj = null;
-              }
-            } else if (ctx.body && typeof ctx.body === 'object') {
-              bodyObj = ctx.body;
-            }
-
-            const bodyMessage = bodyObj?.error || bodyObj?.message || bodyText;
-            if (bodyMessage) message = bodyMessage;
-            if (statusLine) message = `${statusLine} — ${message}`;
-          } else {
-            // Backwards compatibility: some runtimes expose context.response
-            const response: Response | undefined = (error as any)?.context?.response;
-            if (response) {
-              const statusLine = response.status ? `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}` : '';
-              const text = await response.text();
-              try {
-                const json = JSON.parse(text);
-                message = json?.error || json?.message || message;
-              } catch {
-                if (text) message = text;
-              }
-              if (statusLine) message = `${statusLine} — ${message}`;
-            }
-          }
-        } catch {
-          // ignore
-        }
-
-        throw new Error(message);
-      }
-
-      setRestoreResult(data);
-
-      const totalRestored = Object.values(data.restored || {}).reduce((a: number, b: unknown) => a + (b as number), 0);
-
-      if (data.errors?.length > 0) {
-        toast.warning(`Backup restaurado parcialmente: ${totalRestored} itens. ${data.errors.length} erros.`);
-      } else {
-        toast.success(`Backup restaurado com sucesso! ${totalRestored} itens importados.`);
-      }
+      // Close dialog immediately - progress will be tracked via floating notification
+      toast.info('Importação iniciada! Você pode acompanhar o progresso na notificação flutuante.');
+      setRestoreDialogOpen(false);
+      setBackupFile(null);
+      
     } catch (error) {
-      console.error('Erro ao restaurar:', error);
-
-      let message = (error as { message?: string })?.message || 'Erro ao restaurar backup';
-
-      // If the function timed out/crashed, try to read the job row to show the last backend error
-      try {
-        if (jobIdForError) {
-          const { data: jobRow } = await supabase
-            .from('backup_import_jobs')
-            .select('status, progress, errors')
-            .eq('id', jobIdForError)
-            .single();
-
-          const jobErrors = (jobRow as any)?.errors;
-          if (Array.isArray(jobErrors) && jobErrors.length > 0) {
-            message = String(jobErrors[0]);
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      toast.error(message);
+      console.error('Erro ao iniciar restauração:', error);
+      toast.error((error as { message?: string })?.message || 'Erro ao iniciar backup');
     } finally {
       setIsRestoring(false);
     }
+  };
+
+  const handleFloatingComplete = (result: { restored: Record<string, number>; errors: string[] }) => {
+    setRestoreResult(result);
+  };
+
+  const handleFloatingClose = () => {
+    setShowFloatingNotification(false);
+    setFloatingJobId(null);
   };
 
   const closeRestoreDialog = () => {
@@ -396,11 +304,6 @@ export default function Backup() {
     setBackupFile(null);
     setRestoreResult(null);
     setSelectedModules(moduleConfig.map(m => m.key));
-    setImportJobId(null);
-    setImportProgress(0);
-    setImportStatus(null);
-    setImportProcessed(0);
-    setImportTotal(0);
   };
 
   const toggleModule = (key: string) => {
@@ -695,22 +598,6 @@ export default function Backup() {
                 </div>
               )}
 
-              {isRestoring && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Progresso:</span>
-                    <span className="font-medium">{importProgress}%</span>
-                  </div>
-                  <Progress value={importProgress} />
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Status: {importStatus || '...'} </span>
-                    <span>
-                      {importTotal > 0 ? `${importProcessed}/${importTotal}` : ''}
-                    </span>
-                  </div>
-                </div>
-              )}
-
               <DialogFooter>
                 <Button variant="outline" onClick={closeRestoreDialog} disabled={isRestoring}>
                   Cancelar
@@ -720,7 +607,7 @@ export default function Backup() {
                   disabled={isRestoring || selectedModules.length === 0}
                   variant={restoreMode === 'replace' ? 'destructive' : 'default'}
                 >
-                  {isRestoring ? `Importando... ${importProgress}%` : restoreMode === 'replace' ? 'Limpar e Importar' : 'Importar'}
+                  {isRestoring ? 'Iniciando...' : restoreMode === 'replace' ? 'Limpar e Importar' : 'Importar'}
                 </Button>
               </DialogFooter>
             </>
@@ -836,6 +723,15 @@ export default function Backup() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Backup Import Notification */}
+      {showFloatingNotification && floatingJobId && (
+        <BackupImportNotification
+          jobId={floatingJobId}
+          onComplete={handleFloatingComplete}
+          onClose={handleFloatingClose}
+        />
+      )}
     </div>
   );
 }
