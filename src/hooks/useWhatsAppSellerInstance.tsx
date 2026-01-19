@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -9,14 +9,17 @@ interface WhatsAppSellerInstance {
   is_connected: boolean;
   auto_send_enabled: boolean;
   last_connection_check?: string | null;
+  last_heartbeat_at?: string | null;
   created_at?: string;
   updated_at?: string;
-  // New fields for blocking
   plan_status?: 'active' | 'trial' | 'expired' | 'suspended';
   plan_expires_at?: string | null;
   instance_blocked?: boolean;
   blocked_at?: string | null;
   blocked_reason?: string | null;
+  session_valid?: boolean;
+  last_evolution_state?: string | null;
+  webhook_auto_configured?: boolean;
 }
 
 export function useWhatsAppSellerInstance() {
@@ -24,6 +27,7 @@ export function useWhatsAppSellerInstance() {
   const [instance, setInstance] = useState<WhatsAppSellerInstance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
   // Load seller instance
   const fetchInstance = useCallback(async () => {
@@ -40,6 +44,8 @@ export function useWhatsAppSellerInstance() {
         .eq('seller_id', user.id)
         .maybeSingle();
 
+      if (!isMountedRef.current) return;
+
       if (fetchError) {
         if (fetchError.code === '42P01') {
           console.log('WhatsApp seller instances table does not exist yet');
@@ -52,16 +58,63 @@ export function useWhatsAppSellerInstance() {
         setInstance(data as WhatsAppSellerInstance);
       }
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       console.error('Error fetching WhatsApp seller instance:', err);
       setError(err.message);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [user?.id]);
 
+  // Initial fetch
   useEffect(() => {
+    isMountedRef.current = true;
     fetchInstance();
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [fetchInstance]);
+
+  // Subscribe to realtime updates - auto-update when instance changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`seller-instance-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'whatsapp_seller_instances',
+          filter: `seller_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (!isMountedRef.current) return;
+          
+          if (payload.eventType === 'DELETE') {
+            setInstance(null);
+          } else {
+            const newData = payload.new as WhatsAppSellerInstance;
+            setInstance(prev => {
+              // Only update if data actually changed
+              if (JSON.stringify(prev) !== JSON.stringify(newData)) {
+                return newData;
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   // Save seller instance
   const saveInstance = useCallback(async (newInstance: Pick<WhatsAppSellerInstance, 'instance_name' | 'auto_send_enabled'>) => {
@@ -71,7 +124,6 @@ export function useWhatsAppSellerInstance() {
       setError(null);
       
       if (instance?.id) {
-        // Update existing
         const { error: updateError } = await supabase
           .from('whatsapp_seller_instances')
           .update({
@@ -85,27 +137,22 @@ export function useWhatsAppSellerInstance() {
           setError(updateError.message);
           return { error: updateError.message };
         }
-
-        setInstance(prev => prev ? { ...prev, ...newInstance } : null);
+        // Realtime will update the state
       } else {
-        // Insert new
-        const { data, error: insertError } = await supabase
+        const { error: insertError } = await supabase
           .from('whatsapp_seller_instances')
           .insert({
             seller_id: user.id,
             instance_name: newInstance.instance_name,
             auto_send_enabled: newInstance.auto_send_enabled,
             is_connected: false,
-          })
-          .select()
-          .single();
+          });
 
         if (insertError) {
           setError(insertError.message);
           return { error: insertError.message };
         }
-
-        setInstance(data as WhatsAppSellerInstance);
+        // Realtime will update the state
       }
 
       return { error: null };
@@ -129,8 +176,7 @@ export function useWhatsAppSellerInstance() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', instance.id);
-
-      setInstance(prev => prev ? { ...prev, is_connected: isConnected } : null);
+      // Realtime will update the state
     } catch (err) {
       console.error('Error updating connection status:', err);
     }

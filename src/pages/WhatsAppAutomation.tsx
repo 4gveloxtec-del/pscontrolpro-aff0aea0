@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +41,27 @@ interface BlockedSeller {
   };
 }
 
+// Memoized status badges component
+const StatusBadges = memo(({ isApiActive, isConnected, autoSendEnabled }: {
+  isApiActive: boolean;
+  isConnected: boolean;
+  autoSendEnabled: boolean;
+}) => (
+  <div className="flex flex-wrap gap-2">
+    <Badge variant={isApiActive ? "default" : "destructive"}>
+      API: {isApiActive ? 'Ativa' : 'Inativa'}
+    </Badge>
+    <Badge variant={isConnected ? "default" : "secondary"}>
+      {isConnected ? 'Conectado' : 'Desconectado'}
+    </Badge>
+    <Badge variant={autoSendEnabled ? "default" : "outline"}>
+      {autoSendEnabled ? 'Automático' : 'Manual'}
+    </Badge>
+  </div>
+));
+
+StatusBadges.displayName = 'StatusBadges';
+
 export default function WhatsAppAutomation() {
   const { user, isAdmin } = useAuth();
   const [isRunningAutomation, setIsRunningAutomation] = useState(false);
@@ -53,51 +74,21 @@ export default function WhatsAppAutomation() {
   const [blockedSellers, setBlockedSellers] = useState<BlockedSeller[]>([]);
   const [activeSellers, setActiveSellers] = useState<BlockedSeller[]>([]);
 
-  const { config: globalConfig, isApiActive } = useWhatsAppGlobalConfig();
-  const { instance: sellerInstance, isBlocked } = useWhatsAppSellerInstance();
+  const { isApiActive } = useWhatsAppGlobalConfig();
+  const { instance: sellerInstance } = useWhatsAppSellerInstance();
 
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    // Fetch clients/resellers
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const in30Days = new Date();
-    in30Days.setDate(in30Days.getDate() + 30);
+  // Memoized values to prevent unnecessary re-renders
+  const isConnected = useMemo(() => 
+    sellerInstance?.is_connected && isApiActive,
+    [sellerInstance?.is_connected, isApiActive]
+  );
 
-    if (!isAdmin) {
-      // Fetch expiring clients
-      supabase.from('clients').select('*').eq('seller_id', user.id).eq('is_archived', false)
-        .gte('expiration_date', today.toISOString().split('T')[0])
-        .lte('expiration_date', in30Days.toISOString().split('T')[0])
-        .order('expiration_date')
-        .then(({ data }) => setExpiringClients(data || []));
+  const canRunAutomation = useMemo(() => 
+    isConnected && sellerInstance?.auto_send_enabled,
+    [isConnected, sellerInstance?.auto_send_enabled]
+  );
 
-      // Fetch clients with payment overdue by 1 day
-      supabase.from('clients').select('*')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false)
-        .eq('is_paid', false)
-        .eq('expected_payment_date', yesterday.toISOString().split('T')[0])
-        .gt('pending_amount', 0)
-        .order('expected_payment_date')
-        .then(({ data }) => setOverdueClients(data || []));
-    } else {
-      const in7Days = new Date();
-      in7Days.setDate(in7Days.getDate() + 7);
-      supabase.from('profiles').select('*')
-        .gte('subscription_expires_at', today.toISOString())
-        .lte('subscription_expires_at', in7Days.toISOString())
-        .eq('is_active', true)
-        .then(({ data }) => setExpiringResellers(data || []));
-
-      // Fetch blocked and active sellers (admin only)
-      fetchSellerInstances();
-    }
-  }, [user?.id, isAdmin]);
-
-  const fetchSellerInstances = async () => {
+  const fetchSellerInstances = useCallback(async () => {
     const { data: instances } = await supabase
       .from('whatsapp_seller_instances')
       .select(`
@@ -122,7 +113,50 @@ export default function WhatsAppAutomation() {
       setBlockedSellers(blocked as unknown as BlockedSeller[]);
       setActiveSellers(active as unknown as BlockedSeller[]);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const in30Days = new Date();
+    in30Days.setDate(in30Days.getDate() + 30);
+
+    if (!isAdmin) {
+      // Fetch data in parallel for better performance
+      Promise.all([
+        supabase.from('clients').select('id, name, category, expiration_date, phone')
+          .eq('seller_id', user.id).eq('is_archived', false)
+          .gte('expiration_date', today.toISOString().split('T')[0])
+          .lte('expiration_date', in30Days.toISOString().split('T')[0])
+          .order('expiration_date'),
+        supabase.from('clients').select('id, name, phone, pending_amount, expected_payment_date')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false)
+          .eq('is_paid', false)
+          .eq('expected_payment_date', yesterday.toISOString().split('T')[0])
+          .gt('pending_amount', 0)
+          .order('expected_payment_date')
+      ]).then(([expiringRes, overdueRes]) => {
+        setExpiringClients(expiringRes.data || []);
+        setOverdueClients(overdueRes.data || []);
+      });
+    } else {
+      const in7Days = new Date();
+      in7Days.setDate(in7Days.getDate() + 7);
+      
+      supabase.from('profiles').select('id, full_name, email, whatsapp, subscription_expires_at')
+        .gte('subscription_expires_at', today.toISOString())
+        .lte('subscription_expires_at', in7Days.toISOString())
+        .eq('is_active', true)
+        .then(({ data }) => setExpiringResellers(data || []));
+
+      fetchSellerInstances();
+    }
+  }, [user?.id, isAdmin, fetchSellerInstances]);
+
 
   const daysUntil = (dateStr: string): number => {
     const today = new Date();
@@ -184,12 +218,6 @@ export default function WhatsAppAutomation() {
     in3Days: expiringResellers.filter(r => { const d = daysUntil(r.subscription_expires_at); return d > 0 && d <= 3; }),
   };
 
-  const isConnected = isAdmin 
-    ? (sellerInstance?.is_connected && isApiActive)
-    : (sellerInstance?.is_connected && isApiActive);
-
-  const canRunAutomation = isConnected && sellerInstance?.auto_send_enabled;
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -231,17 +259,11 @@ export default function WhatsAppAutomation() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={isApiActive ? "default" : "destructive"}>
-                  API: {isApiActive ? 'Ativa' : 'Inativa'}
-                </Badge>
-                <Badge variant={sellerInstance?.is_connected ? "default" : "secondary"}>
-                  {sellerInstance?.is_connected ? 'Conectado' : 'Desconectado'}
-                </Badge>
-                <Badge variant={sellerInstance?.auto_send_enabled ? "default" : "outline"}>
-                  {sellerInstance?.auto_send_enabled ? 'Automático' : 'Manual'}
-                </Badge>
-              </div>
+              <StatusBadges 
+                isApiActive={isApiActive}
+                isConnected={isConnected ?? false}
+                autoSendEnabled={sellerInstance?.auto_send_enabled ?? false}
+              />
             </CardContent>
           </Card>
 

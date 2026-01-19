@@ -4,8 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { 
-  Wifi, 
-  WifiOff, 
   Loader2,
   QrCode,
   CheckCircle2,
@@ -16,8 +14,6 @@ import {
   Unplug,
   Activity
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,

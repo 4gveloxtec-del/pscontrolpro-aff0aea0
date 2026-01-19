@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
+import { useEffect, Suspense, lazy, memo } from "react";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { PrivacyModeProvider } from "@/hooks/usePrivacyMode";
 import { MenuStyleProvider } from "@/hooks/useMenuStyle";
@@ -14,39 +14,58 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ExpirationNotificationProvider } from "@/components/ExpirationNotificationProvider";
 import { SystemAccessRequired, AdminOnly, SellerOnly } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
-import Landing from "./pages/Landing";
-import Auth from "./pages/Auth";
-import AdminAuth from "./pages/AdminAuth";
-import AdminAccessDenied from "./pages/AdminAccessDenied";
-import AdminDashboard from "./pages/AdminDashboard";
-import AccessDenied from "./pages/AccessDenied";
-import Dashboard from "./pages/Dashboard";
-import Clients from "./pages/Clients";
-import Servers from "./pages/Servers";
-import Panels from "./pages/Panels";
-import Plans from "./pages/Plans";
-import Bills from "./pages/Bills";
-import Coupons from "./pages/Coupons";
-import Referrals from "./pages/Referrals";
-import Templates from "./pages/Templates";
-import Sellers from "./pages/Sellers";
-import Reports from "./pages/Reports";
-import Backup from "./pages/Backup";
-import Settings from "./pages/Settings";
-import ExternalApps from "./pages/ExternalApps";
-import ServerIcons from "./pages/ServerIcons";
-import PanelResellers from "./pages/PanelResellers";
-import AdminServerTemplates from "./pages/AdminServerTemplates";
-import WhatsAppAutomation from "./pages/WhatsAppAutomation";
-import MessageHistory from "./pages/MessageHistory";
-import Tutorials from "./pages/Tutorials";
-import Chatbot from "./pages/Chatbot";
-import ChatbotLogs from "./pages/ChatbotLogs";
-import SystemHealth from "./pages/SystemHealth";
-import ForcePasswordUpdate from "./pages/ForcePasswordUpdate";
-import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Lazy load pages for better performance
+const Landing = lazy(() => import("./pages/Landing"));
+const Auth = lazy(() => import("./pages/Auth"));
+const AdminAuth = lazy(() => import("./pages/AdminAuth"));
+const AdminAccessDenied = lazy(() => import("./pages/AdminAccessDenied"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AccessDenied = lazy(() => import("./pages/AccessDenied"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Clients = lazy(() => import("./pages/Clients"));
+const Servers = lazy(() => import("./pages/Servers"));
+const Panels = lazy(() => import("./pages/Panels"));
+const Plans = lazy(() => import("./pages/Plans"));
+const Bills = lazy(() => import("./pages/Bills"));
+const Coupons = lazy(() => import("./pages/Coupons"));
+const Referrals = lazy(() => import("./pages/Referrals"));
+const Templates = lazy(() => import("./pages/Templates"));
+const Sellers = lazy(() => import("./pages/Sellers"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Backup = lazy(() => import("./pages/Backup"));
+const Settings = lazy(() => import("./pages/Settings"));
+const ExternalApps = lazy(() => import("./pages/ExternalApps"));
+const ServerIcons = lazy(() => import("./pages/ServerIcons"));
+const PanelResellers = lazy(() => import("./pages/PanelResellers"));
+const AdminServerTemplates = lazy(() => import("./pages/AdminServerTemplates"));
+const WhatsAppAutomation = lazy(() => import("./pages/WhatsAppAutomation"));
+const MessageHistory = lazy(() => import("./pages/MessageHistory"));
+const Tutorials = lazy(() => import("./pages/Tutorials"));
+const Chatbot = lazy(() => import("./pages/Chatbot"));
+const ChatbotLogs = lazy(() => import("./pages/ChatbotLogs"));
+const SystemHealth = lazy(() => import("./pages/SystemHealth"));
+const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Loading fallback component - lightweight
+const PageLoader = memo(() => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+));
+PageLoader.displayName = 'PageLoader';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30000, // 30 seconds
+      gcTime: 300000, // 5 minutes
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 // Componente para detectar ?panel=admin e redirecionar corretamente
 function RootRedirect() {
@@ -109,6 +128,7 @@ const AppRoutes = () => {
   return (
     <BrowserRouter>
       <AdminManifestProvider>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
         <Route path="/" element={<RootRedirect />} />
@@ -188,6 +208,7 @@ const AppRoutes = () => {
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
       </AdminManifestProvider>
     </BrowserRouter>
   );
