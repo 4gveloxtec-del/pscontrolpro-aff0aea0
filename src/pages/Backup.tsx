@@ -301,24 +301,49 @@ export default function Backup() {
       });
 
       if (error) {
+        // NOTE: supabase-js may not expose a Response object. Prefer error.context fields.
+        console.error('[Backup] complete-backup-import error:', error);
+
         let message = (error as any)?.message || 'Erro ao restaurar backup';
 
-        // Try to extract HTTP status + body returned by the function for a clearer message
         try {
-          const response: Response | undefined = (error as any)?.context?.response;
-          if (response) {
-            const statusLine = response.status ? `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}` : '';
-            const text = await response.text();
+          const ctx = (error as any)?.context;
 
-            // Prefer JSON body error/message when present
-            try {
-              const json = JSON.parse(text);
-              message = json?.error || json?.message || message;
-            } catch {
-              if (text) message = text;
+          // supabase-js usually provides { status, statusText, body }
+          if (ctx) {
+            const statusLine = ctx.status ? `HTTP ${ctx.status}${ctx.statusText ? ` ${ctx.statusText}` : ''}` : '';
+
+            let bodyText = '';
+            let bodyObj: any = null;
+
+            if (typeof ctx.body === 'string') {
+              bodyText = ctx.body;
+              try {
+                bodyObj = JSON.parse(bodyText);
+              } catch {
+                bodyObj = null;
+              }
+            } else if (ctx.body && typeof ctx.body === 'object') {
+              bodyObj = ctx.body;
             }
 
+            const bodyMessage = bodyObj?.error || bodyObj?.message || bodyText;
+            if (bodyMessage) message = bodyMessage;
             if (statusLine) message = `${statusLine} — ${message}`;
+          } else {
+            // Backwards compatibility: some runtimes expose context.response
+            const response: Response | undefined = (error as any)?.context?.response;
+            if (response) {
+              const statusLine = response.status ? `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}` : '';
+              const text = await response.text();
+              try {
+                const json = JSON.parse(text);
+                message = json?.error || json?.message || message;
+              } catch {
+                if (text) message = text;
+              }
+              if (statusLine) message = `${statusLine} — ${message}`;
+            }
           }
         } catch {
           // ignore

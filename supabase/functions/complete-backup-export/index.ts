@@ -36,14 +36,23 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is admin
-    const { data: roleData } = await supabase
+    // Check if user is admin (robust: tolerate duplicates / missing single-row)
+    const { data: roleRows, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', user.id)
-      .single();
+      .eq('user_id', user.id);
 
-    if (roleData?.role !== 'admin') {
+    if (roleError) {
+      console.error('Failed to load user role:', roleError.message);
+      return new Response(
+        JSON.stringify({ error: 'Falha ao verificar permissões de admin.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const hasAdminRole = Array.isArray(roleRows) && roleRows.some((r: any) => r?.role === 'admin');
+
+    if (!hasAdminRole) {
       return new Response(
         JSON.stringify({ error: 'Admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

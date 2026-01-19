@@ -252,7 +252,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const [profileResult, roleResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle()
+        // Robust: do not use maybeSingle/single because duplicates can happen and would break admin detection
+        supabase.from('user_roles').select('role').eq('user_id', userId)
       ]);
 
       if (!isMounted) return;
@@ -265,7 +266,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       let nextProfile = (profileResult.data as Profile | null) ?? null;
-      let nextRole = (roleResult.data?.role as AppRole | null) ?? null;
+
+      const roleRows = (roleResult.data as any[]) || [];
+      let nextRole = (roleRows.find((r: any) => r?.role === 'admin')?.role || roleRows?.[0]?.role || null) as AppRole | null;
 
       // Se o usuário não tem role, tentar corrigir automaticamente
       // IMPORTANT: do not depend on React state timing for the access token
