@@ -325,6 +325,18 @@ export default function Backup() {
     setSelectedModules([]);
   };
 
+  const selectOnlyWhatsAppTemplates = () => {
+    const countFromStats = backupFile?.stats?.whatsapp_templates ?? 0;
+    const countFromData = (backupFile?.data?.whatsapp_templates as any[] | undefined)?.length ?? 0;
+    const count = Math.max(countFromStats, countFromData);
+
+    if (count <= 0) {
+      toast.warning('Este backup não contém Templates WhatsApp.');
+      return;
+    }
+
+    setSelectedModules(['whatsapp_templates']);
+  };
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -546,6 +558,9 @@ export default function Backup() {
                         </Button>
                         <Button variant="ghost" size="sm" onClick={deselectAllModules}>
                           Nenhum
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={selectOnlyWhatsAppTemplates}>
+                          Só WhatsApp
                         </Button>
                       </div>
                     </div>
