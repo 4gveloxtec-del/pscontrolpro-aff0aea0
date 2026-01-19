@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Users, Server, CreditCard, TrendingUp, Shield, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AdminBroadcastResellers } from '@/components/AdminBroadcastResellers';
 
 export default function AdminDashboard() {
   const { profile } = useAuth();
@@ -94,6 +95,7 @@ export default function AdminDashboard() {
             Bem-vindo, {profile?.full_name || 'Administrador'}
           </p>
         </div>
+        <AdminBroadcastResellers />
       </div>
 
       {/* Stats Cards */}

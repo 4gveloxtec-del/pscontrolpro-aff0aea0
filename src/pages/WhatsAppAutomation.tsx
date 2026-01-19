@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { 
-  MessageCircle, Settings, Users, AlertTriangle, CheckCircle, Loader2, RefreshCw, Shield, Ban, Eye, Clock
+  MessageCircle, Settings, Users, AlertTriangle, CheckCircle, Loader2, RefreshCw, Shield, Ban, Eye, Clock, ListOrdered
 } from 'lucide-react';
 import { WhatsAppGlobalConfig } from '@/components/WhatsAppGlobalConfig';
 import { WhatsAppSellerConfig } from '@/components/WhatsAppSellerConfig';
 import { SimplifiedWhatsAppConfig } from '@/components/SimplifiedWhatsAppConfig';
 import { ManualMessageSender } from '@/components/ManualMessageSender';
+import { SmartMessageQueue } from '@/components/SmartMessageQueue';
 import { useWhatsAppGlobalConfig } from '@/hooks/useWhatsAppGlobalConfig';
 import { useWhatsAppSellerInstance } from '@/hooks/useWhatsAppSellerInstance';
 import { format } from 'date-fns';
@@ -239,8 +240,9 @@ export default function WhatsAppAutomation() {
       </div>
 
       <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-4' : 'grid-cols-2'}`}>
+        <TabsList className={`grid w-full max-w-2xl ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'}`}>
           <TabsTrigger value="dashboard" className="gap-2"><Users className="h-4 w-4" />Dashboard</TabsTrigger>
+          <TabsTrigger value="queue" className="gap-2"><ListOrdered className="h-4 w-4" />Fila</TabsTrigger>
           <TabsTrigger value="config" className="gap-2"><Settings className="h-4 w-4" />Instância</TabsTrigger>
           {isAdmin && (
             <>
@@ -372,6 +374,10 @@ export default function WhatsAppAutomation() {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="queue">
+          <SmartMessageQueue />
         </TabsContent>
 
         <TabsContent value="config">

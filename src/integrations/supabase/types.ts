@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_broadcast_recipients: {
+        Row: {
+          broadcast_id: string
+          error_message: string | null
+          id: string
+          seller_id: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          broadcast_id: string
+          error_message?: string | null
+          id?: string
+          seller_id: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          broadcast_id?: string
+          error_message?: string | null
+          id?: string
+          seller_id?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_broadcast_recipients_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "admin_broadcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_broadcasts: {
+        Row: {
+          admin_id: string
+          completed_at: string | null
+          created_at: string | null
+          failed_count: number | null
+          id: string
+          interval_seconds: number | null
+          message: string
+          sent_count: number | null
+          started_at: string | null
+          status: string
+          total_recipients: number | null
+        }
+        Insert: {
+          admin_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          failed_count?: number | null
+          id?: string
+          interval_seconds?: number | null
+          message: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          total_recipients?: number | null
+        }
+        Update: {
+          admin_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          failed_count?: number | null
+          id?: string
+          interval_seconds?: number | null
+          message?: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          total_recipients?: number | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           created_at: string
@@ -1282,6 +1359,59 @@ export type Database = {
           },
         ]
       }
+      message_queue: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          error_message: string | null
+          id: string
+          message_type: string
+          priority: number
+          retry_count: number | null
+          scheduled_at: string | null
+          seller_id: string
+          sent_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          priority?: number
+          retry_count?: number | null
+          scheduled_at?: string | null
+          seller_id: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          priority?: number
+          retry_count?: number | null
+          scheduled_at?: string | null
+          seller_id?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_queue_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_profits: {
         Row: {
           active_clients: number
@@ -1610,6 +1740,48 @@ export type Database = {
           record_id?: string | null
           table_name?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      seller_queue_settings: {
+        Row: {
+          catch_up_completed: boolean | null
+          catch_up_mode: boolean | null
+          created_at: string | null
+          end_hour: number | null
+          id: string
+          interval_seconds: number | null
+          is_enabled: boolean | null
+          last_processed_at: string | null
+          seller_id: string
+          start_hour: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          catch_up_completed?: boolean | null
+          catch_up_mode?: boolean | null
+          created_at?: string | null
+          end_hour?: number | null
+          id?: string
+          interval_seconds?: number | null
+          is_enabled?: boolean | null
+          last_processed_at?: string | null
+          seller_id: string
+          start_hour?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          catch_up_completed?: boolean | null
+          catch_up_mode?: boolean | null
+          created_at?: string | null
+          end_hour?: number | null
+          id?: string
+          interval_seconds?: number | null
+          is_enabled?: boolean | null
+          last_processed_at?: string | null
+          seller_id?: string
+          start_hour?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
