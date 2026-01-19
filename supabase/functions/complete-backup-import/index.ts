@@ -54,9 +54,17 @@ serve(async (req) => {
     
     console.log(`Importing complete backup by admin: ${user.email}, mode: ${mode}`);
     
-    if (!backup || backup.type !== 'complete_clean_backup') {
+    // Accept multiple backup formats
+    const isValidFormat = 
+      backup?.type === 'complete_clean_backup' || // New format
+      backup?.version === '3.0-complete-clean' || // Legacy format
+      (backup?.format === 'clean-logical-keys' && backup?.data); // Alternative legacy format
+    
+    if (!backup || !isValidFormat) {
       return new Response(
-        JSON.stringify({ error: 'Invalid backup format. Expected complete_clean_backup type.' }),
+        JSON.stringify({ 
+          error: 'Formato de backup inválido. Formatos aceitos: complete_clean_backup, 3.0-complete-clean, ou clean-logical-keys' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

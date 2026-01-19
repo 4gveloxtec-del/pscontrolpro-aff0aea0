@@ -43,8 +43,11 @@ import {
 
 interface CleanBackupData {
   version: string;
-  type: string;
-  exported_at: string;
+  type?: string;
+  format?: string;
+  timestamp?: string;
+  description?: string;
+  exported_at?: string;
   exported_by: string;
   stats: Record<string, number>;
   data: {
@@ -67,6 +70,7 @@ interface CleanBackupData {
     server_apps?: any[];
     client_premium_accounts?: any[];
     app_settings?: any[];
+    default_server_icons?: any[];
   };
 }
 
@@ -156,9 +160,25 @@ export default function Backup() {
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target?.result as string) as CleanBackupData;
-        if (!data.version || !data.data || data.type !== 'complete_clean_backup') {
-          throw new Error('Formato de backup inválido. Use um backup do tipo "complete_clean_backup".');
+        
+        // Accept multiple backup formats
+        const isValidFormat = 
+          data.type === 'complete_clean_backup' || // New format
+          data.version === '3.0-complete-clean' || // Legacy format from other project
+          (data.format === 'clean-logical-keys' && data.data); // Alternative legacy format
+        
+        if (!data.version || !data.data || !isValidFormat) {
+          throw new Error('Formato de backup inválido. Formatos aceitos: complete_clean_backup, 3.0-complete-clean, ou clean-logical-keys.');
         }
+        
+        // Normalize legacy format fields
+        if (!data.exported_at && data.timestamp) {
+          data.exported_at = data.timestamp;
+        }
+        if (!data.type) {
+          data.type = 'complete_clean_backup';
+        }
+        
         setBackupFile(data);
         setSelectedModules(Object.keys(data.data).filter(k => data.data[k as keyof typeof data.data]?.length > 0));
         setRestoreDialogOpen(true);
@@ -428,7 +448,7 @@ export default function Backup() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Data:</span>
-                        <span className="ml-2">{new Date(backupFile.exported_at).toLocaleString('pt-BR')}</span>
+                        <span className="ml-2">{new Date(backupFile.exported_at || backupFile.timestamp || '').toLocaleString('pt-BR')}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Por:</span>
