@@ -120,6 +120,16 @@ serve(async (req) => {
     console.log('[Deploy Import] Phase 1: Importing profiles...');
     await updateJob({ status: 'processing', progress: 10 });
 
+    // Get current admin's profile info
+    const { data: adminProfile } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('id', user.id)
+      .single();
+    
+    const adminEmail = adminProfile?.email?.toLowerCase()?.trim();
+    console.log(`[Deploy Import] Current admin email: ${adminEmail}`);
+
     const profiles = data.profiles || [];
     report.imported.profiles = 0;
     report.skipped.profiles = 0;
@@ -135,7 +145,16 @@ serve(async (req) => {
           continue;
         }
 
-        // Check if profile already exists
+        // Check if this is the current admin - map to existing admin ID
+        if (email === adminEmail) {
+          sellerIdMapping.set(oldId, user.id);
+          report.skipped.profiles = (report.skipped.profiles || 0) + 1;
+          console.log(`[Profile] ${email} is current admin, mapping ${oldId} -> ${user.id}`);
+          report.warnings.push(`Admin ${email}: usando conta existente`);
+          continue;
+        }
+
+        // Check if profile already exists by email
         const { data: existingProfile } = await supabase
           .from('profiles')
           .select('id')
