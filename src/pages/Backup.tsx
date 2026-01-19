@@ -281,7 +281,7 @@ export default function Backup() {
           backup: backupFile,
           mode: restoreMode,
           modules: selectedModules,
-          job_id: job.id,
+          jobId: job.id,
         },
         headers: {
           Authorization: `Bearer ${token}`,
