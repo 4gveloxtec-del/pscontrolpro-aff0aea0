@@ -73,20 +73,21 @@ serve(async (req) => {
     }
 
     // Verify seller exists and is not an admin
-    const { data: sellerRole, error: sellerRoleError } = await supabase
+    // NOTE: user can have multiple roles (e.g. seller + user). Do NOT use .single() here.
+    const { data: sellerRoles, error: sellerRolesError } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', seller_id)
-      .single();
+      .eq('user_id', seller_id);
 
-    if (sellerRoleError) {
+    if (sellerRolesError || !sellerRoles || sellerRoles.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Seller not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (sellerRole.role === 'admin') {
+    const targetIsAdmin = sellerRoles.some((r: any) => r.role === 'admin');
+    if (targetIsAdmin) {
       return new Response(
         JSON.stringify({ error: 'Cannot change password for admin users' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -95,10 +96,10 @@ serve(async (req) => {
 
     // Generate new temporary password
     const tempPassword = generateTempPassword();
-    
+
     // Update the user's password
     const { error: updateError } = await supabase.auth.admin.updateUserById(seller_id, {
-      password: tempPassword
+      password: tempPassword,
     });
 
     if (updateError) {
@@ -118,8 +119,11 @@ serve(async (req) => {
     console.log(`Password changed for seller: ${seller_id}`);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
+        seller_id,
+        // keep both for backwards/forwards compatibility with frontend
+        tempPassword,
         temp_password: tempPassword,
         expires_in_hours: 4,
         message: 'Senha temporária gerada. Válida por 4 horas.'
