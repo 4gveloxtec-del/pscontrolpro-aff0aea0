@@ -91,25 +91,15 @@ const AdminServerTemplates = () => {
       const { error } = await supabase
         .from('default_server_icons')
         .insert({
-          name: data.name.trim(),
+          name: data.name.trim().toUpperCase(),
           name_normalized: normalized,
           icon_url: data.icon_url.trim(),
-          // panel_url will be stored in a separate way or we extend the table
+          panel_url: data.panel_url.trim() || null,
         });
       if (error) throw error;
-      
-      // Store panel_url in app_settings as a workaround
-      if (data.panel_url) {
-        await supabase.from('app_settings').upsert({
-          key: `server_panel_${normalized}`,
-          value: data.panel_url.trim(),
-          description: `Panel URL for server: ${data.name}`,
-        }, { onConflict: 'key' });
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-server-templates'] });
-      queryClient.invalidateQueries({ queryKey: ['server-panel-urls'] });
       toast.success('Template adicionado com sucesso!');
       resetForm();
     },
@@ -128,32 +118,16 @@ const AdminServerTemplates = () => {
       const { error } = await supabase
         .from('default_server_icons')
         .update({
-          name: data.name.trim(),
+          name: data.name.trim().toUpperCase(),
           name_normalized: normalized,
           icon_url: data.icon_url.trim(),
+          panel_url: data.panel_url.trim() || null,
         })
         .eq('id', data.id);
       if (error) throw error;
-      
-      // Update panel_url in app_settings
-      // Remove old key if name changed
-      if (data.oldNormalized !== normalized) {
-        await supabase.from('app_settings').delete().eq('key', `server_panel_${data.oldNormalized}`);
-      }
-      
-      if (data.panel_url) {
-        await supabase.from('app_settings').upsert({
-          key: `server_panel_${normalized}`,
-          value: data.panel_url.trim(),
-          description: `Panel URL for server: ${data.name}`,
-        }, { onConflict: 'key' });
-      } else {
-        await supabase.from('app_settings').delete().eq('key', `server_panel_${normalized}`);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-server-templates'] });
-      queryClient.invalidateQueries({ queryKey: ['server-panel-urls'] });
       toast.success('Template atualizado com sucesso!');
       resetForm();
     },
@@ -163,19 +137,15 @@ const AdminServerTemplates = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async ({ id, normalized }: { id: string; normalized: string }) => {
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('default_server_icons')
         .delete()
         .eq('id', id);
       if (error) throw error;
-      
-      // Also delete panel_url from app_settings
-      await supabase.from('app_settings').delete().eq('key', `server_panel_${normalized}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-server-templates'] });
-      queryClient.invalidateQueries({ queryKey: ['server-panel-urls'] });
       toast.success('Template removido com sucesso!');
     },
     onError: () => {
@@ -183,24 +153,6 @@ const AdminServerTemplates = () => {
     },
   });
 
-  // Fetch panel URLs from app_settings
-  const { data: panelUrls = {} } = useQuery({
-    queryKey: ['server-panel-urls'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('key, value')
-        .like('key', 'server_panel_%');
-      if (error) throw error;
-      
-      const urls: Record<string, string> = {};
-      data.forEach(item => {
-        const normalized = item.key.replace('server_panel_', '');
-        urls[normalized] = item.value;
-      });
-      return urls;
-    },
-  });
 
   const resetForm = () => {
     setFormData({ name: '', icon_url: '', panel_url: '' });
@@ -230,7 +182,7 @@ const AdminServerTemplates = () => {
     setFormData({ 
       name: template.name, 
       icon_url: template.icon_url,
-      panel_url: panelUrls[template.name_normalized] || ''
+      panel_url: template.panel_url || ''
     });
     setIsDialogOpen(true);
   };
@@ -391,9 +343,7 @@ const AdminServerTemplates = () => {
         </Card>
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {templates.map((template) => {
-            const panelUrl = panelUrls[template.name_normalized];
-            return (
+          {templates.map((template) => (
               <Card key={template.id} className="group hover:shadow-lg transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
@@ -411,9 +361,9 @@ const AdminServerTemplates = () => {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-sm truncate">{template.name}</h3>
                       <p className="text-xs text-muted-foreground">{template.name_normalized}</p>
-                      {panelUrl && (
+                      {template.panel_url && (
                         <a 
-                          href={panelUrl}
+                          href={template.panel_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
@@ -439,7 +389,7 @@ const AdminServerTemplates = () => {
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                       onClick={() => {
                         if (confirm('Remover este template?')) {
-                          deleteMutation.mutate({ id: template.id, normalized: template.name_normalized });
+                          deleteMutation.mutate(template.id);
                         }
                       }}
                     >
@@ -448,8 +398,7 @@ const AdminServerTemplates = () => {
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
+            ))}
         </div>
       )}
 

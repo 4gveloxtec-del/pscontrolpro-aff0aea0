@@ -48,6 +48,7 @@ interface ServerTemplate {
   name: string;
   name_normalized: string;
   icon_url: string;
+  panel_url?: string | null;
 }
 
 // Helper function to calculate pro-rata price
@@ -102,24 +103,6 @@ export default function Servers() {
     },
   });
 
-  // Fetch panel URLs from app_settings
-  const { data: panelUrls = {} } = useQuery({
-    queryKey: ['server-panel-urls'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('key, value')
-        .like('key', 'server_panel_%');
-      if (error) throw error;
-      
-      const urls: Record<string, string> = {};
-      data.forEach(item => {
-        const normalized = item.key.replace('server_panel_', '');
-        urls[normalized] = item.value;
-      });
-      return urls;
-    },
-  });
 
   // Check if bulk import is enabled for resellers
   const { data: bulkImportEnabled = false } = useQuery({
@@ -143,7 +126,7 @@ export default function Servers() {
     const template = serverTemplates.find(t => t.name_normalized === normalized);
     
     if (template) {
-      const panelUrl = panelUrls[normalized] || '';
+      const panelUrl = template.panel_url || '';
       
       // Only apply if fields are empty
       setFormData(prev => ({
@@ -160,7 +143,7 @@ export default function Servers() {
         });
       }
     }
-  }, [serverTemplates, panelUrls, editingServer]);
+  }, [serverTemplates, editingServer]);
 
   // Debounce name changes
   useEffect(() => {
@@ -285,8 +268,12 @@ export default function Servers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Force uppercase for server names
+    const normalizedName = formData.name.trim().toUpperCase();
+    
     const data = {
-      name: formData.name,
+      name: normalizedName,
       monthly_cost: parseFloat(formData.monthly_cost) || 0,
       is_active: formData.is_active,
       notes: formData.notes || null,
@@ -539,15 +526,18 @@ export default function Servers() {
                   id="name"
                   value={formData.name}
                   onChange={(e) => {
-                    setFormData({ ...formData, name: e.target.value });
+                    // Force uppercase
+                    const upperValue = e.target.value.toUpperCase();
+                    setFormData({ ...formData, name: upperValue });
                     setTemplateApplied(false);
                   }}
                   required
-                  placeholder="Digite o nome do servidor"
+                  placeholder="Ex: STAR PLAY"
+                  className="uppercase"
                 />
                 {!editingServer && serverTemplates.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    💡 Servidores cadastrados pelo admin terão ícone e link preenchidos automaticamente
+                    💡 Use LETRAS MAIÚSCULAS - Servidores do admin terão ícone e link automáticos
                   </p>
                 )}
               </div>
