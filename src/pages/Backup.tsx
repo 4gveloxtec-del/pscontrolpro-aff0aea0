@@ -253,6 +253,8 @@ export default function Backup() {
   const executeRestore = async () => {
     if (!backupFile || !user) return;
 
+    let jobIdForError: string | null = null;
+
     setConfirmCleanDialogOpen(false);
     setIsRestoring(true);
     setRestoreResult(null);
@@ -279,6 +281,7 @@ export default function Backup() {
 
       if (jobError) throw jobError;
       setImportJobId(job.id);
+      jobIdForError = job.id;
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
@@ -330,7 +333,28 @@ export default function Backup() {
       }
     } catch (error) {
       console.error('Erro ao restaurar:', error);
-      toast.error((error as { message?: string })?.message || 'Erro ao restaurar backup');
+
+      let message = (error as { message?: string })?.message || 'Erro ao restaurar backup';
+
+      // If the function timed out/crashed, try to read the job row to show the last backend error
+      try {
+        if (jobIdForError) {
+          const { data: jobRow } = await supabase
+            .from('backup_import_jobs')
+            .select('status, progress, errors')
+            .eq('id', jobIdForError)
+            .single();
+
+          const jobErrors = (jobRow as any)?.errors;
+          if (Array.isArray(jobErrors) && jobErrors.length > 0) {
+            message = String(jobErrors[0]);
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      toast.error(message);
     } finally {
       setIsRestoring(false);
     }

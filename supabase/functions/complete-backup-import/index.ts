@@ -156,6 +156,70 @@ serve(async (req) => {
       }
     };
 
+    const BATCH_SIZE = 100;
+
+    const chunkArray = <T>(arr: T[], size: number): T[][] => {
+      const chunks: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+      return chunks;
+    };
+
+    const isDuplicateError = (msg?: string) => {
+      const m = (msg || '').toLowerCase();
+      return m.includes('duplicate') || m.includes('unique') || m.includes('already exists');
+    };
+
+    // Bulk insert with fallback to row-by-row when a batch fails (keeps the import resilient and avoids timeouts)
+    const insertChunked = async <T extends Record<string, unknown>>(
+      table: string,
+      rows: T[],
+      opts: {
+        select?: string;
+        label: string;
+        onInserted?: (row: any) => void;
+        ignoreDuplicateErrors?: boolean;
+      }
+    ) => {
+      if (!rows.length) return;
+
+      for (const chunk of chunkArray(rows, BATCH_SIZE)) {
+        const { data, error } = await supabase
+          .from(table)
+          .insert(chunk)
+          .select(opts.select || '*');
+
+        if (error) {
+          console.error(`[${opts.label}] Batch insert failed (${chunk.length}). Falling back to per-row.`, error.message);
+
+          for (const row of chunk) {
+            const { data: one, error: rowError } = await supabase
+              .from(table)
+              .insert(row)
+              .select(opts.select || '*')
+              .single();
+
+            if (rowError) {
+              if (opts.ignoreDuplicateErrors && isDuplicateError(rowError.message)) {
+                // ignore duplicate/unique errors silently
+              } else {
+                results.errors.push(`[${opts.label}] ${rowError.message}`);
+              }
+            } else {
+              opts.onInserted?.(one);
+            }
+
+            processedItems++;
+          }
+        } else {
+          (data || []).forEach((r: any) => opts.onInserted?.(r));
+          processedItems += chunk.length;
+        }
+
+        // Update progress after each chunk (keeps UI responsive)
+        await updateProgress();
+      }
+    };
+
     // Initialize job
     if (jobId) {
       await supabase
@@ -169,6 +233,7 @@ serve(async (req) => {
         .eq('id', jobId);
     }
 
+
     // Get current admin user to preserve
     const { data: currentAdminProfile } = await supabase
       .from('profiles')
@@ -178,6 +243,7 @@ serve(async (req) => {
 
     // Create mapping objects
     const emailToSellerId = new Map<string, string>();
+    const sellerIdToEmail = new Map<string, string>();
     const serverNameToId = new Map<string, string>();
     const planNameToId = new Map<string, string>();
     const clientIdentifierToId = new Map<string, string>();
@@ -185,11 +251,14 @@ serve(async (req) => {
     const templateNameToId = new Map<string, string>();
     const panelNameToId = new Map<string, string>();
 
+
     // Add current admin to mapping
     if (currentAdminProfile) {
       emailToSellerId.set(currentAdminProfile.email, user.id);
+      sellerIdToEmail.set(user.id, currentAdminProfile.email);
       console.log(`Admin mapped: ${currentAdminProfile.email} -> ${user.id}`);
     }
+
 
     // Helper to check if module should be imported
     const shouldImport = (moduleName: string) => {
@@ -287,33 +356,34 @@ serve(async (req) => {
           .eq('email', profileEmail)
           .single();
         
-        if (existing) {
-          // Profile already exists, just map it
-          emailToSellerId.set(profileEmail, existing.id);
-          console.log(`Profile exists: ${profileEmail} -> ${existing.id}`);
-          
-          // If mode is replace and it's not the admin, update the profile data
-          if (mode === 'replace' && existing.id !== user.id) {
-            await supabase
-              .from('profiles')
-              .update({
-                full_name: profile.full_name,
-                whatsapp: profile.whatsapp,
-                company_name: profile.company_name,
-                pix_key: profile.pix_key,
-                is_active: profile.is_active,
-                is_permanent: profile.is_permanent,
-                subscription_expires_at: profile.subscription_expires_at,
-                notification_days_before: profile.notification_days_before,
-                tutorial_visto: profile.tutorial_visto,
-                needs_password_update: profile.needs_password_update,
-              })
-              .eq('id', existing.id);
-            count++;
-          }
-          processedItems++;
-          continue;
-        }
+         if (existing) {
+           // Profile already exists, just map it
+           emailToSellerId.set(profileEmail, existing.id);
+           sellerIdToEmail.set(existing.id, profileEmail);
+           console.log(`Profile exists: ${profileEmail} -> ${existing.id}`);
+           
+           // If mode is replace and it's not the admin, update the profile data
+           if (mode === 'replace' && existing.id !== user.id) {
+             await supabase
+               .from('profiles')
+               .update({
+                 full_name: profile.full_name,
+                 whatsapp: profile.whatsapp,
+                 company_name: profile.company_name,
+                 pix_key: profile.pix_key,
+                 is_active: profile.is_active,
+                 is_permanent: profile.is_permanent,
+                 subscription_expires_at: profile.subscription_expires_at,
+                 notification_days_before: profile.notification_days_before,
+                 tutorial_visto: profile.tutorial_visto,
+                 needs_password_update: profile.needs_password_update,
+               })
+               .eq('id', existing.id);
+             count++;
+           }
+           processedItems++;
+           continue;
+         }
         
         // Create new auth user
         console.log(`Creating new user: ${profileEmail}`);
@@ -337,8 +407,9 @@ serve(async (req) => {
         }
         
         emailToSellerId.set(profileEmail, authUser.user.id);
+        sellerIdToEmail.set(authUser.user.id, profileEmail);
         console.log(`New user created: ${profileEmail} -> ${authUser.user.id}`);
-        
+
         // Update profile with additional data
         const { error: updateError } = await supabase
           .from('profiles')
@@ -965,39 +1036,45 @@ serve(async (req) => {
     if (shouldImport('message_history') && backup.data.message_history?.length > 0) {
       console.log(`=== IMPORTING MESSAGE HISTORY (${backup.data.message_history.length}) ===`);
       let count = 0;
+      let skipped = 0;
+
+      const rows = [] as any[];
       for (const msg of backup.data.message_history) {
         const sellerEmail = getSellerEmail(msg);
         const sellerId = emailToSellerId.get(sellerEmail || '');
         const clientId = clientIdentifierToId.get(`${sellerEmail}|${msg.client_identifier}`);
-        const templateId = msg.template_name ? 
-          templateNameToId.get(`${sellerEmail}|${msg.template_name}`) : null;
+        const templateId = msg.template_name ? templateNameToId.get(`${sellerEmail}|${msg.template_name}`) : null;
+
         if (!sellerId || !clientId) {
-          processedItems++;
+          skipped++;
           continue;
         }
-        
-        const { error } = await supabase
-          .from('message_history')
-          .insert({
-            seller_id: sellerId,
-            client_id: clientId,
-            phone: msg.phone,
-            message_type: msg.message_type || 'manual',
-            message_content: msg.message_content,
-            template_id: templateId,
-            sent_at: msg.sent_at,
-          });
-        
-        if (!error) count++;
-        processedItems++;
-        
-        if (processedItems % 20 === 0) {
-          await updateProgress();
-        }
+
+        rows.push({
+          seller_id: sellerId,
+          client_id: clientId,
+          phone: msg.phone,
+          message_type: msg.message_type || 'manual',
+          message_content: msg.message_content,
+          template_id: templateId,
+          sent_at: msg.sent_at,
+        });
       }
+
+      processedItems += skipped;
+
+      await insertChunked('message_history', rows, {
+        label: 'message_history',
+        select: 'id',
+        onInserted: () => {
+          count++;
+        },
+      });
+
       results.restored.message_history = count;
       await updateProgress();
     }
+
 
     // Step 11: Monthly profits
     if (shouldImport('monthly_profits') && backup.data.monthly_profits?.length > 0) {
