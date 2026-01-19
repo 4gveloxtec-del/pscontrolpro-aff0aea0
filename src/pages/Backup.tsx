@@ -159,6 +159,11 @@ export default function Backup() {
     }
   };
 
+  // Check if backup is deploy format (from another project)
+  const isDeployBackup = (data: any): boolean => {
+    return data?.version?.includes('deploy') || data?.exportType === 'full-deploy';
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -173,17 +178,18 @@ export default function Backup() {
         const isNewFormat = data.type === 'complete_clean_backup';
         const isLegacyV3 = data.version === '3.0-complete-clean';
         const isCleanLogical = data.format === 'clean-logical-keys';
+        const isDeploy = isDeployBackup(data);
         const hasProfiles = data.data?.profiles?.length > 0 || data.data?.clients?.length > 0;
         
-        const isValidFormat = hasValidData && (isNewFormat || isLegacyV3 || isCleanLogical || hasProfiles);
+        const isValidFormat = hasValidData && (isNewFormat || isLegacyV3 || isCleanLogical || isDeploy || hasProfiles);
         
         if (!isValidFormat) {
-          console.error('Invalid backup format:', { hasValidData, isNewFormat, isLegacyV3, isCleanLogical, hasProfiles, keys: Object.keys(data || {}) });
+          console.error('Invalid backup format:', { hasValidData, isNewFormat, isLegacyV3, isCleanLogical, isDeploy, hasProfiles, keys: Object.keys(data || {}) });
           throw new Error('Formato de backup inválido. O arquivo não contém dados válidos para importação.');
         }
         
-        // Ensure version is set for Edge Function validation
-        if (!data.version) {
+        // Keep deploy version as-is for proper routing
+        if (!data.version && !isDeploy) {
           data.version = '3.0-complete-clean';
         }
         
@@ -191,7 +197,7 @@ export default function Backup() {
         if (!data.exported_at && data.timestamp) {
           data.exported_at = data.timestamp;
         }
-        if (!data.type) {
+        if (!data.type && !isDeploy) {
           data.type = 'complete_clean_backup';
         }
         
@@ -289,9 +295,15 @@ export default function Backup() {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error('Sessão inválida. Faça login novamente.');
 
+      // Determine which function to call based on backup type
+      const isDeploy = isDeployBackup(backupFile);
+      const functionName = isDeploy ? 'deploy-backup-import' : 'complete-backup-import';
+      
+      console.log(`[Backup] Using function: ${functionName}, isDeploy: ${isDeploy}`);
+
       // Start the import in background - don't wait for completion
       supabase.functions
-        .invoke('complete-backup-import', {
+        .invoke(functionName, {
           body: {
             backup: backupFile,
             mode: restoreMode,
@@ -304,7 +316,7 @@ export default function Backup() {
         })
         .then(({ data, error }) => {
           if (error) {
-            console.error('[Backup] complete-backup-import error:', error);
+            console.error(`[Backup] ${functionName} error:`, error);
             // Error will be shown via the floating notification
             return;
           }
@@ -317,7 +329,10 @@ export default function Backup() {
         });
 
       // Close dialog immediately - progress will be tracked via floating notification
-      toast.info('Importação iniciada! Você pode acompanhar o progresso na notificação flutuante.');
+      const message = isDeploy 
+        ? 'Importação de deploy iniciada! Mapeando IDs e importando dados...'
+        : 'Importação iniciada! Você pode acompanhar o progresso na notificação flutuante.';
+      toast.info(message);
       setRestoreDialogOpen(false);
       setBackupFile(null);
     } catch (error) {
@@ -550,6 +565,20 @@ export default function Backup() {
             <>
               {backupFile && (
                 <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+                  {/* Deploy Backup Warning */}
+                  {isDeployBackup(backupFile) && (
+                    <div className="flex items-start gap-2 p-3 bg-primary/10 rounded-lg border border-primary/30">
+                      <Database className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-primary">Backup de Deploy Detectado</p>
+                        <p className="text-xs text-muted-foreground">
+                          Este backup contém IDs de outro projeto. Os dados serão importados com novos IDs 
+                          e os relacionamentos (seller_id, plan_id, etc.) serão remapeados automaticamente.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Backup Info */}
                   <div className="p-3 bg-muted rounded-lg text-sm">
                     <div className="grid grid-cols-2 gap-2">
@@ -559,7 +588,9 @@ export default function Backup() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Tipo:</span>
-                        <Badge variant="outline" className="ml-2">{backupFile.type}</Badge>
+                        <Badge variant="outline" className="ml-2">
+                          {isDeployBackup(backupFile) ? 'Deploy' : backupFile.type}
+                        </Badge>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Data:</span>
@@ -567,7 +598,7 @@ export default function Backup() {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Por:</span>
-                        <span className="ml-2">{backupFile.exported_by}</span>
+                        <span className="ml-2">{backupFile.exported_by || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
