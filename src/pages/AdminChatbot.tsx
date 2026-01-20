@@ -798,14 +798,15 @@ export default function AdminChatbot() {
                       className="flex-1 bg-slate-700 border-slate-600"
                     />
                     <Select 
-                      value={opt.target} 
-                      onValueChange={(v) => updateOption(index, 'target', v)}
+                      value={opt.target || '__none__'} 
+                      onValueChange={(v) => updateOption(index, 'target', v === '__none__' ? '' : v)}
                     >
                       <SelectTrigger className="w-40 bg-slate-700 border-slate-600">
                         <SelectValue placeholder="Destino" />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-700 border-slate-600">
-                        {nodes.map(n => (
+                        <SelectItem value="__none__">Selecione...</SelectItem>
+                        {nodes.filter(n => n.node_key).map(n => (
                           <SelectItem key={n.node_key} value={n.node_key}>
                             {n.icon} {n.title}
                           </SelectItem>
