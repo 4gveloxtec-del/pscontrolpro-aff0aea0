@@ -246,6 +246,7 @@ export default function Clients() {
     gerencia_app_devices: [] as MacDevice[], // Múltiplos dispositivos MAC
     app_name: '', // Nome do aplicativo usado pelo cliente
     app_type: 'server' as 'server' | 'own', // Tipo de app: servidor ou próprio
+    has_adult_content: false, // Conteúdo adulto (+18)
   });
 
 
@@ -653,7 +654,7 @@ export default function Clients() {
   };
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; expiration_date: string; phone?: string | null; email?: string | null; device?: string | null; dns?: string | null; plan_id?: string | null; plan_name?: string | null; plan_price?: number | null; server_id?: string | null; server_name?: string | null; login?: string | null; password?: string | null; is_paid?: boolean; notes?: string | null; screens?: string; category?: string | null; has_paid_apps?: boolean; paid_apps_duration?: string | null; paid_apps_expiration?: string | null; telegram?: string | null; premium_password?: string | null }) => {
+    mutationFn: async (data: { name: string; expiration_date: string; phone?: string | null; email?: string | null; device?: string | null; dns?: string | null; plan_id?: string | null; plan_name?: string | null; plan_price?: number | null; server_id?: string | null; server_name?: string | null; login?: string | null; password?: string | null; is_paid?: boolean; notes?: string | null; screens?: string; category?: string | null; has_paid_apps?: boolean; paid_apps_duration?: string | null; paid_apps_expiration?: string | null; telegram?: string | null; premium_password?: string | null; has_adult_content?: boolean }) => {
       // Preventive validation with auto-correction
       const validation = validateAndCorrectClientData(data as Record<string, unknown>, 'create');
       if (!validation.isValid) {
@@ -1280,6 +1281,7 @@ export default function Clients() {
       gerencia_app_devices: [],
       app_name: '',
       app_type: 'server',
+      has_adult_content: false,
     });
     setSelectedSharedCredit(null);
     setExternalApps([]);
@@ -1447,6 +1449,7 @@ export default function Clients() {
       app_name: formData.app_name || null,
       app_type: formData.app_type || 'server',
       additional_servers: validAdditionalServers,
+      has_adult_content: formData.has_adult_content || false,
     };
 
     if (editingClient) {
@@ -1554,6 +1557,7 @@ export default function Clients() {
       gerencia_app_devices: client.gerencia_app_devices || [],
       app_name: (client as any).app_name || '',
       app_type: (client as any).app_type || 'server',
+      has_adult_content: (client as any).has_adult_content || false,
     });
     // Load and decrypt additional servers if client has them
     const clientAdditionalServers = (client as any).additional_servers || [];
@@ -2092,7 +2096,35 @@ export default function Clients() {
                         </div>
                       </PopoverContent>
                     </Popover>
+                    
+                    {/* Adult Content Toggle - Only for IPTV/P2P */}
+                    {(formData.category === 'IPTV' || formData.category === 'P2P') && (
+                      <Button
+                        type="button"
+                        variant={formData.has_adult_content ? "default" : "outline"}
+                        size="icon"
+                        onClick={() => setFormData({ ...formData, has_adult_content: !formData.has_adult_content })}
+                        className={cn(
+                          "shrink-0 text-lg",
+                          formData.has_adult_content 
+                            ? "bg-pink-600 hover:bg-pink-700 text-white" 
+                            : "hover:bg-muted"
+                        )}
+                        title={formData.has_adult_content ? "Com conteúdo adulto (+18)" : "Sem conteúdo adulto (-18)"}
+                      >
+                        {formData.has_adult_content ? '+🔞' : '-🔞'}
+                      </Button>
+                    )}
                   </div>
+                  {/* Adult content indicator text */}
+                  {(formData.category === 'IPTV' || formData.category === 'P2P') && (
+                    <p className="text-xs text-muted-foreground">
+                      {formData.has_adult_content 
+                        ? '✅ Conteúdo adulto habilitado (+18)' 
+                        : '❌ Conteúdo adulto desabilitado (-18)'
+                      }
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -3232,6 +3264,21 @@ export default function Clients() {
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                             <Smartphone className="h-3 w-3" />
                             {client.app_name}
+                          </span>
+                        )}
+                        
+                        {/* Adult Content Badge */}
+                        {(client.category === 'IPTV' || client.category === 'P2P') && (
+                          <span 
+                            className={cn(
+                              "inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
+                              (client as any).has_adult_content 
+                                ? "bg-pink-500/20 text-pink-600 dark:text-pink-400 border border-pink-500/30" 
+                                : "bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20"
+                            )}
+                            title={(client as any).has_adult_content ? "Com conteúdo adulto (+18)" : "Sem conteúdo adulto (-18)"}
+                          >
+                            {(client as any).has_adult_content ? '+🔞' : '-🔞'}
                           </span>
                         )}
                       </div>

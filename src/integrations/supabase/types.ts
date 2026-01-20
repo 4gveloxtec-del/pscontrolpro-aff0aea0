@@ -1047,6 +1047,7 @@ export type Database = {
           expiration_date: string
           gerencia_app_devices: Json | null
           gerencia_app_mac: string | null
+          has_adult_content: boolean | null
           has_paid_apps: boolean | null
           id: string
           is_archived: boolean | null
@@ -1093,6 +1094,7 @@ export type Database = {
           expiration_date: string
           gerencia_app_devices?: Json | null
           gerencia_app_mac?: string | null
+          has_adult_content?: boolean | null
           has_paid_apps?: boolean | null
           id?: string
           is_archived?: boolean | null
@@ -1139,6 +1141,7 @@ export type Database = {
           expiration_date?: string
           gerencia_app_devices?: Json | null
           gerencia_app_mac?: string | null
+          has_adult_content?: boolean | null
           has_paid_apps?: boolean | null
           id?: string
           is_archived?: boolean | null
