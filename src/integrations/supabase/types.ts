@@ -1653,6 +1653,7 @@ export type Database = {
           needs_password_update: boolean | null
           notification_days_before: number | null
           pix_key: string | null
+          plan_period: string | null
           plan_price: number | null
           plan_type: string | null
           subscription_expires_at: string | null
@@ -1672,6 +1673,7 @@ export type Database = {
           needs_password_update?: boolean | null
           notification_days_before?: number | null
           pix_key?: string | null
+          plan_period?: string | null
           plan_price?: number | null
           plan_type?: string | null
           subscription_expires_at?: string | null
@@ -1691,6 +1693,7 @@ export type Database = {
           needs_password_update?: boolean | null
           notification_days_before?: number | null
           pix_key?: string | null
+          plan_period?: string | null
           plan_price?: number | null
           plan_type?: string | null
           subscription_expires_at?: string | null

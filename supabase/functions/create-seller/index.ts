@@ -95,7 +95,17 @@ serve(async (req) => {
 
     // Update profile with additional info
     const subscriptionExpiresAt = new Date();
-    subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + (subscription_days || 30));
+    const days = subscription_days || 30;
+    subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + days);
+
+    // Determine plan period based on subscription days
+    const getPlanPeriod = (days: number): string => {
+      if (days <= 35) return 'mensal';
+      if (days <= 95) return 'trimestral';
+      if (days <= 185) return 'semestral';
+      if (days <= 370) return 'anual';
+      return 'vitalicio';
+    };
 
     const { error: profileError } = await supabase
       .from('profiles')
@@ -104,7 +114,8 @@ serve(async (req) => {
         whatsapp: whatsapp || null,
         subscription_expires_at: subscriptionExpiresAt.toISOString(),
         needs_password_update: true,
-        plan_type: plan_type || 'manual'
+        plan_type: plan_type || 'manual',
+        plan_period: getPlanPeriod(days)
       })
       .eq('id', newUser.user.id);
 

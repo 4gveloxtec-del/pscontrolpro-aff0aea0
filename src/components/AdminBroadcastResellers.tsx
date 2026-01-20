@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -6,13 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { Send, Users, Clock, CheckCircle, XCircle, Loader2, MessageSquare, Link as LinkIcon, Play, Pause, RotateCcw } from 'lucide-react';
+import { Send, Users, Clock, CheckCircle, XCircle, Loader2, MessageSquare, Link as LinkIcon, Play, Pause, RotateCcw, Filter, ChevronDown, FileText, Calendar } from 'lucide-react';
 
 interface Seller {
   id: string;
@@ -20,6 +24,9 @@ interface Seller {
   full_name: string | null;
   whatsapp: string | null;
   is_active: boolean;
+  plan_period: string | null;
+  plan_type: string | null;
+  subscription_expires_at: string | null;
 }
 
 interface Broadcast {
@@ -35,6 +42,32 @@ interface Broadcast {
   completed_at: string | null;
 }
 
+interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  type: string;
+  message: string;
+}
+
+// Períodos de plano disponíveis
+const PLAN_PERIODS = [
+  { value: 'mensal', label: 'Mensal', days: 30 },
+  { value: 'trimestral', label: 'Trimestral', days: 90 },
+  { value: 'semestral', label: 'Semestral', days: 180 },
+  { value: 'anual', label: 'Anual', days: 365 },
+  { value: 'vitalicio', label: 'Vitalício', days: null },
+];
+
+// Tipos de mensagem/categorias
+const MESSAGE_CATEGORIES = [
+  { value: 'welcome', label: 'Boas-vindas', icon: '👋' },
+  { value: 'billing', label: 'Cobrança', icon: '💰' },
+  { value: 'expiring', label: 'Vencimento', icon: '⏰' },
+  { value: 'expired', label: 'Vencido', icon: '❌' },
+  { value: 'renewal', label: 'Renovação', icon: '✅' },
+  { value: 'general', label: 'Avisos Gerais', icon: '📢' },
+];
+
 export function AdminBroadcastResellers() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -43,10 +76,17 @@ export function AdminBroadcastResellers() {
   const [intervalSeconds, setIntervalSeconds] = useState(30);
   const [isSending, setIsSending] = useState(false);
   const [currentBroadcastId, setCurrentBroadcastId] = useState<string | null>(null);
+  
+  // Advanced filters state
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
 
-  // Fetch sellers with WhatsApp
-  const { data: sellers = [] } = useQuery({
-    queryKey: ['broadcast-sellers'],
+  // Fetch sellers with WhatsApp and plan info
+  const { data: allSellers = [] } = useQuery({
+    queryKey: ['broadcast-sellers-full'],
     queryFn: async () => {
       const { data: roles } = await supabase
         .from('user_roles')
@@ -59,15 +99,103 @@ export function AdminBroadcastResellers() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, whatsapp, is_active')
+        .select('id, email, full_name, whatsapp, is_active, plan_period, plan_type, subscription_expires_at')
         .in('id', sellerIds)
-        .eq('is_active', true)
         .not('whatsapp', 'is', null);
 
       if (error) throw error;
       return (data || []).filter(s => s.whatsapp) as Seller[];
     },
   });
+
+  // Fetch admin templates for sellers
+  const { data: templates = [] } = useQuery({
+    queryKey: ['admin-seller-templates-broadcast', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('whatsapp_templates')
+        .select('id, name, type, message')
+        .eq('seller_id', user.id)
+        .like('name', 'Vendedor%')
+        .order('name');
+      if (error) throw error;
+      return data as WhatsAppTemplate[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Filter templates by selected category
+  const filteredTemplates = useMemo(() => {
+    if (selectedCategory === 'all') return templates;
+    
+    return templates.filter(template => {
+      const type = template.type?.toLowerCase() || '';
+      const name = template.name.toLowerCase();
+      
+      switch (selectedCategory) {
+        case 'welcome':
+          return type === 'welcome' || name.includes('boas-vindas');
+        case 'billing':
+          return type === 'billing' || name.includes('cobrança');
+        case 'expiring':
+          return type.includes('expiring') || name.includes('vencimento') || name.includes('vencendo');
+        case 'expired':
+          return type === 'expired' || name.includes('vencido');
+        case 'renewal':
+          return type === 'renewal' || name.includes('renovação');
+        case 'general':
+          return !['welcome', 'billing', 'expired', 'renewal'].includes(type) && 
+                 !type.includes('expiring');
+        default:
+          return true;
+      }
+    });
+  }, [templates, selectedCategory]);
+
+  // Filter sellers based on selected filters
+  const filteredSellers = useMemo(() => {
+    let filtered = allSellers;
+
+    // Filter by active status
+    if (statusFilter === 'active') {
+      filtered = filtered.filter(s => {
+        if (!s.subscription_expires_at) return s.is_active;
+        return s.is_active && new Date(s.subscription_expires_at) > new Date();
+      });
+    } else if (statusFilter === 'expired') {
+      filtered = filtered.filter(s => {
+        if (!s.subscription_expires_at) return false;
+        return new Date(s.subscription_expires_at) <= new Date();
+      });
+    } else {
+      // 'all' - but still only active ones with WhatsApp
+      filtered = filtered.filter(s => s.is_active);
+    }
+
+    // Filter by selected plan periods
+    if (selectedPeriods.length > 0) {
+      filtered = filtered.filter(s => {
+        if (!s.plan_period) {
+          // Try to infer from subscription_expires_at if plan_period is not set
+          if (s.subscription_expires_at) {
+            const daysRemaining = Math.ceil(
+              (new Date(s.subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+            );
+            
+            if (selectedPeriods.includes('mensal') && daysRemaining <= 35 && daysRemaining > 0) return true;
+            if (selectedPeriods.includes('trimestral') && daysRemaining <= 95 && daysRemaining > 35) return true;
+            if (selectedPeriods.includes('semestral') && daysRemaining <= 185 && daysRemaining > 95) return true;
+            if (selectedPeriods.includes('anual') && daysRemaining <= 370 && daysRemaining > 185) return true;
+          }
+          return false;
+        }
+        return selectedPeriods.includes(s.plan_period);
+      });
+    }
+
+    return filtered;
+  }, [allSellers, selectedPeriods, statusFilter]);
 
   // Fetch recent broadcasts
   const { data: broadcasts = [] } = useQuery({
@@ -119,6 +247,24 @@ Este é o novo sistema atualizado com melhorias e novas funcionalidades. Use seu
 
 Qualquer dúvida estamos à disposição!`;
 
+  // Handle template selection
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplate(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setMessage(template.message);
+    }
+  };
+
+  // Toggle period selection
+  const togglePeriod = (period: string) => {
+    setSelectedPeriods(prev => 
+      prev.includes(period) 
+        ? prev.filter(p => p !== period)
+        : [...prev, period]
+    );
+  };
+
   const createBroadcastMutation = useMutation({
     mutationFn: async () => {
       // Create broadcast record
@@ -128,7 +274,7 @@ Qualquer dúvida estamos à disposição!`;
           admin_id: user!.id,
           message,
           interval_seconds: intervalSeconds,
-          total_recipients: sellers.length,
+          total_recipients: filteredSellers.length,
           status: 'sending',
           started_at: new Date().toISOString(),
         })
@@ -138,7 +284,7 @@ Qualquer dúvida estamos à disposição!`;
       if (broadcastError) throw broadcastError;
 
       // Create recipient records
-      const recipients = sellers.map(seller => ({
+      const recipients = filteredSellers.map(seller => ({
         broadcast_id: broadcast.id,
         seller_id: seller.id,
         status: 'pending',
@@ -206,7 +352,7 @@ Qualquer dúvida estamos à disposição!`;
       for (const recipient of pendingRecipients) {
         if (!isSending) break;
 
-        const seller = sellers.find(s => s.id === recipient.seller_id);
+        const seller = filteredSellers.find(s => s.id === recipient.seller_id);
         if (!seller?.whatsapp) continue;
 
         // Replace variables in message
@@ -286,8 +432,8 @@ Qualquer dúvida estamos à disposição!`;
       toast.error('Digite uma mensagem');
       return;
     }
-    if (sellers.length === 0) {
-      toast.error('Nenhum revendedor com WhatsApp cadastrado');
+    if (filteredSellers.length === 0) {
+      toast.error('Nenhum revendedor corresponde aos filtros selecionados');
       return;
     }
     createBroadcastMutation.mutate();
@@ -310,9 +456,18 @@ Qualquer dúvida estamos à disposição!`;
     processBroadcast(broadcastId);
   };
 
+  const clearFilters = () => {
+    setSelectedPeriods([]);
+    setSelectedCategory('all');
+    setSelectedTemplate('');
+    setStatusFilter('all');
+  };
+
   const progress = activeBroadcast
     ? ((activeBroadcast.sent_count + activeBroadcast.failed_count) / activeBroadcast.total_recipients) * 100
     : 0;
+
+  const activeFiltersCount = selectedPeriods.length + (selectedCategory !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -323,26 +478,143 @@ Qualquer dúvida estamos à disposição!`;
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="h-5 w-5" />
-            Enviar Mensagem para Todos os Revendedores
+            Enviar Mensagem para Revendedores
           </DialogTitle>
           <DialogDescription>
-            Envie uma mensagem com o link do app para todos os revendedores ativos
+            Filtre revendedores por período de plano e tipo de mensagem
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Advanced Filters Section */}
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between p-3 h-auto border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span className="font-medium">Filtros Avançados</span>
+                  {activeFiltersCount > 0 && (
+                    <Badge variant="secondary">{activeFiltersCount} ativo(s)</Badge>
+                  )}
+                </div>
+                <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-4 space-y-4">
+              {/* Status Filter */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Users className="h-4 w-4" />
+                  Status do Revendedor
+                </Label>
+                <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="all">Todos</TabsTrigger>
+                    <TabsTrigger value="active">Ativos</TabsTrigger>
+                    <TabsTrigger value="expired">Expirados</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {/* Plan Period Filter */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Calendar className="h-4 w-4" />
+                  Período do Plano
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {PLAN_PERIODS.map((period) => (
+                    <div
+                      key={period.value}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                        selectedPeriods.includes(period.value)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-muted border-border'
+                      }`}
+                      onClick={() => togglePeriod(period.value)}
+                    >
+                      <Checkbox
+                        checked={selectedPeriods.includes(period.value)}
+                        className="pointer-events-none"
+                      />
+                      <span className="text-sm">{period.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {selectedPeriods.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum período selecionado = todos os períodos
+                  </p>
+                )}
+              </div>
+
+              {/* Message Category Filter */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <FileText className="h-4 w-4" />
+                  Categoria de Mensagem
+                </Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">📋 Todas as categorias</SelectItem>
+                    {MESSAGE_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.icon} {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Template Selection */}
+              {filteredTemplates.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm">Template de Mensagem</Label>
+                  <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um template ou escreva sua mensagem" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">✍️ Mensagem personalizada</SelectItem>
+                      {filteredTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Clear Filters */}
+              {activeFiltersCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Limpar filtros
+                </Button>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Stats */}
           <div className="flex gap-4">
             <Card className="flex-1">
               <CardContent className="p-4 flex items-center gap-3">
                 <Users className="h-8 w-8 text-primary" />
                 <div>
-                  <div className="text-2xl font-bold">{sellers.length}</div>
-                  <div className="text-xs text-muted-foreground">Revendedores com WhatsApp</div>
+                  <div className="text-2xl font-bold">{filteredSellers.length}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {filteredSellers.length === allSellers.length 
+                      ? 'Revendedores com WhatsApp'
+                      : `de ${allSellers.length} (filtrado)`}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -350,7 +622,7 @@ Qualquer dúvida estamos à disposição!`;
               <CardContent className="p-4 flex items-center gap-3">
                 <LinkIcon className="h-8 w-8 text-blue-500" />
                 <div>
-                  <div className="text-sm font-mono truncate">{appUrl}</div>
+                  <div className="text-sm font-mono truncate max-w-[200px]">{appUrl}</div>
                   <div className="text-xs text-muted-foreground">Link do App</div>
                 </div>
               </CardContent>
@@ -394,7 +666,7 @@ Qualquer dúvida estamos à disposição!`;
               onChange={(e) => setIntervalSeconds(parseInt(e.target.value) || 30)}
             />
             <p className="text-xs text-muted-foreground">
-              Tempo estimado: {Math.ceil((sellers.length * intervalSeconds) / 60)} minutos
+              Tempo estimado: {Math.ceil((filteredSellers.length * intervalSeconds) / 60)} minutos
             </p>
           </div>
 
@@ -483,14 +755,14 @@ Qualquer dúvida estamos à disposição!`;
           ) : (
             <Button
               onClick={handleStartBroadcast}
-              disabled={sellers.length === 0 || createBroadcastMutation.isPending}
+              disabled={filteredSellers.length === 0 || createBroadcastMutation.isPending}
             >
               {createBroadcastMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}
-              Iniciar Broadcast ({sellers.length} revendedores)
+              Iniciar Broadcast ({filteredSellers.length} revendedores)
             </Button>
           )}
         </DialogFooter>

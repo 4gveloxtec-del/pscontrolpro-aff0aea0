@@ -335,6 +335,15 @@ export default function Sellers() {
     },
   });
 
+  // Helper to determine plan period based on days
+  const getPlanPeriod = (days: number): string => {
+    if (days <= 35) return 'mensal';
+    if (days <= 95) return 'trimestral';
+    if (days <= 185) return 'semestral';
+    if (days <= 370) return 'anual';
+    return 'vitalicio';
+  };
+
   const updateExpirationMutation = useMutation({
     mutationFn: async ({ id, days, planType }: { id: string; days: number; planType?: PlanType }) => {
       const seller = sellers.find(s => s.id === id);
@@ -346,8 +355,9 @@ export default function Sellers() {
       
       const newDate = addDays(baseDate, days);
 
-      const updateData: { subscription_expires_at: string; plan_type?: string } = { 
-        subscription_expires_at: newDate.toISOString() 
+      const updateData: { subscription_expires_at: string; plan_type?: string; plan_period?: string } = { 
+        subscription_expires_at: newDate.toISOString(),
+        plan_period: getPlanPeriod(days)
       };
       
       if (planType) {
