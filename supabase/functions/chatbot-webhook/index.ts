@@ -1650,8 +1650,13 @@ serve(async (req) => {
     );
 
     // Only process incoming messages (but some providers omit `event`)
+    // Evolution may send: "messages.upsert" or "MESSAGES_UPSERT" (-> "messages_upsert") depending on config/version.
     const eventLower = (payload.event || "").toLowerCase().trim();
-    if (eventLower && eventLower !== "messages.upsert") {
+    const isMessageUpsertEvent =
+      eventLower === "messages.upsert" ||
+      eventLower === "messages_upsert";
+
+    if (eventLower && !isMessageUpsertEvent) {
       await auditWebhook(supabase, {
         status: "ignored",
         reason: "Not a message event",
