@@ -263,15 +263,18 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
-    /* Mobile optimizations */
+    /* Mobile optimizations - allow native scrolling */
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-    /* Prevent pull-to-refresh on mobile */
-    overscroll-behavior: none;
+    /* Allow normal scroll behavior */
+    overflow-y: auto;
+    overflow-x: hidden;
     /* Safe area insets */
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+    /* Ensure minimum height for scrolling */
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
   /* Safe area utilities */
@@ -387,11 +390,11 @@
     transition: padding-bottom 0.25s ease;
   }
 
-  /* Native-like scroll container */
+  /* Native-like scroll container - ensures proper scrolling */
   .scroll-native {
     -webkit-overflow-scrolling: touch;
     overflow-y: auto;
-    overscroll-behavior-y: contain;
+    overflow-x: hidden;
   }
 
   /* Card responsive */

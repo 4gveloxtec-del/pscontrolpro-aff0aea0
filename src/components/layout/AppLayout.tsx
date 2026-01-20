@@ -282,7 +282,7 @@ export function AppLayout() {
       <Sidebar />
       <main 
         className={cn(
-          "min-h-screen min-h-[100dvh] transition-smooth scroll-native",
+          "min-h-screen transition-smooth",
           showTrialBanner ? "pt-20 sm:pt-[88px]" : "pt-14 sm:pt-12"
         )}
         style={{
