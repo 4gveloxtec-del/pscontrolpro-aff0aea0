@@ -1757,10 +1757,17 @@ serve(async (req) => {
     const isAdminModeParam = parsedUrl.searchParams.get("admin") === "true";
 
     // Auto-detect admin: check if instance belongs to an admin user
-    // IMPORTANT: Only use admin chatbot if the instance is specifically marked for admin use
-    // OR if the owner has admin role AND the instance is explicitly set for admin chatbot
+    // IMPORTANT: Only use admin chatbot if:
+    // 1. Instance name EXACTLY matches the global config admin instance (not partial match)
+    // 2. AND the owner of that instance has admin role
+    // Seller instances (e.g. seller_abc12345) should NEVER trigger admin mode
     let isAdminInstance = false;
-    if (!isAdminModeParam) {
+    const currentInstanceLower = instanceName.toLowerCase().trim();
+    
+    // Skip admin detection entirely for seller-prefixed instances
+    const isSellerPrefixedInstance = currentInstanceLower.startsWith("seller_");
+    
+    if (!isAdminModeParam && !isSellerPrefixedInstance) {
       // Check whatsapp_global_config to see if this is the admin's configured instance
       const { data: globalCfg } = await supabase
         .from("whatsapp_global_config")
@@ -1768,15 +1775,13 @@ serve(async (req) => {
         .eq("is_active", true)
         .maybeSingle();
       
-      // Only consider it admin instance if it matches the global config instance name (admin's instance)
+      // Only consider it admin instance if it EXACTLY matches the global config instance name
       if (globalCfg?.instance_name) {
         const globalInstanceLower = globalCfg.instance_name.toLowerCase().trim();
-        const currentInstanceLower = instanceName.toLowerCase().trim();
         
-        // Check if this instance matches the admin's configured instance
-        if (globalInstanceLower === currentInstanceLower || 
-            globalInstanceLower.includes(currentInstanceLower) ||
-            currentInstanceLower.includes(globalInstanceLower)) {
+        // STRICT: Only exact match or case-insensitive exact match
+        // NO partial matching (includes) to prevent false positives
+        if (globalInstanceLower === currentInstanceLower) {
           // Now verify the owner is actually admin
           const { data: instanceData } = await supabase
             .from("whatsapp_seller_instances")
@@ -1793,12 +1798,14 @@ serve(async (req) => {
             
             isAdminInstance = roleData?.role === "admin";
             if (isAdminInstance) {
-              console.log("[AutoDetect] Instance matches admin global config - using admin chatbot mode");
+              console.log("[AutoDetect] Instance EXACTLY matches admin global config - using admin chatbot mode");
             }
           }
         }
       }
     }
+    
+    console.log(`[InstanceDetection] Instance: ${instanceName}, isSellerPrefixed: ${isSellerPrefixedInstance}, isAdmin: ${isAdminInstance}`);
 
     const isAdminMode = isAdminModeParam || isAdminInstance;
 
@@ -1872,17 +1879,40 @@ serve(async (req) => {
     
     const globalConfig: GlobalConfig = globalConfigData;
     
-    // Find seller by instance name - check multiple fields for flexibility
-    const instanceNameLower = instanceName.toLowerCase();
+    // Find seller by instance name - robust matching strategy
+    const instanceNameLower = instanceName.toLowerCase().trim();
     
-    // First try exact match on instance_name
+    console.log(`[InstanceLookup] Searching for instance: "${instanceName}"`);
+    
+    // Strategy 1: Exact match (case-insensitive) on instance_name
     let { data: sellerInstance } = await supabase
       .from("whatsapp_seller_instances")
       .select("seller_id, is_connected, instance_blocked, instance_name, original_instance_name, plan_status")
       .ilike("instance_name", instanceName)
       .maybeSingle();
     
-    // If not found, try original_instance_name
+    // Strategy 2: If instance name from webhook includes seller_ prefix, try extracting the ID
+    if (!sellerInstance && instanceNameLower.startsWith("seller_")) {
+      // The format is seller_XXXXXXXX (8 char hex from UUID)
+      const { data: allInstances } = await supabase
+        .from("whatsapp_seller_instances")
+        .select("seller_id, is_connected, instance_blocked, instance_name, original_instance_name, plan_status");
+      
+      if (allInstances) {
+        // Find instance where seller_id starts with the extracted portion
+        for (const inst of allInstances) {
+          const expectedName = `seller_${inst.seller_id.replace(/-/g, '').substring(0, 8)}`;
+          if (expectedName.toLowerCase() === instanceNameLower || 
+              inst.instance_name?.toLowerCase() === instanceNameLower) {
+            sellerInstance = inst;
+            console.log(`[InstanceLookup] Found by seller_id matching: ${inst.seller_id}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Strategy 3: Try original_instance_name field
     if (!sellerInstance) {
       const { data: byOriginal } = await supabase
         .from("whatsapp_seller_instances")
@@ -1892,22 +1922,29 @@ serve(async (req) => {
       sellerInstance = byOriginal;
     }
     
-    // If still not found, try partial match (contains)
+    // Strategy 4: Partial match as last resort (be careful - only if no ambiguity)
     if (!sellerInstance) {
       const { data: byPartial } = await supabase
         .from("whatsapp_seller_instances")
         .select("seller_id, is_connected, instance_blocked, instance_name, original_instance_name, plan_status")
-        .or(`instance_name.ilike.%${instanceNameLower}%,original_instance_name.ilike.%${instanceNameLower}%`)
-        .maybeSingle();
-      sellerInstance = byPartial;
+        .or(`instance_name.ilike.%${instanceNameLower}%,original_instance_name.ilike.%${instanceNameLower}%`);
+      
+      // Only use partial match if we get exactly 1 result (no ambiguity)
+      if (byPartial?.length === 1) {
+        sellerInstance = byPartial[0];
+        console.log(`[InstanceLookup] Found by partial match: ${sellerInstance.instance_name}`);
+      } else if (byPartial && byPartial.length > 1) {
+        console.log(`[InstanceLookup] Partial match found ${byPartial.length} results, skipping to avoid ambiguity`);
+      }
     }
     
     // Log detailed info about lookup result
-    console.log("Instance lookup result:", JSON.stringify({
+    console.log("[InstanceLookup] Result:", JSON.stringify({
       searchedFor: instanceName,
       found: !!sellerInstance,
       instanceName: sellerInstance?.instance_name,
       originalInstanceName: sellerInstance?.original_instance_name,
+      sellerId: sellerInstance?.seller_id?.substring(0, 8) + "...",
       isBlocked: sellerInstance?.instance_blocked,
       planStatus: sellerInstance?.plan_status,
     }));
