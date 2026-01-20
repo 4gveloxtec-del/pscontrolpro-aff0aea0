@@ -91,6 +91,51 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_chatbot_config: {
+        Row: {
+          content: string
+          created_at: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          node_key: string
+          options: Json | null
+          parent_key: string | null
+          response_type: string | null
+          sort_order: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          node_key: string
+          options?: Json | null
+          parent_key?: string | null
+          response_type?: string | null
+          sort_order?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          node_key?: string
+          options?: Json | null
+          parent_key?: string | null
+          response_type?: string | null
+          sort_order?: number | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       admin_reseller_message_logs: {
         Row: {
           admin_id: string
