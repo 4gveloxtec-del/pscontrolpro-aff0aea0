@@ -4,14 +4,14 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { MonthlyProfitHistory } from '@/components/dashboard/MonthlyProfitHistory';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, addDays, isBefore, isAfter, startOfToday, differenceInDays, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { SendMessageDialog } from '@/components/SendMessageDialog';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -55,6 +55,8 @@ export default function Dashboard() {
   const { user, profile, isAdmin, isSeller } = useAuth();
   const { isPrivacyMode, maskData, isMoneyHidden, toggleMoneyVisibility } = usePrivacyMode();
   const [messageClient, setMessageClient] = useState<Client | null>(null);
+  const [expirationFilter, setExpirationFilter] = useState<number | null>(null);
+  const clientsListRef = useRef<HTMLDivElement>(null);
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients', user?.id],
@@ -278,6 +280,13 @@ export default function Dashboard() {
   const expiring1Day = getClientsExpiringInDays(1);
   const expiring2Days = getClientsExpiringInDays(2);
   const expiring3Days = getClientsExpiringInDays(3);
+  const expiring4Days = getClientsExpiringInDays(4);
+  const expiring5Days = getClientsExpiringInDays(5);
+
+  // Filter clients based on selected expiration filter
+  const filteredUrgentClients = expirationFilter !== null 
+    ? urgentClients.filter(c => c.daysRemaining === expirationFilter)
+    : urgentClients;
 
   const getDaysBadgeColor = (days: number) => {
     if (days === 0) return 'bg-destructive text-destructive-foreground';
@@ -285,6 +294,30 @@ export default function Dashboard() {
     if (days === 2) return 'bg-warning text-warning-foreground';
     if (days === 3) return 'bg-warning/70 text-warning-foreground';
     return 'bg-muted text-muted-foreground';
+  };
+
+  const handleExpirationCardClick = (days: number) => {
+    if (expirationFilter === days) {
+      // Clear filter if clicking on the same card
+      setExpirationFilter(null);
+    } else {
+      setExpirationFilter(days);
+      // Scroll to client list after a short delay
+      setTimeout(() => {
+        clientsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  };
+
+  const clearExpirationFilter = () => {
+    setExpirationFilter(null);
+  };
+
+  const getExpirationCardLabel = (days: number) => {
+    if (days === 0) return 'Hoje';
+    if (days === 1) return 'Amanhã';
+    const targetDate = addDays(today, days);
+    return format(targetDate, 'EEEE', { locale: ptBR }).charAt(0).toUpperCase() + format(targetDate, 'EEEE', { locale: ptBR }).slice(1);
   };
 
   // Admin stats
@@ -433,61 +466,142 @@ export default function Dashboard() {
       {/* Seller Dashboard */}
       {isSeller && (
         <>
-          {/* Urgent Notifications */}
-          {(expiringToday.length > 0 || expiring1Day.length > 0 || expiring2Days.length > 0 || expiring3Days.length > 0) && (
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-              {expiringToday.length > 0 && (
-                <Card className="border-destructive bg-destructive/10">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-destructive/20">
-                      <Bell className="h-4 w-4 text-destructive animate-pulse" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-destructive font-medium">Vence HOJE</p>
-                      <p className="text-xl font-bold text-destructive">{expiringToday.length}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              {expiring1Day.length > 0 && (
-                <Card className="border-destructive/70 bg-destructive/5">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-destructive/10">
-                      <Clock className="h-4 w-4 text-destructive/80" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-destructive/80 font-medium">Vence em 1 dia</p>
-                      <p className="text-xl font-bold text-destructive/80">{expiring1Day.length}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              {expiring2Days.length > 0 && (
-                <Card className="border-warning bg-warning/10">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-warning/20">
-                      <Clock className="h-4 w-4 text-warning" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-warning font-medium">Vence em 2 dias</p>
-                      <p className="text-xl font-bold text-warning">{expiring2Days.length}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              {expiring3Days.length > 0 && (
-                <Card className="border-warning/60 bg-warning/5">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-warning/10">
-                      <Clock className="h-4 w-4 text-warning/70" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-warning/70 font-medium">Vence em 3 dias</p>
-                      <p className="text-xl font-bold text-warning/70">{expiring3Days.length}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+          {/* Urgent Notifications - Clickable Cards */}
+          {(expiringToday.length > 0 || expiring1Day.length > 0 || expiring2Days.length > 0 || expiring3Days.length > 0 || expiring4Days.length > 0 || expiring5Days.length > 0) && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Vencimentos Próximos (clique para filtrar)
+                </h3>
+                {expirationFilter !== null && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearExpirationFilter}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                    Limpar Filtro
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                {expiringToday.length > 0 && (
+                  <Card 
+                    className={cn(
+                      "border-destructive bg-destructive/10 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
+                      expirationFilter === 0 && "ring-2 ring-destructive ring-offset-2 ring-offset-background"
+                    )}
+                    onClick={() => handleExpirationCardClick(0)}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-destructive/20">
+                        <Bell className="h-4 w-4 text-destructive animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-destructive font-medium">Hoje</p>
+                        <p className="text-xl font-bold text-destructive">{expiringToday.length}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {expiring1Day.length > 0 && (
+                  <Card 
+                    className={cn(
+                      "border-destructive/70 bg-destructive/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
+                      expirationFilter === 1 && "ring-2 ring-destructive/70 ring-offset-2 ring-offset-background"
+                    )}
+                    onClick={() => handleExpirationCardClick(1)}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-destructive/10">
+                        <Clock className="h-4 w-4 text-destructive/80" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-destructive/80 font-medium">Amanhã</p>
+                        <p className="text-xl font-bold text-destructive/80">{expiring1Day.length}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {expiring2Days.length > 0 && (
+                  <Card 
+                    className={cn(
+                      "border-warning bg-warning/10 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
+                      expirationFilter === 2 && "ring-2 ring-warning ring-offset-2 ring-offset-background"
+                    )}
+                    onClick={() => handleExpirationCardClick(2)}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-warning/20">
+                        <Clock className="h-4 w-4 text-warning" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-warning font-medium">{getExpirationCardLabel(2)}</p>
+                        <p className="text-xl font-bold text-warning">{expiring2Days.length}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {expiring3Days.length > 0 && (
+                  <Card 
+                    className={cn(
+                      "border-warning/60 bg-warning/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
+                      expirationFilter === 3 && "ring-2 ring-warning/60 ring-offset-2 ring-offset-background"
+                    )}
+                    onClick={() => handleExpirationCardClick(3)}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-warning/10">
+                        <Clock className="h-4 w-4 text-warning/70" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-warning/70 font-medium">{getExpirationCardLabel(3)}</p>
+                        <p className="text-xl font-bold text-warning/70">{expiring3Days.length}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {expiring4Days.length > 0 && (
+                  <Card 
+                    className={cn(
+                      "border-muted bg-muted/10 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
+                      expirationFilter === 4 && "ring-2 ring-muted-foreground ring-offset-2 ring-offset-background"
+                    )}
+                    onClick={() => handleExpirationCardClick(4)}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-muted/20">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium">{getExpirationCardLabel(4)}</p>
+                        <p className="text-xl font-bold text-muted-foreground">{expiring4Days.length}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                {expiring5Days.length > 0 && (
+                  <Card 
+                    className={cn(
+                      "border-muted bg-muted/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
+                      expirationFilter === 5 && "ring-2 ring-muted-foreground ring-offset-2 ring-offset-background"
+                    )}
+                    onClick={() => handleExpirationCardClick(5)}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-muted/10">
+                        <Clock className="h-4 w-4 text-muted-foreground/70" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground/70 font-medium">{getExpirationCardLabel(5)}</p>
+                        <p className="text-xl font-bold text-muted-foreground/70">{expiring5Days.length}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
           )}
 
@@ -759,52 +873,98 @@ export default function Dashboard() {
 
           {/* Urgent Clients List - Sorted by days remaining */}
           {urgentClients.length > 0 && (
-            <Card className="border-warning/50 bg-gradient-to-br from-warning/5 to-transparent">
+            <Card 
+              ref={clientsListRef}
+              className={cn(
+                "border-warning/50 bg-gradient-to-br from-warning/5 to-transparent",
+                expirationFilter !== null && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+              )}
+            >
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle className="text-warning flex items-center gap-2">
                     <Bell className="h-5 w-5" />
-                    Clientes Vencendo (0-5 dias)
+                    {expirationFilter !== null ? (
+                      <>
+                        Vencendo {expirationFilter === 0 ? 'Hoje' : expirationFilter === 1 ? 'Amanhã' : `em ${expirationFilter} dias`}
+                        <Badge variant="secondary" className="ml-2">
+                          {filteredUrgentClients.length} cliente{filteredUrgentClients.length !== 1 ? 's' : ''}
+                        </Badge>
+                      </>
+                    ) : (
+                      'Clientes Vencendo (0-5 dias)'
+                    )}
                   </CardTitle>
-                  <Link to="/clients">
-                    <Button variant="outline" size="sm">Ver todos</Button>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {expirationFilter !== null && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={clearExpirationFilter}
+                        className="gap-1"
+                      >
+                        <X className="h-4 w-4" />
+                        Ver Todos ({urgentClients.length})
+                      </Button>
+                    )}
+                    <Link to="/clients">
+                      <Button variant="outline" size="sm">Ir para Clientes</Button>
+                    </Link>
+                  </div>
                 </div>
-                <CardDescription>Ordenados por urgência - clique para enviar mensagem</CardDescription>
+                <CardDescription>
+                  {expirationFilter !== null 
+                    ? `Mostrando apenas clientes que vencem ${expirationFilter === 0 ? 'hoje' : expirationFilter === 1 ? 'amanhã' : `em ${expirationFilter} dias`}`
+                    : 'Ordenados por urgência - clique para enviar mensagem'
+                  }
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {urgentClients.map((client) => (
-                    <div 
-                      key={client.id} 
-                      className="flex justify-between items-center py-3 px-3 rounded-lg bg-card/50 border border-border/50 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Badge className={cn("text-xs font-bold min-w-[70px] justify-center", getDaysBadgeColor(client.daysRemaining))}>
-                          {client.daysRemaining === 0 ? 'HOJE' : `${client.daysRemaining} dia${client.daysRemaining > 1 ? 's' : ''}`}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">{maskData(client.name, 'name')}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {client.plan_name} • {format(new Date(client.expiration_date), "dd/MM/yyyy")}
-                          </p>
+                  {filteredUrgentClients.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>Nenhum cliente encontrado para este filtro.</p>
+                      <Button
+                        variant="link"
+                        onClick={clearExpirationFilter}
+                        className="mt-2"
+                      >
+                        Limpar filtro
+                      </Button>
+                    </div>
+                  ) : (
+                    filteredUrgentClients.map((client) => (
+                      <div 
+                        key={client.id} 
+                        className="flex justify-between items-center py-3 px-3 rounded-lg bg-card/50 border border-border/50 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge className={cn("text-xs font-bold min-w-[70px] justify-center", getDaysBadgeColor(client.daysRemaining))}>
+                            {client.daysRemaining === 0 ? 'HOJE' : `${client.daysRemaining} dia${client.daysRemaining > 1 ? 's' : ''}`}
+                          </Badge>
+                          <div>
+                            <p className="font-medium">{maskData(client.name, 'name')}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {client.plan_name} • {format(new Date(client.expiration_date), "dd/MM/yyyy")}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {client.phone && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setMessageClient(client)}
+                              className="gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                            >
+                              <Send className="h-4 w-4" />
+                              <span className="hidden sm:inline">Cobrar</span>
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {client.phone && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setMessageClient(client)}
-                            className="gap-1 text-primary hover:text-primary hover:bg-primary/10"
-                          >
-                            <Send className="h-4 w-4" />
-                            <span className="hidden sm:inline">Mensagem</span>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
