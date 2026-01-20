@@ -37,6 +37,7 @@ export function WhatsAppGlobalConfig() {
     api_url: '',
     api_token: '',
     is_active: true,
+    instance_name: '',
   });
 
   // Load config into form
@@ -46,6 +47,7 @@ export function WhatsAppGlobalConfig() {
         api_url: config.api_url || '',
         api_token: config.api_token || '',
         is_active: config.is_active ?? true,
+        instance_name: config.instance_name || '',
       });
     }
   }, [config]);
@@ -77,6 +79,7 @@ export function WhatsAppGlobalConfig() {
         api_url: formData.api_url,
         api_token: formData.api_token,
         is_active: formData.is_active,
+        instance_name: formData.instance_name || null,
       });
 
       if (result.error) {
@@ -199,6 +202,19 @@ export function WhatsAppGlobalConfig() {
           </div>
         </div>
 
+        <div className="space-y-2">
+          <Label>Nome da Instância do Admin (Chatbot)</Label>
+          <Input
+            value={formData.instance_name}
+            onChange={(e) => setFormData({ ...formData, instance_name: e.target.value })}
+            placeholder="Ex: admin-chatbot ou deixe vazio para detecção automática"
+          />
+          <p className="text-xs text-muted-foreground">
+            Opcional: Nome da sua instância WhatsApp para o chatbot interativo do admin. 
+            Se vazio, o sistema detecta automaticamente baseado no usuário admin.
+          </p>
+        </div>
+
         <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
           <div>
             <Label>API Ativa</Label>
@@ -222,9 +238,10 @@ export function WhatsAppGlobalConfig() {
       <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
         <span className="font-medium text-sm">Arquitetura Centralizada</span>
         <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• <strong>Admin:</strong> Configura URL e Token da API Evolution</li>
+          <li>• <strong>Admin:</strong> Configura URL, Token e opcionalmente nome da instância</li>
           <li>• <strong>Revendedores:</strong> Conectam suas próprias instâncias via QR Code</li>
-          <li>• <strong>Mensagens:</strong> Usam API global + instância do revendedor</li>
+          <li>• <strong>Detecção:</strong> Sistema identifica automaticamente Admin vs Revendedor</li>
+          <li>• <strong>Chatbots:</strong> Cada um tem seu próprio chatbot independente</li>
           <li>• <strong>Privacidade:</strong> Você não tem acesso às conversas dos revendedores</li>
         </ul>
       </div>

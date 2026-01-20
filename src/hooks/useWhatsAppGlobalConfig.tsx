@@ -7,6 +7,8 @@ interface WhatsAppGlobalConfig {
   api_url: string;
   api_token: string;
   is_active: boolean;
+  instance_name?: string | null;
+  admin_user_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -53,11 +55,14 @@ export function useWhatsAppGlobalConfig() {
   }, [fetchConfig]);
 
   // Save global config (admin only)
-  const saveConfig = useCallback(async (newConfig: Omit<WhatsAppGlobalConfig, 'id' | 'created_at' | 'updated_at'>) => {
+  const saveConfig = useCallback(async (newConfig: Omit<WhatsAppGlobalConfig, 'id' | 'created_at' | 'updated_at' | 'admin_user_id'>) => {
     if (!isAdmin) return { error: 'Apenas administradores podem configurar' };
 
     try {
       setError(null);
+      
+      // Get current user ID for admin_user_id
+      const { data: { user } } = await supabase.auth.getUser();
       
       if (config?.id) {
         // Update existing
@@ -67,6 +72,8 @@ export function useWhatsAppGlobalConfig() {
             api_url: newConfig.api_url,
             api_token: newConfig.api_token,
             is_active: newConfig.is_active,
+            instance_name: newConfig.instance_name || null,
+            admin_user_id: user?.id || config.admin_user_id,
             updated_at: new Date().toISOString(),
           })
           .eq('id', config.id);
@@ -85,6 +92,8 @@ export function useWhatsAppGlobalConfig() {
             api_url: newConfig.api_url,
             api_token: newConfig.api_token,
             is_active: newConfig.is_active,
+            instance_name: newConfig.instance_name || null,
+            admin_user_id: user?.id,
           })
           .select()
           .single();
@@ -103,7 +112,7 @@ export function useWhatsAppGlobalConfig() {
       setError(err.message);
       return { error: err.message };
     }
-  }, [isAdmin, config?.id]);
+  }, [isAdmin, config?.id, config?.admin_user_id]);
 
   return {
     config,

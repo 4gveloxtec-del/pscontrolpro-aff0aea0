@@ -1759,7 +1759,7 @@ serve(async (req) => {
     // Auto-detect admin: check if instance belongs to an admin user
     // IMPORTANT: Only use admin chatbot if:
     // 1. Instance name EXACTLY matches the global config admin instance (not partial match)
-    // 2. AND the owner of that instance has admin role
+    // 2. OR the owner (admin_user_id) in global config has admin role
     // Seller instances (e.g. seller_abc12345) should NEVER trigger admin mode
     let isAdminInstance = false;
     const currentInstanceLower = instanceName.toLowerCase().trim();
@@ -1771,31 +1771,44 @@ serve(async (req) => {
       // Check whatsapp_global_config to see if this is the admin's configured instance
       const { data: globalCfg } = await supabase
         .from("whatsapp_global_config")
-        .select("instance_name")
+        .select("instance_name, admin_user_id")
         .eq("is_active", true)
         .maybeSingle();
       
-      // Only consider it admin instance if it EXACTLY matches the global config instance name
+      // Strategy 1: Check if instance_name in global config matches exactly
       if (globalCfg?.instance_name) {
         const globalInstanceLower = globalCfg.instance_name.toLowerCase().trim();
         
         // STRICT: Only exact match or case-insensitive exact match
-        // NO partial matching (includes) to prevent false positives
         if (globalInstanceLower === currentInstanceLower) {
-          // The instance matches the admin's global config - this IS the admin's instance
-          // Since the global config can only be set by admins, if the instance name matches exactly,
-          // we can trust that this is meant to be the admin chatbot
+          isAdminInstance = true;
+          console.log("[AutoDetect] Instance EXACTLY matches admin global config instance_name - using admin chatbot mode");
+        }
+      }
+      
+      // Strategy 2: If no instance_name set, check if the instance belongs to an admin user
+      // by looking for ANY whatsapp_seller_instance where seller is admin AND instance matches
+      if (!isAdminInstance && !globalCfg?.instance_name) {
+        // Get all admin user IDs first
+        const { data: adminRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "admin");
+        
+        if (adminRoles && adminRoles.length > 0) {
+          const adminUserIds = adminRoles.map(r => r.user_id);
           
-          // Double-check by verifying there's at least one admin in the system
-          const { data: adminUsers } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("role", "admin")
-            .limit(1);
+          // Check if the instance belongs to any of these admins
+          const { data: adminInstance } = await supabase
+            .from("whatsapp_seller_instances")
+            .select("seller_id, instance_name")
+            .in("seller_id", adminUserIds)
+            .ilike("instance_name", instanceName)
+            .maybeSingle();
           
-          if (adminUsers && adminUsers.length > 0) {
+          if (adminInstance) {
             isAdminInstance = true;
-            console.log("[AutoDetect] Instance EXACTLY matches admin global config - using admin chatbot mode");
+            console.log("[AutoDetect] Instance belongs to admin user - using admin chatbot mode");
           }
         }
       }

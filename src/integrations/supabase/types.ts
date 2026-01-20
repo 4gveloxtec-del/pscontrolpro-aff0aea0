@@ -2558,26 +2558,32 @@ export type Database = {
       }
       whatsapp_global_config: {
         Row: {
+          admin_user_id: string | null
           api_token: string
           api_url: string
           created_at: string | null
           id: string
+          instance_name: string | null
           is_active: boolean | null
           updated_at: string | null
         }
         Insert: {
+          admin_user_id?: string | null
           api_token?: string
           api_url?: string
           created_at?: string | null
           id?: string
+          instance_name?: string | null
           is_active?: boolean | null
           updated_at?: string | null
         }
         Update: {
+          admin_user_id?: string | null
           api_token?: string
           api_url?: string
           created_at?: string | null
           id?: string
+          instance_name?: string | null
           is_active?: boolean | null
           updated_at?: string | null
         }
