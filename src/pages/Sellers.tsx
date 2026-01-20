@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
-import { Search, UserCog, Calendar, Plus, Shield, Trash2, Key, UserPlus, Copy, Check, RefreshCw, FlaskConical, Users, MessageCircle, Send, RotateCcw } from 'lucide-react';
+import { Search, UserCog, Calendar, Plus, Shield, Trash2, Key, UserPlus, Copy, Check, RefreshCw, FlaskConical, Users, MessageCircle, Send, RotateCcw, Loader2, Zap, CheckCircle, XCircle } from 'lucide-react';
 import { format, addDays, isBefore, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -104,11 +104,17 @@ export default function Sellers() {
     seller: Seller | null;
     selectedTemplate: string;
     message: string;
+    sendingApi: boolean;
+    apiStatus: 'idle' | 'sending' | 'success' | 'error';
+    apiError: string;
   }>({
     open: false,
     seller: null,
     selectedTemplate: '',
-    message: ''
+    message: '',
+    sendingApi: false,
+    apiStatus: 'idle',
+    apiError: ''
   });
 
   // Create seller form
@@ -445,7 +451,10 @@ export default function Sellers() {
       open: true,
       seller,
       selectedTemplate: '',
-      message: ''
+      message: '',
+      sendingApi: false,
+      apiStatus: 'idle',
+      apiError: ''
     });
   };
 
@@ -471,8 +480,56 @@ export default function Sellers() {
     const encodedMessage = encodeURIComponent(messageDialog.message);
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
     
-    setMessageDialog({ open: false, seller: null, selectedTemplate: '', message: '' });
+    setMessageDialog({ open: false, seller: null, selectedTemplate: '', message: '', sendingApi: false, apiStatus: 'idle', apiError: '' });
     toast.success('WhatsApp aberto!');
+  };
+
+  const handleSendWhatsAppApi = async () => {
+    if (!messageDialog.seller?.whatsapp || !messageDialog.message) {
+      toast.error('WhatsApp ou mensagem não disponível');
+      return;
+    }
+
+    setMessageDialog(prev => ({ ...prev, sendingApi: true, apiStatus: 'sending', apiError: '' }));
+
+    try {
+      const selectedTemplate = sellerTemplates.find(t => t.id === messageDialog.selectedTemplate);
+      
+      const { data, error } = await supabase.functions.invoke('send-reseller-message', {
+        body: {
+          reseller_id: messageDialog.seller.id,
+          reseller_name: messageDialog.seller.full_name || messageDialog.seller.email,
+          reseller_phone: messageDialog.seller.whatsapp,
+          message: messageDialog.message,
+          template_name: selectedTemplate?.name || null
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        setMessageDialog(prev => ({ ...prev, sendingApi: false, apiStatus: 'success' }));
+        toast.success('Mensagem enviada via WhatsApp API!');
+        
+        // Close dialog after 2 seconds
+        setTimeout(() => {
+          setMessageDialog({ open: false, seller: null, selectedTemplate: '', message: '', sendingApi: false, apiStatus: 'idle', apiError: '' });
+        }, 2000);
+      } else {
+        throw new Error(data?.error || 'Erro ao enviar mensagem');
+      }
+    } catch (error: any) {
+      console.error('Error sending via API:', error);
+      setMessageDialog(prev => ({ 
+        ...prev, 
+        sendingApi: false, 
+        apiStatus: 'error', 
+        apiError: error.message || 'Erro ao enviar mensagem' 
+      }));
+      toast.error('Erro ao enviar: ' + (error.message || 'Erro desconhecido'));
+    }
   };
 
   const copyMessage = () => {
@@ -1145,7 +1202,7 @@ Qualquer dúvida, estou à disposição!`;
       {/* WhatsApp Message Dialog */}
       <Dialog 
         open={messageDialog.open} 
-        onOpenChange={(open) => !open && setMessageDialog({ open: false, seller: null, selectedTemplate: '', message: '' })}
+        onOpenChange={(open) => !open && setMessageDialog({ open: false, seller: null, selectedTemplate: '', message: '', sendingApi: false, apiStatus: 'idle', apiError: '' })}
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -1190,6 +1247,21 @@ Qualquer dúvida, estou à disposição!`;
                 Nenhum template de vendedor encontrado. Crie templates em "Mensagens" → "Templates".
               </p>
             )}
+
+            {/* API Status Feedback */}
+            {messageDialog.apiStatus === 'success' && (
+              <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/30 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-success" />
+                <span className="text-sm text-success font-medium">Mensagem enviada com sucesso via API!</span>
+              </div>
+            )}
+
+            {messageDialog.apiStatus === 'error' && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+                <XCircle className="h-5 w-5 text-destructive" />
+                <span className="text-sm text-destructive">{messageDialog.apiError}</span>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -1199,11 +1271,24 @@ Qualquer dúvida, estou à disposição!`;
             </Button>
             <Button 
               onClick={handleSendWhatsApp} 
-              disabled={!messageDialog.message || !messageDialog.seller?.whatsapp}
-              className="bg-success hover:bg-success/90"
+              disabled={!messageDialog.message || !messageDialog.seller?.whatsapp || messageDialog.sendingApi}
+              variant="outline"
+              className="border-success text-success hover:bg-success/10"
             >
               <Send className="h-4 w-4 mr-2" />
-              Enviar WhatsApp
+              WhatsApp Web
+            </Button>
+            <Button 
+              onClick={handleSendWhatsAppApi} 
+              disabled={!messageDialog.message || !messageDialog.seller?.whatsapp || messageDialog.sendingApi}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {messageDialog.sendingApi ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-2" />
+              )}
+              {messageDialog.sendingApi ? 'Enviando...' : 'Enviar via API'}
             </Button>
           </DialogFooter>
         </DialogContent>

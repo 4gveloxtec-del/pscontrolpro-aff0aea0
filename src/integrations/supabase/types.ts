@@ -91,6 +91,59 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_reseller_message_logs: {
+        Row: {
+          admin_id: string
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message_content: string
+          reseller_id: string
+          reseller_name: string | null
+          reseller_phone: string
+          sent_at: string
+          status: string
+          template_used: string | null
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content: string
+          reseller_id: string
+          reseller_name?: string | null
+          reseller_phone: string
+          sent_at?: string
+          status?: string
+          template_used?: string | null
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string
+          reseller_id?: string
+          reseller_name?: string | null
+          reseller_phone?: string
+          sent_at?: string
+          status?: string
+          template_used?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_reseller_message_logs_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           created_at: string
