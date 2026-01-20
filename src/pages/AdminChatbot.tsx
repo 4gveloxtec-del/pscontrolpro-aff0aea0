@@ -28,6 +28,7 @@ import {
   Save,
   X,
   ChevronRight,
+  AlertTriangle,
   Settings2,
   Eye
 } from 'lucide-react';
@@ -284,6 +285,58 @@ export default function AdminChatbot() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Show empty state if no nodes
+  if (nodes.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Bot className="h-7 w-7 text-blue-500" />
+              Chatbot Interativo
+            </h1>
+            <p className="text-slate-400 mt-1">
+              Configure e teste o atendimento automatizado
+            </p>
+          </div>
+        </div>
+        
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">Nenhum menu configurado</h3>
+            <p className="text-slate-400 text-center mb-6 max-w-md">
+              O chatbot ainda não possui menus configurados. Crie o primeiro menu para começar a configurar o atendimento automatizado.
+            </p>
+            <Button 
+              onClick={() => {
+                setNodeForm({
+                  node_key: 'inicial',
+                  title: 'Menu Principal',
+                  content: '👋 Olá! Seja bem-vindo(a)!\n\nEscolha uma opção:\n\n1️⃣ Conhecer os Planos\n2️⃣ Teste Grátis 🎁\n3️⃣ Suporte Técnico',
+                  parent_key: '',
+                  response_type: 'menu',
+                  icon: '🏠',
+                  is_active: true,
+                  options: [
+                    { key: '1', label: 'Conhecer os Planos', target: 'planos' },
+                    { key: '2', label: 'Teste Grátis', target: 'teste' },
+                    { key: '3', label: 'Suporte', target: 'suporte' }
+                  ]
+                });
+                setShowNodeDialog(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Menu Inicial
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
