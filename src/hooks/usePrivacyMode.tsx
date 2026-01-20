@@ -3,6 +3,8 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 interface PrivacyModeContextType {
   isPrivacyMode: boolean;
   togglePrivacyMode: () => void;
+  isMoneyHidden: boolean;
+  toggleMoneyVisibility: () => void;
   maskData: (data: string | number | null | undefined, type?: 'name' | 'phone' | 'email' | 'money' | 'text') => string;
 }
 
@@ -14,17 +16,36 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
     return saved === 'true';
   });
 
+  const [isMoneyHidden, setIsMoneyHidden] = useState(() => {
+    const saved = localStorage.getItem('moneyHidden');
+    return saved === 'true';
+  });
+
   useEffect(() => {
     localStorage.setItem('privacyMode', isPrivacyMode.toString());
   }, [isPrivacyMode]);
+
+  useEffect(() => {
+    localStorage.setItem('moneyHidden', isMoneyHidden.toString());
+  }, [isMoneyHidden]);
 
   const togglePrivacyMode = () => {
     setIsPrivacyMode(prev => !prev);
   };
 
+  const toggleMoneyVisibility = () => {
+    setIsMoneyHidden(prev => !prev);
+  };
+
   const maskData = (data: string | number | null | undefined, type: 'name' | 'phone' | 'email' | 'money' | 'text' = 'text'): string => {
     if (data === null || data === undefined) return '';
     
+    // Para tipo 'money', verifica isMoneyHidden OU isPrivacyMode
+    if (type === 'money' && (isMoneyHidden || isPrivacyMode)) {
+      return 'R$ ●●●,●●';
+    }
+    
+    // Para outros tipos, só verifica isPrivacyMode
     if (!isPrivacyMode) return String(data);
 
     const str = String(data);
@@ -36,8 +57,6 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
         return '●●●●●●●●●●●';
       case 'email':
         return '●●●●●@●●●●●.com';
-      case 'money':
-        return 'R$ ●●●,●●';
       case 'text':
       default:
         return '●'.repeat(Math.min(str.length, 10));
@@ -45,7 +64,13 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <PrivacyModeContext.Provider value={{ isPrivacyMode, togglePrivacyMode, maskData }}>
+    <PrivacyModeContext.Provider value={{ 
+      isPrivacyMode, 
+      togglePrivacyMode, 
+      isMoneyHidden, 
+      toggleMoneyVisibility, 
+      maskData 
+    }}>
       {children}
     </PrivacyModeContext.Provider>
   );

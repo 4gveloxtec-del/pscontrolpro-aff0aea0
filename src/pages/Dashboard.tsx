@@ -4,7 +4,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { MonthlyProfitHistory } from '@/components/dashboard/MonthlyProfitHistory';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus } from 'lucide-react';
+import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +53,7 @@ interface ServerData {
 
 export default function Dashboard() {
   const { user, profile, isAdmin, isSeller } = useAuth();
-  const { isPrivacyMode, maskData } = usePrivacyMode();
+  const { isPrivacyMode, maskData, isMoneyHidden, toggleMoneyVisibility } = usePrivacyMode();
   const [messageClient, setMessageClient] = useState<Client | null>(null);
 
   const { data: clients = [] } = useQuery({
@@ -516,6 +516,29 @@ export default function Dashboard() {
               icon={AlertTriangle}
               variant="danger"
             />
+          </div>
+
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Resumo Financeiro</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleMoneyVisibility}
+              className="gap-2"
+              title={isMoneyHidden ? "Mostrar valores" : "Ocultar valores"}
+            >
+              {isMoneyHidden ? (
+                <>
+                  <EyeOff className="h-4 w-4" />
+                  <span className="text-xs">Mostrar</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4" />
+                  <span className="text-xs">Ocultar</span>
+                </>
+              )}
+            </Button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
