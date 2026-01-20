@@ -50,36 +50,38 @@ const SELLER_TEMPLATES = [
   {
     name: 'Boas-vindas IPTV',
     type: 'welcome',
-    message: `🎉 *Seja bem-vindo(a), {nome}!*
+    message: `🎉 Olá {nome}!
 
-Seu acesso IPTV está ativo!
+Seja bem-vindo(a) à nossa família!
 
-📺 *Seus dados de acesso:*
-👤 Login: {login}
-🔑 Senha: {senha}
-📅 Vencimento: {vencimento}
+📺 *Plano:* {plano}
+📆 *Vencimento:* {vencimento}
+🔑 *Login:* {login}
+🔐 *Senha:* {senha}
 
-🎬 *Servidor:* {servidor}
+{mac}
 
 Qualquer dúvida, estamos à disposição!
 
-_{empresa}_`,
+*{empresa}*`,
   },
   {
     name: 'Boas-vindas P2P',
     type: 'welcome',
-    message: `🎉 *Seja bem-vindo(a), {nome}!*
+    message: `🎉 Olá {nome}!
 
-Seu acesso P2P está liberado!
+Seja bem-vindo(a) à nossa família!
 
-📱 *Seus dados:*
-👤 Login: {login}
-🔑 Senha: {senha}
-📅 Válido até: {vencimento}
+📺 *Plano:* {plano}
+📆 *Vencimento:* {vencimento}
+🔑 *Login:* {login}
+🔐 *Senha:* {senha}
 
-Aproveite!
+{mac}
 
-_{empresa}_`,
+Qualquer dúvida, estamos à disposição!
+
+*{empresa}*`,
   },
   {
     name: 'Boas-vindas Premium',
