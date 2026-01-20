@@ -1,10 +1,12 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Timeout constant for API calls
+const API_TIMEOUT_MS = 15000;
 
 interface Client {
   id: string;
@@ -49,39 +51,76 @@ interface SellerInstance {
   instance_blocked: boolean;
 }
 
-// Send message via Evolution API using global config + seller instance
+// Fetch with timeout wrapper
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit, 
+  timeoutMs = API_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Send message via Evolution API using global config + seller instance with retry
 async function sendEvolutionMessage(
   globalConfig: GlobalConfig,
   instanceName: string,
   phone: string,
-  message: string
+  message: string,
+  retries = 1
 ): Promise<boolean> {
-  try {
-    let formattedPhone = phone.replace(/\D/g, '');
-    if (!formattedPhone.startsWith('55') && (formattedPhone.length === 10 || formattedPhone.length === 11)) {
-      formattedPhone = '55' + formattedPhone;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      let formattedPhone = phone.replace(/\D/g, '');
+      if (!formattedPhone.startsWith('55') && (formattedPhone.length === 10 || formattedPhone.length === 11)) {
+        formattedPhone = '55' + formattedPhone;
+      }
+
+      const url = `${globalConfig.api_url}/message/sendText/${instanceName}`;
+      
+      const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': globalConfig.api_token,
+        },
+        body: JSON.stringify({
+          number: formattedPhone,
+          text: message,
+        }),
+      });
+
+      console.log(`Message sent to ${formattedPhone} via instance ${instanceName}: ${response.ok}`);
+      if (response.ok) {
+        return true;
+      }
+      
+      // Retry on 5xx errors
+      if (response.status >= 500 && attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      return false;
+    } catch (error) {
+      console.error(`Error sending message (attempt ${attempt + 1}):`, error);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      return false;
     }
-
-    const url = `${globalConfig.api_url}/message/sendText/${instanceName}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': globalConfig.api_token,
-      },
-      body: JSON.stringify({
-        number: formattedPhone,
-        text: message,
-      }),
-    });
-
-    console.log(`Message sent to ${formattedPhone} via instance ${instanceName}: ${response.ok}`);
-    return response.ok;
-  } catch (error) {
-    console.error('Error sending message:', error);
-    return false;
   }
+  return false;
 }
 
 // Send push notification as fallback
@@ -167,7 +206,7 @@ function getNotificationLabel(notificationType: string): { title: string; emoji:
   return labels[notificationType] || { title: 'Notificação', emoji: '📢' };
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

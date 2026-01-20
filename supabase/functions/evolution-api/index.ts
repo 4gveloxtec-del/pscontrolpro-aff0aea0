@@ -1,10 +1,12 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Timeout constant for API calls
+const API_TIMEOUT_MS = 15000;
 
 interface EvolutionConfig {
   api_url: string;
@@ -22,55 +24,91 @@ function normalizeApiUrl(url: string): string {
   return cleanUrl;
 }
 
-// Send message via Evolution API
+// Fetch with timeout wrapper
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit, 
+  timeoutMs = API_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Send message via Evolution API with retry
 async function sendEvolutionMessage(
   config: EvolutionConfig,
   phone: string,
-  message: string
+  message: string,
+  retries = 2
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Format phone number (remove non-digits, ensure country code)
-    let formattedPhone = phone.replace(/\D/g, '');
-    if (formattedPhone.length === 11 && formattedPhone.startsWith('9')) {
-      formattedPhone = '55' + formattedPhone;
-    } else if (formattedPhone.length === 10 || formattedPhone.length === 11) {
-      if (!formattedPhone.startsWith('55')) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // Format phone number (remove non-digits, ensure country code)
+      let formattedPhone = phone.replace(/\D/g, '');
+      if (formattedPhone.length === 11 && formattedPhone.startsWith('9')) {
         formattedPhone = '55' + formattedPhone;
+      } else if (formattedPhone.length === 10 || formattedPhone.length === 11) {
+        if (!formattedPhone.startsWith('55')) {
+          formattedPhone = '55' + formattedPhone;
+        }
       }
+
+      const baseUrl = normalizeApiUrl(config.api_url);
+      const url = `${baseUrl}/message/sendText/${config.instance_name}`;
+      
+      console.log(`[Attempt ${attempt + 1}] Sending message to ${formattedPhone} via Evolution API`);
+      
+      const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': config.api_token,
+        },
+        body: JSON.stringify({
+          number: formattedPhone,
+          text: message,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Evolution API error:', errorText);
+        
+        // Retry on 5xx errors
+        if (response.status >= 500 && attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      }
+
+      const result = await response.json();
+      console.log('Evolution API response:', result);
+      
+      return { success: true };
+    } catch (error: unknown) {
+      const errorMessage = (error as Error).message;
+      console.error(`Error sending Evolution message (attempt ${attempt + 1}):`, error);
+      
+      // Retry on timeout or network errors
+      if (attempt < retries && (errorMessage.includes('abort') || errorMessage.includes('timeout') || errorMessage.includes('network'))) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return { success: false, error: errorMessage };
     }
-
-    const baseUrl = normalizeApiUrl(config.api_url);
-    const url = `${baseUrl}/message/sendText/${config.instance_name}`;
-    
-    console.log(`Sending message to ${formattedPhone} via Evolution API`);
-    console.log(`URL: ${url}`);
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': config.api_token,
-      },
-      body: JSON.stringify({
-        number: formattedPhone,
-        text: message,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Evolution API error:', errorText);
-      return { success: false, error: `API Error: ${response.status} - ${errorText}` };
-    }
-
-    const result = await response.json();
-    console.log('Evolution API response:', result);
-    
-    return { success: true };
-  } catch (error: unknown) {
-    console.error('Error sending Evolution message:', error);
-    return { success: false, error: (error as Error).message };
   }
+  return { success: false, error: 'Max retries exceeded' };
 }
 
 // Check Evolution API connection status
@@ -253,7 +291,7 @@ async function getEvolutionQrCode(config: EvolutionConfig): Promise<{ qrcode?: s
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -263,20 +301,26 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, phone, message, config } = await req.json();
+    // Parse body once and extract all fields
+    const body = await req.json();
+    const { action, userId, phone, message, config, messages } = body;
 
     // Check if seller's instance is blocked (for actions that send messages)
     const checkBlockedInstance = async (sellerId: string): Promise<{ blocked: boolean; reason?: string }> => {
       if (!sellerId) return { blocked: false };
       
-      const { data: instance } = await supabase
-        .from('whatsapp_seller_instances')
-        .select('instance_blocked, blocked_reason')
-        .eq('seller_id', sellerId)
-        .maybeSingle();
-      
-      if (instance?.instance_blocked) {
-        return { blocked: true, reason: instance.blocked_reason || 'Instância bloqueada por inadimplência' };
+      try {
+        const { data: instance } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('instance_blocked, blocked_reason')
+          .eq('seller_id', sellerId)
+          .maybeSingle();
+        
+        if (instance?.instance_blocked) {
+          return { blocked: true, reason: instance.blocked_reason || 'Instância bloqueada por inadimplência' };
+        }
+      } catch (e) {
+        console.error('Error checking blocked instance:', e);
       }
       return { blocked: false };
     };
@@ -378,9 +422,7 @@ serve(async (req) => {
           );
         }
 
-        // Get messages from the already-parsed body
-        const body = await req.json().catch(() => ({}));
-        const messages = body.messages;
+        // Use messages from the already-parsed body (FIXED: no double parse)
         if (!messages || !Array.isArray(messages)) {
           return new Response(
             JSON.stringify({ success: false, error: 'Missing messages array' }),

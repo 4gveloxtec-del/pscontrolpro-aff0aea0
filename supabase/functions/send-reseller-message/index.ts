@@ -1,10 +1,12 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Timeout constant for API calls
+const API_TIMEOUT_MS = 15000;
 
 interface SendMessageRequest {
   reseller_id: string;
@@ -35,50 +37,87 @@ function formatPhoneNumber(phone: string): string {
   return formattedPhone;
 }
 
-// Send message via Evolution API
+// Fetch with timeout wrapper
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit, 
+  timeoutMs = API_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Send message via Evolution API with retry
 async function sendEvolutionMessage(
   apiUrl: string,
   apiToken: string,
   instanceName: string,
   phone: string,
-  message: string
+  message: string,
+  retries = 2
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const formattedPhone = formatPhoneNumber(phone);
-    const baseUrl = normalizeApiUrl(apiUrl);
-    const url = `${baseUrl}/message/sendText/${instanceName}`;
-    
-    console.log(`[send-reseller-message] Sending to ${formattedPhone} via ${url}`);
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': apiToken,
-      },
-      body: JSON.stringify({
-        number: formattedPhone,
-        text: message,
-      }),
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const formattedPhone = formatPhoneNumber(phone);
+      const baseUrl = normalizeApiUrl(apiUrl);
+      const url = `${baseUrl}/message/sendText/${instanceName}`;
+      
+      console.log(`[send-reseller-message][Attempt ${attempt + 1}] Sending to ${formattedPhone} via ${url}`);
+      
+      const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiToken,
+        },
+        body: JSON.stringify({
+          number: formattedPhone,
+          text: message,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[send-reseller-message] Evolution API error:', errorText);
-      return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[send-reseller-message] Evolution API error:', errorText);
+        
+        // Retry on 5xx errors
+        if (response.status >= 500 && attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      }
+
+      const result = await response.json();
+      console.log('[send-reseller-message] Evolution API response:', result);
+      
+      return { success: true };
+    } catch (error: unknown) {
+      const errorMessage = (error as Error).message;
+      console.error(`[send-reseller-message] Error (attempt ${attempt + 1}):`, error);
+      
+      // Retry on timeout or network errors
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return { success: false, error: errorMessage };
     }
-
-    const result = await response.json();
-    console.log('[send-reseller-message] Evolution API response:', result);
-    
-    return { success: true };
-  } catch (error: unknown) {
-    console.error('[send-reseller-message] Error:', error);
-    return { success: false, error: (error as Error).message };
   }
+  return { success: false, error: 'Max retries exceeded' };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
