@@ -221,17 +221,58 @@ serve(async (req) => {
       );
     }
 
-    // Get MAC address - check gerencia_app_mac first, then from devices if available
-    let macAddress = client.gerencia_app_mac || '';
+    // Collect ALL MACs from different sources
+    const allMacs: string[] = [];
     
-    // If no gerencia_app_mac, try to get from gerencia_app_devices array
-    if (!macAddress && client.gerencia_app_devices && Array.isArray(client.gerencia_app_devices)) {
-      const deviceMacs = client.gerencia_app_devices
-        .filter((d: { mac?: string }) => d && d.mac)
-        .map((d: { mac: string }) => d.mac);
-      if (deviceMacs.length > 0) {
-        macAddress = deviceMacs.join(', ');
-      }
+    // 1. Check gerencia_app_mac (main gerencia app MAC)
+    if (client.gerencia_app_mac && client.gerencia_app_mac.trim()) {
+      allMacs.push(client.gerencia_app_mac.trim());
+    }
+    
+    // 2. Check gerencia_app_devices array (multiple device MACs)
+    if (client.gerencia_app_devices && Array.isArray(client.gerencia_app_devices)) {
+      client.gerencia_app_devices.forEach((device: { mac?: string; name?: string }) => {
+        if (device && device.mac && device.mac.trim()) {
+          const macValue = device.mac.trim();
+          // Avoid duplicates
+          if (!allMacs.includes(macValue)) {
+            allMacs.push(macValue);
+          }
+        }
+      });
+    }
+
+    // 3. Check client_external_apps for MACs (paid apps)
+    const { data: clientExternalApps } = await supabase
+      .from('client_external_apps')
+      .select('devices')
+      .eq('client_id', clientId);
+    
+    if (clientExternalApps) {
+      clientExternalApps.forEach((app: { devices?: any }) => {
+        if (app.devices && Array.isArray(app.devices)) {
+          app.devices.forEach((device: { mac?: string }) => {
+            if (device && device.mac && device.mac.trim()) {
+              const macValue = device.mac.trim();
+              if (!allMacs.includes(macValue)) {
+                allMacs.push(macValue);
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // 4. Check client_device_apps for app-related MACs
+    const { data: clientDeviceApps } = await supabase
+      .from('client_device_apps')
+      .select('app_id, reseller_device_apps(name)')
+      .eq('client_id', clientId);
+
+    // Format MAC list - only if there are MACs
+    let macsList = '';
+    if (allMacs.length > 0) {
+      macsList = allMacs.map(mac => `• ${mac}`).join('\n');
     }
 
     // Get device apps for client
@@ -273,6 +314,9 @@ serve(async (req) => {
     }
 
     // Replace variables in message - using DECRYPTED values
+    // MAC section only appears if there are MACs
+    const macSection = allMacs.length > 0 ? `📱 *MAC(s) cadastrado(s):*\n${macsList}` : '';
+    
     const message = replaceVariables(template.message, {
       nome: client.name,
       empresa: sellerProfile?.company_name || sellerProfile?.full_name || '',
@@ -286,8 +330,8 @@ serve(async (req) => {
       servidor: client.server_name || '',
       pix: sellerProfile?.pix_key || '',
       servico: client.category || 'IPTV',
-      dns: '',
-      mac: macAddress,
+      mac: macSection,
+      macs: macSection,
       // New dynamic filters
       dispositivo: client.device || '',
       apps: appsText,
