@@ -1750,25 +1750,45 @@ serve(async (req) => {
     const isAdminModeParam = parsedUrl.searchParams.get("admin") === "true";
 
     // Auto-detect admin: check if instance belongs to an admin user
+    // IMPORTANT: Only use admin chatbot if the instance is specifically marked for admin use
+    // OR if the owner has admin role AND the instance is explicitly set for admin chatbot
     let isAdminInstance = false;
     if (!isAdminModeParam) {
-      // Try to find instance and check if owner is admin
-      const { data: instanceData } = await supabase
-        .from("whatsapp_seller_instances")
-        .select("seller_id")
-        .ilike("instance_name", instanceName)
+      // Check whatsapp_global_config to see if this is the admin's configured instance
+      const { data: globalCfg } = await supabase
+        .from("whatsapp_global_config")
+        .select("instance_name")
+        .eq("is_active", true)
         .maybeSingle();
       
-      if (instanceData?.seller_id) {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", instanceData.seller_id)
-          .maybeSingle();
+      // Only consider it admin instance if it matches the global config instance name (admin's instance)
+      if (globalCfg?.instance_name) {
+        const globalInstanceLower = globalCfg.instance_name.toLowerCase().trim();
+        const currentInstanceLower = instanceName.toLowerCase().trim();
         
-        isAdminInstance = roleData?.role === "admin";
-        if (isAdminInstance) {
-          console.log("[AutoDetect] Instance belongs to ADMIN user - switching to admin chatbot mode");
+        // Check if this instance matches the admin's configured instance
+        if (globalInstanceLower === currentInstanceLower || 
+            globalInstanceLower.includes(currentInstanceLower) ||
+            currentInstanceLower.includes(globalInstanceLower)) {
+          // Now verify the owner is actually admin
+          const { data: instanceData } = await supabase
+            .from("whatsapp_seller_instances")
+            .select("seller_id")
+            .ilike("instance_name", instanceName)
+            .maybeSingle();
+          
+          if (instanceData?.seller_id) {
+            const { data: roleData } = await supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", instanceData.seller_id)
+              .maybeSingle();
+            
+            isAdminInstance = roleData?.role === "admin";
+            if (isAdminInstance) {
+              console.log("[AutoDetect] Instance matches admin global config - using admin chatbot mode");
+            }
+          }
         }
       }
     }
