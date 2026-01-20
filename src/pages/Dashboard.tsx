@@ -4,7 +4,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { MonthlyProfitHistory } from '@/components/dashboard/MonthlyProfitHistory';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter } from 'lucide-react';
+import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter, MessageCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 import { SendMessageDialog } from '@/components/SendMessageDialog';
+import { BulkCollectionDialog } from '@/components/BulkCollectionDialog';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -56,6 +57,7 @@ export default function Dashboard() {
   const { isPrivacyMode, maskData, isMoneyHidden, toggleMoneyVisibility } = usePrivacyMode();
   const [messageClient, setMessageClient] = useState<Client | null>(null);
   const [expirationFilter, setExpirationFilter] = useState<number | null>(null);
+  const [bulkCollectionOpen, setBulkCollectionOpen] = useState(false);
   const clientsListRef = useRef<HTMLDivElement>(null);
 
   const { data: clients = [] } = useQuery({
@@ -895,7 +897,7 @@ export default function Dashboard() {
                       'Clientes Vencendo (0-5 dias)'
                     )}
                   </CardTitle>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {expirationFilter !== null && (
                       <Button
                         variant="outline"
@@ -905,6 +907,17 @@ export default function Dashboard() {
                       >
                         <X className="h-4 w-4" />
                         Ver Todos ({urgentClients.length})
+                      </Button>
+                    )}
+                    {filteredUrgentClients.length > 0 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setBulkCollectionOpen(true)}
+                        className="gap-1 bg-primary hover:bg-primary/90"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Cobrar Todos ({filteredUrgentClients.length})
                       </Button>
                     )}
                     <Link to="/clients">
@@ -1138,6 +1151,17 @@ export default function Dashboard() {
           onOpenChange={(open) => !open && setMessageClient(null)}
         />
       )}
+
+      {/* Bulk Collection Dialog */}
+      <BulkCollectionDialog
+        open={bulkCollectionOpen}
+        onOpenChange={setBulkCollectionOpen}
+        clients={filteredUrgentClients}
+        filterLabel={expirationFilter !== null 
+          ? `vencendo ${expirationFilter === 0 ? 'hoje' : expirationFilter === 1 ? 'amanhã' : `em ${expirationFilter} dias`}`
+          : 'vencendo em 0-5 dias'
+        }
+      />
     </div>
   );
 }
