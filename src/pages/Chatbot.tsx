@@ -18,6 +18,7 @@ import { useChatbotCategories, ChatbotCategory } from '@/hooks/useChatbotCategor
 import { ChatbotCategories } from '@/components/ChatbotCategories';
 import { ChatbotFlowManager } from '@/components/ChatbotFlowManager';
 import { useAuth } from '@/hooks/useAuth';
+import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -44,6 +45,12 @@ const RESPONSE_TYPES = {
 
 export default function Chatbot() {
   const { isAdmin, user } = useAuth();
+
+  // Admin não usa este chatbot (revendedor). Redireciona para o Chatbot Interativo do Painel ADM.
+  if (isAdmin) {
+    return <Navigate to="/admin/chatbot" replace />;
+  }
+
   const {
     rules,
     templates,
