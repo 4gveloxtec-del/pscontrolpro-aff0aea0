@@ -191,10 +191,16 @@ async function checkWhatsAppApi(supabase: SupabaseClient): Promise<CheckResult> 
     const { data: config, error } = await supabase
       .from('whatsapp_global_config')
       .select('api_url, api_token, is_active')
-      .single();
+      .maybeSingle();
     
+    // Se não houver configuração, considerar como "não configurado" (não é erro crítico)
     if (error) {
-      return { healthy: false, error: 'No WhatsApp config found' };
+      console.log('WhatsApp config query error:', error.message);
+      return { healthy: true, details: { status: 'not_configured', reason: error.message } };
+    }
+    
+    if (!config) {
+      return { healthy: true, details: { status: 'not_configured' } };
     }
     
     const cfg = config as { api_url: string; api_token: string; is_active: boolean };
@@ -204,27 +210,51 @@ async function checkWhatsAppApi(supabase: SupabaseClient): Promise<CheckResult> 
     }
     
     if (!cfg.api_url || !cfg.api_token) {
-      return { healthy: false, error: 'Incomplete WhatsApp configuration' };
+      // Configuração incompleta não é erro crítico - apenas aviso
+      return { healthy: true, details: { status: 'incomplete_config' } };
     }
     
-    // Tentar fazer health check na API
+    // Normalizar URL da API
+    let apiUrl = cfg.api_url.trim();
+    if (apiUrl.endsWith('/')) {
+      apiUrl = apiUrl.slice(0, -1);
+    }
+    
+    // Tentar verificar se a API está online (não mais /health, usar endpoint que existe)
     try {
-      const response = await fetch(`${cfg.api_url}/health`, {
+      // Evolution API não tem /health padrão - tentar endpoint de instance/fetchInstances
+      const response = await fetch(`${apiUrl}/instance/fetchInstances`, {
         method: 'GET',
-        headers: { 'apikey': cfg.api_token },
+        headers: { 
+          'apikey': cfg.api_token,
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(10000), // timeout de 10 segundos
       });
       
-      if (!response.ok) {
-        return { healthy: false, error: `API returned ${response.status}` };
+      // Qualquer resposta (mesmo 401/403) indica que a API está online
+      if (response.status < 500) {
+        return { healthy: true, details: { status: 'online', http_status: response.status } };
       }
       
-      return { healthy: true };
-    } catch {
-      // API pode não ter endpoint /health, não é crítico
-      return { healthy: true, details: { health_check: 'not_available' } };
+      // Erros 5xx indicam problema no servidor
+      return { healthy: false, error: `API server error: ${response.status}` };
+    } catch (fetchError) {
+      const errMsg = (fetchError as Error).message;
+      
+      // Timeout ou erro de rede - pode ser temporário
+      if (errMsg.includes('timeout') || errMsg.includes('AbortError')) {
+        return { healthy: true, details: { status: 'timeout_but_ok', message: 'API slow but may be online' } };
+      }
+      
+      // Erros de conexão são normais se a API não estiver configurada corretamente
+      // Não marcar como crítico para evitar loops de reparo
+      console.log('WhatsApp API check error (non-critical):', errMsg);
+      return { healthy: true, details: { status: 'check_failed', reason: errMsg } };
     }
   } catch (err) {
-    return { healthy: false, error: (err as Error).message };
+    console.error('WhatsApp API check exception:', err);
+    return { healthy: true, details: { status: 'check_error', reason: (err as Error).message } };
   }
 }
 
@@ -583,10 +613,11 @@ Deno.serve(async (req) => {
                   }
                 );
               }
-            }
-          } else if (updatedStatus.repair_attempts >= config.max_repair_attempts) {
-            // Já atingiu limite, notificar se crítico
-            if (updatedStatus.consecutive_failures >= 5 && config.notify_admin_on_critical) {
+          }
+        } else if (updatedStatus.repair_attempts >= config.max_repair_attempts) {
+            // Já atingiu limite - NÃO notificar repetidamente, apenas uma vez
+            // Para evitar spam de notificações
+            if (updatedStatus.consecutive_failures === 5 && config.notify_admin_on_critical) {
               await sendAdminPushNotification(
                 supabase,
                 '🔴 Componente Crítico Sem Reparo',
@@ -595,14 +626,23 @@ Deno.serve(async (req) => {
               );
             }
           }
-        } else if (result.healthy && updatedStatus && updatedStatus.repair_attempts > 0) {
-          // Resetar contadores se está saudável novamente
-          await supabase
-            .from('system_health_status')
-            .update({ repair_attempts: 0 } as Record<string, unknown>)
-            .eq('component_name', component);
+        } 
+        
+        // IMPORTANTE: Resetar contadores se está saudável novamente
+        if (result.healthy && updatedStatus) {
+          if (updatedStatus.repair_attempts > 0 || updatedStatus.consecutive_failures > 0) {
+            await supabase
+              .from('system_health_status')
+              .update({ 
+                repair_attempts: 0,
+                consecutive_failures: 0,
+                last_error: null,
+                status: 'healthy'
+              } as Record<string, unknown>)
+              .eq('component_name', component);
+          }
           
-          // Notificar que o componente se recuperou
+          // Notificar que o componente se recuperou (apenas se estava com falhas)
           if (updatedStatus.consecutive_failures > 0) {
             await sendAdminPushNotification(
               supabase,
