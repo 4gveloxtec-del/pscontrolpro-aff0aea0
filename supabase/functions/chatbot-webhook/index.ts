@@ -1928,14 +1928,36 @@ serve(async (req) => {
     const sellerId = sellerInstance.seller_id;
     
     // Get chatbot settings for this seller
-    const { data: settings } = await supabase
+    const { data: settings, error: settingsError } = await supabase
       .from("chatbot_settings")
       .select("*")
       .eq("seller_id", sellerId)
       .maybeSingle();
     
+    // Log settings status for debugging
+    console.log(`[Chatbot] Settings for seller ${sellerId}:`, JSON.stringify({
+      found: !!settings,
+      is_enabled: settings?.is_enabled,
+      settingsError: settingsError?.message,
+    }));
+    
+    // If no settings exist, create default enabled settings
+    if (!settings) {
+      console.log(`[Chatbot] No settings found for seller ${sellerId}, creating default enabled settings`);
+      await supabase
+        .from("chatbot_settings")
+        .insert({
+          seller_id: sellerId,
+          is_enabled: true,
+          ignore_groups: true,
+          ignore_own_messages: true,
+          typing_enabled: true,
+        });
+    }
+    
     const chatbotSettings: ChatbotSettings = {
-      is_enabled: settings?.is_enabled ?? false,
+      // Default to true if no settings exist (auto-create enabled chatbot)
+      is_enabled: settings?.is_enabled ?? true,
       response_delay_min: settings?.response_delay_min ?? 2,
       response_delay_max: settings?.response_delay_max ?? 5,
       ignore_groups: settings?.ignore_groups ?? true,
@@ -1946,16 +1968,16 @@ serve(async (req) => {
     };
     
     if (!chatbotSettings.is_enabled) {
-      console.log("Chatbot disabled for seller:", sellerId);
+      console.log(`[Chatbot] Chatbot explicitly DISABLED for seller: ${sellerId} - User needs to enable it in settings`);
       await auditWebhook(supabase, {
         status: "ignored",
-        reason: "Chatbot disabled",
+        reason: "Chatbot disabled by user in settings",
         event: payload.event,
         instanceName,
         remoteJid,
         sellerId,
       });
-      return new Response(JSON.stringify({ status: "ignored", reason: "Chatbot disabled" }), {
+      return new Response(JSON.stringify({ status: "ignored", reason: "Chatbot disabled - enable in Automação WhatsApp settings" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
