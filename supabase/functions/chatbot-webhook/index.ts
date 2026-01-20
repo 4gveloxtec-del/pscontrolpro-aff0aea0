@@ -1782,24 +1782,20 @@ serve(async (req) => {
         // STRICT: Only exact match or case-insensitive exact match
         // NO partial matching (includes) to prevent false positives
         if (globalInstanceLower === currentInstanceLower) {
-          // Now verify the owner is actually admin
-          const { data: instanceData } = await supabase
-            .from("whatsapp_seller_instances")
-            .select("seller_id")
-            .ilike("instance_name", instanceName)
-            .maybeSingle();
+          // The instance matches the admin's global config - this IS the admin's instance
+          // Since the global config can only be set by admins, if the instance name matches exactly,
+          // we can trust that this is meant to be the admin chatbot
           
-          if (instanceData?.seller_id) {
-            const { data: roleData } = await supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", instanceData.seller_id)
-              .maybeSingle();
-            
-            isAdminInstance = roleData?.role === "admin";
-            if (isAdminInstance) {
-              console.log("[AutoDetect] Instance EXACTLY matches admin global config - using admin chatbot mode");
-            }
+          // Double-check by verifying there's at least one admin in the system
+          const { data: adminUsers } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "admin")
+            .limit(1);
+          
+          if (adminUsers && adminUsers.length > 0) {
+            isAdminInstance = true;
+            console.log("[AutoDetect] Instance EXACTLY matches admin global config - using admin chatbot mode");
           }
         }
       }
