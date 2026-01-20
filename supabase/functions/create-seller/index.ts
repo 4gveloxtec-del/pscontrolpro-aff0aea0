@@ -61,9 +61,9 @@ serve(async (req) => {
       );
     }
 
-    const { email, full_name, whatsapp, subscription_days } = await req.json();
+    const { email, full_name, whatsapp, subscription_days, plan_type } = await req.json();
     
-    console.log(`Creating seller: ${email}`);
+    console.log(`Creating seller: ${email} with plan: ${plan_type || 'manual'}`);
     
     if (!email) {
       return new Response(
@@ -103,7 +103,8 @@ serve(async (req) => {
         full_name: full_name || email.split('@')[0],
         whatsapp: whatsapp || null,
         subscription_expires_at: subscriptionExpiresAt.toISOString(),
-        needs_password_update: true
+        needs_password_update: true,
+        plan_type: plan_type || 'manual'
       })
       .eq('id', newUser.user.id);
 
@@ -111,7 +112,7 @@ serve(async (req) => {
       console.error('Error updating profile:', profileError);
     }
 
-    console.log(`Seller created successfully: ${email}`);
+    console.log(`Seller created successfully: ${email} with plan: ${plan_type || 'manual'}`);
 
     return new Response(
       JSON.stringify({ 

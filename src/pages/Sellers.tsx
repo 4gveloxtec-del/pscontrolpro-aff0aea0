@@ -49,7 +49,11 @@ interface Seller {
   is_active: boolean;
   created_at: string;
   client_count?: number;
+  plan_type?: string | null;
+  plan_price?: number | null;
 }
+
+type PlanType = 'manual' | 'whatsapp';
 
 type FilterType = 'all' | 'active' | 'expired';
 
@@ -77,11 +81,12 @@ export default function Sellers() {
   const [copiedPassword, setCopiedPassword] = useState(false);
   
   // Confirmation dialogs state
-  const [renewDialog, setRenewDialog] = useState<{ open: boolean; sellerId: string; sellerName: string; days: number }>({
+  const [renewDialog, setRenewDialog] = useState<{ open: boolean; sellerId: string; sellerName: string; days: number; planType: PlanType; currentPlanType?: string }>({
     open: false,
     sellerId: '',
     sellerName: '',
-    days: 30
+    days: 30,
+    planType: 'manual'
   });
   const [permanentDialog, setPermanentDialog] = useState<{ open: boolean; sellerId: string; sellerName: string; isPermanent: boolean }>({
     open: false,
@@ -111,6 +116,7 @@ export default function Sellers() {
   const [newSellerName, setNewSellerName] = useState('');
   const [newSellerWhatsapp, setNewSellerWhatsapp] = useState('');
   const [newSellerDays, setNewSellerDays] = useState('30');
+  const [newSellerPlanType, setNewSellerPlanType] = useState<PlanType>('manual');
 
   // Quick role fix (when someone was created as admin by mistake)
   const [roleFixEmail, setRoleFixEmail] = useState('');
@@ -261,7 +267,7 @@ export default function Sellers() {
   });
 
   const createSellerMutation = useMutation({
-    mutationFn: async (data: { email: string; full_name: string; whatsapp?: string; subscription_days: number }) => {
+    mutationFn: async (data: { email: string; full_name: string; whatsapp?: string; subscription_days: number; plan_type?: string }) => {
       const { data: result, error } = await supabase.functions.invoke('create-seller', {
         body: data,
         headers: { Authorization: `Bearer ${session?.access_token}` }
@@ -279,6 +285,7 @@ export default function Sellers() {
       setNewSellerName('');
       setNewSellerWhatsapp('');
       setNewSellerDays('30');
+      setNewSellerPlanType('manual');
       
       setTempPasswordDialog({
         open: true,
@@ -323,7 +330,7 @@ export default function Sellers() {
   });
 
   const updateExpirationMutation = useMutation({
-    mutationFn: async ({ id, days }: { id: string; days: number }) => {
+    mutationFn: async ({ id, days, planType }: { id: string; days: number; planType?: PlanType }) => {
       const seller = sellers.find(s => s.id === id);
       if (!seller) throw new Error('Vendedor não encontrado');
 
@@ -333,9 +340,17 @@ export default function Sellers() {
       
       const newDate = addDays(baseDate, days);
 
+      const updateData: { subscription_expires_at: string; plan_type?: string } = { 
+        subscription_expires_at: newDate.toISOString() 
+      };
+      
+      if (planType) {
+        updateData.plan_type = planType;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({ subscription_expires_at: newDate.toISOString() })
+        .update(updateData)
         .eq('id', id);
       if (error) throw error;
     },
@@ -389,7 +404,8 @@ export default function Sellers() {
       email: newSellerEmail,
       full_name: newSellerName,
       whatsapp: newSellerWhatsapp || undefined,
-      subscription_days: parseInt(newSellerDays)
+      subscription_days: parseInt(newSellerDays),
+      plan_type: newSellerPlanType
     });
   };
 
@@ -587,6 +603,47 @@ export default function Sellers() {
                   onChange={(e) => setNewSellerDays(e.target.value)}
                 />
               </div>
+              <div className="space-y-3">
+                <Label className="text-base">Tipo de Plano</Label>
+                <div className="grid gap-2">
+                  <div 
+                    className={cn(
+                      "p-3 border-2 rounded-lg cursor-pointer transition-all",
+                      newSellerPlanType === 'manual' 
+                        ? "border-primary bg-primary/5" 
+                        : "border-muted hover:border-muted-foreground/50"
+                    )}
+                    onClick={() => setNewSellerPlanType('manual')}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-3 h-3 rounded-full border-2",
+                        newSellerPlanType === 'manual' ? "border-primary bg-primary" : "border-muted-foreground"
+                      )} />
+                      <span className="font-medium text-sm">📱 Plano Manual</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-5">Sem API WhatsApp</p>
+                  </div>
+                  <div 
+                    className={cn(
+                      "p-3 border-2 rounded-lg cursor-pointer transition-all",
+                      newSellerPlanType === 'whatsapp' 
+                        ? "border-success bg-success/5" 
+                        : "border-muted hover:border-muted-foreground/50"
+                    )}
+                    onClick={() => setNewSellerPlanType('whatsapp')}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-3 h-3 rounded-full border-2",
+                        newSellerPlanType === 'whatsapp' ? "border-success bg-success" : "border-muted-foreground"
+                      )} />
+                      <span className="font-medium text-sm text-success">🚀 Plano WhatsApp</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-5">Com API + envio automático</p>
+                  </div>
+                </div>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancelar
@@ -772,6 +829,12 @@ export default function Sellers() {
                         <Users className="h-3.5 w-3.5" />
                         {seller.client_count || 0} clientes
                       </p>
+                      <p className={cn(
+                        "text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1 w-fit",
+                        seller.plan_type === 'whatsapp' ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
+                      )}>
+                        {seller.plan_type === 'whatsapp' ? '🚀 WhatsApp' : '📱 Manual'}
+                      </p>
                       {seller.subscription_expires_at && !seller.is_permanent && (
                         <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                           <Calendar className="h-3.5 w-3.5" />
@@ -804,7 +867,9 @@ export default function Sellers() {
                               open: true,
                               sellerId: seller.id,
                               sellerName: seller.full_name || seller.email,
-                              days
+                              days,
+                              planType: (seller.plan_type as PlanType) || 'manual',
+                              currentPlanType: seller.plan_type || 'manual'
                             });
                           }}
                         >
@@ -947,17 +1012,104 @@ Qualquer dúvida, estou à disposição!`;
       </Dialog>
 
       {/* Renew Confirmation Dialog */}
-      <ConfirmDialog
-        open={renewDialog.open}
-        onOpenChange={(open) => !open && setRenewDialog({ open: false, sellerId: '', sellerName: '', days: 30 })}
-        title="Confirmar Renovação"
-        description={`Deseja renovar a assinatura de "${renewDialog.sellerName}" por ${renewDialog.days} dias?`}
-        confirmText="Sim, Renovar"
-        onConfirm={() => {
-          updateExpirationMutation.mutate({ id: renewDialog.sellerId, days: renewDialog.days });
-          setRenewDialog({ open: false, sellerId: '', sellerName: '', days: 30 });
-        }}
-      />
+      <Dialog 
+        open={renewDialog.open} 
+        onOpenChange={(open) => !open && setRenewDialog({ open: false, sellerId: '', sellerName: '', days: 30, planType: 'manual' })}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-primary" />
+              Renovar Assinatura
+            </DialogTitle>
+            <DialogDescription>
+              Renovar "{renewDialog.sellerName}" por {renewDialog.days} dias
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Selecione o Plano</Label>
+              
+              <div 
+                className={cn(
+                  "p-4 border-2 rounded-lg cursor-pointer transition-all",
+                  renewDialog.planType === 'manual' 
+                    ? "border-primary bg-primary/5" 
+                    : "border-muted hover:border-muted-foreground/50"
+                )}
+                onClick={() => setRenewDialog(prev => ({ ...prev, planType: 'manual' }))}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-4 h-4 rounded-full border-2",
+                    renewDialog.planType === 'manual' ? "border-primary bg-primary" : "border-muted-foreground"
+                  )} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold">📱 Plano Manual</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Apenas gerenciamento de clientes. Envio de mensagens manualmente (sem API WhatsApp).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div 
+                className={cn(
+                  "p-4 border-2 rounded-lg cursor-pointer transition-all",
+                  renewDialog.planType === 'whatsapp' 
+                    ? "border-success bg-success/5" 
+                    : "border-muted hover:border-muted-foreground/50"
+                )}
+                onClick={() => setRenewDialog(prev => ({ ...prev, planType: 'whatsapp' }))}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-4 h-4 rounded-full border-2",
+                    renewDialog.planType === 'whatsapp' ? "border-success bg-success" : "border-muted-foreground"
+                  )} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-success">🚀 Plano WhatsApp</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Conecta à API do WhatsApp. Inclui envio manual + envio automático de mensagens.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {renewDialog.currentPlanType && renewDialog.currentPlanType !== renewDialog.planType && (
+              <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg">
+                <p className="text-sm text-warning-foreground">
+                  ⚠️ Você está alterando o plano de <strong>{renewDialog.currentPlanType === 'manual' ? 'Manual' : 'WhatsApp'}</strong> para <strong>{renewDialog.planType === 'manual' ? 'Manual' : 'WhatsApp'}</strong>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setRenewDialog({ open: false, sellerId: '', sellerName: '', days: 30, planType: 'manual' })}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                updateExpirationMutation.mutate({ 
+                  id: renewDialog.sellerId, 
+                  days: renewDialog.days,
+                  planType: renewDialog.planType 
+                });
+                setRenewDialog({ open: false, sellerId: '', sellerName: '', days: 30, planType: 'manual' });
+              }}
+              disabled={updateExpirationMutation.isPending}
+            >
+              {updateExpirationMutation.isPending ? 'Renovando...' : 'Confirmar Renovação'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Permanent Confirmation Dialog */}
       <ConfirmDialog
