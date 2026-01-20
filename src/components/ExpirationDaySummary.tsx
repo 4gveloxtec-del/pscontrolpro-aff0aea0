@@ -93,8 +93,15 @@ export function ExpirationDaySummary({
   const totalClients = daySummaries.reduce((sum, s) => sum + s.clients.length, 0);
   const totalRevenue = daySummaries.reduce((sum, s) => sum + s.totalRevenue, 0);
 
-  const handleDateClick = (dateString: string, hasClients: boolean) => {
+  const handleDateClick = (e: React.MouseEvent, dateString: string, hasClients: boolean) => {
+    // Prevent default behavior and stop propagation to avoid scroll issues
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!onDateClick || !hasClients) return;
+    
+    // Store current scroll position before state change
+    const scrollPosition = window.scrollY;
     
     // Toggle: if clicking the same date, clear the filter
     if (selectedDate === dateString) {
@@ -102,6 +109,14 @@ export function ExpirationDaySummary({
     } else {
       onDateClick(dateString);
     }
+    
+    // Restore scroll position after a brief delay to allow re-render
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: scrollPosition,
+        behavior: 'instant'
+      });
+    });
   };
 
   return (
@@ -115,7 +130,15 @@ export function ExpirationDaySummary({
               <Badge 
                 variant="outline" 
                 className="gap-1 text-xs cursor-pointer hover:bg-destructive/10 transition-colors"
-                onClick={() => onDateClick?.(null)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const scrollPos = window.scrollY;
+                  onDateClick?.(null);
+                  requestAnimationFrame(() => {
+                    window.scrollTo({ top: scrollPos, behavior: 'instant' });
+                  });
+                }}
               >
                 Filtrado
                 <X className="h-3 w-3" />
@@ -144,7 +167,7 @@ export function ExpirationDaySummary({
             return (
               <div
                 key={index}
-                onClick={() => handleDateClick(summary.dateString, hasClients)}
+                onClick={(e) => handleDateClick(e, summary.dateString, hasClients)}
                 className={`
                   p-2.5 rounded-lg border transition-all
                   ${hasClients 
@@ -197,7 +220,15 @@ export function ExpirationDaySummary({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onDateClick?.(null)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const scrollPos = window.scrollY;
+                onDateClick?.(null);
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: scrollPos, behavior: 'instant' });
+                });
+              }}
               className="w-full gap-2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
