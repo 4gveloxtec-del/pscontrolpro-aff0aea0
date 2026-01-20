@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CalendarIcon, DollarSign, Users, X } from 'lucide-react';
-import { differenceInDays, format, startOfToday, addDays } from 'date-fns';
+import { format, startOfToday, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Client {
@@ -49,9 +49,9 @@ export function ExpirationDaySummary({
       const targetDate = addDays(today, i);
       const dateString = format(targetDate, 'yyyy-MM-dd');
       const clientsForDay = activeClients.filter(client => {
-        const expDate = new Date(client.expiration_date);
-        const daysUntil = differenceInDays(expDate, today);
-        return daysUntil === i;
+        // Use string comparison for consistency with the filter in Clients.tsx
+        const clientExpDateString = client.expiration_date.split('T')[0];
+        return clientExpDateString === dateString;
       });
       
       const totalRevenue = clientsForDay.reduce((sum, client) => {
