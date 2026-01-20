@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -203,7 +203,7 @@ export function ChatbotFlowManager() {
     setDeletingNodeId(null);
   };
 
-  const toggleNodeExpand = (nodeId: string) => {
+  const toggleNodeExpand = useCallback((nodeId: string) => {
     setExpandedNodes(prev => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
@@ -213,7 +213,7 @@ export function ChatbotFlowManager() {
       }
       return next;
     });
-  };
+  }, []);
 
   const renderNodeTree = (nodeList: ChatbotFlowNode[], flowId: string, depth = 0): React.ReactNode => {
     return nodeList.map((node) => {
