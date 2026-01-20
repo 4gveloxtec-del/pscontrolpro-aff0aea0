@@ -1697,7 +1697,7 @@ serve(async (req) => {
     const fromMe = message.key.fromMe;
     const pushName = message.pushName || "";
 
-    // Check for admin mode
+    // Check for admin mode via URL param OR auto-detect by checking if seller is admin
     let rawUrl = req.url;
     if (rawUrl.includes("%3F")) {
       rawUrl = rawUrl.replace(/%3F/g, "?").replace(/%26/g, "&").replace(/%3D/g, "=");
@@ -1708,11 +1708,37 @@ serve(async (req) => {
     } catch {
       parsedUrl = new URL(rawUrl, "https://placeholder.co");
     }
-    const isAdminMode = parsedUrl.searchParams.get("admin") === "true";
+    const isAdminModeParam = parsedUrl.searchParams.get("admin") === "true";
+
+    // Auto-detect admin: check if instance belongs to an admin user
+    let isAdminInstance = false;
+    if (!isAdminModeParam) {
+      // Try to find instance and check if owner is admin
+      const { data: instanceData } = await supabase
+        .from("whatsapp_seller_instances")
+        .select("seller_id")
+        .ilike("instance_name", instanceName)
+        .maybeSingle();
+      
+      if (instanceData?.seller_id) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", instanceData.seller_id)
+          .maybeSingle();
+        
+        isAdminInstance = roleData?.role === "admin";
+        if (isAdminInstance) {
+          console.log("[AutoDetect] Instance belongs to ADMIN user - switching to admin chatbot mode");
+        }
+      }
+    }
+
+    const isAdminMode = isAdminModeParam || isAdminInstance;
 
     // If admin mode, process with admin chatbot logic
     if (isAdminMode) {
-      console.log("[AdminChatbot] Processing admin chatbot message");
+      console.log("[AdminChatbot] Processing admin chatbot message (autoDetected:", isAdminInstance, ")");
       
       // Ignore own messages and groups
       if (fromMe || isGroupMessage(remoteJid)) {
