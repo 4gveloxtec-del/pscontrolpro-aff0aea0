@@ -67,7 +67,9 @@ export const navGroups: NavGroup[] = [
     title: 'Mensagens',
     items: [
       { title: 'Automação WhatsApp', href: '/whatsapp-automation', icon: Bot },
-      { title: 'Chatbot', href: '/chatbot', icon: MessageSquare },
+      // Admin e seller têm chatbots diferentes: admin usa o painel /admin/chatbot.
+      { title: 'Chatbot (ADM)', href: '/admin/chatbot', icon: MessageSquare, adminOnly: true },
+      { title: 'Chatbot', href: '/chatbot', icon: MessageSquare, sellerOnly: true },
       { title: 'Templates', href: '/templates', icon: MessageSquare },
       { title: 'Histórico', href: '/message-history', icon: History, sellerOnly: true },
     ],
