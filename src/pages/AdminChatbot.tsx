@@ -12,6 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAdminChatbotConfig, ChatbotNode, ChatbotOption } from '@/hooks/useAdminChatbotConfig';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   MessageSquare, 
   Send, 
@@ -30,8 +33,11 @@ import {
   ChevronRight,
   AlertTriangle,
   Settings2,
-  Eye
+  Eye,
+  FileText,
+  Import
 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface Message {
   id: string;
@@ -40,10 +46,19 @@ interface Message {
   timestamp: Date;
 }
 
+interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  type: string;
+  message: string;
+  seller_id: string;
+}
+
 const ICON_OPTIONS = ['🏠', '📋', '💰', '🎁', '📱', '🍎', '🔥', '📺', '💻', '❓', '💳', '🛠️', '👨‍💻', '⭐', '🎯', '📦'];
 
 export default function AdminChatbot() {
   const { nodes, isLoading, getNodeByKey, createNode, updateNode, deleteNode, processUserInput } = useAdminChatbotConfig();
+  const { user } = useAuth();
   
   // Simulator state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -56,6 +71,7 @@ export default function AdminChatbot() {
   // Editor state
   const [showNodeDialog, setShowNodeDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [editingNode, setEditingNode] = useState<ChatbotNode | null>(null);
   const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -70,6 +86,36 @@ export default function AdminChatbot() {
     is_active: true,
     options: [] as ChatbotOption[]
   });
+
+  // Fetch WhatsApp templates
+  const { data: templates = [] } = useQuery({
+    queryKey: ['admin-whatsapp-templates'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_templates')
+        .select('id, name, type, message, seller_id')
+        .order('name');
+      if (error) throw error;
+      return data as WhatsAppTemplate[];
+    },
+  });
+
+  // Group templates by type
+  const templatesByType = templates.reduce((acc, t) => {
+    const type = t.type || 'outros';
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(t);
+    return acc;
+  }, {} as Record<string, WhatsAppTemplate[]>);
+
+  const handleImportTemplate = (template: WhatsAppTemplate) => {
+    setNodeForm(prev => ({
+      ...prev,
+      content: template.message,
+      title: prev.title || template.name,
+    }));
+    setShowTemplateSelector(false);
+  };
 
   // Initialize chat with inicial node
   useEffect(() => {
@@ -681,7 +727,52 @@ export default function AdminChatbot() {
             </div>
 
             <div className="space-y-2">
-              <Label>Conteúdo da Mensagem</Label>
+              <div className="flex items-center justify-between">
+                <Label>Conteúdo da Mensagem</Label>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  size="sm" 
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                  onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                >
+                  <Import className="h-3 w-3 mr-1" />
+                  Importar Template
+                </Button>
+              </div>
+              
+              {/* Template Selector */}
+              <Collapsible open={showTemplateSelector} onOpenChange={setShowTemplateSelector}>
+                <CollapsibleContent className="bg-slate-900 rounded-lg p-3 border border-slate-700 mb-3 max-h-[200px] overflow-y-auto">
+                  {templates.length === 0 ? (
+                    <p className="text-slate-400 text-sm text-center py-2">Nenhum template encontrado</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {Object.entries(templatesByType).map(([type, tpls]) => (
+                        <div key={type}>
+                          <p className="text-xs font-medium text-slate-400 uppercase mb-1">{type}</p>
+                          <div className="grid grid-cols-2 gap-1">
+                            {tpls.map(t => (
+                              <Button
+                                key={t.id}
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="justify-start text-left h-auto py-1.5 px-2 text-slate-300 hover:bg-slate-800"
+                                onClick={() => handleImportTemplate(t)}
+                              >
+                                <FileText className="h-3 w-3 mr-1.5 flex-shrink-0" />
+                                <span className="truncate text-xs">{t.name}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+              
               <Textarea
                 value={nodeForm.content}
                 onChange={(e) => setNodeForm(prev => ({ ...prev, content: e.target.value }))}
