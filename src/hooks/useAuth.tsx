@@ -178,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionRef = useRef<Session | null>(null);
   const recoveringMissingSession = useRef(false);
   const missingUserRecoveryAttempts = useRef(0);
+  const signInInProgress = useRef(false); // Prevents self-heal from running during signIn
 
   // Keep refs in sync to avoid stale-closure bugs (timeouts, async handlers)
   useEffect(() => {
@@ -203,6 +204,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authState !== 'authenticated') return;
     if (user) return;
     if (recoveringMissingSession.current) return;
+    // CRITICAL: Skip self-heal during signIn - user will be set in the same React update batch
+    if (signInInProgress.current) return;
     if (missingUserRecoveryAttempts.current >= 1) {
       // Avoid infinite loops on slow/unstable networks where getSession() can hang.
       console.warn('[useAuth] Skipping repeated recovery attempt (authenticated without user)');
@@ -535,6 +538,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    // Mark that signIn is in progress so self-heal effect doesn't interfere
+    signInInProgress.current = true;
+    
     // Prevent showing stale cached role/profile during a new login
     clearCachedData();
     setAuthState('loading');
@@ -546,6 +552,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) {
+      signInInProgress.current = false;
       setAuthState('unauthenticated');
       return { error: error as Error | null };
     }
@@ -568,6 +575,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Unexpected: no user in response; treat as unauthenticated to unblock UI
       setAuthState('unauthenticated');
     }
+    
+    // Clear flag after a micro-task to ensure React has processed the state updates
+    setTimeout(() => { signInInProgress.current = false; }, 0);
     
     return { error: error as Error | null };
   }, []);
