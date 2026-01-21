@@ -43,6 +43,7 @@ interface Menu {
   message_text: string;
   image_url: string | null;
   parent_menu_key: string | null;
+  sort_order?: number;
 }
 
 interface MenuOption {
@@ -55,6 +56,7 @@ interface MenuOption {
   target_menu_key: string | null;
   action_type: string;
   action_response: string | null;
+  sort_order?: number;
 }
 
 interface GlobalTrigger {
@@ -65,6 +67,7 @@ interface GlobalTrigger {
   target_menu_key: string | null;
   response_text: string | null;
   priority: number;
+  sort_order?: number;
 }
 
 interface Contact {
@@ -160,6 +163,119 @@ function matchesKeywords(text: string, keywords: string[]): boolean {
   if (!keywords || keywords.length === 0) return false;
   const normalizedText = text.toLowerCase().trim();
   return keywords.some(kw => normalizedText.includes(kw.toLowerCase()));
+}
+
+function normalizeKeyword(kw: string): string {
+  return (kw || "").toLowerCase().trim();
+}
+
+function getBestKeywordMatchLength(text: string, keywords: string[]): number {
+  if (!keywords || keywords.length === 0) return 0;
+  const t = text.toLowerCase().trim();
+  let best = 0;
+  for (const kw of keywords) {
+    const k = normalizeKeyword(kw);
+    if (!k) continue;
+    if (t.includes(k)) best = Math.max(best, k.length);
+  }
+  return best;
+}
+
+function pickBestTrigger(
+  triggers: GlobalTrigger[],
+  normalizedText: string,
+  listId: string | null
+): { winner: GlobalTrigger | null; matchedBy: "list" | "keyword" | null; contenders: GlobalTrigger[] } {
+  const contenders = triggers.filter(t => {
+    const byList = !!listId && listId === `lm_${t.trigger_name}`;
+    const byKw = matchesKeywords(normalizedText, t.keywords);
+    return byList || byKw;
+  });
+
+  if (contenders.length === 0) return { winner: null, matchedBy: null, contenders: [] };
+
+  // Ordenação determinística + específica:
+  // 1) match por listId vence keyword
+  // 2) maior prioridade
+  // 3) keyword mais longa (evita gatilho genérico ganhar)
+  // 4) trigger_name para estabilidade
+  const sorted = [...contenders].sort((a, b) => {
+    const aByList = !!listId && listId === `lm_${a.trigger_name}`;
+    const bByList = !!listId && listId === `lm_${b.trigger_name}`;
+    if (aByList !== bByList) return aByList ? -1 : 1;
+
+    const pr = (b.priority ?? 0) - (a.priority ?? 0);
+    if (pr !== 0) return pr;
+
+    const aLen = getBestKeywordMatchLength(normalizedText, a.keywords);
+    const bLen = getBestKeywordMatchLength(normalizedText, b.keywords);
+    if (aLen !== bLen) return bLen - aLen;
+
+    return (a.trigger_name || "").localeCompare(b.trigger_name || "");
+  });
+
+  const winner = sorted[0];
+  const matchedBy: "list" | "keyword" = (!!listId && listId === `lm_${winner.trigger_name}`) ? "list" : "keyword";
+
+  return { winner, matchedBy, contenders: sorted };
+}
+
+function dedupeByKey<T extends { id: string }>(
+  items: T[],
+  keyFn: (i: T) => string,
+  preferenceFn: (i: T) => number
+): { deduped: T[]; duplicates: Array<{ key: string; ids: string[] }> } {
+  const map = new Map<string, T>();
+  const dup = new Map<string, string[]>();
+
+  for (const item of items) {
+    const key = keyFn(item);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, item);
+      continue;
+    }
+
+    dup.set(key, [...(dup.get(key) || [existing.id]), item.id]);
+
+    // menor preferenceFn vence
+    if (preferenceFn(item) < preferenceFn(existing)) {
+      map.set(key, item);
+    }
+  }
+
+  return {
+    deduped: Array.from(map.values()),
+    duplicates: Array.from(dup.entries()).map(([key, ids]) => ({ key, ids })),
+  };
+}
+
+function pickBestOptionByKeyword(normalizedText: string, options: MenuOption[]): MenuOption | null {
+  const matches = options
+    .map(o => ({
+      o,
+      bestLen: getBestKeywordMatchLength(normalizedText, o.keywords || []),
+    }))
+    .filter(x => x.bestLen > 0);
+
+  if (matches.length === 0) return null;
+
+  matches.sort((a, b) => {
+    // keyword mais longa primeiro
+    if (a.bestLen !== b.bestLen) return b.bestLen - a.bestLen;
+
+    // menor sort_order primeiro (mais "no topo" na configuração)
+    const aOrder = a.o.sort_order ?? 0;
+    const bOrder = b.o.sort_order ?? 0;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+
+    // por último, menor option_number
+    if (a.o.option_number !== b.o.option_number) return a.o.option_number - b.o.option_number;
+
+    return a.o.id.localeCompare(b.o.id);
+  });
+
+  return matches[0].o;
 }
 
 // ========== API FUNCTIONS ==========
@@ -450,99 +566,129 @@ function processMessage(
     };
   }
   
-  // ========== 1. GATILHOS GLOBAIS ==========
-  const sortedTriggers = [...triggers].sort((a, b) => b.priority - a.priority);
-  
-  for (const trigger of sortedTriggers) {
-    const matchesByKeyword = matchesKeywords(normalizedText, trigger.keywords);
-    const matchesByListId = listId === `lm_${trigger.trigger_name}`;
+  // ============================================================
+  // ETAPA 3 — CONSOLIDAÇÃO DE GATILHOS E MENUS
+  // Objetivo: uma entrada => UMA decisão (1 trigger OU 1 opção de menu)
+  // - Prioriza triggers específicos (prioridade + keyword mais longa)
+  // - Evita sobreposição de gatilhos genéricos
+  // - Dedupe defensivo de menu_key / list_id (sem apagar dados)
+  // ============================================================
+
+  // Dedupe defensivo de menus por menu_key (apenas 1 menu raiz/"main" efetivo)
+  const { deduped: dedupedMenus, duplicates: dupMenus } = dedupeByKey(
+    menus,
+    (m) => (m.menu_key || "").toLowerCase().trim(),
+    (m) => (m.sort_order ?? 0)
+  );
+  if (dupMenus.length > 0) {
+    console.log(`[ChatbotV3][WARN] Duplicate menu_key detected (active). Using lowest sort_order.`, dupMenus);
+  }
+
+  // Dedupe defensivo de options por list_id (List Message precisa ser único)
+  const { deduped: dedupedOptions, duplicates: dupOptionsByListId } = dedupeByKey(
+    options,
+    (o) => (o.list_id || "").toLowerCase().trim(),
+    (o) => (o.sort_order ?? 0)
+  );
+  if (dupOptionsByListId.length > 0) {
+    console.log(`[ChatbotV3][WARN] Duplicate option list_id detected (active). Using lowest sort_order.`, dupOptionsByListId);
+  }
+
+  // ========== 1. GATILHOS GLOBAIS (apenas 1 vencedor) ==========
+  const picked = pickBestTrigger(triggers, normalizedText, listId);
+  if (picked.winner) {
+    const trigger = picked.winner;
+    if (picked.contenders.length > 1) {
+      console.log(`[ChatbotV3][INFO] Multiple triggers matched. Winner=${trigger.trigger_name}`, {
+        matchedBy: picked.matchedBy,
+        contenders: picked.contenders.map(t => ({ name: t.trigger_name, priority: t.priority })),
+      });
+    }
+
+    console.log(`[ChatbotV3] Trigger matched: ${trigger.trigger_name}`);
+
+    // VOLTAR - Navegação especial
+    if (trigger.trigger_name === "voltar" || trigger.action_type === "goto_previous") {
+      const { newStack, targetMenuKey } = popNavigation(currentStack);
+      const targetMenu = dedupedMenus.find(m => m.menu_key === targetMenuKey);
+      
+      if (targetMenu) {
+        const menuOptions = dedupedOptions.filter(o => o.menu_id === targetMenu.id);
+        return buildMenuResponse(
+          targetMenu, 
+          menuOptions, 
+          config, 
+          variables, 
+          newStack,
+          currentMenuKey,
+          lastSentMenuKey
+        );
+      }
+    }
     
-    if (matchesByKeyword || matchesByListId) {
-      console.log(`[ChatbotV3] Trigger matched: ${trigger.trigger_name}`);
-      
-      // VOLTAR - Navegação especial
-      if (trigger.trigger_name === "voltar" || trigger.action_type === "goto_previous") {
-        const { newStack, targetMenuKey } = popNavigation(currentStack);
-        const targetMenu = menus.find(m => m.menu_key === targetMenuKey);
+    // MENU - Ir para menu específico
+    if (trigger.action_type === "goto_menu" && trigger.target_menu_key) {
+      const targetMenu = dedupedMenus.find(m => m.menu_key === trigger.target_menu_key);
+      if (targetMenu) {
+        // Se está indo para main, limpa a pilha
+        let newStack = currentStack;
+        let previousKey = contact?.previous_menu_key || null;
         
-        if (targetMenu) {
-          const menuOptions = options.filter(o => o.menu_id === targetMenu.id);
-          return buildMenuResponse(
-            targetMenu, 
-            menuOptions, 
-            config, 
-            variables, 
-            newStack,
-            currentMenuKey,
-            lastSentMenuKey
-          );
+        if (trigger.target_menu_key === "main") {
+          newStack = [];
+          previousKey = null;
+        } else {
+          const nav = pushNavigation(currentStack, currentMenuKey, trigger.target_menu_key);
+          newStack = nav.newStack;
+          previousKey = nav.previousKey;
         }
+        
+        const menuOptions = dedupedOptions.filter(o => o.menu_id === targetMenu.id);
+        return buildMenuResponse(
+          targetMenu, 
+          menuOptions, 
+          config, 
+          variables, 
+          newStack,
+          previousKey,
+          lastSentMenuKey
+        );
       }
-      
-      // MENU - Ir para menu específico
-      if (trigger.action_type === "goto_menu" && trigger.target_menu_key) {
-        const targetMenu = menus.find(m => m.menu_key === trigger.target_menu_key);
-        if (targetMenu) {
-          // Se está indo para main, limpa a pilha
-          let newStack = currentStack;
-          let previousKey = contact?.previous_menu_key || null;
-          
-          if (trigger.target_menu_key === "main") {
-            newStack = [];
-            previousKey = null;
-          } else {
-            const nav = pushNavigation(currentStack, currentMenuKey, trigger.target_menu_key);
-            newStack = nav.newStack;
-            previousKey = nav.previousKey;
-          }
-          
-          const menuOptions = options.filter(o => o.menu_id === targetMenu.id);
-          return buildMenuResponse(
-            targetMenu, 
-            menuOptions, 
-            config, 
-            variables, 
-            newStack,
-            previousKey,
-            lastSentMenuKey
-          );
-        }
-      }
-      
-      // MENSAGEM - Resposta simples
-      if (trigger.action_type === "message" && trigger.response_text) {
-        return {
-          response: replaceVariables(trigger.response_text, variables),
-          newMenuKey: currentMenuKey,
-          previousMenuKey: contact?.previous_menu_key || null,
-          newStack: currentStack,
-          useListMessage: false,
-          triggerMatched: trigger.trigger_name,
-          isFallback: false,
-          isHuman: false,
-          shouldSend: true,
-        };
-      }
-      
-      // HUMANO - Transferir para atendente
-      if (trigger.action_type === "human") {
-        return {
-          response: "Aguarde, você será atendido por um de nossos atendentes. 👤",
-          newMenuKey: currentMenuKey,
-          previousMenuKey: contact?.previous_menu_key || null,
-          newStack: currentStack,
-          useListMessage: false,
-          triggerMatched: trigger.trigger_name,
-          isFallback: false,
-          isHuman: true,
-          shouldSend: true,
-        };
-      }
+    }
+    
+    // MENSAGEM - Resposta simples
+    if (trigger.action_type === "message" && trigger.response_text) {
+      return {
+        response: replaceVariables(trigger.response_text, variables),
+        newMenuKey: currentMenuKey,
+        previousMenuKey: contact?.previous_menu_key || null,
+        newStack: currentStack,
+        useListMessage: false,
+        triggerMatched: trigger.trigger_name,
+        isFallback: false,
+        isHuman: false,
+        shouldSend: true,
+      };
+    }
+    
+    // HUMANO - Transferir para atendente
+    if (trigger.action_type === "human") {
+      return {
+        response: "Aguarde, você será atendido por um de nossos atendentes. 👤",
+        newMenuKey: currentMenuKey,
+        previousMenuKey: contact?.previous_menu_key || null,
+        newStack: currentStack,
+        useListMessage: false,
+        triggerMatched: trigger.trigger_name,
+        isFallback: false,
+        isHuman: true,
+        shouldSend: true,
+      };
     }
   }
   
   // ========== 2. ENCONTRAR MENU ATUAL ==========
-  const currentMenu = menus.find(m => m.menu_key === currentMenuKey) || menus.find(m => m.menu_key === "main");
+  const currentMenu = dedupedMenus.find(m => m.menu_key === currentMenuKey) || dedupedMenus.find(m => m.menu_key === "main");
   if (!currentMenu) {
     return {
       response: replaceVariables(config.fallback_message, variables),
@@ -556,7 +702,9 @@ function processMessage(
     };
   }
   
-  const menuOptions = options.filter(o => o.menu_id === currentMenu.id);
+  const menuOptions = dedupedOptions
+    .filter(o => o.menu_id === currentMenu.id)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   
   // ========== 3. MATCH POR LIST ID ==========
   if (listId) {
@@ -564,8 +712,8 @@ function processMessage(
     if (matchedOption) {
       return handleOptionMatch(
         matchedOption, 
-        menus, 
-        options,
+        dedupedMenus, 
+        dedupedOptions,
         config, 
         variables, 
         currentMenuKey, 
@@ -575,13 +723,13 @@ function processMessage(
     }
     
     // Tentar encontrar em qualquer menu (opção global)
-    const allOptions = options;
+    const allOptions = dedupedOptions;
     const globalMatch = allOptions.find(o => o.list_id === listId);
     if (globalMatch) {
       return handleOptionMatch(
         globalMatch, 
-        menus, 
-        options,
+        dedupedMenus, 
+        dedupedOptions,
         config, 
         variables, 
         currentMenuKey, 
@@ -596,10 +744,10 @@ function processMessage(
     // 0 = Voltar
     if (inputNumber === 0) {
       const { newStack, targetMenuKey } = popNavigation(currentStack);
-      const targetMenu = menus.find(m => m.menu_key === targetMenuKey);
+      const targetMenu = dedupedMenus.find(m => m.menu_key === targetMenuKey);
       
       if (targetMenu) {
-        const targetOptions = options.filter(o => o.menu_id === targetMenu.id);
+        const targetOptions = dedupedOptions.filter(o => o.menu_id === targetMenu.id);
         return buildMenuResponse(
           targetMenu, 
           targetOptions, 
@@ -616,8 +764,8 @@ function processMessage(
     if (matchedOption) {
       return handleOptionMatch(
         matchedOption, 
-        menus, 
-        options,
+        dedupedMenus, 
+        dedupedOptions,
         config, 
         variables, 
         currentMenuKey, 
@@ -628,19 +776,18 @@ function processMessage(
   }
   
   // ========== 5. MATCH POR KEYWORD ==========
-  for (const option of menuOptions) {
-    if (option.keywords && matchesKeywords(normalizedText, option.keywords)) {
-      return handleOptionMatch(
-        option, 
-        menus, 
-        options,
-        config, 
-        variables, 
-        currentMenuKey, 
-        currentStack,
-        lastSentMenuKey
-      );
-    }
+  const bestKeywordOption = pickBestOptionByKeyword(normalizedText, menuOptions);
+  if (bestKeywordOption) {
+    return handleOptionMatch(
+      bestKeywordOption,
+      dedupedMenus,
+      dedupedOptions,
+      config,
+      variables,
+      currentMenuKey,
+      currentStack,
+      lastSentMenuKey
+    );
   }
   
   // ========== 6. FALLBACK ==========
