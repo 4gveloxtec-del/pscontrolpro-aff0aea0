@@ -2,13 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Inter font loaded via system fonts for performance */
 
-/* Mobile-only frame: background for desktop viewport */
-html, body, #root {
+/* Mobile-only frame layout */
+.mobile-frame-outer {
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: hsl(222 47% 11%); /* slate-900 outer frame */
+  width: 100%;
+  background-color: hsl(222 47% 11%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-frame-inner {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: hsl(var(--background));
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 @layer base {
