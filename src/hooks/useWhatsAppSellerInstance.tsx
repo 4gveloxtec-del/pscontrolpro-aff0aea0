@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useOnce } from '@/hooks/useOnce';
 
 interface WhatsAppSellerInstance {
   id?: string;
@@ -69,15 +70,15 @@ export function useWhatsAppSellerInstance() {
     }
   }, [user?.id]);
 
-  // Initial fetch
-  useEffect(() => {
+  // Initial fetch - runs only once
+  useOnce(() => {
     isMountedRef.current = true;
     fetchInstance();
     
     return () => {
       isMountedRef.current = false;
     };
-  }, [fetchInstance]);
+  });
 
   // Subscribe to realtime updates - auto-update when instance changes
   useEffect(() => {

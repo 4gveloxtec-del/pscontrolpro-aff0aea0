@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOnce } from '@/hooks/useOnce';
 
 interface HealthConfig {
   id: string;
@@ -71,13 +72,14 @@ export function useSystemHealth() {
     }
   }, []);
 
-  useEffect(() => {
+  // Initial fetch - runs only once per session
+  useOnce(() => {
     fetchData();
     
     // Atualizar a cada 30 segundos
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  });
 
   const toggleSystem = async (enabled: boolean) => {
     if (!config) return;
