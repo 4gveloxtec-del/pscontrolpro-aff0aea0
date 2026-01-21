@@ -2,7 +2,8 @@
   "name": "Painel ADM - Sistema de Gestão",
   "short_name": "ADM",
   "description": "Painel administrativo para gestão de vendedores e sistema",
-  "start_url": "/?panel=admin",
+  "start_url": "/admin",
+  "scope": "/admin",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1e40af",
@@ -22,5 +23,6 @@
     }
   ],
   "categories": ["business", "productivity"],
-  "lang": "pt-BR"
+  "lang": "pt-BR",
+  "id": "/admin"
 }

@@ -13,9 +13,28 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <!-- PWA Manifest - dinamicamente selecionado -->
+    <link rel="manifest" id="pwa-manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" id="apple-touch-icon" href="/icon-192.png" />
+    
+    <script>
+      // Detecta se está no subdomínio admin e ajusta o manifest
+      (function() {
+        var isAdminSubdomain = window.location.hostname.startsWith('admin.');
+        var isAdminPath = window.location.pathname.startsWith('/admin');
+        
+        if (isAdminSubdomain || isAdminPath) {
+          var manifest = document.getElementById('pwa-manifest');
+          var appleIcon = document.getElementById('apple-touch-icon');
+          if (manifest) manifest.href = '/manifest-admin.json';
+          if (appleIcon) appleIcon.href = '/admin-icon-192.png';
+          
+          // Atualiza theme-color para admin
+          var themeColor = document.querySelector('meta[name="theme-color"]');
+          if (themeColor) themeColor.content = '#1e40af';
+        }
+      })();
+    </script>
 
     <!-- Open Graph -->
     <meta property="og:title" content="PSControl - Sistema de Gestão de Clientes" />
