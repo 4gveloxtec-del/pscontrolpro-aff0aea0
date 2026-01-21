@@ -48,6 +48,7 @@ const Tutorials = lazy(() => import("./pages/Tutorials"));
 const Chatbot = lazy(() => import("./pages/Chatbot"));
 const ChatbotLogs = lazy(() => import("./pages/ChatbotLogs"));
 const AdminChatbot = lazy(() => import("./pages/AdminChatbot"));
+const SellerChatbotMenu = lazy(() => import("./pages/SellerChatbotMenu"));
 const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -181,6 +182,7 @@ const AppRoutes = () => {
           <Route path="/templates" element={<Templates />} />
           <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
           <Route path="/chatbot" element={<Chatbot />} />
+          <Route path="/seller-chatbot-menu" element={<SellerChatbotMenu />} />
           
           {/* Seller-only routes (revendedor) */}
           <Route path="/clients" element={<Clients />} />

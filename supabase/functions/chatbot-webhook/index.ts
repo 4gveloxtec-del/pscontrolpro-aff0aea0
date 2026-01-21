@@ -269,7 +269,27 @@ interface AdminChatbotContact {
   interaction_count: number;
 }
 
+interface SellerChatbotVariable {
+  variable_key: string;
+  variable_value: string;
+}
+
 // ========== HELPER FUNCTIONS ==========
+
+/**
+ * Replace dynamic variables in text with seller-specific values
+ * Supports: {empresa}, {pix}, {whatsapp}, and any custom variables
+ */
+function replaceVariables(text: string, variables: SellerChatbotVariable[]): string {
+  if (!text || !variables || variables.length === 0) return text;
+  
+  let result = text;
+  for (const variable of variables) {
+    const regex = new RegExp(`\\{${variable.variable_key}\\}`, 'gi');
+    result = result.replace(regex, variable.variable_value || '');
+  }
+  return result;
+}
 
 async function getOrCreateAdminContact(
   supabase: any,
@@ -2082,7 +2102,278 @@ Deno.serve(async (req) => {
     
     const contactStatus = contact?.contact_status || "NEW";
 
-    // Check for active flow session
+    // ========== SELLER INTERACTIVE MENU (NEW SYSTEM) ==========
+    // Fetch seller's variables for dynamic content
+    const { data: sellerVariables } = await supabase
+      .from("seller_chatbot_variables")
+      .select("variable_key, variable_value")
+      .eq("seller_id", sellerId);
+    
+    const variables: SellerChatbotVariable[] = sellerVariables || [];
+    
+    // Check if seller has the new interactive menu configured
+    const { data: sellerMenuSettings } = await supabase
+      .from("seller_chatbot_settings")
+      .select("*")
+      .eq("seller_id", sellerId)
+      .maybeSingle();
+    
+    const { data: sellerMenuNodes } = await supabase
+      .from("seller_chatbot_menu")
+      .select("*")
+      .eq("seller_id", sellerId)
+      .eq("is_active", true)
+      .order("sort_order");
+    
+    // Get or create seller chatbot contact for the new menu system
+    let { data: sellerMenuContact } = await supabase
+      .from("seller_chatbot_contacts")
+      .select("*")
+      .eq("seller_id", sellerId)
+      .eq("phone", phone)
+      .maybeSingle();
+    
+    // Process with new interactive menu if available
+    if (sellerMenuNodes && sellerMenuNodes.length > 0 && sellerMenuSettings?.is_enabled !== false) {
+      // Create contact if not exists
+      if (!sellerMenuContact) {
+        const { data: newMenuContact } = await supabase
+          .from("seller_chatbot_contacts")
+          .insert({
+            seller_id: sellerId,
+            phone,
+            name: pushName,
+            current_node_key: "inicial",
+            interaction_count: 0,
+          })
+          .select()
+          .single();
+        sellerMenuContact = newMenuContact;
+      }
+      
+      // Get response mode from settings
+      const responseMode = sellerMenuSettings?.response_mode || "24h";
+      const isFlowNav = isFlowNavigationInput(messageText);
+      
+      // Check cooldown for seller menu (same logic as admin)
+      const lastResponse = sellerMenuContact?.last_response_at ? new Date(sellerMenuContact.last_response_at) : null;
+      let canSendMenuResponse = true;
+      
+      if (!isFlowNav && lastResponse) {
+        const hoursSinceLastResponse = (now.getTime() - lastResponse.getTime()) / (1000 * 60 * 60);
+        
+        if (responseMode === "6h" && hoursSinceLastResponse < 6) {
+          canSendMenuResponse = false;
+        } else if (responseMode === "12h" && hoursSinceLastResponse < 12) {
+          canSendMenuResponse = false;
+        } else if (responseMode === "24h" && hoursSinceLastResponse < 24) {
+          canSendMenuResponse = false;
+        }
+      }
+      
+      if (canSendMenuResponse) {
+        const normalizedInput = messageText.toLowerCase().trim();
+        const currentNodeKey = sellerMenuContact?.current_node_key || "inicial";
+        
+        // Find main/initial node
+        const findSellerMainNode = (nodes: any[]) => {
+          const inicial = nodes.find(n => n.node_key === "inicial");
+          if (inicial) return inicial;
+          const rootNode = nodes.find(n => n.parent_key === null);
+          if (rootNode) return rootNode;
+          return nodes.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))[0] || null;
+        };
+        
+        const mainNode = findSellerMainNode(sellerMenuNodes);
+        const mainNodeKey = mainNode?.node_key || "inicial";
+        
+        // Check for return to menu
+        if (normalizedInput === "*" || normalizedInput === "voltar" || normalizedInput === "menu" || normalizedInput === "0") {
+          if (mainNode) {
+            const responseText = replaceVariables(mainNode.content || "", variables);
+            
+            if (chatbotSettings.typing_enabled) {
+              const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
+              await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
+            }
+            
+            let sent = false;
+            if (mainNode.image_url) {
+              sent = await sendImageMessage(globalConfig, instanceName, phone, responseText, mainNode.image_url);
+            } else {
+              sent = await sendTextMessage(globalConfig, instanceName, phone, responseText, supabase, sellerId);
+            }
+            
+            if (sent && sellerMenuContact) {
+              await supabase
+                .from("seller_chatbot_contacts")
+                .update({
+                  current_node_key: mainNodeKey,
+                  last_response_at: now.toISOString(),
+                  last_interaction_at: now.toISOString(),
+                  interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
+                })
+                .eq("id", sellerMenuContact.id);
+            }
+            
+            return new Response(
+              JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_menu_return" }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+        
+        // Find current node
+        const currentNode = sellerMenuNodes.find((n: any) => n.node_key === currentNodeKey);
+        
+        // Process option selection
+        const inputMappings: Record<string, string> = {
+          "1️⃣": "1", "um": "1", "2️⃣": "2", "dois": "2",
+          "3️⃣": "3", "tres": "3", "três": "3", "4️⃣": "4", "quatro": "4",
+          "5️⃣": "5", "cinco": "5", "6️⃣": "6", "seis": "6",
+          "7️⃣": "7", "sete": "7", "8️⃣": "8", "oito": "8",
+        };
+        
+        let normalizedKey = normalizedInput;
+        for (const [key, value] of Object.entries(inputMappings)) {
+          if (normalizedInput === key || normalizedInput.includes(key)) {
+            normalizedKey = value;
+            break;
+          }
+        }
+        
+        // Find matching option in current node's options
+        const options = currentNode?.options || [];
+        const matchedOption = options.find((opt: any) => opt.key === normalizedKey);
+        
+        if (matchedOption && matchedOption.target) {
+          const targetNode = sellerMenuNodes.find((n: any) => n.node_key === matchedOption.target);
+          if (targetNode) {
+            const responseText = replaceVariables(targetNode.content || "", variables);
+            
+            if (chatbotSettings.typing_enabled) {
+              const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
+              await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
+            }
+            
+            let sent = false;
+            if (targetNode.image_url) {
+              sent = await sendImageMessage(globalConfig, instanceName, phone, responseText, targetNode.image_url);
+            } else {
+              sent = await sendTextMessage(globalConfig, instanceName, phone, responseText, supabase, sellerId);
+            }
+            
+            if (sent && sellerMenuContact) {
+              await supabase
+                .from("seller_chatbot_contacts")
+                .update({
+                  current_node_key: targetNode.node_key,
+                  last_response_at: now.toISOString(),
+                  last_interaction_at: now.toISOString(),
+                  interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
+                })
+                .eq("id", sellerMenuContact.id);
+            }
+            
+            return new Response(
+              JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_menu_option", node: targetNode.title }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+        
+        // Check for keyword match in seller keywords
+        const { data: sellerKeywords } = await supabase
+          .from("seller_chatbot_keywords")
+          .select("*")
+          .eq("seller_id", sellerId)
+          .eq("is_active", true);
+        
+        const matchedKeyword = sellerKeywords?.find((kw: any) => 
+          normalizedInput === kw.keyword.toLowerCase().trim()
+        );
+        
+        if (matchedKeyword) {
+          const responseText = replaceVariables(matchedKeyword.response_text || "", variables);
+          
+          if (chatbotSettings.typing_enabled) {
+            const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
+            await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
+          }
+          
+          let sent = false;
+          if (matchedKeyword.image_url) {
+            sent = await sendImageMessage(globalConfig, instanceName, phone, responseText, matchedKeyword.image_url);
+          } else {
+            sent = await sendTextMessage(globalConfig, instanceName, phone, responseText, supabase, sellerId);
+          }
+          
+          if (sent && sellerMenuContact) {
+            await supabase
+              .from("seller_chatbot_contacts")
+              .update({
+                last_response_at: now.toISOString(),
+                last_interaction_at: now.toISOString(),
+                interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
+              })
+              .eq("id", sellerMenuContact.id);
+          }
+          
+          return new Response(
+            JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_keyword" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // No match found - show main menu if this is first interaction or contact is new
+        if (!sellerMenuContact?.current_node_key || sellerMenuContact.current_node_key === mainNodeKey) {
+          if (mainNode) {
+            const responseText = replaceVariables(mainNode.content || "", variables);
+            
+            if (chatbotSettings.typing_enabled) {
+              const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
+              await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
+            }
+            
+            let sent = false;
+            if (mainNode.image_url) {
+              sent = await sendImageMessage(globalConfig, instanceName, phone, responseText, mainNode.image_url);
+            } else {
+              sent = await sendTextMessage(globalConfig, instanceName, phone, responseText, supabase, sellerId);
+            }
+            
+            if (sent && sellerMenuContact) {
+              await supabase
+                .from("seller_chatbot_contacts")
+                .update({
+                  current_node_key: mainNodeKey,
+                  last_response_at: now.toISOString(),
+                  last_interaction_at: now.toISOString(),
+                  interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
+                })
+                .eq("id", sellerMenuContact.id);
+            }
+            
+            return new Response(
+              JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_menu_initial" }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+        
+        // Silent mode - invalid option, don't respond if not at main menu
+        if (sellerMenuSettings?.silent_mode !== false) {
+          console.log("[SellerChatbot] Invalid option, silent mode active");
+          return new Response(
+            JSON.stringify({ status: "ignored", reason: "Invalid option - silent mode" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+    // ========== END SELLER INTERACTIVE MENU ==========
+
+    // Check for active flow session (legacy system)
     const flowSession = await getFlowSession(supabase, sellerId, phone);
     
     if (flowSession && flowSession.is_active && !flowSession.awaiting_human) {
