@@ -309,15 +309,34 @@ async function getOrCreateAdminContact(
   }
 }
 
+/**
+ * Check if we can respond to an admin chatbot message.
+ * 
+ * NEW LOGIC:
+ * - Cooldown (12h, 6h, 24h) ONLY applies to the FIRST initial message of a new conversation
+ * - When user is navigating the flow (numbers 1,2,3, etc.) or returning with "*", 
+ *   cooldown is BYPASSED and bot responds immediately
+ * - Cooldown is reset when user starts a completely NEW conversation (first message after cooldown period)
+ * 
+ * @param isFlowNavigation - true if user is navigating flow (numbers) or returning to menu (*)
+ */
 function canRespondAdmin(
   contact: AdminChatbotContact | null,
   responseMode: string,
-  now: Date
+  now: Date,
+  isFlowNavigation: boolean = false
 ): { canSend: boolean; reason?: string } {
+  // If navigating within flow or returning to menu, ALWAYS allow response
+  if (isFlowNavigation) {
+    return { canSend: true };
+  }
+
+  // "always" mode = no restrictions
   if (responseMode === "always") {
     return { canSend: true };
   }
 
+  // First ever contact = allow
   if (!contact?.last_response_at) {
     return { canSend: true };
   }
@@ -325,6 +344,7 @@ function canRespondAdmin(
   const lastResponse = new Date(contact.last_response_at);
   const hoursSinceLastResponse = (now.getTime() - lastResponse.getTime()) / (1000 * 60 * 60);
 
+  // Cooldown check ONLY for initial messages (not flow navigation)
   if (responseMode === "6h" && hoursSinceLastResponse < 6) {
     return { canSend: false, reason: "Cooldown 6h ainda ativo" };
   }
@@ -338,6 +358,40 @@ function canRespondAdmin(
   }
 
   return { canSend: true };
+}
+
+/**
+ * Detect if user input is a flow navigation command
+ * - Numbers (1, 2, 3, etc.) = navigating menu options
+ * - "*", "voltar", "menu", "0" = returning to main menu
+ * - Emoji numbers (1️⃣, 2️⃣, etc.) = navigating menu options
+ */
+function isFlowNavigationInput(input: string): boolean {
+  const normalizedInput = input.toLowerCase().trim();
+  
+  // Return to menu commands
+  if (["*", "voltar", "menu", "0"].includes(normalizedInput)) {
+    return true;
+  }
+  
+  // Pure number input (1, 2, 3, etc.)
+  if (/^[0-9]+$/.test(normalizedInput)) {
+    return true;
+  }
+  
+  // Emoji numbers
+  const emojiNumbers = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"];
+  if (emojiNumbers.some(e => normalizedInput.includes(e))) {
+    return true;
+  }
+  
+  // Text numbers
+  const textNumbers = ["um", "dois", "tres", "três", "quatro", "cinco", "seis", "sete", "oito", "nove"];
+  if (textNumbers.includes(normalizedInput)) {
+    return true;
+  }
+  
+  return false;
 }
 
 // Helper to find main/initial node
@@ -478,12 +532,19 @@ async function processAdminChatbotMessage(
       return { status: "error", reason: "Failed to get/create contact" };
     }
 
-    // Check cooldown
+    // Detect if user is navigating the flow (numbers, *, voltar, etc.)
+    const isFlowNav = isFlowNavigationInput(messageText);
+    
+    // Check cooldown - ONLY blocks if NOT navigating flow
     const now = new Date();
-    const cooldownCheck = canRespondAdmin(contact, responseMode, now);
+    const cooldownCheck = canRespondAdmin(contact, responseMode, now, isFlowNav);
     if (!cooldownCheck.canSend) {
-      console.log("[AdminChatbot] Cooldown active:", cooldownCheck.reason);
+      console.log("[AdminChatbot] Cooldown active (initial message only):", cooldownCheck.reason);
       return { status: "blocked", reason: cooldownCheck.reason };
+    }
+    
+    if (isFlowNav) {
+      console.log("[AdminChatbot] Flow navigation detected, bypassing cooldown");
     }
 
     // Get all chatbot nodes
