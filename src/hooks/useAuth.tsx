@@ -344,10 +344,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
       } catch (error) {
         console.error('[useAuth] Exception getting session:', error);
-        if (isMounted) {
-          clearCachedData();
-          setAuthState('unauthenticated');
-        }
+        // Don't clear cache on exception - user only logs out manually
+        // The timeout handler will use cache if available
       }
 
       // Store cleanup function
