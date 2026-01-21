@@ -284,6 +284,10 @@ Qualquer dúvida estamos à disposição!`;
   // Handle template selection
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
+    // If custom message selected, don't change the message
+    if (templateId === '__custom__') {
+      return;
+    }
     const template = templates.find(t => t.id === templateId);
     if (template) {
       setMessage(template.message);
@@ -616,7 +620,7 @@ Qualquer dúvida estamos à disposição!`;
                       <SelectValue placeholder="Selecione um template ou escreva sua mensagem" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">✍️ Mensagem personalizada</SelectItem>
+                      <SelectItem value="__custom__">✍️ Mensagem personalizada</SelectItem>
                       {filteredTemplates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}

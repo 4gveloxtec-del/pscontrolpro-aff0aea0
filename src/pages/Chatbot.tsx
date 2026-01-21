@@ -236,7 +236,7 @@ export default function Chatbot() {
     try {
       const templateData = {
         ...formData,
-        category: templateFormCategory || undefined,
+        category: templateFormCategory === '__none__' ? undefined : (templateFormCategory || undefined),
       };
       
       if (editingTemplate) {
@@ -1046,7 +1046,7 @@ export default function Chatbot() {
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sem categoria</SelectItem>
+                    <SelectItem value="__none__">Sem categoria</SelectItem>
                     {categories.filter(c => c.is_active).map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                     ))}
