@@ -282,8 +282,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   setAuthState('authenticated');
                 }
               } else {
-                // No session found
-                clearCachedData();
+                // No session found from Supabase, but check cache first
+                // NEVER clear cache here - user only logs out manually
+                const hasCache = hasSessionMarker();
+                if (hasCache) {
+                  console.log('[useAuth] INITIAL_SESSION empty but cache exists - keeping session');
+                  const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
+                  if (cachedUserId) {
+                    const cached = getCachedData(cachedUserId);
+                    if (cached.profile) setProfile(cached.profile);
+                    if (cached.role) setRole(cached.role);
+                    if (isMounted) setAuthState('authenticated');
+                    return;
+                  }
+                }
+                // Only set unauthenticated if there's no cache at all
                 if (isMounted) {
                   setAuthState('unauthenticated');
                 }
@@ -307,17 +320,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error('[useAuth] Error getting session:', error);
-          if (isMounted) {
-            clearCachedData();
-            setAuthState('unauthenticated');
-          }
+          // Don't clear cache on error - user only logs out manually
+          // Let timeout handler use cache if available
           return;
         }
         
-        // If no session but we expected one (from marker), the session expired
+        // If no session but we expected one (from marker), keep using cache
+        // NEVER clear cache automatically - user only logs out manually
         if (!initialSession && hasSessionMarker()) {
-          console.log('[useAuth] Session marker found but no session - cleaning up');
-          clearCachedData();
+          console.log('[useAuth] Session marker found but no session - using cache (no auto-logout)');
+          // Don't clear cache - let the timeout handler use it
         }
         
         // Note: The INITIAL_SESSION event will handle setting the state
