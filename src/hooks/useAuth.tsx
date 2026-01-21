@@ -182,44 +182,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     // CRITICAL: Safety timeout to prevent infinite loading
-    // This ensures the app becomes usable even if auth fails
-    // Increased to 15 seconds to handle slow network connections
+    // If we have cached session, NEVER logout - just use cached data
+    // User will only be logged out when they explicitly click logout
     const loadingTimeout = setTimeout(() => {
       if (isMounted && authState === 'loading') {
-        // Check if we have cached data - if so, use it instead of logging out
         const hasCache = hasSessionMarker();
+        
         if (hasCache) {
-          console.warn('[useAuth] Auth timeout but cache exists - retrying once...');
-          // Retry getting session one more time
-          supabase.auth.getSession().then(({ data }) => {
-            if (isMounted) {
-              if (data.session) {
-                console.log('[useAuth] Retry successful, session restored');
+          // NEVER logout if we have cache - user only logs out manually
+          console.log('[useAuth] Timeout but cache exists - keeping session alive');
+          const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
+          if (cachedUserId) {
+            const cached = getCachedData(cachedUserId);
+            if (cached.profile) setProfile(cached.profile);
+            if (cached.role) setRole(cached.role);
+            setAuthState('authenticated');
+            
+            // Try to restore session in background (non-blocking)
+            supabase.auth.getSession().then(({ data }) => {
+              if (isMounted && data.session) {
                 setSession(data.session);
                 setUser(data.session.user);
-                const cached = getCachedData(data.session.user.id);
-                if (cached.profile) setProfile(cached.profile);
-                if (cached.role) setRole(cached.role);
-                setAuthState('authenticated');
-              } else {
-                console.warn('[useAuth] Retry failed, clearing session');
-                clearCachedData();
-                setAuthState('unauthenticated');
               }
-            }
-          }).catch(() => {
-            if (isMounted) {
-              clearCachedData();
-              setAuthState('unauthenticated');
-            }
-          });
+            }).catch(() => {
+              // Ignore - we're using cache
+            });
+          } else {
+            setAuthState('unauthenticated');
+          }
         } else {
-          console.warn('[useAuth] Auth initialization timed out, setting unauthenticated');
-          clearCachedData();
+          // No cache = never logged in, safe to set unauthenticated
+          console.log('[useAuth] No cache, setting unauthenticated');
           setAuthState('unauthenticated');
         }
       }
-    }, 15000); // 15 second timeout (increased from 8s)
+    }, 12000); // 12 second timeout
 
     const initializeAuth = async () => {
       // IMPORTANT: Set up auth state change listener FIRST
