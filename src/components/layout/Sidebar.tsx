@@ -13,9 +13,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -300,12 +299,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export function Sidebar() {
   const isMobile = useIsMobile();
   const { menuStyle } = useMenuStyle();
-  const [open, setOpen] = useState(false);
-  const location = useLocation();
-
-  useEffect(() => {
-    setOpen(false);
-  }, [location.pathname]);
 
   const isIconsOnly = menuStyle === 'icons-only';
   const sidebarWidth = isIconsOnly ? 'w-16' : 'w-60';
@@ -336,6 +329,9 @@ export function Sidebar() {
       window.location.reload();
     };
 
+    // Mobile navigation drawer is centralized in AppLayout.
+    // Sidebar on mobile only renders the top header (no local Sheet state),
+    // preventing duplicated state and extra mount/unmount work on route changes.
     return (
       <>
         {/* Mobile Header with safe area */}
@@ -370,18 +366,6 @@ export function Sidebar() {
         </header>
         {/* Spacer for fixed header + safe area */}
         <div style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }} />
-        
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent 
-            side="left" 
-            className={cn(
-              "p-0 bg-sidebar border-sidebar-border/50 max-w-[85vw]",
-              isIconsOnly ? "w-20" : "w-72"
-            )}
-          >
-            <SidebarContent onNavigate={() => setOpen(false)} />
-          </SheetContent>
-        </Sheet>
       </>
     );
   }
