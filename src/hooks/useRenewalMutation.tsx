@@ -312,13 +312,17 @@ export function useRenewalMutation(userId: string | undefined) {
     }
   }, [userId]);
 
-  // Helper to calculate new expiration date
+  // Helper to calculate new expiration date - normalized to noon to avoid timezone issues
   const calculateNewExpiration = useCallback((currentExpiration: string, durationDays: number): string => {
-    const baseDate = new Date(currentExpiration);
+    // Parse date with noon time to avoid UTC conversion issues
+    const baseDate = new Date(currentExpiration + 'T12:00:00');
     const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    
     const newDate = isAfter(baseDate, today)
       ? addDays(baseDate, durationDays)
       : addDays(today, durationDays);
+    
     return format(newDate, 'yyyy-MM-dd');
   }, []);
 

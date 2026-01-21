@@ -2387,7 +2387,7 @@ export default function Clients() {
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {formData.expiration_date 
-                            ? format(new Date(formData.expiration_date), "dd/MM/yyyy", { locale: ptBR })
+                            ? format(new Date(formData.expiration_date + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })
                             : "Selecione um plano"}
                         </Button>
                       </PopoverTrigger>
@@ -2397,7 +2397,10 @@ export default function Clients() {
                           selected={formData.expiration_date ? new Date(formData.expiration_date + 'T12:00:00') : undefined}
                           onSelect={(date) => {
                             if (date) {
-                              setFormData({ ...formData, expiration_date: format(date, "yyyy-MM-dd") });
+                              // Normalize to noon to prevent timezone issues
+                              const normalizedDate = new Date(date);
+                              normalizedDate.setHours(12, 0, 0, 0);
+                              setFormData({ ...formData, expiration_date: format(normalizedDate, "yyyy-MM-dd") });
                               setExpirationPopoverOpen(false);
                             }
                           }}
@@ -3506,12 +3509,30 @@ export default function Clients() {
                         clientPhone: client.phone,
                         clientCategory: client.category,
                         currentExpirationDate: client.expiration_date,
-                        durationDays: 1,
+                        durationDays: 2,
                         planName: client.plan_name,
                         planPrice: client.plan_price,
                       })}
                     >
-                      +1 dia
+                      +2 dias
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={isRenewing}
+                      onClick={() => executeRenewal({
+                        clientId: client.id,
+                        clientName: client.name,
+                        clientPhone: client.phone,
+                        clientCategory: client.category,
+                        currentExpirationDate: client.expiration_date,
+                        durationDays: 3,
+                        planName: client.plan_name,
+                        planPrice: client.plan_price,
+                      })}
+                    >
+                      +3 dias
                     </Button>
                     <Button
                       variant="outline"

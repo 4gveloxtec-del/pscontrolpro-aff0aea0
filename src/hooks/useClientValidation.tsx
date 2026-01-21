@@ -98,7 +98,7 @@ const normalizers = {
     else if (value.includes('/')) {
       const parts = value.split('/');
       if (parts.length === 3) {
-        date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]), 12, 0, 0);
       }
     }
     
@@ -165,10 +165,12 @@ const validators = {
 
   expirationDate: (value: string | null): { valid: boolean; error?: string; corrected?: string } => {
     if (!value) {
-      // Auto-correct: set to 30 days from now
+      // Auto-correct: set to 30 days from now, normalized to noon
+      const futureDate = new Date();
+      futureDate.setHours(12, 0, 0, 0);
       return { 
         valid: true, 
-        corrected: format(addDays(new Date(), 30), 'yyyy-MM-dd') 
+        corrected: format(addDays(futureDate, 30), 'yyyy-MM-dd') 
       };
     }
     
@@ -307,9 +309,11 @@ export function useClientValidation() {
         corrections.push(`Data normalizada`);
         correctedData.expiration_date = normalizedDate;
       } else if (!dateValidation.valid && dateValidation.error) {
-        // Auto-correct with default date
+        // Auto-correct with default date, normalized to noon
+        const futureDate = new Date();
+        futureDate.setHours(12, 0, 0, 0);
         corrections.push(`Data inválida corrigida para 30 dias`);
-        correctedData.expiration_date = format(addDays(new Date(), 30), 'yyyy-MM-dd');
+        correctedData.expiration_date = format(addDays(futureDate, 30), 'yyyy-MM-dd');
       }
     }
 

@@ -89,7 +89,9 @@ export const ClientCard = memo(function ClientCard({
   statusLabels,
 }: ClientCardProps) {
   const today = new Date();
-  const daysLeft = differenceInDays(new Date(client.expiration_date), today);
+  today.setHours(12, 0, 0, 0);
+  const expirationDate = new Date(client.expiration_date + 'T12:00:00');
+  const daysLeft = differenceInDays(expirationDate, today);
   const hasCredentials = client.login || client.password;
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
   const isRecentlyAdded = client.created_at && new Date(client.created_at) > twoHoursAgo;
@@ -201,7 +203,7 @@ export const ClientCard = memo(function ClientCard({
           )}
           <div className="flex items-center gap-2 text-muted-foreground">
             <CalendarIcon className="h-3.5 w-3.5" />
-            <span>{format(new Date(client.expiration_date), "dd/MM/yyyy")}</span>
+            <span>{format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy")}</span>
           </div>
 
           {/* Plan + Server Badges */}
