@@ -334,16 +334,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const cached = getCachedData(currentSession.user.id);
                 if (cached.profile) setProfile(cached.profile);
                 if (cached.role) setRole(cached.role);
-                
-                // With cache: authenticate immediately, fetch in background
-                if (cached.profile && cached.role) {
-                  setAuthState('authenticated');
-                  fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
-                } else {
-                  // No cache: wait for fetch
-                  await fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
-                  if (isMounted) setAuthState('authenticated');
-                }
+
+                // CRITICAL: Never block UI on profile/role fetch.
+                // If a session exists, treat as authenticated immediately and fetch data in background.
+                // This prevents getting stuck on "Verificando sessão..." on slow/unstable networks.
+                setAuthState('authenticated');
+                fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
               } else {
                 // No session - unauthenticated
                 if (isMounted) setAuthState('unauthenticated');
