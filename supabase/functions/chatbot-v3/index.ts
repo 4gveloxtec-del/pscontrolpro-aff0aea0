@@ -602,9 +602,28 @@ function processMessage(
   
   // ========== VERIFICAR ATENDIMENTO HUMANO ==========
   if (contact?.awaiting_human) {
-    // Apenas aceita "voltar" durante atendimento humano
+    // Apenas aceita "voltar" ou "início" durante atendimento humano
     const isBackCommand = matchesKeywords(normalizedText, ["voltar", "sair", "0", "*", "#"]) || 
                           listId === "lm_voltar";
+    const isHomeCommand = matchesKeywords(normalizedText, ["inicio", "início", "menu", "00", "##"]) || 
+                          listId === "lm_inicio";
+    
+    if (isHomeCommand) {
+      // Voltar ao início
+      const mainMenu = menus.find(m => m.menu_key === "main");
+      if (mainMenu) {
+        const menuOptions = options.filter(o => o.menu_id === mainMenu.id);
+        return buildMenuResponse(
+          mainMenu, 
+          menuOptions, 
+          config, 
+          variables, 
+          [], // Limpa a pilha
+          null,
+          lastSentMenuKey
+        );
+      }
+    }
     
     if (isBackCommand) {
       const { newStack, targetMenuKey } = popNavigation(currentStack);
@@ -678,7 +697,24 @@ function processMessage(
 
     console.log(`[ChatbotV3] Trigger matched: ${trigger.trigger_name}`);
 
-    // VOLTAR - Navegação especial
+    // INÍCIO - Ir direto para menu principal (limpa pilha)
+    if (trigger.trigger_name === "inicio" || trigger.action_type === "goto_home") {
+      const mainMenu = dedupedMenus.find(m => m.menu_key === "main");
+      if (mainMenu) {
+        const menuOptions = dedupedOptions.filter(o => o.menu_id === mainMenu.id);
+        return buildMenuResponse(
+          mainMenu, 
+          menuOptions, 
+          config, 
+          variables, 
+          [], // Limpa a pilha completamente
+          null,
+          lastSentMenuKey
+        );
+      }
+    }
+
+    // VOLTAR - Navegação especial (volta um passo)
     if (trigger.trigger_name === "voltar" || trigger.action_type === "goto_previous") {
       const { newStack, targetMenuKey } = popNavigation(currentStack);
       const targetMenu = dedupedMenus.find(m => m.menu_key === targetMenuKey);
@@ -812,7 +848,24 @@ function processMessage(
   
   // ========== 4. MATCH POR NÚMERO ==========
   if (inputNumber !== null) {
-    // 0 = Voltar
+    // 00 = Ir para início (menu principal)
+    if (normalizedText === "00") {
+      const mainMenu = dedupedMenus.find(m => m.menu_key === "main");
+      if (mainMenu) {
+        const targetOptions = dedupedOptions.filter(o => o.menu_id === mainMenu.id);
+        return buildMenuResponse(
+          mainMenu, 
+          targetOptions, 
+          config, 
+          variables, 
+          [], // Limpa pilha
+          null,
+          lastSentMenuKey
+        );
+      }
+    }
+    
+    // 0 = Voltar um passo
     if (inputNumber === 0) {
       const { newStack, targetMenuKey } = popNavigation(currentStack);
       const targetMenu = dedupedMenus.find(m => m.menu_key === targetMenuKey);
@@ -897,11 +950,21 @@ function buildMenuResponse(
   }));
   
   // Adicionar opção Voltar se não for menu principal
-  if (menu.menu_key !== "main" && newStack.length > 0) {
+  if (menu.menu_key !== "main") {
+    // Sempre adiciona "Voltar" se há pilha
+    if (newStack.length > 0) {
+      rows.push({
+        rowId: "lm_voltar",
+        title: "0. Voltar",
+        description: "Retornar ao menu anterior",
+      });
+    }
+    
+    // Sempre adiciona "Início" se não estamos no main
     rows.push({
-      rowId: "lm_voltar",
-      title: "0. Voltar",
-      description: "Retornar ao menu anterior",
+      rowId: "lm_inicio",
+      title: "00. Menu Principal",
+      description: "Voltar ao início",
     });
   }
   
