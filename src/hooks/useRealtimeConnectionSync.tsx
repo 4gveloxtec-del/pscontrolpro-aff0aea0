@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useOnce } from '@/hooks/useOnce';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -292,8 +293,8 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     };
   }, [user?.id, syncStatusFromBackend]);
 
-  // Initialize and cleanup
-  useEffect(() => {
+  // Initialize and cleanup - runs only once
+  useOnce(() => {
     isMountedRef.current = true;
 
     if (user?.id) {
@@ -304,7 +305,7 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
       isMountedRef.current = false;
       stopHeartbeat();
     };
-  }, [user?.id, startHeartbeat, stopHeartbeat]);
+  });
 
   // Calculate offline duration
   const getOfflineDuration = useCallback(() => {
