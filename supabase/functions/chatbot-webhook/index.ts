@@ -2020,6 +2020,19 @@ Deno.serve(async (req) => {
 
     // Process admin chatbot
     if (isAdminMode) {
+      // ============================================================
+      // SAFETY LOCKS (ADMIN)
+      // - Validate correct owner_id (admin_user_id)
+      // - Validate instance is CONNECTED
+      // - Prevent duplicate processing of the same message (short window)
+      // ============================================================
+      const adminUserId = (globalConfigData as any)?.admin_user_id as string | null | undefined;
+      if (!adminUserId) {
+        return new Response(JSON.stringify({ status: "ignored", reason: "Admin owner_id not set" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       if (fromMe || isGroupMessage(remoteJid)) {
         return new Response(JSON.stringify({ status: "ignored", reason: "Own message or group" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -2034,6 +2047,52 @@ Deno.serve(async (req) => {
       }
 
       const phone = extractPhone(remoteJid);
+
+      // Validate admin instance is connected (source of truth in whatsapp_seller_instances)
+      const { data: adminInstanceRow } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('seller_id, instance_name, is_connected, instance_blocked')
+        .eq('seller_id', adminUserId)
+        .maybeSingle();
+
+      const expectedAdminInstance = (globalConfigData as any)?.instance_name
+        ? String((globalConfigData as any).instance_name).trim()
+        : '';
+
+      if (!adminInstanceRow || !adminInstanceRow.is_connected || adminInstanceRow.instance_blocked) {
+        console.log(`[ADMIN][${instanceName}] Ignored: instance not connected/blocked`);
+        return new Response(JSON.stringify({ status: "ignored", reason: "Admin instance not connected" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (expectedAdminInstance && String(adminInstanceRow.instance_name || '').trim().toLowerCase() !== expectedAdminInstance.toLowerCase()) {
+        console.log(`[ADMIN][${instanceName}] Ignored: instance_name mismatch (expected ${expectedAdminInstance})`);
+        return new Response(JSON.stringify({ status: "ignored", reason: "Admin instance mismatch" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Prevent immediate duplicates (Evolution can deliver same inbound event more than once)
+      const dedupeSince = new Date(Date.now() - 10_000).toISOString();
+      const { data: recentAdminDup } = await supabase
+        .from('admin_chatbot_interactions')
+        .select('id')
+        .eq('phone', phone)
+        .eq('incoming_message', messageText)
+        .gte('created_at', dedupeSince)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentAdminDup?.id) {
+        console.log(`[ADMIN][${instanceName}] Duplicate ignored phone=${phone}`);
+        return new Response(JSON.stringify({ status: "ignored", reason: "Duplicate message" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log(`[ADMIN][${instanceName}] Processing phone=${phone}`);
 
       const result = await processAdminChatbotMessage(
         supabase,
@@ -2108,6 +2167,18 @@ Deno.serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ============================================================
+    // SAFETY LOCKS (SELLER)
+    // - Validate instance is CONNECTED
+    // - Prevent duplicate processing of same inbound message (short window)
+    // ============================================================
+    if (!sellerInstance.is_connected) {
+      console.log(`[SELLER][${instanceName}] Ignored: instance not connected`);
+      return new Response(JSON.stringify({ status: 'ignored', reason: 'Instance not connected' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
     
     if (sellerInstance.plan_status === "expired" || sellerInstance.plan_status === "suspended") {
@@ -2190,6 +2261,28 @@ Deno.serve(async (req) => {
     
     const phone = extractPhone(remoteJid);
     const now = new Date();
+
+    // Prevent immediate duplicates for seller flow
+    const sellerDedupeSince = new Date(Date.now() - 10_000).toISOString();
+    const { data: recentSellerDup } = await supabase
+      .from('chatbot_interactions')
+      .select('id')
+      .eq('seller_id', sellerId)
+      .eq('phone', phone)
+      .eq('incoming_message', messageText)
+      .gte('sent_at', sellerDedupeSince)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentSellerDup?.id) {
+      console.log(`[SELLER][${instanceName}] Duplicate ignored sellerId=${sellerId} phone=${phone}`);
+      return new Response(JSON.stringify({ status: 'ignored', reason: 'Duplicate message' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`[SELLER][${instanceName}] Processing sellerId=${sellerId} phone=${phone}`);
     
     // Get or create contact
     let { data: contact } = await supabase
@@ -2257,7 +2350,7 @@ Deno.serve(async (req) => {
           whatsapp: sellerProfile.whatsapp || "",
         };
         
-        sellerVariables = sellerVariables.map(v => ({
+        sellerVariables = sellerVariables.map((v: any) => ({
           ...v,
           variable_value: v.variable_value || profileDefaults[v.variable_key] || "",
         }));

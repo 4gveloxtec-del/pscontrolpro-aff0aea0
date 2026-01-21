@@ -249,13 +249,38 @@ Deno.serve(async (req) => {
       .eq('seller_id', sellerId)
       .eq('type', 'welcome');
 
-    const template = templates?.find(t => t.name.toLowerCase().includes(categoryLower)) 
+    const template = templates?.find((t: any) => String(t.name || '').toLowerCase().includes(categoryLower)) 
       || templates?.[0];
 
     if (!template) {
       console.log('[send-welcome-message] No welcome template found');
       return new Response(
         JSON.stringify({ success: false, error: 'No welcome template' }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ============================================================
+    // SAFETY LOCKS (SELLER)
+    // - Validate owner_id (sellerId)
+    // - Validate instance is connected (already filtered)
+    // - Prevent duplicate welcome sends
+    // ============================================================
+    const { data: existingWelcome } = await supabase
+      .from('message_history')
+      .select('id')
+      .eq('seller_id', sellerId)
+      .eq('client_id', clientId)
+      .eq('message_type', 'welcome')
+      .eq('template_id', template.id)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingWelcome?.id) {
+      console.log(`[SELLER][${sellerInstance.instance_name}] Welcome already sent - skipping clientId=${clientId}`);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'Welcome already sent' }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -376,6 +401,8 @@ Deno.serve(async (req) => {
       apps: appsText,
       links: linksText,
     });
+
+    console.log(`[SELLER][${sellerInstance.instance_name}] Sending welcome clientId=${clientId}`);
 
     // Send welcome message
     const sent = await sendEvolutionMessage(

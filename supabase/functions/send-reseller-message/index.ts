@@ -203,6 +203,34 @@ Deno.serve(async (req) => {
       );
     }
 
+     // ============================================================
+     // SAFETY LOCKS (ADMIN)
+     // - Validate instance is CONNECTED (already filtered)
+     // - Prevent duplicate sends (same content to same reseller in short window)
+     // ============================================================
+     const recentSince = new Date(Date.now() - 60_000).toISOString();
+     const { data: recentDup } = await supabase
+       .from('admin_reseller_message_logs')
+       .select('id')
+       .eq('admin_id', user.id)
+       .eq('reseller_id', reseller_id)
+       .eq('message_content', message)
+       .gte('created_at', recentSince)
+       .in('status', ['pending', 'sent'])
+       .order('created_at', { ascending: false })
+       .limit(1)
+       .maybeSingle();
+
+     if (recentDup?.id) {
+       console.log(`[ADMIN][${adminInstance.instance_name}] Duplicate prevented reseller_id=${reseller_id}`);
+       return new Response(
+         JSON.stringify({ success: true, skipped: true, reason: 'Duplicate prevented', log_id: recentDup.id }),
+         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+       );
+     }
+
+     console.log(`[ADMIN][${adminInstance.instance_name}] Sending reseller_id=${reseller_id}`);
+
     // Create log entry with pending status
     const { data: logEntry, error: logError } = await supabase
       .from('admin_reseller_message_logs')
