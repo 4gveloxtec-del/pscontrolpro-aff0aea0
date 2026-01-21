@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { Shield, Eye, EyeOff, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AdminAuth() {
@@ -149,8 +149,17 @@ export default function AdminAuth() {
             </Button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-slate-700 text-center">
-            <p className="text-xs text-slate-500">
+          <div className="mt-6 pt-4 border-t border-slate-700 space-y-3">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-slate-400 hover:text-white hover:bg-slate-700/50"
+              onClick={() => navigate('/auth')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar para área do Revendedor
+            </Button>
+            <p className="text-xs text-slate-500 text-center">
               Área restrita. Acesso não autorizado será registrado.
             </p>
           </div>
