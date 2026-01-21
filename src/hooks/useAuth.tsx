@@ -330,70 +330,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       // IMPORTANT: Set up auth state change listener FIRST
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event: AuthChangeEvent, currentSession: Session | null) => {
-          if (!isMounted) return;
-          
-          console.log(`${AUTH_DEBUG_PREFIX} Auth event:`, event);
-          
-          switch (event) {
-            case 'SIGNED_OUT':
-              setSession(null);
-              setUser(null);
-              setProfile(null);
-              setRole(null);
-              clearCachedData();
-              setAuthState('unauthenticated');
-              break;
-              
-            case 'SIGNED_IN':
-            case 'TOKEN_REFRESHED':
-            case 'USER_UPDATED':
-              if (currentSession?.user) {
-                setSession(currentSession);
-                setUser(currentSession.user);
-                localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
+        (event: AuthChangeEvent, currentSession: Session | null) => {
+          // CRITICAL FIX: Use setTimeout(0) to avoid blocking the auth event handler
+          // This prevents deadlocks during login by deferring async operations
+          setTimeout(() => {
+            if (!isMounted) return;
+            
+            console.log(`${AUTH_DEBUG_PREFIX} Auth event:`, event);
+            
+            switch (event) {
+              case 'SIGNED_OUT':
+                setSession(null);
+                setUser(null);
+                setProfile(null);
+                setRole(null);
+                clearCachedData();
+                setAuthState('unauthenticated');
+                break;
+                
+              case 'SIGNED_IN':
+              case 'TOKEN_REFRESHED':
+              case 'USER_UPDATED':
+                if (currentSession?.user) {
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                  localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
 
-                // Session exists: consider authenticated immediately (data can load in background)
-                setAuthState('authenticated');
+                  // Session exists: consider authenticated immediately (data can load in background)
+                  setAuthState('authenticated');
+                  
+                  // Load cached data for instant display
+                  const cached = getCachedData(currentSession.user.id);
+                  if (cached.profile) setProfile(cached.profile);
+                  if (cached.role) setRole(cached.role);
+                  
+                  // Fetch fresh data in background (non-blocking)
+                  fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
+                }
+                break;
                 
-                // Load cached data for instant display
-                const cached = getCachedData(currentSession.user.id);
-                if (cached.profile) setProfile(cached.profile);
-                if (cached.role) setRole(cached.role);
-                
-                // Always fetch fresh data
-                await fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
-                if (isMounted) setAuthState('authenticated');
-              }
-              break;
-              
-            case 'INITIAL_SESSION':
-              if (currentSession?.user) {
-                setSession(currentSession);
-                setUser(currentSession.user);
-                localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
-                
-                const cached = getCachedData(currentSession.user.id);
-                if (cached.profile) setProfile(cached.profile);
-                if (cached.role) setRole(cached.role);
+              case 'INITIAL_SESSION':
+                if (currentSession?.user) {
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                  localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
+                  
+                  const cached = getCachedData(currentSession.user.id);
+                  if (cached.profile) setProfile(cached.profile);
+                  if (cached.role) setRole(cached.role);
 
-                // CRITICAL: Never block UI on profile/role fetch.
-                // If a session exists, treat as authenticated immediately and fetch data in background.
-                // This prevents getting stuck on "Verificando sessão..." on slow/unstable networks.
-                setAuthState('authenticated');
-                fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
-              } else {
-                // No session - unauthenticated
-                if (isMounted) setAuthState('unauthenticated');
-              }
-              break;
-              
-            default:
-              if (currentSession?.user) {
-                setSession(currentSession);
-                setUser(currentSession.user);
-              }
-          }
+                  // CRITICAL: Never block UI on profile/role fetch.
+                  // If a session exists, treat as authenticated immediately and fetch data in background.
+                  setAuthState('authenticated');
+                  fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
+                } else {
+                  // No session - unauthenticated
+                  if (isMounted) setAuthState('unauthenticated');
+                }
+                break;
+                
+              default:
+                if (currentSession?.user) {
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                }
+            }
+          }, 0);
         }
       );
 
