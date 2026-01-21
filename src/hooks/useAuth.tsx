@@ -175,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authStateRef = useRef<AuthState>('loading');
   const sessionRef = useRef<Session | null>(null);
   const recoveringMissingSession = useRef(false);
+  const missingUserRecoveryAttempts = useRef(0);
 
   // Keep refs in sync to avoid stale-closure bugs (timeouts, async handlers)
   useEffect(() => {
@@ -200,6 +201,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authState !== 'authenticated') return;
     if (user) return;
     if (recoveringMissingSession.current) return;
+    if (missingUserRecoveryAttempts.current >= 1) {
+      // Avoid infinite loops on slow/unstable networks where getSession() can hang.
+      console.warn('[useAuth] Skipping repeated recovery attempt (authenticated without user)');
+      return;
+    }
+
+    missingUserRecoveryAttempts.current += 1;
 
     recoveringMissingSession.current = true;
     console.warn('[useAuth] Inconsistent state: authenticated without user. Attempting recovery...');
@@ -223,7 +231,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        console.warn('[useAuth] Session recovery failed; forcing unauthenticated', error);
+        // IMPORTANT: Never force logout automatically on flaky networks.
+        // If we have a session marker, keep the UI in a stable authenticated mode
+        // and allow background recovery later.
+        console.warn('[useAuth] Session recovery failed; keeping stable state', error);
+        if (hasSessionMarker()) {
+          setAuthState('authenticated');
+          return;
+        }
+
+        // No marker means we truly don't expect a session.
         clearCachedData();
         setSession(null);
         setUser(null);
@@ -231,7 +248,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setAuthState('unauthenticated');
       } catch (e) {
-        console.error('[useAuth] Session recovery exception; forcing unauthenticated', e);
+        console.error('[useAuth] Session recovery exception; keeping stable state', e);
+        if (hasSessionMarker()) {
+          setAuthState('authenticated');
+          return;
+        }
+
         clearCachedData();
         setSession(null);
         setUser(null);
@@ -404,15 +426,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // INITIAL_SESSION event handles the rest
-        // But if no session, set unauthenticated now
-        if (!initialSession && isMounted && authState === 'loading') {
+        // INITIAL_SESSION event handles the rest.
+        // If getSession() returns null but we *expect* a session (marker), keep loading
+        // and let the safety timeout / auth events resolve it.
+        if (!initialSession && isMounted && authStateRef.current === 'loading' && !hasSessionMarker()) {
           setAuthState('unauthenticated');
         }
         
       } catch (error) {
         console.error('[useAuth] Exception:', error);
-        if (isMounted) setAuthState('unauthenticated');
+        if (!isMounted) return;
+
+        // Timeout/hang case: try cache before giving up.
+        if (hasSessionMarker()) {
+          const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
+          if (cachedUserId) {
+            const cached = getCachedData(cachedUserId);
+            if (cached.profile) setProfile(cached.profile);
+            if (cached.role) setRole(cached.role);
+            setAuthState('authenticated');
+            return;
+          }
+          // Keep loading and allow the safety timeout to resolve to unauthenticated if needed.
+          return;
+        }
+
+        setAuthState('unauthenticated');
       }
 
       return () => {
