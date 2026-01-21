@@ -200,13 +200,13 @@ export function useSellerChatbotConfig() {
     if (!existing) {
       await supabase.from('seller_chatbot_settings').insert({
         seller_id: user.id,
-        menu_enabled: false,
+        menu_enabled: true,  // Enabled by default so chatbot works immediately
         response_mode: '12h',
         delay_min: 2,
         delay_max: 5,
         typing_enabled: true,
         silent_mode: true,
-        use_admin_menu: true,
+        use_admin_menu: false,  // Start with empty menu, user can copy from admin
       });
       await fetchSettings();
     }

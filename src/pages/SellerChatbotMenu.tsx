@@ -487,7 +487,7 @@ export default function SellerChatbotMenu() {
             <Label htmlFor="menu-enabled">Ativar Menu</Label>
             <Switch
               id="menu-enabled"
-              checked={settings?.menu_enabled ?? false}
+              checked={settings?.menu_enabled ?? true}
               onCheckedChange={(checked) => saveSettings({ menu_enabled: checked })}
             />
           </div>

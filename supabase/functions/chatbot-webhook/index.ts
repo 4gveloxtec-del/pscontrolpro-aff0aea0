@@ -1763,6 +1763,33 @@ Deno.serve(async (req) => {
               error: log.error_message,
               status: log.api_status_code,
             })) || [],
+            sellerMenus: await (async () => {
+              // Check seller menus for each seller instance
+              const menus: any[] = [];
+              for (const inst of (sellerInstances || [])) {
+                const { data: menuNodes } = await supabase
+                  .from("seller_chatbot_menu")
+                  .select("id, node_key, title")
+                  .eq("seller_id", inst.seller_id)
+                  .eq("is_active", true);
+                
+                const { data: settings } = await supabase
+                  .from("seller_chatbot_settings")
+                  .select("menu_enabled, response_mode")
+                  .eq("seller_id", inst.seller_id)
+                  .maybeSingle();
+                
+                menus.push({
+                  sellerId: inst.seller_id?.substring(0, 8),
+                  instanceName: inst.instance_name,
+                  menuNodesCount: menuNodes?.length || 0,
+                  hasInitialNode: menuNodes?.some((n: any) => n.node_key === "inicial") || false,
+                  menuEnabled: settings?.menu_enabled ?? true,
+                  responseMode: settings?.response_mode || "24h",
+                });
+              }
+              return menus;
+            })(),
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -2104,10 +2131,49 @@ Deno.serve(async (req) => {
 
     // ========== SELLER INTERACTIVE MENU (NEW SYSTEM) ==========
     // Fetch seller's variables for dynamic content
-    const { data: sellerVariables } = await supabase
+    let { data: sellerVariables } = await supabase
       .from("seller_chatbot_variables")
       .select("variable_key, variable_value")
       .eq("seller_id", sellerId);
+    
+    // If seller has no variables configured, get from profile
+    if (!sellerVariables || sellerVariables.length === 0) {
+      const { data: sellerProfile } = await supabase
+        .from("profiles")
+        .select("company_name, pix_key, whatsapp")
+        .eq("id", sellerId)
+        .single();
+      
+      if (sellerProfile) {
+        // Create default variables from profile data
+        sellerVariables = [
+          { variable_key: "empresa", variable_value: sellerProfile.company_name || "" },
+          { variable_key: "pix", variable_value: sellerProfile.pix_key || "" },
+          { variable_key: "whatsapp", variable_value: sellerProfile.whatsapp || "" },
+          { variable_key: "horario", variable_value: "08:00 às 22:00" },
+        ];
+      }
+    } else {
+      // Enhance existing variables with profile data for empty values
+      const { data: sellerProfile } = await supabase
+        .from("profiles")
+        .select("company_name, pix_key, whatsapp")
+        .eq("id", sellerId)
+        .single();
+      
+      if (sellerProfile) {
+        const profileDefaults: Record<string, string> = {
+          empresa: sellerProfile.company_name || "",
+          pix: sellerProfile.pix_key || "",
+          whatsapp: sellerProfile.whatsapp || "",
+        };
+        
+        sellerVariables = sellerVariables.map(v => ({
+          ...v,
+          variable_value: v.variable_value || profileDefaults[v.variable_key] || "",
+        }));
+      }
+    }
     
     const variables: SellerChatbotVariable[] = sellerVariables || [];
     
@@ -2134,7 +2200,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
     
     // Process with new interactive menu if available
-    if (sellerMenuNodes && sellerMenuNodes.length > 0 && sellerMenuSettings?.is_enabled !== false) {
+    // Check menu_enabled (new field) or is_enabled (legacy) - both default to true
+    const menuEnabled = sellerMenuSettings?.menu_enabled !== false && sellerMenuSettings?.is_enabled !== false;
+    
+    if (sellerMenuNodes && sellerMenuNodes.length > 0 && menuEnabled) {
       // Create contact if not exists
       if (!sellerMenuContact) {
         const { data: newMenuContact } = await supabase
@@ -2156,19 +2225,30 @@ Deno.serve(async (req) => {
       const isFlowNav = isFlowNavigationInput(messageText);
       
       // Check cooldown for seller menu (same logic as admin)
+      // IMPORTANT: Cooldown only applies to FIRST initial message, NOT to navigation inputs
       const lastResponse = sellerMenuContact?.last_response_at ? new Date(sellerMenuContact.last_response_at) : null;
       let canSendMenuResponse = true;
       
-      if (!isFlowNav && lastResponse) {
+      // Flow navigation inputs always bypass cooldown (numbers, *, voltar, menu)
+      if (!isFlowNav && lastResponse && responseMode !== "always") {
         const hoursSinceLastResponse = (now.getTime() - lastResponse.getTime()) / (1000 * 60 * 60);
         
         if (responseMode === "6h" && hoursSinceLastResponse < 6) {
           canSendMenuResponse = false;
+          console.log(`[SellerChatbot] Cooldown active (6h): ${hoursSinceLastResponse.toFixed(2)}h elapsed`);
         } else if (responseMode === "12h" && hoursSinceLastResponse < 12) {
           canSendMenuResponse = false;
+          console.log(`[SellerChatbot] Cooldown active (12h): ${hoursSinceLastResponse.toFixed(2)}h elapsed`);
         } else if (responseMode === "24h" && hoursSinceLastResponse < 24) {
           canSendMenuResponse = false;
+          console.log(`[SellerChatbot] Cooldown active (24h): ${hoursSinceLastResponse.toFixed(2)}h elapsed`);
         }
+      }
+      
+      // If in cooldown but it's a navigation input, allow response
+      if (!canSendMenuResponse && isFlowNav) {
+        canSendMenuResponse = true;
+        console.log(`[SellerChatbot] Navigation input bypasses cooldown: ${messageText}`);
       }
       
       if (canSendMenuResponse) {
