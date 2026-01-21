@@ -305,6 +305,96 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, userId, phone, message, config, messages } = body;
 
+    // ============================================================
+    // Security guards (Etapa 2): owner validation + connected checks
+    // - Ensures a user can only operate on their own instance
+    // - Ensures sends only happen when instance is CONNECTED
+    // - Adds clear log tags: [ADMIN][instance] / [SELLER][instance]
+    // ============================================================
+
+    const normalizeInstance = (v: unknown) => String(v || '').trim();
+
+    const getIsAdmin = async (uid: string): Promise<boolean> => {
+      const { data } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', uid)
+        .eq('role', 'admin')
+        .maybeSingle();
+      return !!data;
+    };
+
+    const validateOwnershipAndGetTag = async (
+      uid: string | undefined,
+      requestedInstanceName: string
+    ): Promise<{ ok: boolean; tag: string; reason?: string }> => {
+      const inst = normalizeInstance(requestedInstanceName);
+      if (!uid) return { ok: false, tag: `[UNKNOWN][${inst || 'no_instance'}]`, reason: 'Missing userId' };
+      if (!inst) return { ok: false, tag: `[UNKNOWN][no_instance]`, reason: 'Missing instance_name' };
+
+      const isAdmin = await getIsAdmin(uid);
+      const tag = `${isAdmin ? '[ADMIN]' : '[SELLER]'}[${inst}]`;
+
+      if (isAdmin) {
+        const { data: globalCfg } = await supabase
+          .from('whatsapp_global_config')
+          .select('admin_user_id, instance_name, is_active')
+          .eq('is_active', true)
+          .maybeSingle();
+
+        const expectedAdminId = globalCfg?.admin_user_id ? String(globalCfg.admin_user_id) : '';
+        const expectedInstance = globalCfg?.instance_name ? String(globalCfg.instance_name).trim() : '';
+
+        if (!expectedAdminId || expectedAdminId !== uid) {
+          return { ok: false, tag, reason: 'Admin owner_id mismatch' };
+        }
+
+        if (expectedInstance && expectedInstance.toLowerCase() !== inst.toLowerCase()) {
+          return { ok: false, tag, reason: `Admin instance mismatch (expected ${expectedInstance})` };
+        }
+
+        return { ok: true, tag };
+      }
+
+      // seller
+      const { data: instanceRow } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('seller_id, instance_name')
+        .eq('seller_id', uid)
+        .maybeSingle();
+
+      if (!instanceRow) return { ok: false, tag, reason: 'Seller instance not found' };
+
+      const expected = normalizeInstance(instanceRow.instance_name);
+      if (expected && expected.toLowerCase() !== inst.toLowerCase()) {
+        return { ok: false, tag, reason: `Seller instance mismatch (expected ${expected})` };
+      }
+
+      return { ok: true, tag };
+    };
+
+    const validateConnectedForSend = async (
+      uid: string,
+      requestedInstanceName: string
+    ): Promise<{ ok: boolean; reason?: string }> => {
+      const inst = normalizeInstance(requestedInstanceName);
+      const { data: row } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('seller_id, instance_name, is_connected, instance_blocked')
+        .eq('seller_id', uid)
+        .maybeSingle();
+
+      if (!row) return { ok: false, reason: 'Instance not found' };
+      if (row.instance_blocked) return { ok: false, reason: 'Instance blocked' };
+      if (!row.is_connected) return { ok: false, reason: 'Instance not connected' };
+
+      const expected = normalizeInstance(row.instance_name);
+      if (expected && inst && expected.toLowerCase() !== inst.toLowerCase()) {
+        return { ok: false, reason: `Instance mismatch (expected ${expected})` };
+      }
+      return { ok: true };
+    };
+
     // Check if seller's instance is blocked (for actions that send messages)
     const checkBlockedInstance = async (sellerId: string): Promise<{ blocked: boolean; reason?: string }> => {
       if (!sellerId) return { blocked: false };
@@ -334,6 +424,18 @@ Deno.serve(async (req) => {
           );
         }
 
+        // Ownership validation (prevents cross-instance checks)
+        const ownerCheck = await validateOwnershipAndGetTag(userId, config?.instance_name);
+        if (!ownerCheck.ok) {
+          console.log(`${ownerCheck.tag} Ignored check_connection: ${ownerCheck.reason}`);
+          return new Response(
+            JSON.stringify({ connected: false, error: ownerCheck.reason }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`${ownerCheck.tag} check_connection requested`);
+
         const isConnected = await checkEvolutionConnection(config);
         
         // Update connection status in seller instances table if userId provided
@@ -361,6 +463,18 @@ Deno.serve(async (req) => {
           );
         }
 
+        // Ownership validation (prevents cross-instance QR fetch)
+        const ownerCheck = await validateOwnershipAndGetTag(userId, config?.instance_name);
+        if (!ownerCheck.ok) {
+          console.log(`${ownerCheck.tag} Ignored get_qrcode: ${ownerCheck.reason}`);
+          return new Response(
+            JSON.stringify({ error: ownerCheck.reason }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        console.log(`${ownerCheck.tag} get_qrcode requested`);
+
         const result = await getEvolutionQrCode(config);
         
         return new Response(
@@ -370,6 +484,15 @@ Deno.serve(async (req) => {
       }
 
       case 'send_message': {
+        const ownerCheck = await validateOwnershipAndGetTag(userId, config?.instance_name);
+        if (!ownerCheck.ok) {
+          console.log(`${ownerCheck.tag} Blocked send_message: ${ownerCheck.reason}`);
+          return new Response(
+            JSON.stringify({ success: false, error: ownerCheck.reason }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         // Check if instance is blocked
         if (userId) {
           const blockCheck = await checkBlockedInstance(userId);
@@ -377,6 +500,18 @@ Deno.serve(async (req) => {
             return new Response(
               JSON.stringify({ success: false, blocked: true, error: blockCheck.reason }),
               { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
+        // Must be CONNECTED before sending
+        if (userId) {
+          const connectedCheck = await validateConnectedForSend(userId, config?.instance_name);
+          if (!connectedCheck.ok) {
+            console.log(`${ownerCheck.tag} Blocked send_message: ${connectedCheck.reason}`);
+            return new Response(
+              JSON.stringify({ success: false, error: connectedCheck.reason }),
+              { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
         }
@@ -395,6 +530,7 @@ Deno.serve(async (req) => {
           );
         }
 
+        console.log(`${ownerCheck.tag} Sending message to ${String(phone || '').replace(/\D/g, '')}`);
         const result = await sendEvolutionMessage(config, phone, message);
         
         return new Response(
@@ -404,6 +540,15 @@ Deno.serve(async (req) => {
       }
 
       case 'send_bulk': {
+        const ownerCheck = await validateOwnershipAndGetTag(userId, config?.instance_name);
+        if (!ownerCheck.ok) {
+          console.log(`${ownerCheck.tag} Blocked send_bulk: ${ownerCheck.reason}`);
+          return new Response(
+            JSON.stringify({ success: false, error: ownerCheck.reason }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         // Check if instance is blocked for bulk messages too
         if (userId) {
           const blockCheck = await checkBlockedInstance(userId);
@@ -411,6 +556,18 @@ Deno.serve(async (req) => {
             return new Response(
               JSON.stringify({ success: false, blocked: true, error: blockCheck.reason }),
               { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
+        // Must be CONNECTED before sending bulk
+        if (userId) {
+          const connectedCheck = await validateConnectedForSend(userId, config?.instance_name);
+          if (!connectedCheck.ok) {
+            console.log(`${ownerCheck.tag} Blocked send_bulk: ${connectedCheck.reason}`);
+            return new Response(
+              JSON.stringify({ success: false, error: connectedCheck.reason }),
+              { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
         }
@@ -429,6 +586,8 @@ Deno.serve(async (req) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        console.log(`${ownerCheck.tag} Sending bulk messages: count=${messages?.length || 0}`);
 
         const results = [];
         for (const msg of messages) {

@@ -284,28 +284,39 @@ Deno.serve(async (req: Request) => {
     let pushSent = 0;
     const results: any[] = [];
 
-    // Get admin info for reseller notifications
-    const { data: adminRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
+    // Get admin instance for reseller notifications (STRICT: from global config)
+    // This prevents picking the wrong admin when multiple admins exist.
+    const adminUserId = (globalConfigData as any)?.admin_user_id
+      ? String((globalConfigData as any).admin_user_id)
+      : '';
+    const adminInstanceName = (globalConfigData as any)?.instance_name
+      ? String((globalConfigData as any).instance_name).trim()
+      : '';
 
-    const adminIds = adminRoles?.map(r => r.user_id) || [];
-    
-    // Get admin instance for reseller notifications
-    const { data: adminInstance } = await supabase
-      .from('whatsapp_seller_instances')
-      .select('*')
-      .in('seller_id', adminIds)
-      .eq('is_connected', true)
-      .eq('instance_blocked', false)
-      .maybeSingle();
+    const { data: adminInstance } = adminUserId
+      ? await supabase
+          .from('whatsapp_seller_instances')
+          .select('*')
+          .eq('seller_id', adminUserId)
+          .eq('is_connected', true)
+          .eq('instance_blocked', false)
+          .maybeSingle()
+      : { data: null };
 
     // PART 1: Admin → Reseller notifications (skip in test mode)
-    if (adminIds.length > 0 && !testMode) {
+    const adminInstanceMatchesConfig = !!(
+      adminInstance &&
+      (!adminInstanceName || String(adminInstance.instance_name || '').trim().toLowerCase() === adminInstanceName.toLowerCase())
+    );
+
+    if (adminUserId && !testMode) {
       console.log('Processing admin to reseller notifications...');
 
-      const adminId = adminIds[0];
+      const adminId = adminUserId;
+
+      if (adminInstance && !adminInstanceMatchesConfig) {
+        console.log(`[ADMIN][${adminInstance?.instance_name}] Ignored WhatsApp path: instance mismatch (expected ${adminInstanceName})`);
+      }
 
       // Get admin profile for template variables
       const { data: adminProfile } = await supabase
@@ -376,7 +387,7 @@ Deno.serve(async (req: Request) => {
         let sent = false;
 
         // Try WhatsApp API first if admin has connected instance
-        if (adminInstance && globalConfig) {
+        if (adminInstance && adminInstanceMatchesConfig && globalConfig) {
           if (template) {
             const message = replaceVariables(template.message, {
               nome: reseller.full_name || 'Revendedor',
