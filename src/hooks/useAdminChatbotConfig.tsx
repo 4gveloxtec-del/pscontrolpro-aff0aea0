@@ -177,8 +177,9 @@ export function useAdminChatbotConfig() {
       return { nextNode: null, message: '' };
     }
     
-    // Check for return to main menu
-    if (normalizedInput === '*' || normalizedInput === 'voltar' || normalizedInput === 'menu' || normalizedInput === '0') {
+    // Check for return to main menu - EXPANDED with more synonyms
+    const menuCommands = ['*', 'voltar', 'menu', '0', 'inicio', 'início', 'começar', 'reiniciar', '#'];
+    if (menuCommands.includes(normalizedInput)) {
       const inicial = getNodeByKey('inicial');
       return { nextNode: inicial || null, message: inicial?.content || '' };
     }
@@ -189,17 +190,17 @@ export function useAdminChatbotConfig() {
       return { nextNode: inicial || null, message: inicial?.content || '' };
     }
 
-    // Check input against options
+    // Input mappings for emoji numbers and text - EXPANDED
     const inputMappings: Record<string, string> = {
-      '1️⃣': '1', 'um': '1', 'one': '1',
-      '2️⃣': '2', 'dois': '2', 'two': '2',
-      '3️⃣': '3', 'tres': '3', 'três': '3', 'three': '3',
-      '4️⃣': '4', 'quatro': '4', 'four': '4',
-      '5️⃣': '5', 'cinco': '5', 'five': '5',
-      '6️⃣': '6', 'seis': '6', 'six': '6',
-      '7️⃣': '7', 'sete': '7', 'seven': '7',
-      '8️⃣': '8', 'oito': '8', 'eight': '8',
-      '9️⃣': '9', 'nove': '9', 'nine': '9',
+      // Emoji numbers
+      '1️⃣': '1', '2️⃣': '2', '3️⃣': '3', '4️⃣': '4', '5️⃣': '5',
+      '6️⃣': '6', '7️⃣': '7', '8️⃣': '8', '9️⃣': '9', '0️⃣': '0',
+      // Portuguese text numbers
+      'um': '1', 'dois': '2', 'tres': '3', 'três': '3', 'quatro': '4',
+      'cinco': '5', 'seis': '6', 'sete': '7', 'oito': '8', 'nove': '9', 'zero': '0',
+      // English text numbers
+      'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+      'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
     };
 
     let normalizedKey = normalizedInput;
@@ -207,6 +208,14 @@ export function useAdminChatbotConfig() {
       if (normalizedInput === key || normalizedInput.includes(key)) {
         normalizedKey = value;
         break;
+      }
+    }
+
+    // Also extract just the first digit if message starts with a number
+    if (!/^[0-9]+$/.test(normalizedKey)) {
+      const digitMatch = normalizedInput.match(/^([0-9]+)/);
+      if (digitMatch) {
+        normalizedKey = digitMatch[1];
       }
     }
 
