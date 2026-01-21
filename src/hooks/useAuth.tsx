@@ -183,13 +183,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // CRITICAL: Safety timeout to prevent infinite loading
     // This ensures the app becomes usable even if auth fails
+    // Increased to 15 seconds to handle slow network connections
     const loadingTimeout = setTimeout(() => {
       if (isMounted && authState === 'loading') {
-        console.warn('[useAuth] Auth initialization timed out, setting unauthenticated');
-        clearCachedData();
-        setAuthState('unauthenticated');
+        // Check if we have cached data - if so, use it instead of logging out
+        const hasCache = hasSessionMarker();
+        if (hasCache) {
+          console.warn('[useAuth] Auth timeout but cache exists - retrying once...');
+          // Retry getting session one more time
+          supabase.auth.getSession().then(({ data }) => {
+            if (isMounted) {
+              if (data.session) {
+                console.log('[useAuth] Retry successful, session restored');
+                setSession(data.session);
+                setUser(data.session.user);
+                const cached = getCachedData(data.session.user.id);
+                if (cached.profile) setProfile(cached.profile);
+                if (cached.role) setRole(cached.role);
+                setAuthState('authenticated');
+              } else {
+                console.warn('[useAuth] Retry failed, clearing session');
+                clearCachedData();
+                setAuthState('unauthenticated');
+              }
+            }
+          }).catch(() => {
+            if (isMounted) {
+              clearCachedData();
+              setAuthState('unauthenticated');
+            }
+          });
+        } else {
+          console.warn('[useAuth] Auth initialization timed out, setting unauthenticated');
+          clearCachedData();
+          setAuthState('unauthenticated');
+        }
       }
-    }, 8000); // 8 second timeout
+    }, 15000); // 15 second timeout (increased from 8s)
 
     const initializeAuth = async () => {
       // IMPORTANT: Set up auth state change listener FIRST
