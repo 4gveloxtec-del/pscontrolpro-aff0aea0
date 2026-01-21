@@ -179,6 +179,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const recoveringMissingSession = useRef(false);
   const missingUserRecoveryAttempts = useRef(0);
   const signInInProgress = useRef(false); // Prevents self-heal from running during signIn
+  const isProviderMounted = useRef(true);
+
+  // Prevent setState after unmount in delayed fallbacks
+  useEffect(() => {
+    return () => {
+      isProviderMounted.current = false;
+    };
+  }, []);
+
+  // If the backend SDK hangs (common on flaky networks / blocked storage), avoid infinite "Verificando sessão..."
+  const scheduleStaleSessionMarkerFallback = useCallback(
+    (reason: string, delayMs = 6000) => {
+      window.setTimeout(() => {
+        if (!isProviderMounted.current) return;
+        if (authStateRef.current !== 'loading') return;
+        if (sessionRef.current?.user) return;
+        if (!hasSessionMarker()) return;
+
+        console.warn(`${AUTH_DEBUG_PREFIX} Stale session marker detected (${reason}). Forcing unauthenticated.`);
+        clearCachedData();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRole(null);
+        setAuthState('unauthenticated');
+      }, delayMs);
+    },
+    []
+  );
 
   // Keep refs in sync to avoid stale-closure bugs (timeouts, async handlers)
   useEffect(() => {
@@ -240,7 +269,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // If we have a session marker, stay in "loading" so ProtectedRoute can show
         // a stable "Reconectando" UI instead of bouncing to /auth.
         console.warn(`${AUTH_DEBUG_PREFIX} Session recovery failed; staying in reconnecting mode`, error);
-        if (hasSessionMarker()) return;
+        if (hasSessionMarker()) {
+          scheduleStaleSessionMarkerFallback('recover-failed', 4000);
+          return;
+        }
 
         // No marker means we truly don't expect a session.
         clearCachedData();
@@ -251,7 +283,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthState('unauthenticated');
       } catch (e) {
         console.error(`${AUTH_DEBUG_PREFIX} Session recovery exception; staying in reconnecting mode`, e);
-        if (hasSessionMarker()) return;
+        if (hasSessionMarker()) {
+          scheduleStaleSessionMarkerFallback('recover-exception', 4000);
+          return;
+        }
 
         clearCachedData();
         setSession(null);
@@ -320,6 +355,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (cached.role) setRole(cached.role);
           }
           console.warn(`${AUTH_DEBUG_PREFIX} Safety timeout: session marker present but session not restored yet; staying in loading`);
+          // Avoid infinite "Verificando sessão..." if the SDK never recovers.
+          scheduleStaleSessionMarkerFallback('init-safety-timeout', 6000);
           return;
         }
         // No valid cache - set unauthenticated
@@ -418,6 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (cached.role) setRole(cached.role);
             }
             // Stay loading and let auth events resolve.
+            scheduleStaleSessionMarkerFallback('getSession(init)-error', 6000);
             return;
           }
         }
@@ -442,6 +480,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (cached.role) setRole(cached.role);
           }
           // Keep loading (reconnecting). Do NOT mark authenticated without a real user.
+          scheduleStaleSessionMarkerFallback('getSession(init)-exception', 6000);
           return;
         }
 
