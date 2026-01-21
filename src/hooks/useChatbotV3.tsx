@@ -204,21 +204,28 @@ export function useChatbotV3() {
 
   // ========== OPTION METHODS ==========
   const createOption = async (option: Omit<ChatbotOption, "id" | "user_id">) => {
-    if (!userId) return null;
+    if (!userId) {
+      toast.error("Usuário não autenticado");
+      return null;
+    }
     try {
+      console.log("[ChatbotV3] Creating option:", option);
       const { data, error } = await supabase
         .from("chatbot_v3_options")
         .insert({ ...option, user_id: userId })
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error("[ChatbotV3] Create option error:", error);
+        throw error;
+      }
       setOptions([...options, data]);
       toast.success("Opção criada!");
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating option:", error);
-      toast.error("Erro ao criar opção");
+      toast.error(error?.message || "Erro ao criar opção");
       return null;
     }
   };

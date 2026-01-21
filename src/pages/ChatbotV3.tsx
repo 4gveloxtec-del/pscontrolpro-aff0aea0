@@ -58,7 +58,7 @@ export default function ChatbotV3() {
     option_number: 1,
     option_text: "",
     keywords: "",
-    target_menu_key: "",
+    target_menu_key: "__none__",
     action_type: "menu",
     action_response: "",
   });
@@ -181,17 +181,24 @@ export default function ChatbotV3() {
   };
 
   const handleAddOption = async () => {
-    if (!selectedMenuId || !newOption.option_text) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!selectedMenuId || !newOption.option_text.trim()) {
+      toast.error("Preencha o texto da opção");
+      return;
+    }
+    
+    // Validar menu destino quando ação é "menu"
+    const targetKey = newOption.target_menu_key === "__none__" ? null : newOption.target_menu_key;
+    if (newOption.action_type === "menu" && !targetKey) {
+      toast.error("Selecione o menu de destino");
       return;
     }
     
     const result = await createOption({
       menu_id: selectedMenuId,
       option_number: newOption.option_number,
-      option_text: newOption.option_text,
+      option_text: newOption.option_text.trim(),
       keywords: newOption.keywords.split(",").map(k => k.trim()).filter(Boolean),
-      target_menu_key: newOption.action_type === "menu" ? newOption.target_menu_key : null,
+      target_menu_key: newOption.action_type === "menu" ? targetKey : null,
       action_type: newOption.action_type,
       action_response: newOption.action_type !== "menu" ? newOption.action_response : null,
       sort_order: menuOptionsForSelected.length,
@@ -204,7 +211,7 @@ export default function ChatbotV3() {
         option_number: menuOptionsForSelected.length + 2,
         option_text: "",
         keywords: "",
-        target_menu_key: "",
+        target_menu_key: "__none__",
         action_type: "menu",
         action_response: "",
       });
@@ -376,7 +383,20 @@ export default function ChatbotV3() {
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
                           <Label className="text-base">Opções do Menu</Label>
-                          <Dialog open={isAddOptionOpen} onOpenChange={setIsAddOptionOpen}>
+                          <Dialog open={isAddOptionOpen} onOpenChange={(open) => {
+                            setIsAddOptionOpen(open);
+                            if (open) {
+                              // Reset form with correct next option number
+                              setNewOption({
+                                option_number: menuOptionsForSelected.length + 1,
+                                option_text: "",
+                                keywords: "",
+                                target_menu_key: "__none__",
+                                action_type: "menu",
+                                action_response: "",
+                              });
+                            }
+                          }}>
                             <DialogTrigger asChild>
                               <Button size="sm" variant="outline">
                                 <Plus className="h-4 w-4 mr-1" /> Adicionar Opção
@@ -444,6 +464,7 @@ export default function ChatbotV3() {
                                         <SelectValue placeholder="Selecione o menu" />
                                       </SelectTrigger>
                                       <SelectContent>
+                                        <SelectItem value="__none__">-- Selecione --</SelectItem>
                                         {menus.map(m => (
                                           <SelectItem key={m.id} value={m.menu_key}>{m.title}</SelectItem>
                                         ))}
