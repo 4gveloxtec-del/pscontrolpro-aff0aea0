@@ -552,7 +552,9 @@ async function processAdminChatbotMessage(
       .eq("key", "admin_chatbot_enabled")
       .maybeSingle();
 
-    const isEnabled = enabledSetting?.value === "true";
+    // Global rule (Etapa 3): default chatbot version = V3.
+    // For admin flow, treat missing setting as enabled; only explicit "false" disables.
+    const isEnabled = enabledSetting?.value !== "false";
     if (!isEnabled) {
       return { status: "ignored", reason: "Admin chatbot disabled" };
     }
