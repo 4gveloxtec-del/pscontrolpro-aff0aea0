@@ -65,9 +65,10 @@ PageLoader.displayName = 'PageLoader';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30000, // 30 seconds
-      gcTime: 300000, // 5 minutes
+      staleTime: 60000, // 1 minute (increased for less refetching)
+      gcTime: 600000, // 10 minutes
       refetchOnWindowFocus: false,
+      refetchOnMount: false, // Prevent refetch on component mount
       retry: 1,
     },
   },
@@ -255,9 +256,8 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      {/* Mobile-only wrapper: centers app in mobile dimensions on desktop */}
-      <div className="min-h-screen w-full bg-slate-900 flex items-center justify-center">
-        <div className="w-full max-w-[430px] min-h-screen bg-background shadow-2xl relative overflow-hidden">
+      <div className="mobile-frame-outer">
+        <div className="mobile-frame-inner">
           <OnlineRequired>
             <AppInitializer>
               <AuthProvider>

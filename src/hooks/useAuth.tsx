@@ -182,15 +182,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     // CRITICAL: Safety timeout to prevent infinite loading
-    // If we have cached session, NEVER logout - just use cached data
-    // User will only be logged out when they explicitly click logout
+    // Reduced to 4 seconds for faster UX
     const loadingTimeout = setTimeout(() => {
       if (isMounted && authState === 'loading') {
         const hasCache = hasSessionMarker();
         
         if (hasCache) {
-          // NEVER logout if we have cache - user only logs out manually
-          console.log('[useAuth] Timeout but cache exists - keeping session alive');
           const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
           if (cachedUserId) {
             const cached = getCachedData(cachedUserId);
@@ -204,19 +201,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setSession(data.session);
                 setUser(data.session.user);
               }
-            }).catch(() => {
-              // Ignore - we're using cache
-            });
+            }).catch(() => {});
           } else {
             setAuthState('unauthenticated');
           }
         } else {
-          // No cache = never logged in, safe to set unauthenticated
-          console.log('[useAuth] No cache, setting unauthenticated');
           setAuthState('unauthenticated');
         }
       }
-    }, 12000); // 12 second timeout
+    }, 4000); // 4 second timeout - much faster
 
     const initializeAuth = async () => {
       // IMPORTANT: Set up auth state change listener FIRST
