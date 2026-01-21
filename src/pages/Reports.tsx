@@ -3,11 +3,14 @@ import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart3, Users, TrendingUp, Server, Calendar, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { BarChart3, Users, TrendingUp, Server, Calendar, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { startOfMonth, isBefore, startOfToday } from 'date-fns';
+import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 
 export default function Reports() {
   const { isAdmin } = useAuth();
+  const { isMoneyHidden, toggleMoneyVisibility, maskData } = usePrivacyMode();
 
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
@@ -64,11 +67,29 @@ export default function Reports() {
     },
   });
 
+  const formatCurrency = (value: number) => {
+    if (isMoneyHidden) {
+      return maskData(value, 'money');
+    }
+    return `R$ ${value.toFixed(2).replace('.', ',')}`;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Relatórios</h1>
-        <p className="text-muted-foreground">Visão geral do sistema</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Relatórios</h1>
+          <p className="text-muted-foreground">Visão geral do sistema</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleMoneyVisibility}
+          className="gap-2"
+        >
+          {isMoneyHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {isMoneyHidden ? 'Mostrar Valores' : 'Ocultar Valores'}
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -102,7 +123,7 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">
-              R$ {(stats?.monthlyRevenue || 0).toFixed(2).replace('.', ',')}
+              {formatCurrency(stats?.monthlyRevenue || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               {stats?.renewedThisMonth || 0} renovações este mês
@@ -117,7 +138,7 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-warning">
-              R$ {(stats?.totalServerCosts || 0).toFixed(2).replace('.', ',')}
+              {formatCurrency(stats?.totalServerCosts || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               {stats?.activeServers || 0} servidores ativos
@@ -137,7 +158,7 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-primary">
-              R$ {((stats?.monthlyRevenue || 0) - (stats?.totalServerCosts || 0)).toFixed(2).replace('.', ',')}
+              {formatCurrency((stats?.monthlyRevenue || 0) - (stats?.totalServerCosts || 0))}
             </div>
           </CardContent>
         </Card>
@@ -152,7 +173,7 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-success">
-              R$ {(stats?.totalRevenue || 0).toFixed(2).replace('.', ',')}
+              {formatCurrency(stats?.totalRevenue || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {stats?.paidClients || 0} clientes pagos × valor médio dos planos
