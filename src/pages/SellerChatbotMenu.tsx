@@ -69,6 +69,7 @@ export default function SellerChatbotMenu() {
   const [simulatorMessages, setSimulatorMessages] = useState<Message[]>([]);
   const [simulatorInput, setSimulatorInput] = useState('');
   const [currentNodeKey, setCurrentNodeKey] = useState('inicial');
+  const [isCopying, setIsCopying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Dialogs
@@ -639,9 +640,22 @@ export default function SellerChatbotMenu() {
                   <CardDescription>Organize os menus e submenus do chatbot</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={copyAdminMenu}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Copiar Menu do ADM
+                  <Button 
+                    variant="outline" 
+                    onClick={async () => {
+                      setIsCopying(true);
+                      await copyAdminMenu();
+                      setIsCopying(false);
+                      initSimulator();
+                    }}
+                    disabled={isCopying}
+                  >
+                    {isCopying ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {isCopying ? 'Copiando...' : 'Copiar Menu do ADM'}
                   </Button>
                   <Button onClick={() => openAddNode()}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -659,9 +673,22 @@ export default function SellerChatbotMenu() {
                     Crie seu primeiro menu ou copie a estrutura do ADM
                   </p>
                   <div className="flex gap-2 justify-center">
-                    <Button variant="outline" onClick={copyAdminMenu}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Copiar do ADM
+                    <Button 
+                      variant="outline" 
+                      onClick={async () => {
+                        setIsCopying(true);
+                        await copyAdminMenu();
+                        setIsCopying(false);
+                        initSimulator();
+                      }}
+                      disabled={isCopying}
+                    >
+                      {isCopying ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-2" />
+                      )}
+                      {isCopying ? 'Copiando...' : 'Copiar do ADM'}
                     </Button>
                     <Button onClick={() => openAddNode()}>
                       <Plus className="h-4 w-4 mr-2" />

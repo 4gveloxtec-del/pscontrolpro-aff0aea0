@@ -432,55 +432,361 @@ export function useSellerChatbotConfig() {
     return { success: true };
   };
 
-  // Copy admin menu to seller
-  const copyAdminMenu = async () => {
-    if (!user) return;
+  // Default menu template if ADM has no menu configured
+  const DEFAULT_MENU_TEMPLATE = [
+    {
+      node_key: 'inicial',
+      title: 'Menu Inicial',
+      content: `🤖 *Olá! Bem-vindo(a) à {empresa}!*
 
-    // Get admin menu nodes
-    const { data: adminNodes, error: fetchError } = await supabase
-      .from('admin_chatbot_config')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order');
+Como posso te ajudar hoje?
 
-    if (fetchError || !adminNodes || adminNodes.length === 0) {
-      toast.error('Nenhum menu do ADM encontrado');
-      return { error: fetchError?.message || 'No admin menu' };
+*1* - 📋 Ver planos e preços
+*2* - 🔧 Suporte técnico
+*3* - ❓ Dúvidas frequentes
+*4* - 📞 Falar com atendente
+
+_Digite o número da opção desejada ou * para voltar ao menu._`,
+      parent_key: null,
+      options: [
+        { key: '1', label: 'Ver planos', target: 'planos' },
+        { key: '2', label: 'Suporte', target: 'suporte' },
+        { key: '3', label: 'Dúvidas', target: 'duvidas' },
+        { key: '4', label: 'Atendente', target: 'atendente' },
+      ],
+      response_type: 'menu',
+      icon: '🏠',
+      sort_order: 0,
+    },
+    {
+      node_key: 'planos',
+      title: 'Planos e Preços',
+      content: `📋 *Nossos Planos*
+
+💎 *Mensal* - R$ {preco_mensal}
+✅ Acesso completo por 30 dias
+
+💰 *Trimestral* - R$ {preco_trimestral}
+✅ 3 meses + desconto especial
+
+🎯 *Anual* - R$ {preco_anual}
+✅ Melhor custo-benefício!
+
+*PIX:* {pix}
+
+_Após o pagamento, envie o comprovante aqui!_
+_Digite * para voltar ao menu._`,
+      parent_key: 'inicial',
+      options: [],
+      response_type: 'text',
+      icon: '💰',
+      sort_order: 1,
+    },
+    {
+      node_key: 'suporte',
+      title: 'Suporte Técnico',
+      content: `🔧 *Suporte Técnico*
+
+Como podemos ajudar?
+
+*1* - App não funciona
+*2* - Problemas de conexão
+*3* - Atualizar aplicativo
+*4* - Outros problemas
+
+_Digite * para voltar ao menu principal._`,
+      parent_key: 'inicial',
+      options: [
+        { key: '1', label: 'App não funciona', target: 'suporte_app' },
+        { key: '2', label: 'Conexão', target: 'suporte_conexao' },
+        { key: '3', label: 'Atualização', target: 'suporte_update' },
+        { key: '4', label: 'Outros', target: 'atendente' },
+      ],
+      response_type: 'menu',
+      icon: '🔧',
+      sort_order: 2,
+    },
+    {
+      node_key: 'duvidas',
+      title: 'Dúvidas Frequentes',
+      content: `❓ *Dúvidas Frequentes*
+
+*1* - Como instalar o app?
+*2* - Funciona em Smart TV?
+*3* - Quantos dispositivos posso usar?
+*4* - Como renovar?
+
+_Digite * para voltar ao menu principal._`,
+      parent_key: 'inicial',
+      options: [
+        { key: '1', label: 'Instalação', target: 'faq_instalacao' },
+        { key: '2', label: 'Smart TV', target: 'faq_tv' },
+        { key: '3', label: 'Dispositivos', target: 'faq_dispositivos' },
+        { key: '4', label: 'Renovação', target: 'faq_renovacao' },
+      ],
+      response_type: 'menu',
+      icon: '❓',
+      sort_order: 3,
+    },
+    {
+      node_key: 'atendente',
+      title: 'Falar com Atendente',
+      content: `📞 *Atendimento Humano*
+
+Um momento! Um atendente irá responder em breve.
+
+⏰ *Horário de atendimento:*
+Segunda a Sexta: 9h às 18h
+Sábado: 9h às 14h
+
+Aguarde, por favor! 🙏
+
+_Digite * para voltar ao menu._`,
+      parent_key: 'inicial',
+      options: [],
+      response_type: 'text',
+      icon: '📞',
+      sort_order: 4,
+    },
+    {
+      node_key: 'suporte_app',
+      title: 'App não funciona',
+      content: `🔧 *App não está funcionando?*
+
+Siga estas etapas:
+
+1️⃣ Feche o app completamente
+2️⃣ Limpe o cache do aplicativo
+3️⃣ Reinicie seu dispositivo
+4️⃣ Abra o app novamente
+
+Se o problema persistir, digite *4* para falar com um atendente.
+
+_Digite * para voltar ao menu principal._`,
+      parent_key: 'suporte',
+      options: [],
+      response_type: 'text',
+      icon: '📱',
+      sort_order: 1,
+    },
+    {
+      node_key: 'suporte_conexao',
+      title: 'Problemas de conexão',
+      content: `🌐 *Problemas de Conexão?*
+
+Verifique:
+
+✅ Sua internet está funcionando?
+✅ Velocidade mínima: 10 Mbps
+✅ Use cabo de rede se possível
+✅ Reinicie seu roteador
+
+Se o problema continuar, digite *4* para falar com suporte.
+
+_Digite * para voltar ao menu principal._`,
+      parent_key: 'suporte',
+      options: [],
+      response_type: 'text',
+      icon: '🌐',
+      sort_order: 2,
+    },
+    {
+      node_key: 'suporte_update',
+      title: 'Atualizar App',
+      content: `📲 *Como Atualizar o App*
+
+1️⃣ Desinstale a versão atual
+2️⃣ Baixe a versão mais recente
+3️⃣ Instale e faça login novamente
+
+Link de download: {link_app}
+
+_Digite * para voltar ao menu principal._`,
+      parent_key: 'suporte',
+      options: [],
+      response_type: 'text',
+      icon: '📲',
+      sort_order: 3,
+    },
+    {
+      node_key: 'faq_instalacao',
+      title: 'Como Instalar',
+      content: `📲 *Como Instalar*
+
+*Android:*
+1. Baixe o APK: {link_app}
+2. Habilite "Fontes desconhecidas"
+3. Instale o app
+
+*iOS:*
+Entre em contato para instruções específicas.
+
+*Smart TV:*
+Envie o modelo da sua TV que enviaremos o tutorial.
+
+_Digite * para voltar ao menu._`,
+      parent_key: 'duvidas',
+      options: [],
+      response_type: 'text',
+      icon: '📲',
+      sort_order: 1,
+    },
+    {
+      node_key: 'faq_tv',
+      title: 'Smart TV',
+      content: `📺 *Funciona em Smart TV?*
+
+✅ *Compatível:*
+- Samsung (Tizen)
+- LG (WebOS)
+- Android TV
+- Fire TV Stick
+- Chromecast
+- Apple TV
+
+Basta baixar o app na loja ou usar via USB.
+
+_Digite * para voltar ao menu._`,
+      parent_key: 'duvidas',
+      options: [],
+      response_type: 'text',
+      icon: '📺',
+      sort_order: 2,
+    },
+    {
+      node_key: 'faq_dispositivos',
+      title: 'Dispositivos',
+      content: `📱 *Quantos dispositivos posso usar?*
+
+Depende do seu plano:
+
+💎 *Básico:* 1 dispositivo
+💰 *Premium:* 2 dispositivos
+🎯 *Família:* 4 dispositivos
+
+Para alterar seu plano, entre em contato!
+
+_Digite * para voltar ao menu._`,
+      parent_key: 'duvidas',
+      options: [],
+      response_type: 'text',
+      icon: '📱',
+      sort_order: 3,
+    },
+    {
+      node_key: 'faq_renovacao',
+      title: 'Como Renovar',
+      content: `🔄 *Como Renovar*
+
+1️⃣ Escolha seu plano
+2️⃣ Faça o PIX para: {pix}
+3️⃣ Envie o comprovante aqui
+4️⃣ Aguarde a confirmação!
+
+⚡ Renovação em até 5 minutos!
+
+_Digite * para voltar ao menu._`,
+      parent_key: 'duvidas',
+      options: [],
+      response_type: 'text',
+      icon: '🔄',
+      sort_order: 4,
+    },
+  ];
+
+  // Copy admin menu to seller (or create default if none exists)
+  const copyAdminMenu = async (): Promise<{ success?: boolean; error?: string }> => {
+    if (!user) return { error: 'Not authenticated' };
+
+    try {
+      // Get admin menu nodes
+      const { data: adminNodes, error: fetchError } = await supabase
+        .from('admin_chatbot_config')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      let nodesToCopy = adminNodes;
+
+      // If no admin menu, use default template
+      if (fetchError || !adminNodes || adminNodes.length === 0) {
+        toast.info('Criando menu padrão (ADM ainda não configurou menu personalizado)');
+        nodesToCopy = DEFAULT_MENU_TEMPLATE as any;
+      }
+
+      // Delete existing seller menu
+      await supabase
+        .from('seller_chatbot_menu')
+        .delete()
+        .eq('seller_id', user.id);
+
+      // Copy nodes with seller_id
+      const sellerNodes = nodesToCopy!.map((node: any) => ({
+        seller_id: user.id,
+        node_key: node.node_key,
+        title: node.title,
+        content: node.content,
+        parent_key: node.parent_key,
+        options: node.options,
+        response_type: node.response_type || 'menu',
+        icon: node.icon || '📋',
+        sort_order: node.sort_order || 0,
+        is_active: true,
+        image_url: node.image_url || null,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('seller_chatbot_menu')
+        .insert(sellerNodes);
+
+      if (insertError) {
+        toast.error('Erro ao copiar menu: ' + insertError.message);
+        return { error: insertError.message };
+      }
+
+      // Create default variables if not exists (for menu template placeholders)
+      const defaultVariables = [
+        { key: 'empresa', value: 'Minha Empresa', description: 'Nome da sua empresa' },
+        { key: 'pix', value: 'seupix@email.com', description: 'Chave PIX para pagamentos' },
+        { key: 'preco_mensal', value: '30,00', description: 'Preço do plano mensal' },
+        { key: 'preco_trimestral', value: '75,00', description: 'Preço do plano trimestral' },
+        { key: 'preco_anual', value: '250,00', description: 'Preço do plano anual' },
+        { key: 'link_app', value: 'https://seulink.com/app', description: 'Link para download do app' },
+      ];
+
+      // Check existing variables and only insert missing ones
+      const { data: existingVars } = await supabase
+        .from('seller_chatbot_variables')
+        .select('variable_key')
+        .eq('seller_id', user.id);
+
+      const existingKeys = new Set((existingVars || []).map(v => v.variable_key));
+      
+      const newVariables = defaultVariables
+        .filter(v => !existingKeys.has(v.key))
+        .map(v => ({
+          seller_id: user.id,
+          variable_key: v.key,
+          variable_value: v.value,
+          description: v.description,
+          is_system: false,
+        }));
+
+      if (newVariables.length > 0) {
+        await supabase
+          .from('seller_chatbot_variables')
+          .insert(newVariables);
+        
+        await fetchVariables();
+      }
+
+      await fetchMenuNodes();
+      toast.success(`${nodesToCopy!.length} itens do menu copiados com sucesso!`);
+      return { success: true };
+    } catch (err: any) {
+      toast.error('Erro ao copiar menu');
+      return { error: err?.message || 'Unknown error' };
     }
-
-    // Delete existing seller menu
-    await supabase
-      .from('seller_chatbot_menu')
-      .delete()
-      .eq('seller_id', user.id);
-
-    // Copy nodes with seller_id
-    const sellerNodes = adminNodes.map(node => ({
-      seller_id: user.id,
-      node_key: node.node_key,
-      title: node.title,
-      content: node.content,
-      parent_key: node.parent_key,
-      options: node.options,
-      response_type: node.response_type || 'menu',
-      icon: node.icon || '📋',
-      sort_order: node.sort_order || 0,
-      is_active: true,
-      image_url: node.image_url,
-    }));
-
-    const { error: insertError } = await supabase
-      .from('seller_chatbot_menu')
-      .insert(sellerNodes);
-
-    if (insertError) {
-      toast.error('Erro ao copiar menu: ' + insertError.message);
-      return { error: insertError.message };
-    }
-
-    await fetchMenuNodes();
-    toast.success('Menu do ADM copiado com sucesso!');
-    return { success: true };
   };
 
   // Get node by key
