@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { clientId, sellerId } = await req.json();
+    const { clientId, sellerId, customMessage } = await req.json();
 
     if (!clientId || !sellerId) {
       return new Response(
@@ -382,26 +382,32 @@ Deno.serve(async (req) => {
     // MAC section only appears if there are MACs
     const macSection = allMacs.length > 0 ? `📱 *MAC(s) cadastrado(s):*\n${macsList}` : '';
     
-    const message = replaceVariables(template.message, {
-      nome: client.name,
-      empresa: sellerProfile?.company_name || sellerProfile?.full_name || '',
-      login: decryptedLogin,
-      senha: decryptedPassword,
-      login_plain: decryptedLogin,
-      senha_plain: decryptedPassword,
-      vencimento: formatDate(client.expiration_date),
-      valor: String(client.plan_price || 0),
-      plano: client.plan_name || '',
-      servidor: client.server_name || '',
-      pix: sellerProfile?.pix_key || '',
-      servico: client.category || 'IPTV',
-      mac: macSection,
-      macs: macSection,
-      // New dynamic filters
-      dispositivo: client.device || '',
-      apps: appsText,
-      links: linksText,
-    });
+    // Use custom message if provided, otherwise use template with variable replacement
+    let message: string;
+    if (customMessage && typeof customMessage === 'string' && customMessage.trim()) {
+      message = customMessage;
+      console.log('[send-welcome-message] Using custom message from frontend');
+    } else {
+      message = replaceVariables(template.message, {
+        nome: client.name,
+        empresa: sellerProfile?.company_name || sellerProfile?.full_name || '',
+        login: decryptedLogin,
+        senha: decryptedPassword,
+        login_plain: decryptedLogin,
+        senha_plain: decryptedPassword,
+        vencimento: formatDate(client.expiration_date),
+        valor: String(client.plan_price || 0),
+        plano: client.plan_name || '',
+        servidor: client.server_name || '',
+        pix: sellerProfile?.pix_key || '',
+        servico: client.category || 'IPTV',
+        mac: macSection,
+        macs: macSection,
+        dispositivo: client.device || '',
+        apps: appsText,
+        links: linksText,
+      });
+    }
 
     console.log(`[SELLER][${sellerInstance.instance_name}] Sending welcome clientId=${clientId}`);
 

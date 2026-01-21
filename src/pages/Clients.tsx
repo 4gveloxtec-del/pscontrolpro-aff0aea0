@@ -54,6 +54,7 @@ import { PaginationControls } from '@/components/PaginationControls';
 import { BulkLoyaltyMessage } from '@/components/BulkLoyaltyMessage';
 import { ExpirationDaySummary } from '@/components/ExpirationDaySummary';
 import { useResellerApps } from '@/components/ResellerAppsManager';
+import { WelcomeMessagePreview } from '@/components/WelcomeMessagePreview';
 
 // Interface for MAC devices
 interface MacDevice {
@@ -208,6 +209,10 @@ export default function Clients() {
   const isBulkMessaging = bulkMessageQueue.length > 0;
   // State for additional servers (dynamic)
   const [additionalServers, setAdditionalServers] = useState<{ server_id: string; server_name: string; login: string; password: string }[]>([]);
+  // State for welcome message preview
+  const [showWelcomePreview, setShowWelcomePreview] = useState(false);
+  const [pendingClientData, setPendingClientData] = useState<{ data: Record<string, unknown>; screens: string } | null>(null);
+  const [customWelcomeMessage, setCustomWelcomeMessage] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -901,12 +906,13 @@ export default function Clients() {
         })();
       }
       
-      // Send welcome message via WhatsApp API in background
-      if (insertedData?.id && formData.phone) {
+      // Send welcome message via WhatsApp API in background (only if user confirmed)
+      if (insertedData?.id && formData.phone && customWelcomeMessage !== null) {
         supabase.functions.invoke('send-welcome-message', {
           body: {
             clientId: insertedData.id,
             sellerId: user!.id,
+            customMessage: customWelcomeMessage || undefined,
           },
         }).then(({ data: welcomeData, error: welcomeError }) => {
           if (welcomeError) {
@@ -1511,13 +1517,40 @@ export default function Clients() {
     };
 
     if (editingClient) {
+      // Edit mode - save directly without welcome message preview
+      setCustomWelcomeMessage(null);
       updateMutation.mutate({ id: editingClient.id, data: data as Partial<Client> });
     } else {
-      createMutation.mutate({
-        ...(data as Parameters<typeof createMutation.mutate>[0]),
-        screens,
-      });
+      // Create mode - show welcome message preview if phone is provided
+      if (formData.phone) {
+        setPendingClientData({ data, screens });
+        setShowWelcomePreview(true);
+      } else {
+        // No phone - save directly without welcome message
+        setCustomWelcomeMessage(null);
+        createMutation.mutate({
+          ...(data as Parameters<typeof createMutation.mutate>[0]),
+          screens,
+        });
+      }
     }
+  };
+
+  // Handle confirmation from welcome message preview
+  const handleWelcomeConfirm = (message: string | null, sendWelcome: boolean) => {
+    if (!pendingClientData) return;
+    
+    // Set the custom message (null means don't send, string means send with this content)
+    setCustomWelcomeMessage(sendWelcome ? (message || '') : null);
+    setShowWelcomePreview(false);
+    
+    // Create the client
+    createMutation.mutate({
+      ...(pendingClientData.data as Parameters<typeof createMutation.mutate>[0]),
+      screens: pendingClientData.screens,
+    });
+    
+    setPendingClientData(null);
   };
 
   const handleEdit = async (client: Client) => {
@@ -3887,6 +3920,33 @@ export default function Clients() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Welcome Message Preview Dialog */}
+      <WelcomeMessagePreview
+        open={showWelcomePreview}
+        onOpenChange={(open) => {
+          setShowWelcomePreview(open);
+          if (!open) {
+            setPendingClientData(null);
+          }
+        }}
+        formData={{
+          name: formData.name,
+          phone: formData.phone,
+          login: formData.login,
+          password: formData.password,
+          expiration_date: formData.expiration_date,
+          plan_name: formData.plan_name,
+          plan_price: formData.plan_price,
+          server_name: formData.server_name,
+          category: formData.category,
+          device: formData.device,
+          gerencia_app_mac: formData.gerencia_app_mac,
+          gerencia_app_devices: formData.gerencia_app_devices,
+        }}
+        onConfirm={handleWelcomeConfirm}
+        isLoading={createMutation.isPending}
+      />
     </div>
   );
 }
