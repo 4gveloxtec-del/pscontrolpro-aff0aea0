@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import { toast } from 'sonner';
 import { Plus, Package, DollarSign, Clock, Edit, Trash2, Monitor, RefreshCw, Crown, PlusCircle, X, Sparkles, Box } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GenerateDefaultData } from '@/components/GenerateDefaultData';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Plan {
   id: string;
@@ -55,6 +57,7 @@ type DurationFilter = 'all' | 30 | 90 | 180 | 365;
 
 export default function Plans() {
   const { user, isAdmin, profile } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
@@ -794,9 +797,13 @@ export default function Plans() {
                     size="icon"
                     className="h-6 w-6 text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm(`Remover o produto "${product.name}"? Os planos e templates não serão excluídos.`)) {
-                        deleteProductMutation.mutate(product.id);
-                      }
+                      confirm({
+                        title: 'Remover produto',
+                        description: `Remover o produto "${product.name}"? Os planos e templates não serão excluídos.`,
+                        confirmText: 'Remover',
+                        variant: 'destructive',
+                        onConfirm: () => deleteProductMutation.mutate(product.id),
+                      });
                     }}
                   >
                     <X className="h-3 w-3" />
@@ -957,9 +964,13 @@ export default function Plans() {
                     size="icon"
                     className="text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Tem certeza que deseja excluir este plano?')) {
-                        deleteMutation.mutate(plan.id);
-                      }
+                      confirm({
+                        title: 'Excluir plano',
+                        description: `Tem certeza que deseja excluir o plano "${plan.name}"?`,
+                        confirmText: 'Excluir',
+                        variant: 'destructive',
+                        onConfirm: () => deleteMutation.mutate(plan.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -970,6 +981,9 @@ export default function Plans() {
           ))}
         </div>
       )}
+
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

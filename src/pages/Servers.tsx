@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BulkImportServers } from '@/components/BulkImportServers';
 import { ServerImageUpload } from '@/components/ServerImageUpload';
 import { AdminServerTemplatesModal } from '@/components/AdminServerTemplatesModal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface ServerData {
   id: string;
@@ -68,6 +70,7 @@ const normalizeServerName = (name: string): string => {
 
 export default function Servers() {
   const { user, isAdmin } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<ServerData | null>(null);
@@ -989,9 +992,13 @@ export default function Servers() {
                       size="icon"
                       className="text-destructive hover:text-destructive"
                       onClick={() => {
-                        if (confirm('Tem certeza que deseja excluir este servidor?')) {
-                          deleteMutation.mutate(server.id);
-                        }
+                        confirm({
+                          title: 'Excluir servidor',
+                          description: `Tem certeza que deseja excluir o servidor "${server.name}"? Esta ação não pode ser desfeita.`,
+                          confirmText: 'Excluir',
+                          variant: 'destructive',
+                          onConfirm: () => deleteMutation.mutate(server.id),
+                        });
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -1035,6 +1042,9 @@ export default function Servers() {
         onOpenChange={setShowAdminTemplatesModal}
         onSelectTemplate={handleSelectAdminTemplate}
       />
+
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

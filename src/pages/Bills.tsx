@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ import { Plus, CreditCard, Calendar, User, Phone, DollarSign, Check, Edit, Trash
 import { format, isBefore, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Bill {
   id: string;
@@ -40,6 +42,7 @@ type FilterType = 'all' | 'pending' | 'paid' | 'overdue';
 
 export default function Bills() {
   const { user } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
@@ -434,9 +437,13 @@ export default function Bills() {
                           size="icon"
                           className="text-destructive hover:text-destructive"
                           onClick={() => {
-                            if (confirm('Tem certeza que deseja excluir esta conta?')) {
-                              deleteMutation.mutate(bill.id);
-                            }
+                            confirm({
+                              title: 'Excluir conta',
+                              description: `Tem certeza que deseja excluir esta conta de "${bill.recipient_name}"?`,
+                              confirmText: 'Excluir',
+                              variant: 'destructive',
+                              onConfirm: () => deleteMutation.mutate(bill.id),
+                            });
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -450,6 +457,9 @@ export default function Bills() {
           })}
         </div>
       )}
+
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

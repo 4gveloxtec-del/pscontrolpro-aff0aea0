@@ -7,6 +7,7 @@ import { useSentMessages } from '@/hooks/useSentMessages';
 import { useRenewalMutation } from '@/hooks/useRenewalMutation';
 import { useClientValidation } from '@/hooks/useClientValidation';
 import { usePerformanceOptimization } from '@/hooks/usePerformanceOptimization';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ import { BulkLoyaltyMessage } from '@/components/BulkLoyaltyMessage';
 import { ExpirationDaySummary } from '@/components/ExpirationDaySummary';
 import { useResellerApps } from '@/components/ResellerAppsManager';
 import { WelcomeMessagePreview } from '@/components/WelcomeMessagePreview';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 // Interface for MAC devices
 interface MacDevice {
@@ -159,6 +161,7 @@ export default function Clients() {
   const { isSent, getSentInfo, clearSentMark, sentCount, clearAllSentMarks } = useSentMessages();
   const { renewClient: executeRenewal, isRenewing, isPending: isRenewalPending, calculateNewExpiration } = useRenewalMutation(user?.id);
   const { validateForCreate, validateForUpdate, validateForDelete, acquireLock, releaseLock, isLocked } = useClientValidation();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -3024,10 +3027,16 @@ export default function Clients() {
                 size="sm"
                 className="h-7 text-xs text-muted-foreground hover:text-destructive"
                 onClick={() => {
-                  if (confirm('Limpar todas as marcações de mensagens enviadas?')) {
-                    clearAllSentMarks();
-                    toast.success('Marcações limpas');
-                  }
+                  confirm({
+                    title: 'Limpar marcações',
+                    description: 'Limpar todas as marcações de mensagens enviadas?',
+                    confirmText: 'Limpar',
+                    variant: 'warning',
+                    onConfirm: () => {
+                      clearAllSentMarks();
+                      toast.success('Marcações limpas');
+                    },
+                  });
                 }}
               >
                 Limpar
@@ -3042,9 +3051,13 @@ export default function Clients() {
               size="sm"
               className="gap-1.5 text-xs h-8 border-warning/50 text-warning hover:bg-warning/10"
               onClick={() => {
-                if (confirm(`Arquivar ${expiredCalledClients.length} cliente${expiredCalledClients.length > 1 ? 's' : ''} vencido${expiredCalledClients.length > 1 ? 's' : ''} já chamado${expiredCalledClients.length > 1 ? 's' : ''}?`)) {
-                  archiveCalledExpiredMutation.mutate(expiredCalledClients.map(c => c.id));
-                }
+                confirm({
+                  title: 'Arquivar clientes vencidos',
+                  description: `Arquivar ${expiredCalledClients.length} cliente${expiredCalledClients.length > 1 ? 's' : ''} vencido${expiredCalledClients.length > 1 ? 's' : ''} já chamado${expiredCalledClients.length > 1 ? 's' : ''}?`,
+                  confirmText: 'Arquivar',
+                  variant: 'warning',
+                  onConfirm: () => archiveCalledExpiredMutation.mutate(expiredCalledClients.map(c => c.id)),
+                });
               }}
               disabled={archiveCalledExpiredMutation.isPending}
             >
@@ -3687,9 +3700,13 @@ export default function Clients() {
                           size="sm"
                           className="h-7 text-xs text-destructive hover:text-destructive"
                           onClick={() => {
-                            if (confirm('Tem certeza que deseja EXCLUIR PERMANENTEMENTE este cliente?')) {
-                              deleteMutation.mutate(client.id);
-                            }
+                            confirm({
+                              title: 'Excluir cliente permanentemente',
+                              description: `Tem certeza que deseja EXCLUIR PERMANENTEMENTE o cliente "${client.name}"? Esta ação não pode ser desfeita.`,
+                              confirmText: 'Excluir',
+                              variant: 'destructive',
+                              onConfirm: () => deleteMutation.mutate(client.id),
+                            });
                           }}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -3711,9 +3728,13 @@ export default function Clients() {
                           size="sm"
                           className="h-7 text-xs gap-1 text-warning hover:text-warning"
                           onClick={() => {
-                            if (confirm('Mover cliente para a lixeira?')) {
-                              archiveMutation.mutate(client.id);
-                            }
+                            confirm({
+                              title: 'Arquivar cliente',
+                              description: `Mover "${client.name}" para a lixeira? Você poderá restaurá-lo depois.`,
+                              confirmText: 'Arquivar',
+                              variant: 'warning',
+                              onConfirm: () => archiveMutation.mutate(client.id),
+                            });
                           }}
                           title="Mover para lixeira"
                         >
@@ -3724,9 +3745,13 @@ export default function Clients() {
                           size="sm"
                           className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
                           onClick={() => {
-                            if (confirm('Tem certeza que deseja excluir este cliente permanentemente?')) {
-                              deleteMutation.mutate(client.id);
-                            }
+                            confirm({
+                              title: 'Excluir cliente permanentemente',
+                              description: `Tem certeza que deseja excluir "${client.name}" permanentemente? Esta ação não pode ser desfeita.`,
+                              confirmText: 'Excluir',
+                              variant: 'destructive',
+                              onConfirm: () => deleteMutation.mutate(client.id),
+                            });
                           }}
                           title="Excluir permanentemente"
                         >
@@ -3947,6 +3972,9 @@ export default function Clients() {
         onConfirm={handleWelcomeConfirm}
         isLoading={createMutation.isPending}
       />
+
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

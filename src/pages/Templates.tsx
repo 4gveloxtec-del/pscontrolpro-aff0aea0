@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import { Plus, MessageSquare, Edit, Trash2, Copy, Info, Tv, Wifi, Crown, Tag, Se
 import { cn } from '@/lib/utils';
 import { GenerateDefaultData } from '@/components/GenerateDefaultData';
 import { ensureTemplateExistsOrCreate } from '@/lib/idempotency';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Template {
   id: string;
@@ -119,6 +121,7 @@ const sellerVariables = [
 
 export default function Templates() {
   const { user, isAdmin, profile } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -542,9 +545,13 @@ const getCategoryIcon = (name: string) => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (confirm(`Excluir categoria "${cat.name}"?`)) {
-                        deleteCategoryMutation.mutate(cat.id);
-                      }
+                      confirm({
+                        title: 'Excluir categoria',
+                        description: `Excluir a categoria "${cat.name}"? Os templates não serão excluídos.`,
+                        confirmText: 'Excluir',
+                        variant: 'destructive',
+                        onConfirm: () => deleteCategoryMutation.mutate(cat.id),
+                      });
                     }}
                     className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
                     title="Excluir categoria"
@@ -752,9 +759,13 @@ const getCategoryIcon = (name: string) => {
                     size="icon"
                     className="text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Tem certeza que deseja excluir este template?')) {
-                        deleteMutation.mutate(template.id);
-                      }
+                      confirm({
+                        title: 'Excluir template',
+                        description: `Tem certeza que deseja excluir o template "${template.name}"?`,
+                        confirmText: 'Excluir',
+                        variant: 'destructive',
+                        onConfirm: () => deleteMutation.mutate(template.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -765,6 +776,9 @@ const getCategoryIcon = (name: string) => {
           ))}
         </div>
       )}
+
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import { Plus, Tag, Percent, DollarSign, Calendar, Edit, Trash2, Copy } from 'lu
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Coupon {
   id: string;
@@ -44,6 +46,7 @@ interface Coupon {
 
 export default function Coupons() {
   const { user } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
@@ -423,9 +426,13 @@ export default function Coupons() {
                     size="icon"
                     className="text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Tem certeza que deseja excluir este cupom?')) {
-                        deleteMutation.mutate(coupon.id);
-                      }
+                      confirm({
+                        title: 'Excluir cupom',
+                        description: `Tem certeza que deseja excluir o cupom "${coupon.code}"?`,
+                        confirmText: 'Excluir',
+                        variant: 'destructive',
+                        onConfirm: () => deleteMutation.mutate(coupon.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -436,6 +443,9 @@ export default function Coupons() {
           ))}
         </div>
       )}
+
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }
