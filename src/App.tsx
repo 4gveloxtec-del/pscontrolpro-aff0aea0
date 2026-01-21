@@ -45,11 +45,6 @@ const AdminServerTemplates = lazy(() => import("./pages/AdminServerTemplates"));
 const WhatsAppAutomation = lazy(() => import("./pages/WhatsAppAutomation"));
 const MessageHistory = lazy(() => import("./pages/MessageHistory"));
 const Tutorials = lazy(() => import("./pages/Tutorials"));
-const Chatbot = lazy(() => import("./pages/Chatbot"));
-const ChatbotLogs = lazy(() => import("./pages/ChatbotLogs"));
-const ChatbotV3 = lazy(() => import("./pages/ChatbotV3"));
-const AdminChatbot = lazy(() => import("./pages/AdminChatbot"));
-const SellerChatbotMenu = lazy(() => import("./pages/SellerChatbotMenu"));
 const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -183,14 +178,12 @@ const AppRoutes = () => {
         }>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/sellers" element={<Sellers />} />
-          <Route path="/admin/chatbot" element={<AdminChatbot />} />
           <Route path="/admin/reports" element={<Reports />} />
           <Route path="/admin/backup" element={<Backup />} />
           <Route path="/admin/server-icons" element={<ServerIcons />} />
           <Route path="/admin/server-templates" element={<AdminServerTemplates />} />
           <Route path="/admin/tutorials" element={<Tutorials />} />
           <Route path="/admin/system-health" element={<SystemHealth />} />
-          <Route path="/admin/chatbot-logs" element={<ChatbotLogs />} />
           <Route path="/admin/settings" element={<Settings />} />
         </Route>
         {/* ============ FIM ADMIN PWA ROUTES ============ */}
@@ -207,9 +200,6 @@ const AppRoutes = () => {
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
-          <Route path="/chatbot" element={<Chatbot />} />
-          <Route path="/chatbot-v3" element={<ChatbotV3 />} />
-          <Route path="/seller-chatbot-menu" element={<SellerChatbotMenu />} />
           
           {/* Seller-only routes (revendedor) */}
           <Route path="/clients" element={<Clients />} />
