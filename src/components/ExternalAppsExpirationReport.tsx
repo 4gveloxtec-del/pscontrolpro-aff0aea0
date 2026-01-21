@@ -58,7 +58,19 @@ export function ExternalAppsExpirationReport() {
         .order('expiration_date', { ascending: true });
 
       if (error) throw error;
-      return (data || []) as unknown as ExternalAppExpiration[];
+      const list = ((data || []) as unknown as ExternalAppExpiration[]);
+
+      // Etapa 4 (UI): evitar duplicidade visual (mesmo client + app + vencimento)
+      const seen = new Set<string>();
+      const deduped: ExternalAppExpiration[] = [];
+      for (const item of list) {
+        const key = `${item.client_id}:${item.external_app_id}:${item.expiration_date}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(item);
+      }
+
+      return deduped;
     },
     enabled: !!user?.id,
   });

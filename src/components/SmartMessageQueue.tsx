@@ -92,7 +92,18 @@ export function SmartMessageQueue() {
         .not('phone', 'is', null);
 
       if (error) throw error;
-      return data as Client[];
+      const list = (data as Client[] | null) || [];
+
+      // Etapa 4 (UI): evitar duplicidade visual por phone dentro do seller
+      const seen = new Set<string>();
+      const deduped: Client[] = [];
+      for (const c of list) {
+        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(c);
+      }
+      return deduped;
     },
     enabled: !!user?.id,
   });
@@ -109,7 +120,8 @@ export function SmartMessageQueue() {
         .gte('sent_at', today);
 
       if (error) throw error;
-      return data.map(n => n.client_id);
+      // Etapa 4 (UI): garantir unicidade por client_id no dia
+      return Array.from(new Set((data || []).map(n => n.client_id)));
     },
     enabled: !!user?.id,
   });

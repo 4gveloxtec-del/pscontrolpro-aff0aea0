@@ -175,6 +175,7 @@ export function FloatingNotifications() {
       
       const todayDate = startOfToday();
       const result: PendingPaymentClient[] = [];
+      const seen = new Set<string>();
       
       for (const client of data || []) {
         if (!client.expected_payment_date || !client.pending_amount) continue;
@@ -182,6 +183,9 @@ export function FloatingNotifications() {
         
         // Show payments due today, tomorrow, or overdue (within -7 days)
         if (daysRemaining <= 1 && daysRemaining >= -7) {
+          const key = client.phone ? `phone:${String(client.phone).trim()}` : `id:${client.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
           result.push({
             id: client.id,
             name: client.name,
