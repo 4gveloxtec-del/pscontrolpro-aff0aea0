@@ -460,16 +460,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    console.log('[useAuth] Signing out...');
+    
+    // Clear all cached data FIRST
     clearCachedData();
-    setAuthState('loading');
     
-    await supabase.auth.signOut();
-    
+    // Clear state immediately
     setUser(null);
     setSession(null);
     setProfile(null);
     setRole(null);
     setAuthState('unauthenticated');
+    
+    // Then sign out from Supabase
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('[useAuth] Error during signOut:', error);
+    }
+    
+    console.log('[useAuth] Signed out successfully');
   }, []);
 
   const updatePassword = useCallback(async (newPassword: string) => {
