@@ -1979,62 +1979,44 @@ Deno.serve(async (req) => {
       (typeof fromMeRaw === "string" && fromMeRaw.toLowerCase().trim() === "true");
     const pushName = message.pushName || "";
 
-    // Check for admin mode
-    let rawUrl = req.url;
-    if (rawUrl.includes("%3F")) {
-      rawUrl = rawUrl.replace(/%3F/g, "?").replace(/%26/g, "&").replace(/%3D/g, "=");
-    }
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(rawUrl);
-    } catch {
-      parsedUrl = new URL(rawUrl, "https://placeholder.co");
-    }
-    const isAdminModeParam = parsedUrl.searchParams.get("admin") === "true";
-
-    // Auto-detect admin instance
-    let isAdminInstance = false;
+    // ============================================================
+    // ROUTING BY INSTANCE (ADMIN vs SELLER)
+    // RULE:
+    // - Admin messages must ONLY go through admin flow
+    // - Seller messages must ONLY go through seller flow
+    // - Query param must NOT override routing (prevents cross-processing)
+    // ============================================================
     const currentInstanceLower = instanceName.toLowerCase().trim();
     const isSellerPrefixedInstance = currentInstanceLower.startsWith("seller_");
-    
-    if (!isAdminModeParam && !isSellerPrefixedInstance) {
-      const { data: globalCfg } = await supabase
-        .from("whatsapp_global_config")
-        .select("instance_name, admin_user_id")
-        .eq("is_active", true)
-        .maybeSingle();
-      
-      if (globalCfg?.instance_name) {
-        const globalInstanceLower = globalCfg.instance_name.toLowerCase().trim();
-        if (globalInstanceLower === currentInstanceLower) {
-          isAdminInstance = true;
-        }
-      }
-      
-      if (!isAdminInstance && !globalCfg?.instance_name) {
-        const { data: adminRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", "admin");
-        
-        if (adminRoles && adminRoles.length > 0) {
-          const adminUserIds = adminRoles.map(r => r.user_id);
-          
-          const { data: adminInstance } = await supabase
-            .from("whatsapp_seller_instances")
-            .select("seller_id, instance_name")
-            .in("seller_id", adminUserIds)
-            .ilike("instance_name", instanceName)
-            .maybeSingle();
-          
-          if (adminInstance) {
-            isAdminInstance = true;
-          }
-        }
-      }
+
+    // Load global config once (also used later by both flows)
+    const { data: globalConfigData } = await supabase
+      .from("whatsapp_global_config")
+      .select("*")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!globalConfigData) {
+      return new Response(JSON.stringify({ status: "ignored", reason: "API not active" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const isAdminMode = isAdminModeParam || isAdminInstance;
+    const globalConfig: GlobalConfig = globalConfigData as GlobalConfig;
+    const adminInstanceLower = (globalConfigData as any)?.instance_name
+      ? String((globalConfigData as any).instance_name).toLowerCase().trim()
+      : "";
+
+    // Determine owner_type strictly by instance name
+    const ownerType: "admin" | "seller" =
+      !isSellerPrefixedInstance && adminInstanceLower && adminInstanceLower === currentInstanceLower
+        ? "admin"
+        : "seller";
+
+    // TEMP LOG (validation)
+    console.log(`[WebhookRouter] instance=${instanceName} ownerType=${ownerType}`);
+
+    const isAdminMode = ownerType === "admin";
 
     // Process admin chatbot
     if (isAdminMode) {
@@ -2053,21 +2035,9 @@ Deno.serve(async (req) => {
 
       const phone = extractPhone(remoteJid);
 
-      const { data: globalConfigData } = await supabase
-        .from("whatsapp_global_config")
-        .select("*")
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (!globalConfigData) {
-        return new Response(JSON.stringify({ status: "ignored", reason: "API not active" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
       const result = await processAdminChatbotMessage(
         supabase,
-        globalConfigData as GlobalConfig,
+        globalConfig,
         instanceName,
         phone,
         messageText,
@@ -2079,20 +2049,7 @@ Deno.serve(async (req) => {
       });
     }
     
-    // Get global config for reseller
-    const { data: globalConfigData } = await supabase
-      .from("whatsapp_global_config")
-      .select("*")
-      .eq("is_active", true)
-      .maybeSingle();
-    
-    if (!globalConfigData) {
-      return new Response(JSON.stringify({ status: "ignored", reason: "API not active" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    
-    const globalConfig: GlobalConfig = globalConfigData;
+    // Seller flow uses the same globalConfig already loaded above
     
     // Find seller by instance - multiple strategies
     const instanceNameLower = instanceName.toLowerCase().trim();
