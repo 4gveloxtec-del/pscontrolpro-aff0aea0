@@ -1,8 +1,9 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, startOfToday, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useOnce } from '@/hooks/useOnce';
 
 const LAST_PAYMENT_CHECK_KEY = 'last_payment_notification_check';
 const NOTIFICATION_PREF_KEY = 'push_notifications_enabled';
@@ -148,9 +149,13 @@ export function usePaymentNotifications() {
     }
   }, [user?.id]);
 
-  // Check on mount and every hour
-  useEffect(() => {
+  // Check on mount - runs only once per session
+  const initRef = useRef(false);
+  useOnce(() => {
     if (!user?.id || !isSeller) return;
+
+    console.log('[usePaymentNotifications] Inicialização única executada');
+    initRef.current = true;
 
     // Initial check after 5 seconds (after expiration notifications)
     const initialTimeout = setTimeout(checkPayments, 5000);
@@ -159,10 +164,11 @@ export function usePaymentNotifications() {
     const interval = setInterval(checkPayments, 60 * 60 * 1000);
 
     return () => {
+      console.log('[usePaymentNotifications] Cleanup executado');
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [user?.id, isSeller, checkPayments]);
+  });
 
   return {
     checkPayments,

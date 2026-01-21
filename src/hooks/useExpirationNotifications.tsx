@@ -1,7 +1,8 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, startOfToday } from 'date-fns';
+import { useOnce } from '@/hooks/useOnce';
 
 const LAST_CHECK_KEY = 'last_expiration_notification_check';
 const NOTIFICATION_PREF_KEY = 'push_notifications_enabled';
@@ -110,9 +111,13 @@ export function useExpirationNotifications() {
     }
   }, [user?.id, isSeller, isNotificationsEnabled, showExpirationNotification]);
 
-  // Check on mount and every hour
-  useEffect(() => {
+  // Check on mount - runs only once per session
+  const initRef = useRef(false);
+  useOnce(() => {
     if (!user?.id || !isSeller) return;
+    
+    console.log('[useExpirationNotifications] Inicialização única executada');
+    initRef.current = true;
 
     // Initial check after 3 seconds
     const initialTimeout = setTimeout(checkExpirations, 3000);
@@ -121,10 +126,11 @@ export function useExpirationNotifications() {
     const interval = setInterval(checkExpirations, 60 * 60 * 1000);
 
     return () => {
+      console.log('[useExpirationNotifications] Cleanup executado');
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [user?.id, isSeller, checkExpirations]);
+  });
 
   return {
     checkExpirations,

@@ -1,7 +1,8 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, startOfToday } from 'date-fns';
+import { useOnce } from '@/hooks/useOnce';
 
 const LAST_BILLS_CHECK_KEY = 'last_bills_notification_check';
 const NOTIFICATION_PREF_KEY = 'push_notifications_enabled';
@@ -175,9 +176,13 @@ export function useBillsNotifications() {
     }
   }, [user?.id, isSeller, isNotificationsEnabled, showBillsNotification, notificationDays]);
 
-  // Verificar ao montar e a cada hora
-  useEffect(() => {
+  // Verificar ao montar - executa apenas uma vez por sessão
+  const initRef = useRef(false);
+  useOnce(() => {
     if (!user?.id || !isSeller) return;
+
+    console.log('[useBillsNotifications] Inicialização única executada');
+    initRef.current = true;
 
     // Verificação inicial após 7 segundos (depois das outras notificações)
     const initialTimeout = setTimeout(checkBills, 7000);
@@ -186,10 +191,11 @@ export function useBillsNotifications() {
     const interval = setInterval(checkBills, 60 * 60 * 1000);
 
     return () => {
+      console.log('[useBillsNotifications] Cleanup executado');
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [user?.id, isSeller, checkBills]);
+  });
 
   return {
     checkBills,
