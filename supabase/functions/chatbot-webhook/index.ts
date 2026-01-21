@@ -383,14 +383,16 @@ function canRespondAdmin(
 /**
  * Detect if user input is a flow navigation command
  * - Numbers (1, 2, 3, etc.) = navigating menu options
- * - "*", "voltar", "menu", "0" = returning to main menu
+ * - "*", "voltar", "menu", "0", "inicio", "início" = returning to main menu
  * - Emoji numbers (1️⃣, 2️⃣, etc.) = navigating menu options
+ * - Text numbers (um, dois, etc.) = navigating menu options
  */
 function isFlowNavigationInput(input: string): boolean {
   const normalizedInput = input.toLowerCase().trim();
   
-  // Return to menu commands
-  if (["*", "voltar", "menu", "0"].includes(normalizedInput)) {
+  // Return to menu commands - EXPANDED with more synonyms
+  const menuCommands = ["*", "voltar", "menu", "0", "inicio", "início", "começar", "reiniciar", "sair", "#"];
+  if (menuCommands.includes(normalizedInput)) {
     return true;
   }
   
@@ -399,19 +401,49 @@ function isFlowNavigationInput(input: string): boolean {
     return true;
   }
   
-  // Emoji numbers
-  const emojiNumbers = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"];
+  // Emoji numbers - check if contains ANY emoji number
+  const emojiNumbers = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "0️⃣"];
   if (emojiNumbers.some(e => normalizedInput.includes(e))) {
     return true;
   }
   
-  // Text numbers
-  const textNumbers = ["um", "dois", "tres", "três", "quatro", "cinco", "seis", "sete", "oito", "nove"];
+  // Text numbers in Portuguese and English
+  const textNumbers = [
+    "um", "dois", "tres", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "zero",
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "zero"
+  ];
   if (textNumbers.includes(normalizedInput)) {
     return true;
   }
   
   return false;
+}
+
+/**
+ * Check if input is a global trigger (confirmation, help, etc.)
+ */
+function isGlobalTrigger(input: string): { isGlobal: boolean; action: string } {
+  const normalizedInput = input.toLowerCase().trim();
+  
+  // Confirmation triggers
+  const confirmTriggers = ["confirmar", "confirmo", "confirmado", "sim", "ok", "certo", "pode", "fechado", "fechar"];
+  if (confirmTriggers.includes(normalizedInput)) {
+    return { isGlobal: true, action: "confirm" };
+  }
+  
+  // Help triggers
+  const helpTriggers = ["ajuda", "help", "socorro", "?"];
+  if (helpTriggers.includes(normalizedInput)) {
+    return { isGlobal: true, action: "help" };
+  }
+  
+  // Cancel triggers
+  const cancelTriggers = ["cancelar", "cancela", "nao", "não", "desistir"];
+  if (cancelTriggers.includes(normalizedInput)) {
+    return { isGlobal: true, action: "cancel" };
+  }
+  
+  return { isGlobal: false, action: "" };
 }
 
 // Helper to find main/initial node
@@ -444,8 +476,9 @@ function processAdminInput(
   // Get main node (inicial or first available)
   const mainNode = findMainNode(nodes);
 
-  // Check for return to main menu
-  if (normalizedInput === "*" || normalizedInput === "voltar" || normalizedInput === "menu" || normalizedInput === "0") {
+  // Check for return to main menu - EXPANDED with more synonyms
+  const menuCommands = ["*", "voltar", "menu", "0", "inicio", "início", "começar", "reiniciar", "#"];
+  if (menuCommands.includes(normalizedInput)) {
     return { nextNode: mainNode, message: mainNode?.content || "" };
   }
 
@@ -454,24 +487,34 @@ function processAdminInput(
     return { nextNode: mainNode, message: mainNode?.content || "" };
   }
 
-  // Input mappings for emoji numbers and text
+  // Input mappings for emoji numbers and text - EXPANDED
   const inputMappings: Record<string, string> = {
-    "1️⃣": "1", "um": "1", "one": "1",
-    "2️⃣": "2", "dois": "2", "two": "2",
-    "3️⃣": "3", "tres": "3", "três": "3", "three": "3",
-    "4️⃣": "4", "quatro": "4", "four": "4",
-    "5️⃣": "5", "cinco": "5", "five": "5",
-    "6️⃣": "6", "seis": "6", "six": "6",
-    "7️⃣": "7", "sete": "7", "seven": "7",
-    "8️⃣": "8", "oito": "8", "eight": "8",
-    "9️⃣": "9", "nove": "9", "nine": "9",
+    // Emoji numbers
+    "1️⃣": "1", "2️⃣": "2", "3️⃣": "3", "4️⃣": "4", "5️⃣": "5",
+    "6️⃣": "6", "7️⃣": "7", "8️⃣": "8", "9️⃣": "9", "0️⃣": "0",
+    // Portuguese text numbers
+    "um": "1", "dois": "2", "tres": "3", "três": "3", "quatro": "4",
+    "cinco": "5", "seis": "6", "sete": "7", "oito": "8", "nove": "9", "zero": "0",
+    // English text numbers
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+    "six": "6", "seven": "7", "eight": "8", "nine": "9",
   };
 
   let normalizedKey = normalizedInput;
+  
+  // Check for emoji in any position (not just exact match)
   for (const [key, value] of Object.entries(inputMappings)) {
     if (normalizedInput === key || normalizedInput.includes(key)) {
       normalizedKey = value;
       break;
+    }
+  }
+  
+  // Also extract just the first digit if message starts with a number
+  if (!/^[0-9]+$/.test(normalizedKey)) {
+    const digitMatch = normalizedInput.match(/^([0-9]+)/);
+    if (digitMatch) {
+      normalizedKey = digitMatch[1];
     }
   }
 
@@ -2356,8 +2399,9 @@ Deno.serve(async (req) => {
         const mainNode = findSellerMainNode(sellerMenuNodes);
         const mainNodeKey = mainNode?.node_key || "inicial";
         
-        // Check for return to menu
-        if (normalizedInput === "*" || normalizedInput === "voltar" || normalizedInput === "menu" || normalizedInput === "0") {
+        // Check for return to menu - EXPANDED with more synonyms
+        const menuCommands = ["*", "voltar", "menu", "0", "inicio", "início", "começar", "reiniciar", "#"];
+        if (menuCommands.includes(normalizedInput)) {
           if (mainNode) {
             const responseText = replaceVariables(mainNode.content || "", variables);
             
@@ -2392,15 +2436,82 @@ Deno.serve(async (req) => {
           }
         }
         
+        // ========== CHECK KEYWORDS FIRST (BEFORE MENU OPTIONS) ==========
+        // Fetch seller keywords
+        const { data: sellerKeywords } = await supabase
+          .from("seller_chatbot_keywords")
+          .select("*")
+          .eq("seller_id", sellerId)
+          .eq("is_active", true);
+        
+        // Check for keyword match - support both exact and contains match
+        let matchedKeyword = null;
+        if (sellerKeywords && sellerKeywords.length > 0) {
+          // First try exact match
+          matchedKeyword = sellerKeywords.find((kw: any) => 
+            normalizedInput === kw.keyword.toLowerCase().trim()
+          );
+          
+          // If no exact match and keyword allows contains, try contains match
+          if (!matchedKeyword) {
+            matchedKeyword = sellerKeywords.find((kw: any) => {
+              const kwLower = kw.keyword.toLowerCase().trim();
+              // If is_exact_match is false, allow contains
+              if (kw.is_exact_match === false) {
+                return normalizedInput.includes(kwLower) || kwLower.includes(normalizedInput);
+              }
+              return false;
+            });
+          }
+        }
+        
+        if (matchedKeyword) {
+          const responseText = replaceVariables(matchedKeyword.response_text || "", variables);
+          
+          if (chatbotSettings.typing_enabled) {
+            const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
+            await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
+          }
+          
+          let sent = false;
+          if (matchedKeyword.image_url) {
+            sent = await sendImageMessage(globalConfig, instanceName, phone, responseText, matchedKeyword.image_url);
+          } else {
+            sent = await sendTextMessage(globalConfig, instanceName, phone, responseText, supabase, sellerId);
+          }
+          
+          if (sent && sellerMenuContact) {
+            await supabase
+              .from("seller_chatbot_contacts")
+              .update({
+                last_response_at: now.toISOString(),
+                last_interaction_at: now.toISOString(),
+                interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
+              })
+              .eq("id", sellerMenuContact.id);
+          }
+          
+          return new Response(
+            JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_keyword", keyword: matchedKeyword.keyword }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        // ========== END KEYWORD CHECK ==========
+        
         // Find current node
         const currentNode = sellerMenuNodes.find((n: any) => n.node_key === currentNodeKey);
         
-        // Process option selection
+        // Process option selection - EXPANDED input mappings
         const inputMappings: Record<string, string> = {
-          "1️⃣": "1", "um": "1", "2️⃣": "2", "dois": "2",
-          "3️⃣": "3", "tres": "3", "três": "3", "4️⃣": "4", "quatro": "4",
-          "5️⃣": "5", "cinco": "5", "6️⃣": "6", "seis": "6",
-          "7️⃣": "7", "sete": "7", "8️⃣": "8", "oito": "8",
+          // Emoji numbers
+          "1️⃣": "1", "2️⃣": "2", "3️⃣": "3", "4️⃣": "4", "5️⃣": "5",
+          "6️⃣": "6", "7️⃣": "7", "8️⃣": "8", "9️⃣": "9", "0️⃣": "0",
+          // Portuguese text numbers
+          "um": "1", "dois": "2", "tres": "3", "três": "3", "quatro": "4",
+          "cinco": "5", "seis": "6", "sete": "7", "oito": "8", "nove": "9", "zero": "0",
+          // English text numbers
+          "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+          "six": "6", "seven": "7", "eight": "8", "nine": "9",
         };
         
         let normalizedKey = normalizedInput;
@@ -2408,6 +2519,14 @@ Deno.serve(async (req) => {
           if (normalizedInput === key || normalizedInput.includes(key)) {
             normalizedKey = value;
             break;
+          }
+        }
+        
+        // Also extract just the first digit if message starts with a number
+        if (!/^[0-9]+$/.test(normalizedKey)) {
+          const digitMatch = normalizedInput.match(/^([0-9]+)/);
+          if (digitMatch) {
+            normalizedKey = digitMatch[1];
           }
         }
         
@@ -2451,49 +2570,6 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Check for keyword match in seller keywords
-        const { data: sellerKeywords } = await supabase
-          .from("seller_chatbot_keywords")
-          .select("*")
-          .eq("seller_id", sellerId)
-          .eq("is_active", true);
-        
-        const matchedKeyword = sellerKeywords?.find((kw: any) => 
-          normalizedInput === kw.keyword.toLowerCase().trim()
-        );
-        
-        if (matchedKeyword) {
-          const responseText = replaceVariables(matchedKeyword.response_text || "", variables);
-          
-          if (chatbotSettings.typing_enabled) {
-            const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
-            await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
-          }
-          
-          let sent = false;
-          if (matchedKeyword.image_url) {
-            sent = await sendImageMessage(globalConfig, instanceName, phone, responseText, matchedKeyword.image_url);
-          } else {
-            sent = await sendTextMessage(globalConfig, instanceName, phone, responseText, supabase, sellerId);
-          }
-          
-          if (sent && sellerMenuContact) {
-            await supabase
-              .from("seller_chatbot_contacts")
-              .update({
-                last_response_at: now.toISOString(),
-                last_interaction_at: now.toISOString(),
-                interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
-              })
-              .eq("id", sellerMenuContact.id);
-          }
-          
-          return new Response(
-            JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_keyword" }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        
         // No match found - show main menu if this is first interaction or contact is new
         if (!sellerMenuContact?.current_node_key || sellerMenuContact.current_node_key === mainNodeKey) {
           if (mainNode) {
@@ -2530,14 +2606,42 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Silent mode - invalid option, don't respond if not at main menu
-        if (sellerMenuSettings?.silent_mode !== false) {
-          console.log("[SellerChatbot] Invalid option, silent mode active");
+        // FALLBACK: Invalid option handling
+        // If silent_mode is TRUE (default), don't respond to invalid options
+        // If silent_mode is FALSE, send a helpful fallback message
+        if (sellerMenuSettings?.silent_mode === false) {
+          // Send fallback message guiding user back to menu
+          const fallbackMessage = "Não entendi sua mensagem 😕\n\nDigite *MENU* para ver as opções disponíveis ou *0* para voltar ao início.";
+          
+          if (chatbotSettings.typing_enabled) {
+            const typingDuration = getRandomDelay(chatbotSettings.typing_duration_min, chatbotSettings.typing_duration_max);
+            await sendTypingStatus(globalConfig, instanceName, phone, typingDuration);
+          }
+          
+          const sent = await sendTextMessage(globalConfig, instanceName, phone, fallbackMessage, supabase, sellerId);
+          
+          if (sent && sellerMenuContact) {
+            await supabase
+              .from("seller_chatbot_contacts")
+              .update({
+                last_interaction_at: now.toISOString(),
+                interaction_count: (sellerMenuContact.interaction_count || 0) + 1,
+              })
+              .eq("id", sellerMenuContact.id);
+          }
+          
           return new Response(
-            JSON.stringify({ status: "ignored", reason: "Invalid option - silent mode" }),
+            JSON.stringify({ status: sent ? "sent" : "failed", type: "seller_fallback" }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+        
+        // Silent mode is ON - don't respond to invalid options
+        console.log("[SellerChatbot] Invalid option, silent mode active");
+        return new Response(
+          JSON.stringify({ status: "ignored", reason: "Invalid option - silent mode" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
     // ========== END SELLER INTERACTIVE MENU ==========

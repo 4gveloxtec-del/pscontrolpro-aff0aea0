@@ -152,7 +152,7 @@ export default function SellerChatbotMenu() {
     }
   }, [isLoading, menuNodes]);
 
-  // Process simulator input
+  // Process simulator input - IMPROVED with all input variations
   const handleSimulatorSend = () => {
     if (!simulatorInput.trim()) return;
 
@@ -167,8 +167,9 @@ export default function SellerChatbotMenu() {
     const input = simulatorInput.toLowerCase().trim();
     setSimulatorInput('');
 
-    // Check for return to menu
-    if (input === '*' || input === 'voltar' || input === 'menu' || input === '0') {
+    // Check for return to menu - EXPANDED with more synonyms
+    const menuCommands = ["*", "voltar", "menu", "0", "inicio", "início", "começar", "reiniciar", "#"];
+    if (menuCommands.includes(input)) {
       const initialNode = getNodeByKey('inicial');
       if (initialNode) {
         setTimeout(() => {
@@ -185,10 +186,18 @@ export default function SellerChatbotMenu() {
       return;
     }
 
-    // Check keywords first
-    const matchedKeyword = keywords.find(kw => 
-      kw.is_active && input === kw.keyword.toLowerCase().trim()
-    );
+    // Check keywords first (before menu options)
+    const matchedKeyword = keywords.find(kw => {
+      if (!kw.is_active) return false;
+      const kwLower = kw.keyword.toLowerCase().trim();
+      // Exact match
+      if (input === kwLower) return true;
+      // Contains match if not exact match mode
+      if (kw.is_exact_match === false) {
+        return input.includes(kwLower) || kwLower.includes(input);
+      }
+      return false;
+    });
 
     if (matchedKeyword) {
       setTimeout(() => {
@@ -203,11 +212,40 @@ export default function SellerChatbotMenu() {
       return;
     }
 
+    // Input mappings for emoji numbers and text - EXPANDED
+    const inputMappings: Record<string, string> = {
+      // Emoji numbers
+      "1️⃣": "1", "2️⃣": "2", "3️⃣": "3", "4️⃣": "4", "5️⃣": "5",
+      "6️⃣": "6", "7️⃣": "7", "8️⃣": "8", "9️⃣": "9", "0️⃣": "0",
+      // Portuguese text numbers
+      "um": "1", "dois": "2", "tres": "3", "três": "3", "quatro": "4",
+      "cinco": "5", "seis": "6", "sete": "7", "oito": "8", "nove": "9", "zero": "0",
+      // English text numbers
+      "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+      "six": "6", "seven": "7", "eight": "8", "nine": "9",
+    };
+
+    let normalizedKey = input;
+    for (const [key, value] of Object.entries(inputMappings)) {
+      if (input === key || input.includes(key)) {
+        normalizedKey = value;
+        break;
+      }
+    }
+
+    // Also extract just the first digit if message starts with a number
+    if (!/^[0-9]+$/.test(normalizedKey)) {
+      const digitMatch = input.match(/^([0-9]+)/);
+      if (digitMatch) {
+        normalizedKey = digitMatch[1];
+      }
+    }
+
     // Process menu navigation
     const currentNode = getNodeByKey(currentNodeKey);
     if (currentNode) {
       const options = currentNode.options || [];
-      const matchedOption = options.find(opt => opt.key === input);
+      const matchedOption = options.find(opt => opt.key === normalizedKey);
       
       if (matchedOption && matchedOption.target) {
         const targetNode = getNodeByKey(matchedOption.target);
@@ -227,17 +265,15 @@ export default function SellerChatbotMenu() {
       }
     }
 
-    // No match - silent mode or show error
-    if (!settings?.silent_mode) {
-      setTimeout(() => {
-        setSimulatorMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: 'Opção inválida. Digite * para voltar ao menu principal.',
-          isBot: true,
-          timestamp: new Date(),
-        }]);
-      }, 500);
-    }
+    // No match - show helpful fallback message (not silent in simulator)
+    setTimeout(() => {
+      setSimulatorMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: 'Não entendi sua mensagem 😕\n\nDigite *MENU* para ver as opções disponíveis ou *0* para voltar ao início.',
+        isBot: true,
+        timestamp: new Date(),
+      }]);
+    }, 500);
   };
 
   // Open node dialog for editing
