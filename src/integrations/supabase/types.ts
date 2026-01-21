@@ -994,10 +994,12 @@ export type Database = {
           id: string
           ignore_groups: boolean | null
           is_enabled: boolean | null
+          list_button_text: string | null
           response_delay_max: number | null
           response_delay_min: number | null
           typing_enabled: boolean | null
           updated_at: string | null
+          use_list_message: boolean | null
           user_id: string
           welcome_message: string | null
         }
@@ -1007,10 +1009,12 @@ export type Database = {
           id?: string
           ignore_groups?: boolean | null
           is_enabled?: boolean | null
+          list_button_text?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
           typing_enabled?: boolean | null
           updated_at?: string | null
+          use_list_message?: boolean | null
           user_id: string
           welcome_message?: string | null
         }
@@ -1020,10 +1024,12 @@ export type Database = {
           id?: string
           ignore_groups?: boolean | null
           is_enabled?: boolean | null
+          list_button_text?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
           typing_enabled?: boolean | null
           updated_at?: string | null
+          use_list_message?: boolean | null
           user_id?: string
           welcome_message?: string | null
         }
@@ -1038,8 +1044,11 @@ export type Database = {
           interaction_count: number | null
           last_message_at: string | null
           last_response_at: string | null
+          last_sent_menu_key: string | null
           name: string | null
+          navigation_stack: string[] | null
           phone: string
+          previous_menu_key: string | null
           updated_at: string | null
           user_id: string
         }
@@ -1051,8 +1060,11 @@ export type Database = {
           interaction_count?: number | null
           last_message_at?: string | null
           last_response_at?: string | null
+          last_sent_menu_key?: string | null
           name?: string | null
+          navigation_stack?: string[] | null
           phone: string
+          previous_menu_key?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -1064,8 +1076,11 @@ export type Database = {
           interaction_count?: number | null
           last_message_at?: string | null
           last_response_at?: string | null
+          last_sent_menu_key?: string | null
           name?: string | null
+          navigation_stack?: string[] | null
           phone?: string
+          previous_menu_key?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1113,6 +1128,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean | null
+          list_id: string | null
           menu_key: string
           message_text: string
           parent_menu_key: string | null
@@ -1126,6 +1142,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean | null
+          list_id?: string | null
           menu_key: string
           message_text: string
           parent_menu_key?: string | null
@@ -1139,6 +1156,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean | null
+          list_id?: string | null
           menu_key?: string
           message_text?: string
           parent_menu_key?: string | null
@@ -1157,6 +1175,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           keywords: string[] | null
+          list_id: string | null
           menu_id: string
           option_number: number
           option_text: string
@@ -1172,6 +1191,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           keywords?: string[] | null
+          list_id?: string | null
           menu_id: string
           option_number: number
           option_text: string
@@ -1187,6 +1207,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           keywords?: string[] | null
+          list_id?: string | null
           menu_id?: string
           option_number?: number
           option_text?: string

@@ -1,16 +1,84 @@
-# 🤖 Chatbot V3 - Arquitetura Modular
+# 🤖 Chatbot V3 - Arquitetura Modular com List Message
 
 ## Visão Geral
 
-O Chatbot V3 é um sistema de auto-resposta profissional, modular e escalável, funcionando igualmente para **ADM** e **Revendedores**.
+O Chatbot V3 é um sistema de auto-resposta profissional com **List Message** do WhatsApp e navegação **passo a passo**, funcionando igualmente para **ADM** e **Revendedores**.
 
 ### Princípios Fundamentais
 
-1. **Sem dependência de contexto** - Cada mensagem é processada independentemente
-2. **Detecção por intenção (contains)** - Aceita variações de entrada
-3. **Aceita números E texto** - O usuário pode digitar "1" ou "plano"
-4. **Fácil de adicionar fluxos** - Estrutura modular e clara
-5. **Nunca fica sem responder** - Fallback obrigatório
+1. **List Message** - Menus interativos do WhatsApp (não apenas texto)
+2. **Navegação passo a passo** - "Voltar" retorna UMA etapa por vez
+3. **Anti-repetição** - Não reenvia a mesma mensagem
+4. **Pilha de navegação** - Histórico completo para voltar múltiplos níveis
+5. **Detecção por intenção (contains)** - Aceita variações de entrada
+6. **Aceita números E texto** - O usuário pode digitar "1" ou "plano"
+7. **Fácil de adicionar fluxos** - Estrutura modular e clara
+8. **Nunca fica sem responder** - Fallback obrigatório
+
+---
+
+## 🔐 Variáveis de Controle (Contatos)
+
+| Campo | Descrição |
+|-------|-----------|
+| `current_menu_key` | Passo atual do usuário |
+| `previous_menu_key` | Passo anterior (último nível) |
+| `last_sent_menu_key` | Último passo enviado (anti-repetição) |
+| `navigation_stack` | Pilha completa de navegação (array) |
+| `awaiting_human` | Se está aguardando atendente humano |
+
+### Exemplo de Navegação
+
+```
+Usuário em: main
+Clica em: Planos
+→ navigation_stack = ["main"]
+→ current_menu_key = "planos"
+
+Clica em: Mensal
+→ navigation_stack = ["main", "planos"]
+→ current_menu_key = "plano_mensal"
+
+Clica em: Voltar
+→ navigation_stack = ["main"]
+→ current_menu_key = "planos"
+
+Clica em: Voltar
+→ navigation_stack = []
+→ current_menu_key = "main"
+```
+
+---
+
+## 📱 List Message (Menu Interativo)
+
+### Estrutura da List Message
+
+```json
+{
+  "number": "5511999999999",
+  "title": "Menu Principal",
+  "description": "Olá! Escolha uma opção:",
+  "buttonText": "📋 Ver opções",
+  "sections": [{
+    "title": "Opções",
+    "rows": [
+      { "rowId": "lm_planos", "title": "1. Planos e Preços" },
+      { "rowId": "lm_teste", "title": "2. Solicitar Teste" },
+      { "rowId": "lm_apps", "title": "3. Aplicativos" },
+      { "rowId": "lm_voltar", "title": "0. Voltar" }
+    ]
+  }]
+}
+```
+
+### IDs de List Message
+
+Todos os IDs começam com `lm_` para identificação:
+- `lm_main` - Menu principal
+- `lm_planos` - Submenu planos
+- `lm_voltar` - Comando voltar
+- `lm_humano` - Atendimento humano
 
 ---
 

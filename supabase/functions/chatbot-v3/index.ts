@@ -1,18 +1,18 @@
 /**
- * CHATBOT V3 - Arquitetura Modular Profissional
+ * CHATBOT V3 - List Message + Navegação Passo a Passo
  * 
  * PRINCÍPIOS:
- * 1. Sem dependência de contexto anterior (stateless)
- * 2. Detecção por intenção (contains)
- * 3. Aceita números E texto como entrada
- * 4. Fácil de adicionar novos fluxos
- * 5. Nunca fica sem responder (fallback obrigatório)
+ * 1. Menus enviados como LIST MESSAGE (WhatsApp interativo)
+ * 2. Navegação passo a passo com pilha (stack)
+ * 3. "Voltar" retorna UMA etapa por vez
+ * 4. Anti-repetição: não reenvia mesma mensagem
+ * 5. Atendimento humano bloqueia respostas automáticas
  * 
- * ESTRUTURA:
- * - Gatilhos globais (menu, voltar, etc.)
- * - Menus hierárquicos (main -> submenus)
- * - Opções com keywords alternativas
- * - Variáveis dinâmicas ({empresa}, {pix}, etc.)
+ * VARIÁVEIS DE CONTROLE:
+ * - current_menu_key: passo atual
+ * - previous_menu_key: passo anterior
+ * - last_sent_menu_key: último passo enviado (anti-repetição)
+ * - navigation_stack: pilha completa de navegação
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -31,11 +31,14 @@ interface ChatbotConfig {
   response_delay_max: number;
   typing_enabled: boolean;
   ignore_groups: boolean;
+  use_list_message: boolean;
+  list_button_text: string;
 }
 
 interface Menu {
   id: string;
   menu_key: string;
+  list_id: string;
   title: string;
   message_text: string;
   image_url: string | null;
@@ -47,6 +50,7 @@ interface MenuOption {
   menu_id: string;
   option_number: number;
   option_text: string;
+  list_id: string;
   keywords: string[];
   target_menu_key: string | null;
   action_type: string;
@@ -68,6 +72,9 @@ interface Contact {
   phone: string;
   name: string | null;
   current_menu_key: string;
+  previous_menu_key: string | null;
+  last_sent_menu_key: string | null;
+  navigation_stack: string[];
   awaiting_human: boolean;
   interaction_count: number;
 }
@@ -77,7 +84,7 @@ interface Variable {
   variable_value: string;
 }
 
-interface GlobalConfig {
+interface GlobalApiConfig {
   api_url: string;
   api_token: string;
 }
@@ -111,9 +118,6 @@ function getRandomDelay(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1) + min) * 1000;
 }
 
-/**
- * Substitui variáveis no texto ({empresa}, {pix}, etc.)
- */
 function replaceVariables(text: string, variables: Variable[]): string {
   if (!text || !variables) return text;
   let result = text;
@@ -124,15 +128,13 @@ function replaceVariables(text: string, variables: Variable[]): string {
   return result;
 }
 
-/**
- * Normaliza entrada do usuário para matching
- * - Lowercase
- * - Remove acentos
- * - Extrai número se começar com dígito
- * - Mapeia emojis numéricos
- */
-function normalizeInput(input: string): { text: string; number: number | null } {
+function normalizeInput(input: string): { text: string; number: number | null; listId: string | null } {
   const trimmed = input.toLowerCase().trim();
+  
+  // Detectar se é um ID de List Message (começa com lm_)
+  if (trimmed.startsWith("lm_")) {
+    return { text: trimmed, number: null, listId: trimmed };
+  }
   
   // Mapeamento de emojis para números
   const emojiMap: Record<string, string> = {
@@ -140,38 +142,20 @@ function normalizeInput(input: string): { text: string; number: number | null } 
     "6️⃣": "6", "7️⃣": "7", "8️⃣": "8", "9️⃣": "9", "0️⃣": "0",
   };
   
-  // Texto com números por extenso
-  const textNumbers: Record<string, number> = {
-    "um": 1, "dois": 2, "tres": 3, "três": 3, "quatro": 4,
-    "cinco": 5, "seis": 6, "sete": 7, "oito": 8, "nove": 9, "zero": 0,
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-    "six": 6, "seven": 7, "eight": 8, "nine": 9,
-  };
-  
-  // Checar emoji
   for (const [emoji, num] of Object.entries(emojiMap)) {
     if (trimmed.includes(emoji)) {
-      return { text: trimmed, number: parseInt(num) };
+      return { text: trimmed, number: parseInt(num), listId: null };
     }
   }
   
-  // Checar texto numérico
-  if (textNumbers[trimmed] !== undefined) {
-    return { text: trimmed, number: textNumbers[trimmed] };
-  }
-  
-  // Checar se começa com número
   const numMatch = trimmed.match(/^(\d+)/);
   if (numMatch) {
-    return { text: trimmed, number: parseInt(numMatch[1]) };
+    return { text: trimmed, number: parseInt(numMatch[1]), listId: null };
   }
   
-  return { text: trimmed, number: null };
+  return { text: trimmed, number: null, listId: null };
 }
 
-/**
- * Verifica se o texto contém alguma das keywords
- */
 function matchesKeywords(text: string, keywords: string[]): boolean {
   if (!keywords || keywords.length === 0) return false;
   const normalizedText = text.toLowerCase().trim();
@@ -181,7 +165,7 @@ function matchesKeywords(text: string, keywords: string[]): boolean {
 // ========== API FUNCTIONS ==========
 
 async function sendTypingStatus(
-  config: GlobalConfig,
+  config: GlobalApiConfig,
   instanceName: string,
   phone: string,
   durationMs: number
@@ -190,7 +174,7 @@ async function sendTypingStatus(
     const baseUrl = normalizeApiUrl(config.api_url);
     const formattedPhone = formatPhone(phone);
     
-    const response = await fetch(`${baseUrl}/chat/sendPresence/${instanceName}`, {
+    await fetch(`${baseUrl}/chat/sendPresence/${instanceName}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -203,18 +187,15 @@ async function sendTypingStatus(
       }),
     });
     
-    if (response.ok) {
-      await new Promise(r => setTimeout(r, durationMs));
-      return true;
-    }
-    return false;
+    await new Promise(r => setTimeout(r, durationMs));
+    return true;
   } catch {
     return false;
   }
 }
 
 async function sendTextMessage(
-  config: GlobalConfig,
+  config: GlobalApiConfig,
   instanceName: string,
   phone: string,
   text: string
@@ -223,7 +204,7 @@ async function sendTextMessage(
     const baseUrl = normalizeApiUrl(config.api_url);
     const formattedPhone = formatPhone(phone);
     
-    console.log(`[ChatbotV3] Sending to ${formattedPhone}: ${text.substring(0, 50)}...`);
+    console.log(`[ChatbotV3] Sending text to ${formattedPhone}`);
     
     let response = await fetch(`${baseUrl}/message/sendText/${instanceName}`, {
       method: "POST",
@@ -234,7 +215,6 @@ async function sendTextMessage(
       body: JSON.stringify({ number: formattedPhone, text }),
     });
     
-    // Retry com formatos alternativos se 400
     if (response.status === 400) {
       const alternates = [
         formattedPhone + "@s.whatsapp.net",
@@ -251,9 +231,7 @@ async function sendTextMessage(
           body: JSON.stringify({ number: alt, text }),
         });
         
-        if (retryResponse.ok) {
-          return true;
-        }
+        if (retryResponse.ok) return true;
       }
     }
     
@@ -264,8 +242,72 @@ async function sendTextMessage(
   }
 }
 
+/**
+ * Envia List Message (menu interativo do WhatsApp)
+ */
+async function sendListMessage(
+  config: GlobalApiConfig,
+  instanceName: string,
+  phone: string,
+  title: string,
+  description: string,
+  buttonText: string,
+  sections: Array<{
+    title: string;
+    rows: Array<{
+      rowId: string;
+      title: string;
+      description?: string;
+    }>;
+  }>
+): Promise<boolean> {
+  try {
+    const baseUrl = normalizeApiUrl(config.api_url);
+    const formattedPhone = formatPhone(phone);
+    
+    console.log(`[ChatbotV3] Sending list message to ${formattedPhone}`);
+    
+    const payload = {
+      number: formattedPhone,
+      title: title.substring(0, 60),
+      description: description.substring(0, 1024),
+      buttonText: buttonText.substring(0, 20),
+      footerText: "",
+      sections: sections.map(s => ({
+        title: s.title.substring(0, 24),
+        rows: s.rows.map(r => ({
+          rowId: r.rowId,
+          title: r.title.substring(0, 24),
+          description: (r.description || "").substring(0, 72),
+        })),
+      })),
+    };
+    
+    let response = await fetch(`${baseUrl}/message/sendList/${instanceName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: config.api_token,
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      console.log(`[ChatbotV3] List message failed, falling back to text`);
+      // Fallback: enviar como texto simples
+      return await sendTextMessage(config, instanceName, phone, description);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("[ChatbotV3] sendListMessage error:", error);
+    // Fallback para texto
+    return await sendTextMessage(config, instanceName, phone, description);
+  }
+}
+
 async function sendImageMessage(
-  config: GlobalConfig,
+  config: GlobalApiConfig,
   instanceName: string,
   phone: string,
   text: string,
@@ -295,126 +337,386 @@ async function sendImageMessage(
   }
 }
 
+// ========== NAVIGATION FUNCTIONS ==========
+
+/**
+ * Atualiza a pilha de navegação ao avançar para novo menu
+ */
+function pushNavigation(
+  currentStack: string[],
+  currentMenuKey: string,
+  _newMenuKey: string
+): { newStack: string[]; previousKey: string } {
+  // Adiciona o menu atual à pilha antes de navegar
+  const newStack = [...currentStack, currentMenuKey];
+  return {
+    newStack,
+    previousKey: currentMenuKey,
+  };
+}
+
+/**
+ * Volta um passo na navegação
+ */
+function popNavigation(
+  currentStack: string[]
+): { newStack: string[]; targetMenuKey: string } {
+  if (currentStack.length === 0) {
+    return { newStack: [], targetMenuKey: "main" };
+  }
+  
+  const newStack = [...currentStack];
+  const targetMenuKey = newStack.pop() || "main";
+  
+  return { newStack, targetMenuKey };
+}
+
 // ========== CORE LOGIC ==========
 
 interface ProcessResult {
   response: string;
   imageUrl?: string;
   newMenuKey: string;
+  previousMenuKey: string | null;
+  newStack: string[];
+  useListMessage: boolean;
+  listMessageData?: {
+    title: string;
+    buttonText: string;
+    sections: Array<{
+      title: string;
+      rows: Array<{
+        rowId: string;
+        title: string;
+        description?: string;
+      }>;
+    }>;
+  };
   triggerMatched?: string;
   isFallback: boolean;
   isHuman: boolean;
+  shouldSend: boolean; // Anti-repetição
 }
 
-/**
- * FUNÇÃO PRINCIPAL: Processa a mensagem do usuário
- * 
- * Ordem de prioridade:
- * 1. Gatilhos globais (menu, voltar, etc.)
- * 2. Opção numérica do menu atual
- * 3. Keyword match nas opções do menu atual
- * 4. Fallback
- */
 function processMessage(
   messageText: string,
-  currentMenuKey: string,
+  contact: Contact | null,
   triggers: GlobalTrigger[],
   menus: Menu[],
   options: MenuOption[],
   config: ChatbotConfig,
   variables: Variable[]
 ): ProcessResult {
-  const { text: normalizedText, number: inputNumber } = normalizeInput(messageText);
+  const currentMenuKey = contact?.current_menu_key || "main";
+  const currentStack = contact?.navigation_stack || [];
+  const lastSentMenuKey = contact?.last_sent_menu_key || null;
   
-  // 1. GATILHOS GLOBAIS (maior prioridade)
+  const { text: normalizedText, number: inputNumber, listId } = normalizeInput(messageText);
+  
+  // ========== VERIFICAR ATENDIMENTO HUMANO ==========
+  if (contact?.awaiting_human) {
+    // Apenas aceita "voltar" durante atendimento humano
+    const isBackCommand = matchesKeywords(normalizedText, ["voltar", "sair", "0", "*", "#"]) || 
+                          listId === "lm_voltar";
+    
+    if (isBackCommand) {
+      const { newStack, targetMenuKey } = popNavigation(currentStack);
+      const targetMenu = menus.find(m => m.menu_key === targetMenuKey);
+      
+      if (targetMenu) {
+        const menuOptions = options.filter(o => o.menu_id === targetMenu.id);
+        return buildMenuResponse(
+          targetMenu, 
+          menuOptions, 
+          config, 
+          variables, 
+          newStack,
+          currentMenuKey,
+          lastSentMenuKey
+        );
+      }
+    }
+    
+    // Ignorar outras mensagens em atendimento humano
+    return {
+      response: "",
+      newMenuKey: currentMenuKey,
+      previousMenuKey: contact?.previous_menu_key || null,
+      newStack: currentStack,
+      useListMessage: false,
+      isFallback: false,
+      isHuman: true,
+      shouldSend: false,
+    };
+  }
+  
+  // ========== 1. GATILHOS GLOBAIS ==========
   const sortedTriggers = [...triggers].sort((a, b) => b.priority - a.priority);
   
   for (const trigger of sortedTriggers) {
-    if (matchesKeywords(normalizedText, trigger.keywords)) {
+    const matchesByKeyword = matchesKeywords(normalizedText, trigger.keywords);
+    const matchesByListId = listId === `lm_${trigger.trigger_name}`;
+    
+    if (matchesByKeyword || matchesByListId) {
       console.log(`[ChatbotV3] Trigger matched: ${trigger.trigger_name}`);
       
-      if (trigger.action_type === "goto_menu" && trigger.target_menu_key) {
-        const targetMenu = menus.find(m => m.menu_key === trigger.target_menu_key);
+      // VOLTAR - Navegação especial
+      if (trigger.trigger_name === "voltar" || trigger.action_type === "goto_previous") {
+        const { newStack, targetMenuKey } = popNavigation(currentStack);
+        const targetMenu = menus.find(m => m.menu_key === targetMenuKey);
+        
         if (targetMenu) {
-          return {
-            response: replaceVariables(targetMenu.message_text, variables),
-            imageUrl: targetMenu.image_url || undefined,
-            newMenuKey: targetMenu.menu_key,
-            triggerMatched: trigger.trigger_name,
-            isFallback: false,
-            isHuman: false,
-          };
+          const menuOptions = options.filter(o => o.menu_id === targetMenu.id);
+          return buildMenuResponse(
+            targetMenu, 
+            menuOptions, 
+            config, 
+            variables, 
+            newStack,
+            currentMenuKey,
+            lastSentMenuKey
+          );
         }
       }
       
+      // MENU - Ir para menu específico
+      if (trigger.action_type === "goto_menu" && trigger.target_menu_key) {
+        const targetMenu = menus.find(m => m.menu_key === trigger.target_menu_key);
+        if (targetMenu) {
+          // Se está indo para main, limpa a pilha
+          let newStack = currentStack;
+          let previousKey = contact?.previous_menu_key || null;
+          
+          if (trigger.target_menu_key === "main") {
+            newStack = [];
+            previousKey = null;
+          } else {
+            const nav = pushNavigation(currentStack, currentMenuKey, trigger.target_menu_key);
+            newStack = nav.newStack;
+            previousKey = nav.previousKey;
+          }
+          
+          const menuOptions = options.filter(o => o.menu_id === targetMenu.id);
+          return buildMenuResponse(
+            targetMenu, 
+            menuOptions, 
+            config, 
+            variables, 
+            newStack,
+            previousKey,
+            lastSentMenuKey
+          );
+        }
+      }
+      
+      // MENSAGEM - Resposta simples
       if (trigger.action_type === "message" && trigger.response_text) {
         return {
           response: replaceVariables(trigger.response_text, variables),
           newMenuKey: currentMenuKey,
+          previousMenuKey: contact?.previous_menu_key || null,
+          newStack: currentStack,
+          useListMessage: false,
           triggerMatched: trigger.trigger_name,
           isFallback: false,
           isHuman: false,
+          shouldSend: true,
         };
       }
       
+      // HUMANO - Transferir para atendente
       if (trigger.action_type === "human") {
         return {
           response: "Aguarde, você será atendido por um de nossos atendentes. 👤",
           newMenuKey: currentMenuKey,
+          previousMenuKey: contact?.previous_menu_key || null,
+          newStack: currentStack,
+          useListMessage: false,
           triggerMatched: trigger.trigger_name,
           isFallback: false,
           isHuman: true,
+          shouldSend: true,
         };
       }
     }
   }
   
-  // Encontrar menu atual
+  // ========== 2. ENCONTRAR MENU ATUAL ==========
   const currentMenu = menus.find(m => m.menu_key === currentMenuKey) || menus.find(m => m.menu_key === "main");
   if (!currentMenu) {
     return {
       response: replaceVariables(config.fallback_message, variables),
       newMenuKey: "main",
+      previousMenuKey: null,
+      newStack: [],
+      useListMessage: false,
       isFallback: true,
       isHuman: false,
+      shouldSend: true,
     };
   }
   
-  // Opções do menu atual
   const menuOptions = options.filter(o => o.menu_id === currentMenu.id);
   
-  // 2. MATCH POR NÚMERO
-  if (inputNumber !== null) {
-    const matchedOption = menuOptions.find(o => o.option_number === inputNumber);
-    
+  // ========== 3. MATCH POR LIST ID ==========
+  if (listId) {
+    const matchedOption = menuOptions.find(o => o.list_id === listId);
     if (matchedOption) {
-      return handleOptionMatch(matchedOption, menus, config, variables, currentMenuKey);
+      return handleOptionMatch(
+        matchedOption, 
+        menus, 
+        options,
+        config, 
+        variables, 
+        currentMenuKey, 
+        currentStack,
+        lastSentMenuKey
+      );
+    }
+    
+    // Tentar encontrar em qualquer menu (opção global)
+    const allOptions = options;
+    const globalMatch = allOptions.find(o => o.list_id === listId);
+    if (globalMatch) {
+      return handleOptionMatch(
+        globalMatch, 
+        menus, 
+        options,
+        config, 
+        variables, 
+        currentMenuKey, 
+        currentStack,
+        lastSentMenuKey
+      );
     }
   }
   
-  // 3. MATCH POR KEYWORD
+  // ========== 4. MATCH POR NÚMERO ==========
+  if (inputNumber !== null) {
+    // 0 = Voltar
+    if (inputNumber === 0) {
+      const { newStack, targetMenuKey } = popNavigation(currentStack);
+      const targetMenu = menus.find(m => m.menu_key === targetMenuKey);
+      
+      if (targetMenu) {
+        const targetOptions = options.filter(o => o.menu_id === targetMenu.id);
+        return buildMenuResponse(
+          targetMenu, 
+          targetOptions, 
+          config, 
+          variables, 
+          newStack,
+          currentMenuKey,
+          lastSentMenuKey
+        );
+      }
+    }
+    
+    const matchedOption = menuOptions.find(o => o.option_number === inputNumber);
+    if (matchedOption) {
+      return handleOptionMatch(
+        matchedOption, 
+        menus, 
+        options,
+        config, 
+        variables, 
+        currentMenuKey, 
+        currentStack,
+        lastSentMenuKey
+      );
+    }
+  }
+  
+  // ========== 5. MATCH POR KEYWORD ==========
   for (const option of menuOptions) {
     if (option.keywords && matchesKeywords(normalizedText, option.keywords)) {
-      return handleOptionMatch(option, menus, config, variables, currentMenuKey);
+      return handleOptionMatch(
+        option, 
+        menus, 
+        options,
+        config, 
+        variables, 
+        currentMenuKey, 
+        currentStack,
+        lastSentMenuKey
+      );
     }
   }
   
-  // 4. FALLBACK - Mensagem não reconhecida
+  // ========== 6. FALLBACK ==========
   console.log(`[ChatbotV3] No match found, sending fallback`);
   return {
     response: replaceVariables(config.fallback_message, variables),
     newMenuKey: currentMenuKey,
+    previousMenuKey: contact?.previous_menu_key || null,
+    newStack: currentStack,
+    useListMessage: false,
     isFallback: true,
     isHuman: false,
+    shouldSend: true,
+  };
+}
+
+function buildMenuResponse(
+  menu: Menu,
+  menuOptions: MenuOption[],
+  config: ChatbotConfig,
+  variables: Variable[],
+  newStack: string[],
+  previousMenuKey: string | null,
+  lastSentMenuKey: string | null
+): ProcessResult {
+  const sortedOptions = [...menuOptions].sort((a, b) => a.option_number - b.option_number);
+  
+  // Anti-repetição: verificar se já enviou este menu
+  const shouldSend = lastSentMenuKey !== menu.menu_key;
+  
+  // Construir List Message data
+  const rows = sortedOptions.map(opt => ({
+    rowId: opt.list_id,
+    title: `${opt.option_number}. ${opt.option_text}`,
+    description: opt.action_type === "human" ? "Falar com atendente" : undefined,
+  }));
+  
+  // Adicionar opção Voltar se não for menu principal
+  if (menu.menu_key !== "main" && newStack.length > 0) {
+    rows.push({
+      rowId: "lm_voltar",
+      title: "0. Voltar",
+      description: "Retornar ao menu anterior",
+    });
+  }
+  
+  return {
+    response: replaceVariables(menu.message_text, variables),
+    imageUrl: menu.image_url || undefined,
+    newMenuKey: menu.menu_key,
+    previousMenuKey: previousMenuKey,
+    newStack: newStack,
+    useListMessage: config.use_list_message && rows.length > 0,
+    listMessageData: {
+      title: menu.title,
+      buttonText: config.list_button_text || "📋 Ver opções",
+      sections: [{
+        title: "Opções",
+        rows: rows,
+      }],
+    },
+    isFallback: false,
+    isHuman: false,
+    shouldSend: shouldSend,
   };
 }
 
 function handleOptionMatch(
   option: MenuOption,
   menus: Menu[],
+  allOptions: MenuOption[],
   config: ChatbotConfig,
   variables: Variable[],
-  currentMenuKey: string
+  currentMenuKey: string,
+  currentStack: string[],
+  lastSentMenuKey: string | null
 ): ProcessResult {
   console.log(`[ChatbotV3] Option matched: ${option.option_number} - ${option.option_text}`);
   
@@ -423,13 +725,18 @@ function handleOptionMatch(
       if (option.target_menu_key) {
         const targetMenu = menus.find(m => m.menu_key === option.target_menu_key);
         if (targetMenu) {
-          return {
-            response: replaceVariables(targetMenu.message_text, variables),
-            imageUrl: targetMenu.image_url || undefined,
-            newMenuKey: targetMenu.menu_key,
-            isFallback: false,
-            isHuman: false,
-          };
+          const nav = pushNavigation(currentStack, currentMenuKey, option.target_menu_key);
+          const menuOptions = allOptions.filter(o => o.menu_id === targetMenu.id);
+          
+          return buildMenuResponse(
+            targetMenu, 
+            menuOptions, 
+            config, 
+            variables, 
+            nav.newStack,
+            nav.previousKey,
+            lastSentMenuKey
+          );
         }
       }
       break;
@@ -438,33 +745,48 @@ function handleOptionMatch(
       return {
         response: replaceVariables(option.action_response || "Mensagem recebida!", variables),
         newMenuKey: currentMenuKey,
+        previousMenuKey: currentStack[currentStack.length - 1] || null,
+        newStack: currentStack,
+        useListMessage: false,
         isFallback: false,
         isHuman: false,
+        shouldSend: true,
       };
       
     case "human":
       return {
         response: replaceVariables(option.action_response || "Aguarde, você será atendido por um de nossos atendentes. 👤", variables),
         newMenuKey: currentMenuKey,
+        previousMenuKey: currentStack[currentStack.length - 1] || null,
+        newStack: currentStack,
+        useListMessage: false,
         isFallback: false,
         isHuman: true,
+        shouldSend: true,
       };
       
     case "end":
       return {
         response: replaceVariables(option.action_response || "Obrigado pelo contato! Até a próxima. 👋", variables),
         newMenuKey: "main",
+        previousMenuKey: null,
+        newStack: [],
+        useListMessage: false,
         isFallback: false,
         isHuman: false,
+        shouldSend: true,
       };
   }
   
-  // Fallback se action_type não reconhecido
   return {
     response: replaceVariables(config.fallback_message, variables),
     newMenuKey: currentMenuKey,
+    previousMenuKey: currentStack[currentStack.length - 1] || null,
+    newStack: currentStack,
+    useListMessage: false,
     isFallback: true,
     isHuman: false,
+    shouldSend: true,
   };
 }
 
@@ -486,30 +808,30 @@ Deno.serve(async (req) => {
       
       if (url.searchParams.get("ping") === "true") {
         return new Response(
-          JSON.stringify({ status: "ok", version: "3.0.0", message: "Chatbot V3 is online" }),
+          JSON.stringify({ status: "ok", version: "3.1.0", features: ["list_message", "navigation_stack", "anti_repeat"] }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
       if (url.searchParams.get("diagnose") === "true") {
-        const { data: configs } = await supabase.from("chatbot_v3_config").select("user_id, is_enabled");
-        const { data: menus } = await supabase.from("chatbot_v3_menus").select("user_id, menu_key").limit(20);
+        const { data: configs } = await supabase.from("chatbot_v3_config").select("user_id, is_enabled, use_list_message");
+        const { data: menus } = await supabase.from("chatbot_v3_menus").select("user_id, menu_key, list_id").limit(20);
         const { data: triggers } = await supabase.from("chatbot_v3_triggers").select("user_id, trigger_name").limit(20);
         
         return new Response(
           JSON.stringify({
             status: "diagnostic",
-            version: "3.0.0",
+            version: "3.1.0",
             configs: configs?.length || 0,
-            menus: menus?.length || 0,
-            triggers: triggers?.length || 0,
+            menus: menus?.slice(0, 5) || [],
+            triggers: triggers?.slice(0, 5) || [],
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
       return new Response(
-        JSON.stringify({ status: "ok", version: "3.0.0", usage: "POST webhook payload" }),
+        JSON.stringify({ status: "ok", version: "3.1.0", usage: "POST webhook payload" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -525,11 +847,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Normalizar payload da Evolution API
     const event = payload.event || payload.type || "";
     const instanceName = payload.instance || payload.instanceName || payload.data?.instance?.instanceName || "";
     
-    // Verificar se é evento de mensagem
+    // Verificar evento de mensagem
     const messageEvents = ["messages.upsert", "message", "message.received"];
     const isMessageEvent = messageEvents.some(e => event.toLowerCase().includes(e.toLowerCase()));
     
@@ -553,8 +874,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Extrair texto da mensagem
+    // Extrair texto - incluindo seleção de List Message
     let messageText = 
+      message?.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+      message?.message?.listResponseMessage?.selectedRowId ||
       message?.message?.conversation ||
       message?.message?.extendedTextMessage?.text ||
       "";
@@ -569,7 +892,6 @@ Deno.serve(async (req) => {
     const phone = extractPhone(remoteJid);
 
     // ========== FIND USER BY INSTANCE ==========
-    // Primeiro verificar instância de seller
     let userId: string | null = null;
     
     const { data: sellerInstance } = await supabase
@@ -581,7 +903,6 @@ Deno.serve(async (req) => {
     if (sellerInstance) {
       userId = sellerInstance.seller_id;
     } else {
-      // Verificar instância global (admin)
       const { data: globalConfig } = await supabase
         .from("whatsapp_global_config")
         .select("admin_user_id, instance_name")
@@ -619,7 +940,6 @@ Deno.serve(async (req) => {
       supabase.from("whatsapp_global_config").select("api_url, api_token").eq("is_active", true).maybeSingle(),
     ]);
 
-    // Verificar se chatbot está habilitado
     if (!config?.is_enabled) {
       return new Response(
         JSON.stringify({ status: "ignored", reason: "Chatbot disabled" }),
@@ -627,7 +947,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Ignorar grupos se configurado
     if (config.ignore_groups && isGroupMessage(remoteJid)) {
       return new Response(
         JSON.stringify({ status: "ignored", reason: "Group message" }),
@@ -635,7 +954,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Ignorar próprias mensagens
     if (fromMe) {
       return new Response(
         JSON.stringify({ status: "ignored", reason: "Own message" }),
@@ -650,40 +968,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Criar ou atualizar contato
-    let currentMenuKey = contact?.current_menu_key || "main";
-    let contactId = contact?.id;
-    
+    // Criar contato se não existir
     if (!contact) {
-      const { data: newContact } = await supabase
+      await supabase
         .from("chatbot_v3_contacts")
         .insert({
           user_id: userId,
           phone,
           name: pushName,
           current_menu_key: "main",
+          previous_menu_key: null,
+          last_sent_menu_key: null,
+          navigation_stack: [],
           last_message_at: new Date().toISOString(),
           interaction_count: 1,
-        })
-        .select("id")
-        .single();
-      
-      contactId = newContact?.id;
-    }
-
-    // Se contato está aguardando humano, ignorar
-    if (contact?.awaiting_human) {
-      console.log(`[ChatbotV3] Contact awaiting human, ignoring`);
-      return new Response(
-        JSON.stringify({ status: "ignored", reason: "Awaiting human" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        });
     }
 
     // ========== PROCESS MESSAGE ==========
     const result = processMessage(
       messageText,
-      currentMenuKey,
+      contact as Contact | null,
       triggers || [],
       menus || [],
       options || [],
@@ -691,8 +996,16 @@ Deno.serve(async (req) => {
       variables || []
     );
 
+    // ========== ANTI-REPETIÇÃO ==========
+    if (!result.shouldSend) {
+      console.log(`[ChatbotV3] Anti-repeat: skipping duplicate message for menu ${result.newMenuKey}`);
+      return new Response(
+        JSON.stringify({ status: "skipped", reason: "Anti-repeat", menuKey: result.newMenuKey }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ========== SEND RESPONSE ==========
-    // Typing indicator
     if (config.typing_enabled) {
       const typingDuration = getRandomDelay(config.response_delay_min, config.response_delay_max);
       await sendTypingStatus(globalApiConfig, instanceName, phone, typingDuration);
@@ -700,32 +1013,46 @@ Deno.serve(async (req) => {
       await new Promise(r => setTimeout(r, getRandomDelay(config.response_delay_min, config.response_delay_max)));
     }
 
-    // Send message
     let sent = false;
-    if (result.imageUrl) {
+    
+    if (result.useListMessage && result.listMessageData) {
+      sent = await sendListMessage(
+        globalApiConfig,
+        instanceName,
+        phone,
+        result.listMessageData.title,
+        result.response,
+        result.listMessageData.buttonText,
+        result.listMessageData.sections
+      );
+    } else if (result.imageUrl) {
       sent = await sendImageMessage(globalApiConfig, instanceName, phone, result.response, result.imageUrl);
-    } else {
+    } else if (result.response) {
       sent = await sendTextMessage(globalApiConfig, instanceName, phone, result.response);
     }
 
     // ========== UPDATE DATABASE ==========
     const now = new Date().toISOString();
     
-    // Update contact
     await supabase
       .from("chatbot_v3_contacts")
-      .update({
+      .upsert({
+        user_id: userId,
+        phone,
+        name: pushName || contact?.name,
         current_menu_key: result.newMenuKey,
+        previous_menu_key: result.previousMenuKey,
+        last_sent_menu_key: result.newMenuKey,
+        navigation_stack: result.newStack,
         last_message_at: now,
         last_response_at: now,
         awaiting_human: result.isHuman,
         interaction_count: (contact?.interaction_count || 0) + 1,
-        name: pushName || contact?.name,
-      })
-      .eq("user_id", userId)
-      .eq("phone", phone);
+      }, {
+        onConflict: "user_id,phone",
+      });
 
-    // Log interaction
+    // Log
     await supabase.from("chatbot_v3_logs").insert({
       user_id: userId,
       contact_phone: phone,
@@ -740,6 +1067,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         status: sent ? "sent" : "failed",
         menuKey: result.newMenuKey,
+        previousMenuKey: result.previousMenuKey,
+        stackSize: result.newStack.length,
+        useListMessage: result.useListMessage,
         triggerMatched: result.triggerMatched,
         isFallback: result.isFallback,
         isHuman: result.isHuman,
