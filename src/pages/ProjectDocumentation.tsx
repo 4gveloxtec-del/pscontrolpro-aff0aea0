@@ -342,7 +342,42 @@ evolution-api → send message → log history
 
 ---
 
-## 11. OBSERVAÇÕES TÉCNICAS
+## 11. PADRÕES DE MANUTENÇÃO
+
+### 11.1 Como Criar Novas Features
+\`\`\`typescript
+// ✅ SEMPRE: Pré-checagem antes de inserir
+const existing = await fetchExistingClientIdsByPhone(supabase, sellerId, phones);
+if (existing.has(phone)) { /* update */ } else { /* insert */ }
+
+// ✅ SEMPRE: Operações idempotentes
+// ✅ SEMPRE: Filtrar por seller_id
+\`\`\`
+
+### 11.2 Zonas Protegidas (NÃO MEXER)
+| Tipo | Arquivos/Funções |
+|------|------------------|
+| Edge Críticas | crypto, create-seller, setup-first-admin |
+| RLS Base | profiles, user_roles, app_settings |
+| Hooks Globais | useAuth, useClientValidation, useConnectionMonitor |
+| Auto-gerados | client.ts, types.ts, config.toml, .env |
+
+### 11.3 Padrão de Importação
+\`\`\`
+1. PARSE → 2. NORMALIZE → 3. VALIDATE → 4. DEDUPE → 5. BATCH → 6. LOG
+Nunca insert direto. Sempre verificar existência primeiro.
+\`\`\`
+
+### 11.4 Checklist Pré-Deploy
+- [ ] Cache limpo (testar aba anônima)
+- [ ] Zero erros no console
+- [ ] /system-health OK
+- [ ] Login/CRUD funcionando
+- [ ] RLS ativo em novas tabelas
+
+---
+
+## 12. OBSERVAÇÕES TÉCNICAS
 
 ### Performance
 - React.lazy para code splitting
@@ -365,6 +400,7 @@ evolution-api → send message → log history
 ---
 
 *Documento gerado automaticamente - PSControl v1.0*
+*Padrões de manutenção: docs/MAINTENANCE_STANDARDS.md*
 `;
 
 export default function ProjectDocumentation() {
