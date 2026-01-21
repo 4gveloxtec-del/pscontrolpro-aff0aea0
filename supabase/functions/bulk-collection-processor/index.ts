@@ -149,13 +149,66 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // =============================================
+    // AUTHENTICATION CHECK - Required for all actions
+    // =============================================
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.log("[bulk] Missing authorization header");
+      return new Response(JSON.stringify({ error: "Authorization required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Validate token using getClaims
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.log("[bulk] Invalid token:", claimsError?.message);
+      return new Response(JSON.stringify({ error: "Invalid authentication" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authenticatedUserId = claimsData.claims.sub;
 
     const { action, seller_id, job_id, clients, interval_seconds, profile_data } = await req.json();
 
+    // Validate seller_id matches authenticated user (prevent impersonation)
+    if (seller_id && seller_id !== authenticatedUserId) {
+      // Check if user is admin (admins can act on behalf of sellers)
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", authenticatedUserId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (!roleData) {
+        console.log("[bulk] User attempted to access another seller's data");
+        return new Response(JSON.stringify({ error: "Access denied" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Use authenticated user's ID if seller_id not provided
+    const effectiveSellerId = seller_id || authenticatedUserId;
+
     // ACTION: Start a new bulk job
     if (action === 'start') {
-      if (!seller_id || !clients || clients.length === 0) {
+      if (!effectiveSellerId || !clients || clients.length === 0) {
         return new Response(JSON.stringify({ error: 'Missing required fields' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
@@ -166,7 +219,7 @@ Deno.serve(async (req) => {
       const { data: existingJob } = await supabase
         .from('bulk_collection_jobs')
         .select('*')
-        .eq('seller_id', seller_id)
+        .eq('seller_id', effectiveSellerId)
         .in('status', ['pending', 'processing', 'paused'])
         .maybeSingle();
 
@@ -184,7 +237,7 @@ Deno.serve(async (req) => {
       const { data: newJob, error: createError } = await supabase
         .from('bulk_collection_jobs')
         .insert({
-          seller_id,
+          seller_id: effectiveSellerId,
           status: 'pending',
           total_clients: clients.length,
           processed_clients: 0,
@@ -198,7 +251,6 @@ Deno.serve(async (req) => {
         .select()
         .single();
 
-      if (createError) throw createError;
 
       // Start processing in background (fire and forget)
       processJob(supabase, newJob.id).catch(console.error);
@@ -232,7 +284,7 @@ Deno.serve(async (req) => {
       const { data: job } = await supabase
         .from('bulk_collection_jobs')
         .select('*')
-        .eq('seller_id', seller_id)
+        .eq('seller_id', effectiveSellerId)
         .in('status', ['pending', 'processing', 'paused'])
         .order('created_at', { ascending: false })
         .maybeSingle();
@@ -248,7 +300,7 @@ Deno.serve(async (req) => {
         .from('bulk_collection_jobs')
         .update({ status: 'paused', updated_at: new Date().toISOString() })
         .eq('id', job_id)
-        .eq('seller_id', seller_id);
+        .eq('seller_id', effectiveSellerId);
 
       if (error) throw error;
 
@@ -263,7 +315,7 @@ Deno.serve(async (req) => {
         .from('bulk_collection_jobs')
         .select('*')
         .eq('id', job_id)
-        .eq('seller_id', seller_id)
+        .eq('seller_id', effectiveSellerId)
         .single();
 
       if (fetchError) throw fetchError;
@@ -294,7 +346,7 @@ Deno.serve(async (req) => {
         .from('bulk_collection_jobs')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('id', job_id)
-        .eq('seller_id', seller_id);
+        .eq('seller_id', effectiveSellerId);
 
       if (error) throw error;
 
@@ -308,7 +360,7 @@ Deno.serve(async (req) => {
       const { data: jobs, error } = await supabase
         .from('bulk_collection_jobs')
         .select('id, status, total_clients, processed_clients, success_count, error_count, created_at, updated_at')
-        .eq('seller_id', seller_id)
+        .eq('seller_id', effectiveSellerId)
         .order('created_at', { ascending: false })
         .limit(10);
 
