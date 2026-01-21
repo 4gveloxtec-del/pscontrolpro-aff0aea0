@@ -140,6 +140,26 @@ const hasSessionMarker = (): boolean => {
   }
 };
 
+// Small helper to avoid infinite "Verificando sessão..." if the auth SDK hangs
+const withTimeout = async <T,>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> => {
+  let timeoutId: number | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`[useAuth] Timeout: ${label} (${ms}ms)`));
+    }, ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -189,7 +209,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const recover = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error } = await withTimeout(
+          supabase.auth.getSession(),
+          4000,
+          'getSession(recover)'
+        );
 
         if (!error && data?.session?.user) {
           console.log('[useAuth] Session recovered successfully');
@@ -357,7 +381,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Get current session
       try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          6000,
+          'getSession(init)'
+        );
         
         if (error) {
           console.error('[useAuth] Session error:', error);
@@ -484,9 +512,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthState('loading');
     
     const normalizedEmail = email.trim().toLowerCase();
-    const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
     
     if (error) {
+      setAuthState('unauthenticated');
+      return { error: error as Error | null };
+    }
+
+    // CRITICAL: do not depend solely on onAuthStateChange.
+    // If the auth event is delayed/missed, we would be stuck on "Verificando sessão...".
+    if (data?.session?.user) {
+      setSession(data.session);
+      setUser(data.session.user);
+      localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
+
+      const cached = getCachedData(data.session.user.id);
+      if (cached.profile) setProfile(cached.profile);
+      if (cached.role) setRole(cached.role);
+
+      setAuthState('authenticated');
+      // Fetch profile/role in background
+      fetchUserData(data.session.user.id, true, data.session.access_token);
+    } else {
+      // Unexpected: no user in response; treat as unauthenticated to unblock UI
       setAuthState('unauthenticated');
     }
     
