@@ -111,7 +111,7 @@ export function useNovaFeature() {
 |------|--------|-------------|
 | `useAuth` | Autenticação central | Todos os componentes |
 | `useClientValidation` | Normalização de dados | Clients, Import, Bulk |
-| `useWhatsAppConfig` | Config WhatsApp | Automação, Chatbot |
+| `useWhatsAppConfig` | Config WhatsApp | Automação, Templates |
 | `useConnectionMonitor` | Status de conexão | Realtime, Sync |
 
 ### 2.4 Arquivos Intocáveis

@@ -67,7 +67,6 @@ export const navGroups: NavGroup[] = [
     title: 'Mensagens',
     items: [
       { title: 'Automação WhatsApp', href: '/whatsapp-automation', icon: Bot },
-      { title: 'Chatbot V3', href: '/chatbot-v3', icon: Bot },
       { title: 'Templates', href: '/templates', icon: MessageSquare },
       { title: 'Histórico', href: '/message-history', icon: History, sellerOnly: true },
     ],

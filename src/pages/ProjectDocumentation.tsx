@@ -35,10 +35,6 @@ const DOCUMENTATION = `# DOCUMENTAÇÃO COMPLETA - PSControl
 | Templates | Templates.tsx | Templates de mensagens |
 | MessageHistory | MessageHistory.tsx | Histórico de mensagens |
 | WhatsAppAutomation | WhatsAppAutomation.tsx | Config automação |
-| ChatbotV3 | ChatbotV3.tsx | Chatbot novo |
-| SellerChatbotMenu | SellerChatbotMenu.tsx | Menu chatbot seller |
-| Chatbot | Chatbot.tsx | Chatbot legado |
-| ChatbotLogs | ChatbotLogs.tsx | Logs do chatbot |
 | Tutorials | Tutorials.tsx | Tutoriais em vídeo |
 | Settings | Settings.tsx | Configurações |
 
@@ -132,11 +128,9 @@ useAuth, useBruteForce, useFingerprint, usePasswordValidation, useCrypto
 useClientValidation, useRenewalMutation, usePerformanceOptimization, useSentMessages
 \`\`\`
 
-### WhatsApp e Chatbot
+### WhatsApp
 \`\`\`
-useWhatsAppConfig, useWhatsAppGlobalConfig, useWhatsAppSellerInstance,
-useChatbotV3, useChatbotFlows, useChatbotRules, useChatbotCategories,
-useSellerChatbotConfig, useAdminChatbotConfig
+useWhatsAppConfig, useWhatsAppGlobalConfig, useWhatsAppSellerInstance
 \`\`\`
 
 ### Notificações
@@ -173,24 +167,16 @@ useTheme, useMenuStyle, usePrivacyMode, usePWA, useMobile
 | templates | Templates de mensagens | ✅ |
 | message_history | Histórico mensagens | ✅ |
 
-### WhatsApp/Chatbot
+### WhatsApp
 | Tabela | Função |
 |--------|--------|
 | whatsapp_seller_instances | Instâncias Evolution API |
 | whatsapp_global_config | Config global WhatsApp |
-| chatbot_v3_config | Config chatbot v3 |
-| chatbot_v3_menus | Menus do chatbot |
-| chatbot_v3_options | Opções dos menus |
-| chatbot_v3_triggers | Gatilhos globais |
-| chatbot_v3_variables | Variáveis customizadas |
-| chatbot_contacts | Contatos do chatbot |
-| chatbot_interactions | Histórico interações |
 
 ### Admin
 | Tabela | Função |
 |--------|--------|
 | app_settings | Configurações globais |
-| admin_chatbot_config | Chatbot do admin |
 | admin_broadcasts | Broadcasts admin |
 | server_templates | Templates de servidores |
 | landing_platforms | Plataformas na landing |
@@ -221,10 +207,6 @@ evolution-api, whatsapp-automation, check-expirations, check-instance-blocks,
 configure-seller-instance, send-welcome-message, send-reseller-message
 \`\`\`
 
-### Chatbot
-\`\`\`
-chatbot-v3, chatbot-webhook
-\`\`\`
 
 ### Backup
 \`\`\`
