@@ -4,6 +4,13 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+/* Mobile-only frame: background for desktop viewport */
+html, body, #root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: hsl(222 47% 11%); /* slate-900 outer frame */
+}
+
 @layer base {
   :root,
   .theme-netflix {

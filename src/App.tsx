@@ -255,23 +255,28 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <OnlineRequired>
-        <AppInitializer>
-          <AuthProvider>
-            <PrivacyModeProvider>
-              <MenuStyleProvider>
-                <ExpirationNotificationProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <Sonner />
-                    <AppRoutes />
-                  </TooltipProvider>
-                </ExpirationNotificationProvider>
-              </MenuStyleProvider>
-            </PrivacyModeProvider>
-          </AuthProvider>
-        </AppInitializer>
-      </OnlineRequired>
+      {/* Mobile-only wrapper: centers app in mobile dimensions on desktop */}
+      <div className="min-h-screen w-full bg-slate-900 flex items-center justify-center">
+        <div className="w-full max-w-[430px] min-h-screen bg-background shadow-2xl relative overflow-hidden">
+          <OnlineRequired>
+            <AppInitializer>
+              <AuthProvider>
+                <PrivacyModeProvider>
+                  <MenuStyleProvider>
+                    <ExpirationNotificationProvider>
+                      <TooltipProvider>
+                        <Toaster />
+                        <Sonner />
+                        <AppRoutes />
+                      </TooltipProvider>
+                    </ExpirationNotificationProvider>
+                  </MenuStyleProvider>
+                </PrivacyModeProvider>
+              </AuthProvider>
+            </AppInitializer>
+          </OnlineRequired>
+        </div>
+      </div>
     </ThemeProvider>
   </QueryClientProvider>
 );
