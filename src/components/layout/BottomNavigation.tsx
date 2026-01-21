@@ -53,7 +53,10 @@ export const BottomNavigation = forwardRef<HTMLElement, BottomNavigationProps>(
                   return (
                     <button
                       key={item.href}
-                      onClick={() => navigate(item.href)}
+                      onClick={() => {
+                        // Avoid pushing the same route again (prevents subtle double-tap side effects)
+                        if (!isActive) navigate(item.href);
+                      }}
                       className={cn(
                         'flex flex-col items-center justify-center gap-1 min-w-[3.5rem] sm:min-w-[3rem] min-h-[3.5rem] sm:min-h-[3rem] px-1.5 py-1.5 rounded-xl transition-smooth active:scale-95 touch-target',
                         isActive
