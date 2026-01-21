@@ -13,8 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Bot, Settings, Menu as MenuIcon, Zap, Variable, 
-  Plus, Trash2, Edit2, Save, ArrowRight, MessageSquare,
-  User, ChevronRight, PlayCircle
+  Plus, Trash2, ChevronRight, PlayCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,7 +35,6 @@ export default function ChatbotV3() {
     updateTrigger,
     updateVariable,
     getMenuOptions,
-    getChildMenus,
     replaceVariables,
   } = useChatbotV3();
 

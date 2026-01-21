@@ -317,3 +317,68 @@ Para dúvidas sobre a implementação, consulte:
 - Interface: `/chatbot-v3`
 - Logs: Tabela `chatbot_v3_logs`
 - Configurações: Aba "Configurações" na interface
+
+---
+
+## 📋 Changelog
+
+### v3.1.0 (2026-01-21)
+**List Message + Navegação Passo a Passo**
+
+#### Novos Recursos
+- ✅ **List Message**: Menus enviados como mensagens interativas do WhatsApp
+- ✅ **Navegação por Pilha**: `navigation_stack` mantém histórico completo
+- ✅ **Voltar Passo a Passo**: Retorna UMA etapa por vez, nunca pula
+- ✅ **Anti-Repetição**: `last_sent_menu_key` evita reenvio da mesma mensagem
+- ✅ **IDs Automáticos**: Campo `list_id` gerado automaticamente para cada opção
+- ✅ **Fallback para Texto**: Se List Message falhar, envia como texto simples
+
+#### Novos Campos no Banco
+```sql
+-- chatbot_v3_contacts
+previous_menu_key TEXT       -- Passo anterior
+last_sent_menu_key TEXT      -- Anti-repetição
+navigation_stack TEXT[]      -- Pilha de navegação
+
+-- chatbot_v3_config
+use_list_message BOOLEAN     -- Habilitar List Message
+list_button_text TEXT        -- Texto do botão (padrão: "📋 Ver opções")
+
+-- chatbot_v3_options (gerado automaticamente)
+list_id TEXT                 -- ID único para List Message (lm_*)
+
+-- chatbot_v3_menus (gerado automaticamente)
+list_id TEXT                 -- ID único do menu (lm_*)
+```
+
+#### Fluxo de Navegação
+```
+main → planos → mensal
+  ↓      ↓        ↓
+stack: [] → ["main"] → ["main", "planos"]
+
+Voltar:
+["main", "planos"] → ["main"] → []
+     mensal      →   planos  → main
+```
+
+#### Atendimento Humano
+- Bloqueia respostas automáticas
+- Só aceita comando "Voltar"
+- Retorna ao passo anterior corretamente
+
+---
+
+### v3.0.0 (2026-01-21)
+**Reconstrução Completa do Chatbot**
+
+#### Recursos Iniciais
+- ✅ Arquitetura modular do zero
+- ✅ 7 tabelas otimizadas com RLS
+- ✅ Gatilhos globais (menu, voltar, humano)
+- ✅ Match por número E keyword
+- ✅ Variáveis dinâmicas ({empresa}, {pix})
+- ✅ Fallback obrigatório
+- ✅ Provisionamento automático para novos usuários
+- ✅ Interface de edição com simulador
+- ✅ Documentação completa
