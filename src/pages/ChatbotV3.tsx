@@ -615,6 +615,18 @@ export default function ChatbotV3() {
                         onCheckedChange={(checked) => updateConfig({ ignore_groups: checked })}
                       />
                     </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-primary/20 bg-primary/5">
+                      <div>
+                        <Label className="text-base font-medium">List Message (WhatsApp)</Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Envia menus como lista interativa profissional
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config?.use_list_message ?? true}
+                        onCheckedChange={(checked) => updateConfig({ use_list_message: checked })}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-4">
                     <div>
@@ -636,6 +648,18 @@ export default function ChatbotV3() {
                         value={config?.response_delay_max ?? 5}
                         onChange={(e) => updateConfig({ response_delay_max: parseInt(e.target.value) })}
                       />
+                    </div>
+                    <div>
+                      <Label>Texto do Botão (List Message)</Label>
+                      <Input
+                        placeholder="📋 Ver opções"
+                        value={config?.list_button_text ?? "📋 Ver opções"}
+                        onChange={(e) => updateConfig({ list_button_text: e.target.value })}
+                        disabled={!config?.use_list_message}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Texto exibido no botão de abrir a lista
+                      </p>
                     </div>
                   </div>
                 </div>
