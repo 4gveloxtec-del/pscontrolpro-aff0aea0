@@ -10,6 +10,8 @@ const DEFAULT_TRIAL_DAYS = 5;
 // Authentication states - explicit for better control
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
+const AUTH_DEBUG_PREFIX = '[useAuth]';
+
 interface Profile {
   id: string;
   email: string;
@@ -210,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     missingUserRecoveryAttempts.current += 1;
 
     recoveringMissingSession.current = true;
-    console.warn('[useAuth] Inconsistent state: authenticated without user. Attempting recovery...');
+    console.warn(`${AUTH_DEBUG_PREFIX} Inconsistent state: authenticated without user. Attempting recovery...`);
 
     // Keep UI stable while we attempt session recovery.
     setAuthState('loading');
@@ -224,21 +226,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
 
         if (!error && data?.session?.user) {
-          console.log('[useAuth] Session recovered successfully');
+          console.log(`${AUTH_DEBUG_PREFIX} Session recovered successfully`);
           setSession(data.session);
           setUser(data.session.user);
           setAuthState('authenticated');
           return;
         }
 
-        // IMPORTANT: Never force logout automatically on flaky networks.
-        // If we have a session marker, keep the UI in a stable authenticated mode
-        // and allow background recovery later.
-        console.warn('[useAuth] Session recovery failed; keeping stable state', error);
-        if (hasSessionMarker()) {
-          setAuthState('authenticated');
-          return;
-        }
+        // IMPORTANT: Never mark as authenticated without a real session user.
+        // If we have a session marker, stay in "loading" so ProtectedRoute can show
+        // a stable "Reconectando" UI instead of bouncing to /auth.
+        console.warn(`${AUTH_DEBUG_PREFIX} Session recovery failed; staying in reconnecting mode`, error);
+        if (hasSessionMarker()) return;
 
         // No marker means we truly don't expect a session.
         clearCachedData();
@@ -248,11 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setAuthState('unauthenticated');
       } catch (e) {
-        console.error('[useAuth] Session recovery exception; keeping stable state', e);
-        if (hasSessionMarker()) {
-          setAuthState('authenticated');
-          return;
-        }
+        console.error(`${AUTH_DEBUG_PREFIX} Session recovery exception; staying in reconnecting mode`, e);
+        if (hasSessionMarker()) return;
 
         clearCachedData();
         setSession(null);
@@ -313,18 +309,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Check if we have cached data to use
         const sessionMarker = hasSessionMarker();
         if (sessionMarker) {
-          // Try to use cached data
+          // Try to use cached data for UI hints, but DO NOT mark authenticated without a real user.
           const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
           if (cachedUserId) {
             const cached = getCachedData(cachedUserId);
-            if (cached.profile && cached.role) {
-              console.log('[useAuth] Using cached data after timeout');
-              setProfile(cached.profile);
-              setRole(cached.role);
-              setAuthState('authenticated');
-              return;
-            }
+            if (cached.profile) setProfile(cached.profile);
+            if (cached.role) setRole(cached.role);
           }
+          console.warn(`${AUTH_DEBUG_PREFIX} Safety timeout: session marker present but session not restored yet; staying in loading`);
+          return;
         }
         // No valid cache - set unauthenticated
         setAuthState('unauthenticated');
@@ -337,7 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         async (event: AuthChangeEvent, currentSession: Session | null) => {
           if (!isMounted) return;
           
-          console.log('[useAuth] Auth event:', event);
+          console.log(`${AUTH_DEBUG_PREFIX} Auth event:`, event);
           
           switch (event) {
             case 'SIGNED_OUT':
@@ -411,18 +404,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error('[useAuth] Session error:', error);
-          // Check cache before giving up
+          // Cache is allowed to avoid blank UI, but DO NOT mark authenticated without a real user.
           if (hasSessionMarker()) {
             const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
             if (cachedUserId) {
               const cached = getCachedData(cachedUserId);
-              if (cached.profile && cached.role) {
-                setProfile(cached.profile);
-                setRole(cached.role);
-                setAuthState('authenticated');
-                return;
-              }
+              if (cached.profile) setProfile(cached.profile);
+              if (cached.role) setRole(cached.role);
             }
+            // Stay loading and let auth events resolve.
+            return;
           }
         }
         
@@ -444,10 +435,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const cached = getCachedData(cachedUserId);
             if (cached.profile) setProfile(cached.profile);
             if (cached.role) setRole(cached.role);
-            setAuthState('authenticated');
-            return;
           }
-          // Keep loading and allow the safety timeout to resolve to unauthenticated if needed.
+          // Keep loading (reconnecting). Do NOT mark authenticated without a real user.
           return;
         }
 
