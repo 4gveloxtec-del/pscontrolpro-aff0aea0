@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,7 +8,7 @@ const corsHeaders = {
 const MAX_ATTEMPTS = 10;
 const BLOCK_DURATION_MINUTES = 15;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -20,7 +19,17 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    const { email, action, ip_address, success } = await req.json();
+    let body: { email?: string; action?: string; ip_address?: string; success?: boolean };
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { email, action, ip_address, success } = body;
     
     console.log(`Login attempt check for: ${email}, action: ${action}`);
     
@@ -31,6 +40,8 @@ serve(async (req) => {
       );
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     if (action === 'check') {
       // Check if user is blocked
       const cutoffTime = new Date(Date.now() - BLOCK_DURATION_MINUTES * 60 * 1000).toISOString();
@@ -38,7 +49,7 @@ serve(async (req) => {
       const { count, error } = await supabase
         .from('login_attempts')
         .select('*', { count: 'exact', head: true })
-        .eq('email', email.toLowerCase())
+        .eq('email', normalizedEmail)
         .eq('success', false)
         .gte('attempt_at', cutoffTime);
       
@@ -63,11 +74,11 @@ serve(async (req) => {
     }
 
     if (action === 'record') {
-      // Record login attempt - success is now read from initial json parse
+      // Record login attempt
       const { error } = await supabase
         .from('login_attempts')
         .insert({
-          email: email.toLowerCase(),
+          email: normalizedEmail,
           ip_address: ip_address || null,
           success: success || false
         });
@@ -82,7 +93,7 @@ serve(async (req) => {
         await supabase
           .from('login_attempts')
           .delete()
-          .eq('email', email.toLowerCase())
+          .eq('email', normalizedEmail)
           .eq('success', false);
       }
 

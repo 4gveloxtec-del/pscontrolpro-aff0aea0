@@ -1,10 +1,11 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const API_TIMEOUT_MS = 15000;
 
 interface BulkJob {
   id: string;
@@ -22,51 +23,74 @@ interface BulkJob {
   last_error?: string;
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = API_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function sendEvolutionMessage(
   apiUrl: string,
   apiToken: string,
   instanceName: string,
   phone: string,
-  message: string
+  message: string,
+  retries = 2
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    let normalizedUrl = apiUrl.trim();
-    if (normalizedUrl.endsWith('/')) {
-      normalizedUrl = normalizedUrl.slice(0, -1);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      let normalizedUrl = apiUrl.trim();
+      if (normalizedUrl.endsWith('/')) {
+        normalizedUrl = normalizedUrl.slice(0, -1);
+      }
+
+      const endpoint = `${normalizedUrl}/message/sendText/${instanceName}`;
+      console.log(`[bulk] Attempt ${attempt + 1}: Sending to ${phone}`);
+
+      const response = await fetchWithTimeout(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiToken,
+        },
+        body: JSON.stringify({
+          number: phone,
+          text: message,
+        }),
+      });
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        // Retry on 5xx errors
+        if (response.status >= 500 && attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        return { success: false, error: `HTTP ${response.status}: ${responseText}` };
+      }
+
+      const data = JSON.parse(responseText);
+      if (data.key || data.status === 'PENDING' || data.messageId) {
+        return { success: true };
+      }
+
+      return { success: false, error: data.message || 'Unknown error' };
+    } catch (error: any) {
+      console.error('[bulk] Send error:', error.message);
+      // Retry on timeout/network errors
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return { success: false, error: error.message || 'Network error' };
     }
-
-    const endpoint = `${normalizedUrl}/message/sendText/${instanceName}`;
-    console.log(`Sending message to ${phone} via ${endpoint}`);
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': apiToken,
-      },
-      body: JSON.stringify({
-        number: phone,
-        text: message,
-      }),
-    });
-
-    const responseText = await response.text();
-    console.log(`Response status: ${response.status}, body: ${responseText}`);
-
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}: ${responseText}` };
-    }
-
-    const data = JSON.parse(responseText);
-    if (data.key || data.status === 'PENDING' || data.messageId) {
-      return { success: true };
-    }
-
-    return { success: false, error: data.message || 'Unknown error' };
-  } catch (error: any) {
-    console.error('Send message error:', error);
-    return { success: false, error: error.message || 'Network error' };
   }
+  return { success: false, error: 'Max retries exceeded' };
 }
 
 function formatDate(dateStr: string): string {
@@ -81,7 +105,7 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

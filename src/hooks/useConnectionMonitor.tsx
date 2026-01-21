@@ -136,7 +136,9 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     }
   }, [user?.id]);
 
-  // Fetch alerts
+  // Fetch alerts - uses ref to avoid stale closure issues
+  const alertsRef = useRef<ConnectionAlert[]>([]);
+  
   const fetchAlerts = useCallback(async () => {
     if (!user?.id) return;
 
@@ -151,8 +153,8 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
 
       const newAlerts = data.alerts || [];
       
-      // Notify about new critical alerts
-      const previousAlertIds = alerts.map(a => a.id);
+      // Notify about new critical alerts - use ref to avoid dependency loop
+      const previousAlertIds = alertsRef.current.map(a => a.id);
       const newCriticalAlerts = newAlerts.filter(
         (a: ConnectionAlert) => a.severity === 'critical' && !previousAlertIds.includes(a.id)
       );
@@ -162,11 +164,12 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
         toast.error(alert.message);
       });
 
+      alertsRef.current = newAlerts;
       setAlerts(newAlerts);
     } catch (err) {
       console.error('Error fetching alerts:', err);
     }
-  }, [user?.id, alerts, onAlert]);
+  }, [user?.id, onAlert]);
 
   // Start heartbeat monitoring
   const startMonitoring = useCallback(() => {
