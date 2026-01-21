@@ -295,6 +295,7 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
 
   // Initialize and cleanup - runs only once
   useOnce(() => {
+    console.log('[useRealtimeConnectionSync] Inicialização única executada');
     isMountedRef.current = true;
 
     if (user?.id) {
@@ -302,6 +303,7 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     }
 
     return () => {
+      console.log('[useRealtimeConnectionSync] Cleanup executado');
       isMountedRef.current = false;
       stopHeartbeat();
     };

@@ -8,7 +8,8 @@ import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { FloatingNotifications } from '@/components/FloatingNotifications';
 import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 import { OnboardingProgressBar } from '@/components/OnboardingProgressBar';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useOnce } from '@/hooks/useOnce';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -182,6 +183,11 @@ export function AppLayout() {
   const isMobile = useIsMobile();
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
+  
+  // Log de validação - executa apenas uma vez por sessão
+  useOnce(() => {
+    console.log('[AppLayout] Inicialização única - Seller area loaded');
+  });
   
   const showTrialBanner = isUser && trialInfo.isInTrial;
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useOnce } from '@/hooks/useOnce';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,11 @@ export function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Log de validação - executa apenas uma vez por sessão
+  useOnce(() => {
+    console.log('[AdminLayout] Inicialização única - Admin area loaded');
+  });
 
   const handleLogout = async () => {
     await signOut();

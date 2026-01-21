@@ -72,10 +72,12 @@ export function useWhatsAppSellerInstance() {
 
   // Initial fetch - runs only once
   useOnce(() => {
+    console.log('[useWhatsAppSellerInstance] Inicialização única executada');
     isMountedRef.current = true;
     fetchInstance();
     
     return () => {
+      console.log('[useWhatsAppSellerInstance] Cleanup executado');
       isMountedRef.current = false;
     };
   });

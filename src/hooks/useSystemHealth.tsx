@@ -74,11 +74,15 @@ export function useSystemHealth() {
 
   // Initial fetch - runs only once per session
   useOnce(() => {
+    console.log('[useSystemHealth] Inicialização única executada');
     fetchData();
     
     // Atualizar a cada 30 segundos
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      console.log('[useSystemHealth] Cleanup executado');
+      clearInterval(interval);
+    };
   });
 
   const toggleSystem = async (enabled: boolean) => {
