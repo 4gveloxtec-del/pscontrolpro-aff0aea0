@@ -98,15 +98,71 @@ function normalizeApiUrl(url: string): string {
   return url.replace(/\/manager\/?$/i, "").replace(/\/+$/, "");
 }
 
+/**
+ * Normalização robusta de telefone para Evolution API
+ * Gera múltiplos formatos para retry automático
+ */
 function formatPhone(phone: string): string {
   let formatted = (phone || "").replace(/\D/g, "").split("@")[0];
-  if (!formatted.startsWith("55") && (formatted.length === 10 || formatted.length === 11)) {
-    formatted = `55${formatted}`;
-  }
+  
+  // Remove zeros iniciais errados
   if (formatted.startsWith("550")) {
     formatted = "55" + formatted.substring(3);
   }
+  
+  // Brasil: adiciona 55 se não tiver
+  if (!formatted.startsWith("55") && (formatted.length === 10 || formatted.length === 11)) {
+    formatted = `55${formatted}`;
+  }
+  
+  // Fix: números brasileiros com 9º dígito faltando (celular)
+  // Se tem 12 dígitos (55 + DDD + 8 dígitos), adiciona o 9
+  if (formatted.startsWith("55") && formatted.length === 12) {
+    const ddd = formatted.substring(2, 4);
+    const number = formatted.substring(4);
+    // DDDs de celular que precisam do 9
+    if (!number.startsWith("9") && parseInt(ddd) >= 11) {
+      formatted = `55${ddd}9${number}`;
+    }
+  }
+  
   return formatted;
+}
+
+/**
+ * Gera variações de formato para retry automático
+ * Evita duplicidade usando Set
+ */
+function getPhoneVariations(phone: string): string[] {
+  const base = formatPhone(phone);
+  const variations = new Set<string>();
+  
+  // Formato principal
+  variations.add(base);
+  
+  // Com sufixo JID (alguns Evolution APIs precisam)
+  variations.add(`${base}@s.whatsapp.net`);
+  
+  // Sem código de país (para números internacionais mal formatados)
+  if (base.startsWith("55") && base.length >= 12) {
+    variations.add(base.substring(2));
+  }
+  
+  // Brasil: tenta com/sem 9º dígito
+  if (base.startsWith("55") && base.length === 13) {
+    // Remover 9º dígito (55 + DDD + 9 + 8 dígitos -> 55 + DDD + 8 dígitos)
+    const without9 = base.substring(0, 4) + base.substring(5);
+    variations.add(without9);
+  } else if (base.startsWith("55") && base.length === 12) {
+    // Adicionar 9º dígito
+    const ddd = base.substring(2, 4);
+    const number = base.substring(4);
+    if (!number.startsWith("9")) {
+      variations.add(`55${ddd}9${number}`);
+    }
+  }
+  
+  return Array.from(variations);
 }
 
 function extractPhone(remoteJid: string): string {
@@ -310,56 +366,63 @@ async function sendTypingStatus(
   }
 }
 
+/**
+ * Envia mensagem de texto com retry automático em múltiplos formatos
+ * Elimina erros 400 tentando variações de número
+ */
 async function sendTextMessage(
   config: GlobalApiConfig,
   instanceName: string,
   phone: string,
   text: string
 ): Promise<boolean> {
-  try {
-    const baseUrl = normalizeApiUrl(config.api_url);
-    const formattedPhone = formatPhone(phone);
-    
-    console.log(`[ChatbotV3] Sending text to ${formattedPhone}`);
-    
-    let response = await fetch(`${baseUrl}/message/sendText/${instanceName}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: config.api_token,
-      },
-      body: JSON.stringify({ number: formattedPhone, text }),
-    });
-    
-    if (response.status === 400) {
-      const alternates = [
-        formattedPhone + "@s.whatsapp.net",
-        formattedPhone.replace(/^55/, ""),
-      ];
+  const baseUrl = normalizeApiUrl(config.api_url);
+  const variations = getPhoneVariations(phone);
+  
+  console.log(`[ChatbotV3] Sending text, will try ${variations.length} format(s)`);
+  
+  for (const formattedPhone of variations) {
+    try {
+      const response = await fetch(`${baseUrl}/message/sendText/${instanceName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.api_token,
+        },
+        body: JSON.stringify({ number: formattedPhone, text }),
+      });
       
-      for (const alt of alternates) {
-        const retryResponse = await fetch(`${baseUrl}/message/sendText/${instanceName}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: config.api_token,
-          },
-          body: JSON.stringify({ number: alt, text }),
-        });
-        
-        if (retryResponse.ok) return true;
+      if (response.ok) {
+        console.log(`[ChatbotV3] Success with format: ${formattedPhone.substring(0, 6)}***`);
+        return true;
       }
+      
+      // Se não for erro 400, não tenta outros formatos (pode ser rate limit, etc)
+      if (response.status !== 400) {
+        const errorText = await response.text().catch(() => "");
+        console.log(`[ChatbotV3] Non-400 error (${response.status}): ${errorText.substring(0, 100)}`);
+        // Continua tentando outros formatos apenas para 400
+        if (response.status >= 500) {
+          // Erro do servidor, tenta próximo formato
+          continue;
+        }
+        return false;
+      }
+      
+      // 400 = formato errado, tenta próximo
+      console.log(`[ChatbotV3] Format ${formattedPhone.substring(0, 6)}*** returned 400, trying next...`);
+    } catch (error) {
+      console.error(`[ChatbotV3] Network error for ${formattedPhone.substring(0, 6)}***:`, error);
+      // Continua tentando outros formatos
     }
-    
-    return response.ok;
-  } catch (error) {
-    console.error("[ChatbotV3] sendTextMessage error:", error);
-    return false;
   }
+  
+  console.log(`[ChatbotV3] All ${variations.length} formats failed`);
+  return false;
 }
 
 /**
- * Envia List Message (menu interativo do WhatsApp)
+ * Envia List Message (menu interativo do WhatsApp) com retry automático
  */
 async function sendListMessage(
   config: GlobalApiConfig,
@@ -377,49 +440,57 @@ async function sendListMessage(
     }>;
   }>
 ): Promise<boolean> {
-  try {
-    const baseUrl = normalizeApiUrl(config.api_url);
-    const formattedPhone = formatPhone(phone);
-    
-    console.log(`[ChatbotV3] Sending list message to ${formattedPhone}`);
-    
-    const payload = {
-      number: formattedPhone,
-      title: title.substring(0, 60),
-      description: description.substring(0, 1024),
-      buttonText: buttonText.substring(0, 20),
-      footerText: "",
-      sections: sections.map(s => ({
-        title: s.title.substring(0, 24),
-        rows: s.rows.map(r => ({
-          rowId: r.rowId,
-          title: r.title.substring(0, 24),
-          description: (r.description || "").substring(0, 72),
-        })),
+  const baseUrl = normalizeApiUrl(config.api_url);
+  const variations = getPhoneVariations(phone);
+  
+  console.log(`[ChatbotV3] Sending list message, will try ${variations.length} format(s)`);
+  
+  const payload = {
+    title: title.substring(0, 60),
+    description: description.substring(0, 1024),
+    buttonText: buttonText.substring(0, 20),
+    footerText: "",
+    sections: sections.map(s => ({
+      title: s.title.substring(0, 24),
+      rows: s.rows.map(r => ({
+        rowId: r.rowId,
+        title: r.title.substring(0, 24),
+        description: (r.description || "").substring(0, 72),
       })),
-    };
-    
-    let response = await fetch(`${baseUrl}/message/sendList/${instanceName}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: config.api_token,
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    if (!response.ok) {
-      console.log(`[ChatbotV3] List message failed, falling back to text`);
-      // Fallback: enviar como texto simples
-      return await sendTextMessage(config, instanceName, phone, description);
+    })),
+  };
+  
+  for (const formattedPhone of variations) {
+    try {
+      const response = await fetch(`${baseUrl}/message/sendList/${instanceName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: config.api_token,
+        },
+        body: JSON.stringify({ ...payload, number: formattedPhone }),
+      });
+      
+      if (response.ok) {
+        console.log(`[ChatbotV3] List success with format: ${formattedPhone.substring(0, 6)}***`);
+        return true;
+      }
+      
+      if (response.status !== 400) {
+        // Erro não relacionado a formato, faz fallback para texto
+        console.log(`[ChatbotV3] List message returned ${response.status}, falling back to text`);
+        return await sendTextMessage(config, instanceName, phone, description);
+      }
+      
+      console.log(`[ChatbotV3] List format ${formattedPhone.substring(0, 6)}*** returned 400, trying next...`);
+    } catch (error) {
+      console.error(`[ChatbotV3] List network error:`, error);
     }
-    
-    return true;
-  } catch (error) {
-    console.error("[ChatbotV3] sendListMessage error:", error);
-    // Fallback para texto
-    return await sendTextMessage(config, instanceName, phone, description);
   }
+  
+  // Fallback final: enviar como texto simples
+  console.log(`[ChatbotV3] All list formats failed, falling back to text`);
+  return await sendTextMessage(config, instanceName, phone, description);
 }
 
 async function sendImageMessage(

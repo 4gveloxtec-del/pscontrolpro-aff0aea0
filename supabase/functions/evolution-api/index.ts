@@ -17,18 +17,56 @@ interface EvolutionConfig {
   instance_name: string;
 }
 
-function normalizePhoneForSend(phone: string): { digits: string; formatted: string } {
-  const digits = String(phone || '').replace(/\D/g, '');
+/**
+ * Normalização robusta de telefone para Evolution API
+ * Retorna formato principal e variações para retry
+ */
+function normalizePhoneForSend(phone: string): { digits: string; formatted: string; variations: string[] } {
+  const digits = String(phone || '').replace(/\D/g, '').split('@')[0];
   let formatted = digits;
 
-  // Brazil-focused normalization (keeps prior behavior from sendEvolutionMessage)
-  if (formatted.length === 11 && formatted.startsWith('9')) {
-    formatted = '55' + formatted;
-  } else if (formatted.length === 10 || formatted.length === 11) {
-    if (!formatted.startsWith('55')) formatted = '55' + formatted;
+  // Remove zeros iniciais errados
+  if (formatted.startsWith('550')) {
+    formatted = '55' + formatted.substring(3);
   }
 
-  return { digits, formatted };
+  // Brasil: adiciona 55 se não tiver
+  if (!formatted.startsWith('55') && (formatted.length === 10 || formatted.length === 11)) {
+    formatted = '55' + formatted;
+  }
+
+  // Fix: números brasileiros com 9º dígito faltando (celular)
+  if (formatted.startsWith('55') && formatted.length === 12) {
+    const ddd = formatted.substring(2, 4);
+    const number = formatted.substring(4);
+    if (!number.startsWith('9') && parseInt(ddd) >= 11) {
+      formatted = `55${ddd}9${number}`;
+    }
+  }
+
+  // Gerar variações para retry automático
+  const variations = new Set<string>();
+  variations.add(formatted);
+  variations.add(`${formatted}@s.whatsapp.net`);
+  
+  // Sem código de país
+  if (formatted.startsWith('55') && formatted.length >= 12) {
+    variations.add(formatted.substring(2));
+  }
+  
+  // Com/sem 9º dígito
+  if (formatted.startsWith('55') && formatted.length === 13) {
+    const without9 = formatted.substring(0, 4) + formatted.substring(5);
+    variations.add(without9);
+  } else if (formatted.startsWith('55') && formatted.length === 12) {
+    const ddd = formatted.substring(2, 4);
+    const number = formatted.substring(4);
+    if (!number.startsWith('9')) {
+      variations.add(`55${ddd}9${number}`);
+    }
+  }
+
+  return { digits, formatted, variations: Array.from(variations) };
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -67,30 +105,24 @@ async function fetchWithTimeout(
   }
 }
 
-// Send message via Evolution API with retry
+/**
+ * Envia mensagem via Evolution API com retry automático em múltiplos formatos
+ * Elimina erros 400 tentando variações de número automaticamente
+ */
 async function sendEvolutionMessage(
   config: EvolutionConfig,
   phone: string,
   message: string,
-  retries = 2
-): Promise<{ success: boolean; error?: string }> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  _retries = 2 // Mantido para compatibilidade, mas agora usamos variações
+): Promise<{ success: boolean; error?: string; usedFormat?: string }> {
+  const { variations } = normalizePhoneForSend(phone);
+  const baseUrl = normalizeApiUrl(config.api_url);
+  const url = `${baseUrl}/message/sendText/${config.instance_name}`;
+  
+  console.log(`[evolution-api] Sending message, will try ${variations.length} format(s)`);
+  
+  for (const formattedPhone of variations) {
     try {
-      // Format phone number (remove non-digits, ensure country code)
-      let formattedPhone = phone.replace(/\D/g, '');
-      if (formattedPhone.length === 11 && formattedPhone.startsWith('9')) {
-        formattedPhone = '55' + formattedPhone;
-      } else if (formattedPhone.length === 10 || formattedPhone.length === 11) {
-        if (!formattedPhone.startsWith('55')) {
-          formattedPhone = '55' + formattedPhone;
-        }
-      }
-
-      const baseUrl = normalizeApiUrl(config.api_url);
-      const url = `${baseUrl}/message/sendText/${config.instance_name}`;
-      
-      console.log(`[Attempt ${attempt + 1}] Sending message to ${formattedPhone} via Evolution API`);
-      
       const response = await fetchWithTimeout(url, {
         method: 'POST',
         headers: {
@@ -103,35 +135,43 @@ async function sendEvolutionMessage(
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Evolution API error:', errorText);
-        
-        // Retry on 5xx errors
-        if (response.status >= 500 && attempt < retries) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
-        }
-        return { success: false, error: `API Error: ${response.status} - ${errorText}` };
+      if (response.ok) {
+        console.log(`[evolution-api] Success with format: ${formattedPhone.substring(0, 6)}***`);
+        return { success: true, usedFormat: formattedPhone };
       }
 
-      const result = await response.json();
-      console.log('Evolution API response:', result);
-      
-      return { success: true };
+      // Se não for erro 400, analisa
+      if (response.status !== 400) {
+        const errorText = await response.text().catch(() => '');
+        
+        // Erro 5xx = tenta próximo formato
+        if (response.status >= 500) {
+          console.log(`[evolution-api] Server error ${response.status}, trying next format...`);
+          continue;
+        }
+        
+        // Outros erros (401, 403, etc) = para imediatamente
+        return { success: false, error: `API Error: ${response.status} - ${errorText.substring(0, 100)}` };
+      }
+
+      // 400 = formato errado, tenta próximo
+      console.log(`[evolution-api] Format ${formattedPhone.substring(0, 6)}*** returned 400, trying next...`);
     } catch (error: unknown) {
       const errorMessage = (error as Error).message;
-      console.error(`Error sending Evolution message (attempt ${attempt + 1}):`, error);
+      console.error(`[evolution-api] Network error for format ${formattedPhone.substring(0, 6)}***:`, errorMessage);
       
-      // Retry on timeout or network errors
-      if (attempt < retries && (errorMessage.includes('abort') || errorMessage.includes('timeout') || errorMessage.includes('network'))) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      // Timeout ou erro de rede = tenta próximo formato
+      if (errorMessage.includes('abort') || errorMessage.includes('timeout') || errorMessage.includes('network')) {
         continue;
       }
+      
+      // Outros erros = para
       return { success: false, error: errorMessage };
     }
   }
-  return { success: false, error: 'Max retries exceeded' };
+  
+  console.log(`[evolution-api] All ${variations.length} formats failed`);
+  return { success: false, error: 'Número não encontrado no WhatsApp (tentamos múltiplos formatos)' };
 }
 
 // Check Evolution API connection status

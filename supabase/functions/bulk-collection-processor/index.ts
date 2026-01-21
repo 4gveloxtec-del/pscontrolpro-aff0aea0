@@ -69,24 +69,74 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = A
   }
 }
 
+/**
+ * Normaliza telefone e gera variações para retry automático
+ */
+function normalizePhoneWithVariations(phone: string): string[] {
+  const digits = String(phone || '').replace(/\D/g, '').split('@')[0];
+  let formatted = digits;
+
+  // Remove zeros iniciais errados
+  if (formatted.startsWith('550')) {
+    formatted = '55' + formatted.substring(3);
+  }
+
+  // Brasil: adiciona 55 se não tiver
+  if (!formatted.startsWith('55') && (formatted.length === 10 || formatted.length === 11)) {
+    formatted = '55' + formatted;
+  }
+
+  // Fix: números brasileiros com 9º dígito faltando
+  if (formatted.startsWith('55') && formatted.length === 12) {
+    const ddd = formatted.substring(2, 4);
+    const number = formatted.substring(4);
+    if (!number.startsWith('9') && parseInt(ddd) >= 11) {
+      formatted = `55${ddd}9${number}`;
+    }
+  }
+
+  // Gerar variações
+  const variations = new Set<string>();
+  variations.add(formatted);
+  variations.add(`${formatted}@s.whatsapp.net`);
+  
+  if (formatted.startsWith('55') && formatted.length >= 12) {
+    variations.add(formatted.substring(2));
+  }
+  
+  if (formatted.startsWith('55') && formatted.length === 13) {
+    const without9 = formatted.substring(0, 4) + formatted.substring(5);
+    variations.add(without9);
+  } else if (formatted.startsWith('55') && formatted.length === 12) {
+    const ddd = formatted.substring(2, 4);
+    const number = formatted.substring(4);
+    if (!number.startsWith('9')) {
+      variations.add(`55${ddd}9${number}`);
+    }
+  }
+
+  return Array.from(variations);
+}
+
+/**
+ * Envia mensagem via Evolution API com retry automático em múltiplos formatos
+ */
 async function sendEvolutionMessage(
   apiUrl: string,
   apiToken: string,
   instanceName: string,
   phone: string,
   message: string,
-  retries = 2
+  _retries = 2
 ): Promise<{ success: boolean; error?: string }> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  const variations = normalizePhoneWithVariations(phone);
+  let normalizedUrl = apiUrl.trim().replace(/\/+$/, '');
+  const endpoint = `${normalizedUrl}/message/sendText/${instanceName}`;
+  
+  console.log(`[bulk] Sending message, will try ${variations.length} format(s)`);
+
+  for (const formattedPhone of variations) {
     try {
-      let normalizedUrl = apiUrl.trim();
-      if (normalizedUrl.endsWith('/')) {
-        normalizedUrl = normalizedUrl.slice(0, -1);
-      }
-
-      const endpoint = `${normalizedUrl}/message/sendText/${instanceName}`;
-      console.log(`[bulk] Attempt ${attempt + 1}: Sending to ${phone}`);
-
       const response = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: {
@@ -94,39 +144,44 @@ async function sendEvolutionMessage(
           'apikey': apiToken,
         },
         body: JSON.stringify({
-          number: phone,
+          number: formattedPhone,
           text: message,
         }),
       });
 
-      const responseText = await response.text();
+      if (response.ok) {
+        const responseText = await response.text();
+        try {
+          const data = JSON.parse(responseText);
+          if (data.key || data.status === 'PENDING' || data.messageId) {
+            console.log(`[bulk] Success with format: ${formattedPhone.substring(0, 6)}***`);
+            return { success: true };
+          }
+        } catch {
+          // JSON parse failed but response was OK
+          console.log(`[bulk] Success (non-JSON) with format: ${formattedPhone.substring(0, 6)}***`);
+          return { success: true };
+        }
+      }
 
-      if (!response.ok) {
-        // Retry on 5xx errors
-        if (response.status >= 500 && attempt < retries) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      if (response.status !== 400) {
+        const errorText = await response.text().catch(() => '');
+        if (response.status >= 500) {
+          console.log(`[bulk] Server error ${response.status}, trying next format...`);
           continue;
         }
-        return { success: false, error: `HTTP ${response.status}: ${responseText}` };
+        return { success: false, error: `HTTP ${response.status}: ${errorText.substring(0, 100)}` };
       }
 
-      const data = JSON.parse(responseText);
-      if (data.key || data.status === 'PENDING' || data.messageId) {
-        return { success: true };
-      }
-
-      return { success: false, error: data.message || 'Unknown error' };
+      console.log(`[bulk] Format ${formattedPhone.substring(0, 6)}*** returned 400, trying next...`);
     } catch (error: any) {
-      console.error('[bulk] Send error:', error.message);
-      // Retry on timeout/network errors
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
-      }
-      return { success: false, error: error.message || 'Network error' };
+      console.error(`[bulk] Network error for ${formattedPhone.substring(0, 6)}***:`, error.message);
+      // Continua tentando outros formatos
     }
   }
-  return { success: false, error: 'Max retries exceeded' };
+
+  console.log(`[bulk] All ${variations.length} formats failed`);
+  return { success: false, error: 'Número não encontrado no WhatsApp' };
 }
 
 function formatDate(dateStr: string): string {
