@@ -27,22 +27,30 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { role, loading, hasSystemAccess, authState, user } = useAuth();
 
-  // CRITICAL: NEVER redirect while authentication is being verified
-  // This prevents logout on page reload
-  if (loading || authState === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground">Verificando permissões...</p>
-        </div>
+  const LoadingScreen = ({ message }: { message: string }) => (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-muted-foreground">{message}</p>
       </div>
-    );
+    </div>
+  );
+
+  // CRITICAL: NEVER redirect while authentication is being verified.
+  // Also, if we have authState='authenticated' but user/role hasn't arrived yet,
+  // keep the UI stable in a "reconnecting" state instead of bouncing to /auth.
+  if (loading || authState === 'loading') {
+    return <LoadingScreen message="Verificando permissões..." />;
   }
 
-  // Only redirect to auth if explicitly unauthenticated (no user)
-  if (authState === 'unauthenticated' || !user) {
+  // Explicit logout only
+  if (authState === 'unauthenticated') {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Authenticated but user object still missing (slow/unstable network)
+  if (!user) {
+    return <LoadingScreen message="Reconectando sessão..." />;
   }
 
   // Se requer acesso ao sistema (admin ou seller)
@@ -50,13 +58,13 @@ export function ProtectedRoute({
     return <Navigate to="/access-denied" replace />;
   }
 
-  // Se roles específicos são requeridos
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/access-denied" replace />;
+  // Se ainda não tem role, aguarda carregar (evita falso /access-denied em rede lenta)
+  if (!role) {
+    return <LoadingScreen message="Carregando permissões..." />;
   }
 
-  // Se não tem role nenhum após autenticação confirmada, também bloqueia
-  if (!role) {
+  // Se roles específicos são requeridos
+  if (allowedRoles && !allowedRoles.includes(role)) {
     return <Navigate to="/access-denied" replace />;
   }
 
