@@ -30,6 +30,7 @@ export function useWhatsAppSellerInstance() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load seller instance
   const fetchInstance = useCallback(async () => {
@@ -82,43 +83,73 @@ export function useWhatsAppSellerInstance() {
     };
   });
 
-  // Subscribe to realtime updates - auto-update when instance changes
-  useEffect(() => {
-    if (!user?.id) return;
+  // Subscribe to realtime updates for THIS user's instance only.
+  // We keep a seller_id filter (hard ownership) and additionally gate by instance_name
+  // to match the "subscribeInstance(instance_name)" requirement.
+  const subscribeInstance = useCallback(
+    (instanceName: string | null | undefined) => {
+      if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`seller-instance-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'whatsapp_seller_instances',
-          filter: `seller_id=eq.${user.id}`,
-        },
-        (payload) => {
-          if (!isMountedRef.current) return;
-          
-          if (payload.eventType === 'DELETE') {
-            setInstance(null);
-          } else {
+      const normalized = (instanceName || '').trim().toLowerCase();
+
+      // Cleanup any previous subscription
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
+
+      const channel = supabase
+        .channel(`seller-instance-${user.id}-${normalized || 'unconfigured'}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'whatsapp_seller_instances',
+            filter: `seller_id=eq.${user.id}`,
+          },
+          (payload) => {
+            if (!isMountedRef.current) return;
+
+            if (payload.eventType === 'DELETE') {
+              setInstance(null);
+              return;
+            }
+
             const newData = payload.new as WhatsAppSellerInstance;
-            setInstance(prev => {
-              // Only update if data actually changed
+            const newInstanceName = (newData?.instance_name || '').trim().toLowerCase();
+
+            // If we have an instanceName, ensure we only react to that specific instance.
+            // (Still safe even if instance_name is updated; the effect will resubscribe.)
+            if (normalized && newInstanceName && newInstanceName !== normalized) return;
+
+            setInstance((prev) => {
               if (JSON.stringify(prev) !== JSON.stringify(newData)) {
                 return newData;
               }
               return prev;
             });
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+
+      subscriptionRef.current = channel;
+      console.log('[useWhatsAppSellerInstance] subscribeInstance:', normalized || '(no instance_name yet)');
+    },
+    [user?.id]
+  );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    subscribeInstance(instance?.instance_name);
 
     return () => {
-      supabase.removeChannel(channel);
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
     };
-  }, [user?.id]);
+  }, [user?.id, instance?.instance_name, subscribeInstance]);
 
   // Save seller instance
   const saveInstance = useCallback(async (newInstance: Pick<WhatsAppSellerInstance, 'instance_name' | 'auto_send_enabled'>) => {

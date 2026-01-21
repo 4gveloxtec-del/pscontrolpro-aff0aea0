@@ -19,8 +19,15 @@ export function useWhatsAppGlobalConfig() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load global config (only admins can see full config)
+  // Load global config (admin only). Non-admin MUST NOT load/track global WhatsApp config.
   const fetchConfig = useCallback(async () => {
+    if (!isAdmin) {
+      setConfig(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setError(null);
       const { data, error: fetchError } = await supabase
@@ -48,7 +55,7 @@ export function useWhatsAppGlobalConfig() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     fetchConfig();
