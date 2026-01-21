@@ -152,6 +152,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Refs to prevent race conditions
   const initializationComplete = useRef(false);
   const fetchingUserData = useRef(false);
+  const authStateRef = useRef<AuthState>('loading');
+  const sessionRef = useRef<Session | null>(null);
+
+  // Keep refs in sync to avoid stale-closure bugs (timeouts, async handlers)
+  useEffect(() => {
+    authStateRef.current = authState;
+    if (authState !== 'loading') initializationComplete.current = true;
+  }, [authState]);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   // Fetch trial days from app_settings
   useEffect(() => {
@@ -183,8 +195,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Safety timeout - 8 seconds is enough for slow networks
     const loadingTimeout = setTimeout(() => {
-      if (isMounted && authState === 'loading') {
+      // IMPORTANT: use refs here (effect runs once; state values would be stale)
+      if (isMounted && authStateRef.current === 'loading') {
         console.log('[useAuth] Safety timeout reached, checking cache...');
+
+        // If we already have a valid session, NEVER kick the user back to login.
+        // Just mark as authenticated and let the data fetch continue.
+        if (sessionRef.current?.user) {
+          console.log('[useAuth] Session exists; keeping user authenticated after timeout');
+          setAuthState('authenticated');
+          return;
+        }
+
         // Check if we have cached data to use
         const sessionMarker = hasSessionMarker();
         if (sessionMarker) {
@@ -231,16 +253,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setSession(currentSession);
                 setUser(currentSession.user);
                 localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
+
+                // Session exists: consider authenticated immediately (data can load in background)
+                setAuthState('authenticated');
                 
                 // Load cached data for instant display
                 const cached = getCachedData(currentSession.user.id);
                 if (cached.profile) setProfile(cached.profile);
                 if (cached.role) setRole(cached.role);
-                
-                // Set authenticated with cache, fetch fresh in background
-                if (cached.profile && cached.role) {
-                  setAuthState('authenticated');
-                }
                 
                 // Always fetch fresh data
                 await fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
