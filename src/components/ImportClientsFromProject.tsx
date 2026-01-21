@@ -41,6 +41,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { fetchExistingClientIdsByPhone, normalizeClientPhone } from '@/lib/idempotency';
 
 interface ParsedClient {
   name: string;
@@ -653,7 +654,7 @@ export function ImportClientsFromProject() {
         /^[A-Za-z0-9+/=]+$/.test(value) && value.length >= 32;
 
       // Prepare clients with encrypted credentials
-      const clientsToInsert = await Promise.all(
+      const preparedClients = await Promise.all(
         validClients.map(async (client) => {
           // If it's already ciphertext (exported from this same system), do NOT encrypt again.
           const encryptedLogin = client.login
@@ -666,7 +667,7 @@ export function ImportClientsFromProject() {
           return {
             seller_id: selectedSellerId,
             name: client.name,
-            phone: client.phone,
+            phone: normalizeClientPhone(client.phone),
             login: encryptedLogin,
             password: encryptedPassword,
             email: client.email,
@@ -681,8 +682,32 @@ export function ImportClientsFromProject() {
         })
       );
 
-      const { error } = await supabase.from('clients').insert(clientsToInsert);
-      if (error) throw error;
+      // Etapa 5 (DB guard): prevent NEW duplicates on (seller_id + phone)
+      const existingByPhone = await fetchExistingClientIdsByPhone(
+        supabase,
+        selectedSellerId,
+        preparedClients.map((c) => c.phone)
+      );
+
+      const toInsert = preparedClients.filter((c) => !c.phone || !existingByPhone.has(c.phone));
+      const toUpdate = preparedClients
+        .filter((c) => c.phone && existingByPhone.has(c.phone))
+        .map((c) => ({ ...c, id: existingByPhone.get(c.phone!)! }));
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('clients').insert(toInsert);
+        if (error) throw error;
+      }
+
+      for (const row of toUpdate) {
+        const { id, seller_id, ...updateData } = row as any;
+        const { error } = await supabase
+          .from('clients')
+          .update(updateData)
+          .eq('id', id)
+          .eq('seller_id', selectedSellerId);
+        if (error) throw error;
+      }
 
       return validClients.length;
     },

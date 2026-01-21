@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCrypto } from '@/hooks/useCrypto';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { useSentMessages } from '@/hooks/useSentMessages';
+import { ensureClientNotificationTracking } from '@/lib/idempotency';
 
 interface Client {
   id: string;
@@ -763,9 +764,9 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
       if (selectedTemplate) {
         const template = templates.find(t => t.id === selectedTemplate);
         const templateType = template?.type || 'custom';
-        
-        // Save to client_notification_tracking
-        await supabase.from('client_notification_tracking').insert({
+
+        // Etapa 5 (DB guard): idempotent insert for this cycle
+        await ensureClientNotificationTracking(supabase, {
           client_id: client.id,
           seller_id: user!.id,
           notification_type: templateType,

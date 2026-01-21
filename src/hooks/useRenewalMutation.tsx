@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addDays, isAfter } from 'date-fns';
+import { ensureClientNotificationTracking } from '@/lib/idempotency';
 
 interface RenewalData {
   clientId: string;
@@ -295,7 +296,7 @@ export function useRenewalMutation(userId: string | undefined) {
       });
 
       // Track notification
-      await supabase.from('client_notification_tracking').insert({
+      await ensureClientNotificationTracking(supabase, {
         client_id: data.clientId,
         seller_id: userId!,
         notification_type: 'renewal_confirmation',

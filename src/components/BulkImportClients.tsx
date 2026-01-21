@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PlanSelector } from '@/components/PlanSelector';
+import { fetchExistingClientIdsByPhone, normalizeClientPhone } from '@/lib/idempotency';
 
 interface Plan {
   id: string;
@@ -472,7 +473,7 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
 
       // Prepare clients with encrypted credentials and server_id
       // Use auto-detected plan or fallback
-      const clientsToInsert = await Promise.all(
+      const preparedClients = await Promise.all(
         validClients.map(async (client) => {
           const encryptedLogin = client.login ? await encrypt(client.login) : null;
           const encryptedPassword = client.password ? await encrypt(client.password) : null;
@@ -496,7 +497,7 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
           return {
             seller_id: user!.id,
             name: client.name,
-            phone: client.phone || null,
+            phone: normalizeClientPhone(client.phone || null),
             login: encryptedLogin,
             password: encryptedPassword,
             plan_id: clientPlan.id,
@@ -511,8 +512,31 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
         })
       );
 
-      const { error } = await supabase.from('clients').insert(clientsToInsert);
-      if (error) throw error;
+      // Etapa 5 (DB guard): prevent NEW duplicates on (seller_id + phone)
+      const existingByPhone = await fetchExistingClientIdsByPhone(
+        supabase,
+        user!.id,
+        preparedClients.map((c) => c.phone)
+      );
+
+      const toInsert = preparedClients.filter((c) => !c.phone || !existingByPhone.has(c.phone));
+      const toUpdate = preparedClients
+        .filter((c) => c.phone && existingByPhone.has(c.phone))
+        .map((c) => ({ ...c, id: existingByPhone.get(c.phone!)! }));
+
+      // Insert only truly new rows
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('clients').insert(toInsert);
+        if (error) throw error;
+      }
+
+      // Update existing rows (reuse existing client_id)
+      // NOTE: We intentionally update by id to avoid inserting parallel entities.
+      for (const row of toUpdate) {
+        const { id, seller_id, ...updateData } = row as any;
+        const { error } = await supabase.from('clients').update(updateData).eq('id', id).eq('seller_id', user!.id);
+        if (error) throw error;
+      }
 
       return { clientCount: validClients.length, serverCount: serversToCreate.length };
     },

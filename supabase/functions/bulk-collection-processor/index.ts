@@ -7,6 +7,42 @@ const corsHeaders = {
 
 const API_TIMEOUT_MS = 15000;
 
+async function ensureClientNotificationTracking(
+  supabase: any,
+  params: {
+    seller_id: string;
+    client_id: string;
+    notification_type: string;
+    expiration_cycle_date: string;
+    sent_via: string;
+  }
+): Promise<boolean> {
+  const { seller_id, client_id, notification_type, expiration_cycle_date, sent_via } = params;
+  if (!seller_id || !client_id || !notification_type || !expiration_cycle_date) return false;
+
+  const { data: existing, error: existsError } = await supabase
+    .from('client_notification_tracking')
+    .select('id')
+    .eq('seller_id', seller_id)
+    .eq('client_id', client_id)
+    .eq('notification_type', notification_type)
+    .eq('expiration_cycle_date', expiration_cycle_date)
+    .maybeSingle();
+
+  if (existsError) return false;
+  if (existing?.id) return true; // already tracked
+
+  const { error: insertError } = await supabase.from('client_notification_tracking').insert({
+    seller_id,
+    client_id,
+    notification_type,
+    expiration_cycle_date,
+    sent_via,
+  });
+
+  return !insertError;
+}
+
 interface BulkJob {
   id: string;
   seller_id: string;
@@ -406,6 +442,27 @@ async function processJob(supabase: any, jobId: string) {
       }
 
       // Send message
+      const notificationType = daysLeft <= 0 ? 'iptv_vencimento' : daysLeft <= 3 ? 'iptv_3_dias' : 'iptv_cobranca';
+
+      // Etapa 5 (DB guard): idempotency. If already tracked for this cycle, skip sending.
+      const { data: alreadyTracked } = await supabase
+        .from('client_notification_tracking')
+        .select('id')
+        .eq('seller_id', job.seller_id)
+        .eq('client_id', client.id)
+        .eq('notification_type', notificationType)
+        .eq('expiration_cycle_date', client.expiration_date)
+        .maybeSingle();
+
+      if (alreadyTracked?.id) {
+        successCount++;
+        await updateJobProgress(supabase, jobId, i + 1, successCount, errorCount);
+        if (i < clients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, job.interval_seconds * 1000));
+        }
+        continue;
+      }
+
       const result = await sendEvolutionMessage(
         globalConfig.api_url,
         globalConfig.api_token,
@@ -416,10 +473,9 @@ async function processJob(supabase: any, jobId: string) {
 
       if (result.success) {
         successCount++;
-        
-        // Track notification
-        const notificationType = daysLeft <= 0 ? 'iptv_vencimento' : daysLeft <= 3 ? 'iptv_3_dias' : 'iptv_cobranca';
-        await supabase.from('client_notification_tracking').insert({
+
+        // Track notification (idempotent)
+        await ensureClientNotificationTracking(supabase, {
           client_id: client.id,
           seller_id: job.seller_id,
           notification_type: notificationType,

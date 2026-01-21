@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Sparkles, Package, MessageSquare, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { normalizeNameKey } from '@/lib/idempotency';
 
 interface GenerateDefaultDataProps {
   userId: string;
@@ -365,12 +366,29 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
       // Generate Templates
       if (generateTemplates) {
         const templatesToCreate = isAdmin ? ADMIN_TEMPLATES : SELLER_TEMPLATES;
+
+        // Etapa 5 (DB guard): prevent NEW duplicates on (seller_id + normalized_name + type)
+        const { data: existingTemplates } = await supabase
+          .from('whatsapp_templates')
+          .select('id, name, type')
+          .eq('seller_id', userId);
+
+        const existingKeys = new Set<string>();
+        for (const t of (existingTemplates || []) as any[]) {
+          existingKeys.add(`${t.type}:${normalizeNameKey(t.name)}`);
+        }
         
         for (const template of templatesToCreate) {
           // Replace {empresa} with actual company name and {pix} with actual pix key
           let message = template.message
             .replace(/{empresa}/g, effectiveCompanyName)
             .replace(/{pix}/g, effectivePixKey || '(configure seu PIX nas configurações)');
+
+          const key = `${template.type}:${normalizeNameKey(template.name)}`;
+          if (existingKeys.has(key)) {
+            // Silent reuse: do not insert duplicates
+            continue;
+          }
 
           const { error } = await supabase
             .from('whatsapp_templates')
@@ -382,7 +400,10 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
               is_default: false,
             });
           
-          if (!error) results.templates++;
+          if (!error) {
+            results.templates++;
+            existingKeys.add(key);
+          }
         }
       }
 

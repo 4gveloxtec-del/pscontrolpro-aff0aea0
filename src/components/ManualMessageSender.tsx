@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { MessageCircle, Copy, Clock, Send, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ensureClientNotificationTracking } from '@/lib/idempotency';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -194,8 +195,8 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
       if (error) throw error;
       
       if (data.success) {
-        // Record notification sent
-        await supabase.from('client_notification_tracking' as any).insert({
+        // Record notification sent (idempotent)
+        await ensureClientNotificationTracking(supabase, {
           client_id: client.id,
           seller_id: user!.id,
           notification_type: type,
@@ -238,7 +239,7 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 
     try {
-      await supabase.from('client_notification_tracking' as any).insert({
+      await ensureClientNotificationTracking(supabase, {
         client_id: client.id,
         seller_id: user!.id,
         notification_type: type,

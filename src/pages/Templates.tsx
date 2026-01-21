@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { Plus, MessageSquare, Edit, Trash2, Copy, Info, Tv, Wifi, Crown, Tag, Send, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GenerateDefaultData } from '@/components/GenerateDefaultData';
+import { ensureTemplateExistsOrCreate } from '@/lib/idempotency';
 
 interface Template {
   id: string;
@@ -184,15 +185,16 @@ export default function Templates() {
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; type: string; message: string }) => {
-      const { error } = await supabase.from('whatsapp_templates').insert([{
-        ...data,
-        seller_id: user!.id,
-      }]);
-      if (error) throw error;
+      await ensureTemplateExistsOrCreate(supabase, user!.id, {
+        name: data.name,
+        type: data.type,
+        message: data.message,
+        is_default: false,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
-      toast.success('Template criado com sucesso!');
+      toast.success('Template salvo com sucesso!');
       resetForm();
       setIsDialogOpen(false);
     },
