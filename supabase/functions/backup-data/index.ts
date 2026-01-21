@@ -36,7 +36,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Creating backup for authenticated user');
+    // Standardized logging
+    const timestamp = new Date().toISOString();
+    console.log(`[backup-data] timestamp=${timestamp} seller_id=${user.id} action=export_start status=processing`);
 
     // Fetch all user data including profiles and client_categories
     const [
@@ -111,14 +113,14 @@ Deno.serve(async (req) => {
       }
     };
 
-    console.log(`Backup created with ${backup.stats.clients_count} clients`);
+    console.log(`[backup-data] timestamp=${new Date().toISOString()} seller_id=${user.id} action=export_complete status=success details=${JSON.stringify(backup.stats)}`);
 
     return new Response(
       JSON.stringify(backup),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Backup error:', error);
+    console.error(`[backup-data] timestamp=${new Date().toISOString()} action=export_error status=failed error=${error instanceof Error ? error.message : 'Unknown'}`);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

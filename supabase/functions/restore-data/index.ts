@@ -38,9 +38,11 @@ serve(async (req) => {
     }
 
     const { backup, mode } = await req.json();
-    
-    console.log(`Restoring backup for user: ${user.id}, mode: ${mode}`);
-    console.log(`Backup version: ${backup?.version}, type: ${backup?.exportType || 'standard'}`);
+
+    // Standardized logging
+    const timestamp = new Date().toISOString();
+    console.log(`[restore-data] timestamp=${timestamp} seller_id=${user.id} action=restore_start status=processing mode=${mode}`);
+    console.log(`[restore-data] backup_version=${backup?.version}, type=${backup?.exportType || 'standard'}`);
     
     if (!backup || !backup.data) {
       return new Response(
@@ -270,9 +272,9 @@ serve(async (req) => {
       }
     }
 
-    console.log('Restore completed:', results.restored);
+    console.log(`[restore-data] timestamp=${new Date().toISOString()} seller_id=${user.id} action=restore_complete status=success details=${JSON.stringify(results.restored)}`);
     if (Object.keys(results.skipped).length > 0) {
-      console.log('Skipped items:', results.skipped);
+      console.log(`[restore-data] skipped_items=${JSON.stringify(results.skipped)}`);
     }
 
     return new Response(
@@ -280,7 +282,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Restore error:', error);
+    console.error(`[restore-data] timestamp=${new Date().toISOString()} action=restore_error status=failed error=${error instanceof Error ? error.message : 'Unknown'}`);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
