@@ -25,24 +25,19 @@ import {
   BellRing
 } from 'lucide-react';
 
-// Platform icons as simple styled components
-const PlatformIcon = ({ name, color, bgColor }: { name: string; color: string; bgColor: string }) => (
+// Platform icon component - now supports dynamic images
+const PlatformIcon = ({ name, iconUrl, color, bgColor }: { name: string; iconUrl?: string | null; color: string; bgColor: string }) => (
   <div 
-    className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md transition-transform hover:scale-110"
+    className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md transition-transform hover:scale-110 overflow-hidden"
     style={{ backgroundColor: bgColor, color: color }}
   >
-    {name}
+    {iconUrl ? (
+      <img src={iconUrl} alt={name} className="w-full h-full object-cover" />
+    ) : (
+      name.substring(0, 2).toUpperCase()
+    )}
   </div>
 );
-
-const platforms = [
-  { name: 'N', label: 'Netflix', color: '#fff', bgColor: '#E50914' },
-  { name: 'S', label: 'Spotify', color: '#fff', bgColor: '#1DB954' },
-  { name: 'D+', label: 'Disney+', color: '#fff', bgColor: '#113CCF' },
-  { name: 'H', label: 'HBO Max', color: '#fff', bgColor: '#5822B4' },
-  { name: 'P+', label: 'Prime', color: '#fff', bgColor: '#00A8E1' },
-  { name: 'TV', label: 'IPTV', color: '#fff', bgColor: 'hsl(var(--primary))' },
-];
 
 // New automation highlights
 const automationHighlights = [
@@ -92,6 +87,20 @@ export default function Landing() {
       return data || [];
     },
     staleTime: 1000 * 60 * 2, // Cache for 2 minutes for faster sync
+  });
+
+  // Fetch platforms from database
+  const { data: platforms } = useQuery({
+    queryKey: ['landing_platforms'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('landing_platforms')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
   // Centralized prices from admin settings
@@ -273,10 +282,15 @@ export default function Landing() {
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-4">Gerencie todas as plataformas em um só lugar</p>
             <div className="flex flex-wrap items-center justify-center gap-4">
-              {platforms.map((platform) => (
-                <div key={platform.label} className="flex flex-col items-center gap-1">
-                  <PlatformIcon name={platform.name} color={platform.color} bgColor={platform.bgColor} />
-                  <span className="text-xs text-muted-foreground">{platform.label}</span>
+              {platforms?.map((platform) => (
+                <div key={platform.id} className="flex flex-col items-center gap-1">
+                  <PlatformIcon 
+                    name={platform.display_name} 
+                    iconUrl={platform.icon_url}
+                    color={platform.color} 
+                    bgColor={platform.bg_color} 
+                  />
+                  <span className="text-xs text-muted-foreground">{platform.display_name}</span>
                 </div>
               ))}
             </div>

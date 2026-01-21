@@ -41,6 +41,7 @@ import { NotificationSettings } from '@/components/NotificationSettings';
 import { cn } from '@/lib/utils';
 import { ResellerAppsManager } from '@/components/ResellerAppsManager';
 import { AdminTrialSettings } from '@/components/AdminTrialSettings';
+import { AdminLandingPlatforms } from '@/components/AdminLandingPlatforms';
 
 // Setting item component for mobile-like appearance
 function SettingItem({ 
@@ -109,6 +110,7 @@ export default function Settings() {
   const [showProfile, setShowProfile] = useState(false);
   const [showPriceSettings, setShowPriceSettings] = useState(false);
   const [showTrialSettings, setShowTrialSettings] = useState(false);
+  const [showLandingPlatforms, setShowLandingPlatforms] = useState(false);
   const [showGerenciaAppSettings, setShowGerenciaAppSettings] = useState(false);
   const [appPrice, setAppPrice] = useState('25');
   const [trialDays, setTrialDays] = useState('5');
@@ -337,6 +339,11 @@ export default function Settings() {
   // Trial settings view (Admin only) - using new component
   if (showTrialSettings && isAdmin) {
     return <AdminTrialSettings onBack={() => setShowTrialSettings(false)} />;
+  }
+
+  // Landing platforms view (Admin only)
+  if (showLandingPlatforms && isAdmin) {
+    return <AdminLandingPlatforms onBack={() => setShowLandingPlatforms(false)} />;
   }
 
   // Price settings view (Admin only)
@@ -676,6 +683,12 @@ export default function Settings() {
             title="Planos e Configurações"
             description="Preços, teste grátis e API"
             onClick={() => setShowTrialSettings(true)}
+          />
+          <SettingItem
+            icon={Palette}
+            title="Plataformas da Landing"
+            description="Gerenciar imagens e serviços"
+            onClick={() => setShowLandingPlatforms(true)}
           />
           <SettingItem
             icon={Monitor}
