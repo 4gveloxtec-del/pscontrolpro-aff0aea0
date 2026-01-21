@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.complete-backup-import]
 verify_jwt = false
+
+[functions.chatbot-v3]
+verify_jwt = false
