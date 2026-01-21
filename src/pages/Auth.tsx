@@ -1,4 +1,4 @@
-import { useState, useMemo, forwardRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -8,13 +8,13 @@ import { validatePasswordStrength } from '@/hooks/usePasswordValidation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Users, Shield, AlertTriangle, Phone, Check, X, Info } from 'lucide-react';
+import { Eye, EyeOff, Users, AlertTriangle, Phone, Check, X, Info } from 'lucide-react';
 
-const Auth = forwardRef<HTMLDivElement>(function Auth(_props, ref) {
+function Auth() {
   const { user, loading, signIn, signUp, authState } = useAuth();
   const { checkLoginAttempt, recordLoginAttempt } = useBruteForce();
 
@@ -204,12 +204,12 @@ const Auth = forwardRef<HTMLDivElement>(function Auth(_props, ref) {
 
         <Card className="border-border/50 shadow-xl">
           <Tabs defaultValue="login" className="w-full">
-            <CardHeader className="pb-2">
+            <div className="p-6 pb-2">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Entrar</TabsTrigger>
                 <TabsTrigger value="register">Cadastrar</TabsTrigger>
               </TabsList>
-            </CardHeader>
+            </div>
 
             <CardContent className="pt-4">
               <TabsContent value="login" className="mt-0">
@@ -393,8 +393,6 @@ const Auth = forwardRef<HTMLDivElement>(function Auth(_props, ref) {
       </div>
     </div>
   );
-});
-
-Auth.displayName = 'Auth';
+}
 
 export default Auth;
