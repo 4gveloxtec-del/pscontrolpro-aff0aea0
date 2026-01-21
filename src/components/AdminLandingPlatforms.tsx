@@ -343,39 +343,61 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
                 )}
               </div>
 
-              {/* Upload Button */}
-              <div className="flex gap-2">
-                <label className="flex-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImageUpload(platform.id, file);
+              {/* URL Input + Upload Button */}
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs">Link da Imagem (URL)</Label>
+                  <Input
+                    placeholder="https://exemplo.com/imagem.png"
+                    defaultValue={platform.icon_url || ''}
+                    onBlur={(e) => {
+                      const url = e.target.value.trim();
+                      if (url !== (platform.icon_url || '')) {
+                        updateMutation.mutate({ 
+                          id: platform.id, 
+                          updates: { icon_url: url || null } 
+                        });
+                      }
                     }}
+                    className="h-8 text-sm"
                   />
-                  <Button
-                    variant="outline"
-                    className="w-full cursor-pointer"
-                    asChild
-                  >
-                    <span>
-                      <Upload className="h-4 w-4 mr-2" />
-                      {platform.icon_url ? 'Trocar' : 'Enviar'} Imagem
-                    </span>
-                  </Button>
-                </label>
+                </div>
                 
-                {platform.icon_url && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleRemoveImage(platform)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  <label className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(platform.id, file);
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      className="w-full cursor-pointer"
+                      size="sm"
+                      asChild
+                    >
+                      <span>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Ou fazer Upload
+                      </span>
+                    </Button>
+                  </label>
+                  
+                  {platform.icon_url && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleRemoveImage(platform)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Edit Fields */}
