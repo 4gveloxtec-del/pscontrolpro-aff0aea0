@@ -276,7 +276,19 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
         .eq('seller_id', user!.id)
         .order('type');
       if (error) throw error;
-      return data as Template[];
+      const list = (data as Template[] | null) || [];
+
+      // Etapa 4 (UI): evitar duplicidade visual (mesmo owner + nome + tipo)
+      const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+      const seen = new Set<string>();
+      const deduped: Template[] = [];
+      for (const t of list) {
+        const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(t);
+      }
+      return deduped;
     },
     enabled: !!user?.id,
   });

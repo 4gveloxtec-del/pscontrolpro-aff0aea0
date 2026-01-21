@@ -74,7 +74,17 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
         .select('*')
         .eq('seller_id', user!.id);
       if (error) throw error;
-      return data;
+      const list = (data || []) as any[];
+      const normalizeName = (name: string) => String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const seen = new Set<string>();
+      const deduped: any[] = [];
+      for (const t of list) {
+        const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(t);
+      }
+      return deduped;
     },
     enabled: !!user?.id,
   });
@@ -89,7 +99,18 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
           .eq('client_id', client.id)
           .eq('expiration_cycle_date', client.expiration_date);
         if (error) return [];
-        return (data as unknown as NotificationTracking[]) || [];
+        const list = ((data as unknown as NotificationTracking[]) || []);
+
+        // Etapa 4 (UI): não listar duas cobranças/notificações do mesmo período
+        const seen = new Set<string>();
+        const deduped: NotificationTracking[] = [];
+        for (const n of list) {
+          const key = `${n.notification_type}:${n.expiration_cycle_date}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(n);
+        }
+        return deduped;
       } catch {
         return [];
       }

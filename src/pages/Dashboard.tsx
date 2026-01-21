@@ -70,7 +70,19 @@ export default function Dashboard() {
         .eq('seller_id', user.id)
         .eq('is_archived', false);
       if (error) throw error;
-      return data as Client[] || [];
+      const list = (data as Client[] | null) || [];
+
+      // Etapa 4 (UI): evitar duplicidade visual por telefone dentro do seller
+      const seen = new Set<string>();
+      const deduped: Client[] = [];
+      for (const c of list) {
+        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(c);
+      }
+
+      return deduped;
     },
     enabled: !!user?.id && isSeller,
   });

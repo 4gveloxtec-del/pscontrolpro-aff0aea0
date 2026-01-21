@@ -260,10 +260,23 @@ export default function Clients() {
         .order('expiration_date', { ascending: true });
       if (error) throw error;
       // Cast gerencia_app_devices from JSON to MacDevice[]
-      return (data || []).map(client => ({
+      const hydrated = (data || []).map(client => ({
         ...client,
         gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || []
       })) as Client[];
+
+      // Etapa 4 (UI): evitar duplicidade visual por telefone dentro do mesmo seller
+      // Regra: manter 1 registro por phone (normalizado) quando existir; fallback por id quando phone for null.
+      const seen = new Set<string>();
+      const deduped: Client[] = [];
+      for (const c of hydrated) {
+        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(c);
+      }
+
+      return deduped;
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 2, // 2 minutes - reduce refetches

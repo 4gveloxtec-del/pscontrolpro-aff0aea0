@@ -151,7 +151,17 @@ export default function PanelResellers() {
         .like('type', 'panel_reseller%')
         .order('name');
       if (error) throw error;
-      return data as WhatsAppTemplate[];
+      const list = (data as WhatsAppTemplate[] | null) || [];
+      const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+      const seen = new Set<string>();
+      const deduped: WhatsAppTemplate[] = [];
+      for (const t of list) {
+        const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(t);
+      }
+      return deduped;
     },
     enabled: !!user?.id,
   });
