@@ -2094,6 +2094,11 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ETAPA 3 — Chatbot lock (ADMIN)
+      // Admin flow in this webhook is single-engine; we still expose the resolved version for observability.
+      const adminChatbotVersion: "v3" = "v3";
+      console.log(`[ADMIN][${instanceName}] ChatbotVersion=${adminChatbotVersion}`);
+
       console.log(`[ADMIN][${instanceName}] Processing phone=${phone}`);
 
       const result = await processAdminChatbotMessage(
@@ -2313,81 +2318,100 @@ Deno.serve(async (req) => {
     
     const contactStatus = contact?.contact_status || "NEW";
 
-    // ========== SELLER INTERACTIVE MENU (NEW SYSTEM) ==========
-    // Fetch seller's variables for dynamic content
-    let { data: sellerVariables } = await supabase
-      .from("seller_chatbot_variables")
-      .select("variable_key, variable_value")
-      .eq("seller_id", sellerId);
-    
-    // If seller has no variables configured, get from profile
-    if (!sellerVariables || sellerVariables.length === 0) {
-      const { data: sellerProfile } = await supabase
-        .from("profiles")
-        .select("company_name, pix_key, whatsapp")
-        .eq("id", sellerId)
-        .single();
-      
-      if (sellerProfile) {
-        // Create default variables from profile data
-        sellerVariables = [
-          { variable_key: "empresa", variable_value: sellerProfile.company_name || "" },
-          { variable_key: "pix", variable_value: sellerProfile.pix_key || "" },
-          { variable_key: "whatsapp", variable_value: sellerProfile.whatsapp || "" },
-          { variable_key: "horario", variable_value: "08:00 às 22:00" },
-        ];
-      }
-    } else {
-      // Enhance existing variables with profile data for empty values
-      const { data: sellerProfile } = await supabase
-        .from("profiles")
-        .select("company_name, pix_key, whatsapp")
-        .eq("id", sellerId)
-        .single();
-      
-      if (sellerProfile) {
-        const profileDefaults: Record<string, string> = {
-          empresa: sellerProfile.company_name || "",
-          pix: sellerProfile.pix_key || "",
-          whatsapp: sellerProfile.whatsapp || "",
-        };
-        
-        sellerVariables = sellerVariables.map((v: any) => ({
-          ...v,
-          variable_value: v.variable_value || profileDefaults[v.variable_key] || "",
-        }));
-      }
-    }
-    
-    const variables: SellerChatbotVariable[] = sellerVariables || [];
-    
-    // Check if seller has the new interactive menu configured
+    // ============================================================
+    // ETAPA 3 — CHATBOT LOCK (SELLER)
+    // Goal: one inbound message -> one (and only one) engine executes
+    // Version source of truth (no new flags): seller_chatbot_settings + seller_chatbot_menu
+    // - If version !== "v3": do NOT process V3; allow legacy flows/rules
+    // - If version === "v3": process V3 and block ANY legacy execution
+    // ============================================================
+
+    // Read once: seller menu settings + active nodes
     const { data: sellerMenuSettings } = await supabase
       .from("seller_chatbot_settings")
       .select("*")
       .eq("seller_id", sellerId)
       .maybeSingle();
-    
+
     const { data: sellerMenuNodes } = await supabase
       .from("seller_chatbot_menu")
       .select("*")
       .eq("seller_id", sellerId)
       .eq("is_active", true)
       .order("sort_order");
-    
-    // Get or create seller chatbot contact for the new menu system
-    let { data: sellerMenuContact } = await supabase
-      .from("seller_chatbot_contacts")
-      .select("*")
-      .eq("seller_id", sellerId)
-      .eq("phone", phone)
-      .maybeSingle();
-    
-    // Process with new interactive menu if available
-    // Check menu_enabled (new field) or is_enabled (legacy) - both default to true
-    const menuEnabled = sellerMenuSettings?.menu_enabled !== false && sellerMenuSettings?.is_enabled !== false;
-    
-    if (sellerMenuNodes && sellerMenuNodes.length > 0 && menuEnabled) {
+
+    // Chatbot version derivation (no new flags)
+    // NOTE: "v3" means interactive menu is configured and enabled.
+    const sellerMenuEnabled = sellerMenuSettings?.menu_enabled !== false && sellerMenuSettings?.is_enabled !== false;
+    const sellerChatbotVersion: "v3" | "legacy" =
+      sellerMenuEnabled && (sellerMenuNodes?.length || 0) > 0 ? "v3" : "legacy";
+
+    console.log(
+      `[SELLER][${instanceName}] ChatbotVersion=${sellerChatbotVersion} menuEnabled=${sellerMenuEnabled} nodes=${sellerMenuNodes?.length || 0}`
+    );
+
+    // ========== SELLER INTERACTIVE MENU (V3) ==========
+    if (sellerChatbotVersion === "v3") {
+      // Fetch seller's variables for dynamic content
+      let { data: sellerVariables } = await supabase
+        .from("seller_chatbot_variables")
+        .select("variable_key, variable_value")
+        .eq("seller_id", sellerId);
+
+      // If seller has no variables configured, get from profile
+      if (!sellerVariables || sellerVariables.length === 0) {
+        const { data: sellerProfile } = await supabase
+          .from("profiles")
+          .select("company_name, pix_key, whatsapp")
+          .eq("id", sellerId)
+          .single();
+
+        if (sellerProfile) {
+          // Create default variables from profile data
+          sellerVariables = [
+            { variable_key: "empresa", variable_value: sellerProfile.company_name || "" },
+            { variable_key: "pix", variable_value: sellerProfile.pix_key || "" },
+            { variable_key: "whatsapp", variable_value: sellerProfile.whatsapp || "" },
+            { variable_key: "horario", variable_value: "08:00 às 22:00" },
+          ];
+        }
+      } else {
+        // Enhance existing variables with profile data for empty values
+        const { data: sellerProfile } = await supabase
+          .from("profiles")
+          .select("company_name, pix_key, whatsapp")
+          .eq("id", sellerId)
+          .single();
+
+        if (sellerProfile) {
+          const profileDefaults: Record<string, string> = {
+            empresa: sellerProfile.company_name || "",
+            pix: sellerProfile.pix_key || "",
+            whatsapp: sellerProfile.whatsapp || "",
+          };
+
+          sellerVariables = sellerVariables.map((v: any) => ({
+            ...v,
+            variable_value: v.variable_value || profileDefaults[v.variable_key] || "",
+          }));
+        }
+      }
+
+      const variables: SellerChatbotVariable[] = sellerVariables || [];
+
+      // Get or create seller chatbot contact for the new menu system
+      let { data: sellerMenuContact } = await supabase
+        .from("seller_chatbot_contacts")
+        .select("*")
+        .eq("seller_id", sellerId)
+        .eq("phone", phone)
+        .maybeSingle();
+
+      // Defensive: if for some reason data changed between version check and here, keep V3 lock.
+      // (We still won't fall through to legacy.)
+      const menuEnabled = sellerMenuEnabled;
+
+      if (sellerMenuNodes && sellerMenuNodes.length > 0 && menuEnabled) {
       // Create contact if not exists
       if (!sellerMenuContact) {
         const { data: newMenuContact } = await supabase
@@ -2695,8 +2719,16 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      }
+
+      // If V3 is the active version, we MUST NOT fall through to legacy.
+      // If V3 didn't respond (cooldown/no match/etc.), we ignore the message.
+      return new Response(
+        JSON.stringify({ status: "ignored", reason: "V3 active - legacy blocked" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
-    // ========== END SELLER INTERACTIVE MENU ==========
+    // ========== END SELLER INTERACTIVE MENU (V3) ==========
 
     // Check for active flow session (legacy system)
     const flowSession = await getFlowSession(supabase, sellerId, phone);
