@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Bot, Settings, Menu as MenuIcon, Zap, Variable, 
-  Plus, Trash2, ChevronRight, PlayCircle
+  Plus, Trash2, ChevronRight, PlayCircle, ChevronDown, FolderTree, FolderPlus
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,16 +41,25 @@ export default function ChatbotV3() {
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isAddOptionOpen, setIsAddOptionOpen] = useState(false);
+  const [isAddSubmenuOpen, setIsAddSubmenuOpen] = useState(false);
   const [simulatorInput, setSimulatorInput] = useState("");
   const [simulatorHistory, setSimulatorHistory] = useState<Array<{ from: "user" | "bot"; text: string }>>([]);
   const [simulatorMenuKey, setSimulatorMenuKey] = useState("main");
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set(["main"]));
 
   // New menu form
   const [newMenu, setNewMenu] = useState({
     menu_key: "",
     title: "",
     message_text: "",
-    parent_menu_key: "main",
+    parent_menu_key: "__root__",
+  });
+
+  // New submenu form (for creating child menus)
+  const [newSubmenu, setNewSubmenu] = useState({
+    menu_key: "",
+    title: "",
+    message_text: "",
   });
 
   // New option form
@@ -164,20 +173,126 @@ export default function ChatbotV3() {
       return;
     }
     
+    const parentKey = newMenu.parent_menu_key === "__root__" ? null : newMenu.parent_menu_key;
+    
     const result = await createMenu({
       menu_key: newMenu.menu_key.toLowerCase().replace(/\s/g, "_"),
       title: newMenu.title,
       message_text: newMenu.message_text,
       image_url: null,
-      parent_menu_key: newMenu.parent_menu_key || null,
+      parent_menu_key: parentKey,
       sort_order: menus.length,
       is_active: true,
     });
     
     if (result) {
       setIsAddMenuOpen(false);
-      setNewMenu({ menu_key: "", title: "", message_text: "", parent_menu_key: "main" });
+      setNewMenu({ menu_key: "", title: "", message_text: "", parent_menu_key: "__root__" });
+      // Expand parent menu to show the new submenu
+      if (parentKey) {
+        setExpandedMenus(prev => new Set([...prev, parentKey]));
+      }
     }
+  };
+
+  const handleAddSubmenu = async () => {
+    if (!selectedMenu || !newSubmenu.menu_key || !newSubmenu.title || !newSubmenu.message_text) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
+    
+    const result = await createMenu({
+      menu_key: newSubmenu.menu_key.toLowerCase().replace(/\s/g, "_"),
+      title: newSubmenu.title,
+      message_text: newSubmenu.message_text,
+      image_url: null,
+      parent_menu_key: selectedMenu.menu_key,
+      sort_order: menus.filter(m => m.parent_menu_key === selectedMenu.menu_key).length,
+      is_active: true,
+    });
+    
+    if (result) {
+      setIsAddSubmenuOpen(false);
+      setNewSubmenu({ menu_key: "", title: "", message_text: "" });
+      // Expand current menu to show the new submenu
+      setExpandedMenus(prev => new Set([...prev, selectedMenu.menu_key]));
+      toast.success(`Submenu criado dentro de "${selectedMenu.title}"`);
+    }
+  };
+
+  const toggleMenuExpand = (menuKey: string) => {
+    setExpandedMenus(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(menuKey)) {
+        newSet.delete(menuKey);
+      } else {
+        newSet.add(menuKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Get child menus for a given parent
+  const getChildMenus = (parentKey: string | null) => {
+    return menus.filter(m => m.parent_menu_key === parentKey);
+  };
+
+  // Render menu tree recursively
+  const renderMenuTree = (parentKey: string | null, level: number = 0): JSX.Element[] => {
+    const childMenus = getChildMenus(parentKey);
+    
+    return childMenus.map(menu => {
+      const hasChildren = menus.some(m => m.parent_menu_key === menu.menu_key);
+      const isExpanded = expandedMenus.has(menu.menu_key);
+      const isSelected = selectedMenuId === menu.id;
+      
+      return (
+        <div key={menu.id}>
+          <div
+            className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+              isSelected ? "bg-primary/10 border border-primary" : "hover:bg-muted"
+            }`}
+            style={{ marginLeft: level * 16 }}
+            onClick={() => setSelectedMenuId(menu.id)}
+          >
+            {hasChildren ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMenuExpand(menu.menu_key);
+                }}
+                className="p-0.5 hover:bg-muted-foreground/20 rounded"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+            ) : (
+              <span className="w-5" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{menu.title}</p>
+              <p className="text-xs text-muted-foreground truncate">{menu.menu_key}</p>
+            </div>
+            {menu.menu_key === "main" && (
+              <Badge variant="secondary" className="text-xs">Principal</Badge>
+            )}
+            {hasChildren && (
+              <Badge variant="outline" className="text-xs">
+                {menus.filter(m => m.parent_menu_key === menu.menu_key).length}
+              </Badge>
+            )}
+          </div>
+          {hasChildren && isExpanded && (
+            <div className="mt-1">
+              {renderMenuTree(menu.menu_key, level + 1)}
+            </div>
+          )}
+        </div>
+      );
+    });
   };
 
   const handleAddOption = async () => {
@@ -257,21 +372,24 @@ export default function ChatbotV3() {
           {/* MENUS TAB */}
           <TabsContent value="menus" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Menu List */}
+              {/* Menu Tree */}
               <Card className="md:col-span-1">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center justify-between">
-                    Menus
+                    <div className="flex items-center gap-2">
+                      <FolderTree className="h-4 w-4" />
+                      Menus
+                    </div>
                     <Dialog open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
                       <DialogTrigger asChild>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" title="Novo menu">
                           <Plus className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
                           <DialogTitle>Novo Menu</DialogTitle>
-                          <DialogDescription>Crie um novo menu ou submenu</DialogDescription>
+                          <DialogDescription>Crie um novo menu ou submenu no chatbot</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div>
@@ -292,7 +410,7 @@ export default function ChatbotV3() {
                             />
                           </div>
                           <div>
-                            <Label>Menu Pai</Label>
+                            <Label>Menu Pai (onde ficará dentro)</Label>
                             <Select
                               value={newMenu.parent_menu_key}
                               onValueChange={(v) => setNewMenu({ ...newMenu, parent_menu_key: v })}
@@ -301,12 +419,17 @@ export default function ChatbotV3() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="main">Menu Principal</SelectItem>
+                                <SelectItem value="__root__">🔝 Nível Raiz (sem pai)</SelectItem>
                                 {menus.map(m => (
-                                  <SelectItem key={m.id} value={m.menu_key}>{m.title}</SelectItem>
+                                  <SelectItem key={m.id} value={m.menu_key}>
+                                    {m.parent_menu_key ? `└─ ${m.title}` : m.title}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Selecione onde este menu ficará na árvore
+                            </p>
                           </div>
                           <div>
                             <Label>Mensagem *</Label>
@@ -326,25 +449,17 @@ export default function ChatbotV3() {
                       </DialogContent>
                     </Dialog>
                   </CardTitle>
+                  <CardDescription>
+                    Clique para editar • Seta para expandir submenus
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {menus.map(menu => (
-                    <div
-                      key={menu.id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedMenuId === menu.id ? "bg-primary/10 border-primary" : "hover:bg-muted"
-                      }`}
-                      onClick={() => setSelectedMenuId(menu.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{menu.title}</p>
-                          <p className="text-xs text-muted-foreground">{menu.menu_key}</p>
-                        </div>
-                        {menu.menu_key === "main" && <Badge variant="secondary">Principal</Badge>}
-                      </div>
-                    </div>
-                  ))}
+                <CardContent className="space-y-1 max-h-[500px] overflow-y-auto">
+                  {renderMenuTree(null)}
+                  {menus.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4 text-sm">
+                      Nenhum menu criado
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -354,21 +469,105 @@ export default function ChatbotV3() {
                   <>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg flex items-center justify-between">
-                        {selectedMenu.title}
-                        {selectedMenu.menu_key !== "main" && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              deleteMenu(selectedMenu.id);
-                              setSelectedMenuId(null);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {selectedMenu.title}
+                          {selectedMenu.parent_menu_key && (
+                            <Badge variant="outline" className="text-xs font-normal">
+                              filho de: {selectedMenu.parent_menu_key}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Add Submenu Button */}
+                          <Dialog open={isAddSubmenuOpen} onOpenChange={setIsAddSubmenuOpen}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="outline" title="Adicionar submenu dentro deste menu">
+                                <FolderPlus className="h-4 w-4 mr-1" />
+                                Submenu
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <FolderPlus className="h-5 w-5" />
+                                  Novo Submenu
+                                </DialogTitle>
+                                <DialogDescription>
+                                  Criar um menu filho dentro de <strong>"{selectedMenu.title}"</strong>
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="p-3 rounded-lg bg-muted/50 border">
+                                  <p className="text-sm">
+                                    <span className="text-muted-foreground">Menu pai:</span>{" "}
+                                    <Badge variant="secondary">{selectedMenu.title}</Badge>
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label>Chave do Submenu *</Label>
+                                  <Input
+                                    placeholder="ex: plano_basico"
+                                    value={newSubmenu.menu_key}
+                                    onChange={(e) => setNewSubmenu({ ...newSubmenu, menu_key: e.target.value })}
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">Identificador único, sem espaços</p>
+                                </div>
+                                <div>
+                                  <Label>Título *</Label>
+                                  <Input
+                                    placeholder="ex: Plano Básico"
+                                    value={newSubmenu.title}
+                                    onChange={(e) => setNewSubmenu({ ...newSubmenu, title: e.target.value })}
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Mensagem *</Label>
+                                  <Textarea
+                                    placeholder="Texto que será enviado quando este submenu for acessado"
+                                    value={newSubmenu.message_text}
+                                    onChange={(e) => setNewSubmenu({ ...newSubmenu, message_text: e.target.value })}
+                                    rows={5}
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">Use {"{empresa}"}, {"{pix}"}, etc para variáveis</p>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsAddSubmenuOpen(false)}>Cancelar</Button>
+                                <Button onClick={handleAddSubmenu}>
+                                  <FolderPlus className="h-4 w-4 mr-1" />
+                                  Criar Submenu
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          
+                          {selectedMenu.menu_key !== "main" && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                const childCount = menus.filter(m => m.parent_menu_key === selectedMenu.menu_key).length;
+                                if (childCount > 0) {
+                                  toast.error(`Este menu possui ${childCount} submenu(s). Remova-os primeiro.`);
+                                  return;
+                                }
+                                deleteMenu(selectedMenu.id);
+                                setSelectedMenuId(null);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </CardTitle>
-                      <CardDescription>Chave: {selectedMenu.menu_key}</CardDescription>
+                      <CardDescription>
+                        Chave: {selectedMenu.menu_key}
+                        {menus.filter(m => m.parent_menu_key === selectedMenu.menu_key).length > 0 && (
+                          <span className="ml-2">
+                            • {menus.filter(m => m.parent_menu_key === selectedMenu.menu_key).length} submenu(s)
+                          </span>
+                        )}
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div>
@@ -379,6 +578,28 @@ export default function ChatbotV3() {
                           rows={5}
                         />
                       </div>
+                      
+                      {/* Show child menus if any */}
+                      {menus.filter(m => m.parent_menu_key === selectedMenu.menu_key).length > 0 && (
+                        <div className="p-3 rounded-lg bg-muted/30 border">
+                          <Label className="text-sm mb-2 flex items-center gap-2">
+                            <FolderTree className="h-4 w-4" />
+                            Submenus dentro de "{selectedMenu.title}"
+                          </Label>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {menus.filter(m => m.parent_menu_key === selectedMenu.menu_key).map(child => (
+                              <Badge
+                                key={child.id}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-secondary/80"
+                                onClick={() => setSelectedMenuId(child.id)}
+                              >
+                                {child.title} →
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
