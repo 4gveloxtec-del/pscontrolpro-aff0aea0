@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Creating backup for user: ${user.id}`);
+    console.log('Creating backup for authenticated user');
 
     // Fetch all user data including profiles and client_categories
     const [

@@ -89,7 +89,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('AI response structure:', JSON.stringify(data, null, 2));
+    console.log('AI response received, extracting image URL');
     
     // Extract image from response - check multiple possible locations
     let imageUrl = null;

@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     const { email, full_name, whatsapp, subscription_days, plan_type } = await req.json();
     
-    console.log(`Creating seller: ${email} with plan: ${plan_type || 'manual'}`);
+    console.log('Creating seller with plan:', plan_type || 'manual');
     
     if (!email) {
       return new Response(

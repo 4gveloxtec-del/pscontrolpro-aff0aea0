@@ -236,7 +236,7 @@ export function useRenewalMutation(userId: string | undefined) {
         decryptData(client?.password || null),
       ]);
 
-      console.log('[Renewal] Credentials decrypted:', { hasLogin: !!login, hasPassword: !!senha });
+      console.log('[Renewal] Credentials processed');
 
       const message = template.message
         .replace(/{nome}/gi, data.clientName)

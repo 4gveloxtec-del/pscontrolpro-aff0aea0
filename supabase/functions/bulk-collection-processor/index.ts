@@ -428,7 +428,7 @@ async function processJob(supabase: any, jobId: string) {
         });
       } else {
         errorCount++;
-        console.log(`Failed to send to ${client.name}: ${result.error}`);
+        console.log('Failed to send message, error:', result.error);
       }
 
       // Update progress

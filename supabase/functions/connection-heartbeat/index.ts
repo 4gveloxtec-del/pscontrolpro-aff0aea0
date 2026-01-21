@@ -154,11 +154,11 @@ Deno.serve(async (req: Request) => {
     // WEBHOOK HANDLER - Receive events from Evolution API
     // ============================================================
     if (action === 'webhook' || webhook_event) {
-      console.log('[Webhook] Received event:', JSON.stringify(body, null, 2));
-      
       const event = webhook_event || body.event;
       const instanceName = body.instance || body.data?.instance?.instanceName;
       const eventData = body.data || body;
+      
+      console.log('[Webhook] Received event:', event || 'unknown', 'instance:', instanceName || 'unknown');
       
       if (!instanceName) {
         return new Response(

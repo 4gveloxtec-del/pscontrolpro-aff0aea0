@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
               seller_email: profile.email,
               instance_name: instance.instance_name,
             });
-            console.log(`Unblocked instance for seller: ${profile.email}`);
+            console.log('Unblocked instance for seller:', instance.seller_id);
           }
         }
       }

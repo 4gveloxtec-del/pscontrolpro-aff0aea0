@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     }
 
     console.log('Starting WIPE ALL DATA process...');
-    console.log(`Admin performing wipe: ${requestingUser.email}`);
+    console.log('Admin performing wipe: [REDACTED]');
 
     const results = {
       clients_deleted: 0,

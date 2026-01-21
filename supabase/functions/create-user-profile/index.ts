@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Creating profile for: ${email}, permanent: ${is_permanent}, role: ${role}`);
+    console.log('Creating profile, permanent:', is_permanent, 'role:', role);
 
     // Find user in auth.users
     const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Found user: ${user.id}`);
+    console.log('Found user, proceeding with profile creation');
 
     // Check if profile already exists
     const { data: existingProfile } = await supabase

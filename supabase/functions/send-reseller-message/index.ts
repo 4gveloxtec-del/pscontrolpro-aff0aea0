@@ -72,7 +72,7 @@ async function sendEvolutionMessage(
       const baseUrl = normalizeApiUrl(apiUrl);
       const url = `${baseUrl}/message/sendText/${instanceName}`;
       
-      console.log(`[send-reseller-message][Attempt ${attempt + 1}] Sending to ${formattedPhone} via ${url}`);
+      console.log(`[send-reseller-message][Attempt ${attempt + 1}] Sending message`);
       
       const response = await fetchWithTimeout(url, {
         method: 'POST',

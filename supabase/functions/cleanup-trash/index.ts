@@ -78,7 +78,7 @@ serve(async (req) => {
           .eq('id', seller.id);
         
         results.expired_sellers++;
-        console.log(`Deactivated expired seller: ${seller.email}`);
+        console.log('Deactivated expired seller:', seller.id);
       }
     }
 
@@ -117,7 +117,7 @@ serve(async (req) => {
         await supabase.auth.admin.deleteUser(seller.id);
         
         results.inactive_sellers++;
-        console.log(`Deleted inactive seller: ${seller.email}`);
+        console.log('Deleted inactive seller:', seller.id);
       }
     }
 

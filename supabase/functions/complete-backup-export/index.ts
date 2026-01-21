@@ -65,7 +65,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Creating complete clean backup by admin: ${userEmail}`);
+    console.log('Creating complete clean backup by admin');
 
     // Fetch ALL data from all tables
     const [
