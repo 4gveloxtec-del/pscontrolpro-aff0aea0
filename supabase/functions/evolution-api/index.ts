@@ -8,10 +8,33 @@ const corsHeaders = {
 // Timeout constant for API calls
 const API_TIMEOUT_MS = 15000;
 
+// Dedupe window to prevent accidental double-sends from UI/queues
+const SEND_DEDUPE_WINDOW_MS = 15_000;
+
 interface EvolutionConfig {
   api_url: string;
   api_token: string;
   instance_name: string;
+}
+
+function normalizePhoneForSend(phone: string): { digits: string; formatted: string } {
+  const digits = String(phone || '').replace(/\D/g, '');
+  let formatted = digits;
+
+  // Brazil-focused normalization (keeps prior behavior from sendEvolutionMessage)
+  if (formatted.length === 11 && formatted.startsWith('9')) {
+    formatted = '55' + formatted;
+  } else if (formatted.length === 10 || formatted.length === 11) {
+    if (!formatted.startsWith('55')) formatted = '55' + formatted;
+  }
+
+  return { digits, formatted };
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // Clean and normalize API URL
@@ -314,6 +337,52 @@ Deno.serve(async (req) => {
 
     const normalizeInstance = (v: unknown) => String(v || '').trim();
 
+    const getDedupeKey = async (instanceName: string, phoneValue: string, messageValue: string) => {
+      const { formatted } = normalizePhoneForSend(phoneValue);
+      const inst = normalizeInstance(instanceName);
+      // include instance + destination + message (prevents false positives)
+      return sha256Hex(`${inst}::${formatted}::${messageValue}`);
+    };
+
+    const isRecentDuplicateSend = async (sellerId: string, instanceName: string, phoneValue: string, messageValue: string) => {
+      const inst = normalizeInstance(instanceName);
+      const { formatted, digits } = normalizePhoneForSend(phoneValue);
+      const dedupeKey = await getDedupeKey(inst, phoneValue, messageValue);
+      const since = new Date(Date.now() - SEND_DEDUPE_WINDOW_MS).toISOString();
+
+      // We store the dedupeKey in chatbot_send_logs.api_response (string) to avoid schema changes.
+      // This keeps dedupe state server-side without creating new tables.
+      const { data: recent } = await supabase
+        .from('chatbot_send_logs')
+        .select('id')
+        .eq('seller_id', sellerId)
+        .eq('instance_name', inst)
+        .eq('message_type', 'manual')
+        .eq('api_response', dedupeKey)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Extra safety: some callers may pass phone without country code
+      if (!recent?.id && digits !== formatted) {
+        const { data: recentAlt } = await supabase
+          .from('chatbot_send_logs')
+          .select('id')
+          .eq('seller_id', sellerId)
+          .eq('instance_name', inst)
+          .eq('message_type', 'manual')
+          .eq('api_response', dedupeKey)
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return { isDup: !!recentAlt?.id, dedupeKey, formattedPhone: formatted };
+      }
+
+      return { isDup: !!recent?.id, dedupeKey, formattedPhone: formatted };
+    };
+
     const getIsAdmin = async (uid: string): Promise<boolean> => {
       const { data } = await supabase
         .from('user_roles')
@@ -493,8 +562,10 @@ Deno.serve(async (req) => {
           );
         }
 
+        const isAdminSender = userId ? await getIsAdmin(userId) : false;
+
         // Check if instance is blocked
-        if (userId) {
+        if (userId && !isAdminSender) {
           const blockCheck = await checkBlockedInstance(userId);
           if (blockCheck.blocked) {
             return new Response(
@@ -505,7 +576,7 @@ Deno.serve(async (req) => {
         }
 
         // Must be CONNECTED before sending
-        if (userId) {
+        if (userId && !isAdminSender) {
           const connectedCheck = await validateConnectedForSend(userId, config?.instance_name);
           if (!connectedCheck.ok) {
             console.log(`${ownerCheck.tag} Blocked send_message: ${connectedCheck.reason}`);
@@ -530,8 +601,39 @@ Deno.serve(async (req) => {
           );
         }
 
+        // Dedupe: prevent double-send for the exact same (instance + phone + message)
+        if (userId && config?.instance_name) {
+          const dedupe = await isRecentDuplicateSend(userId, config.instance_name, phone, message);
+          if (dedupe.isDup) {
+            console.log(`${ownerCheck.tag} Dedupe hit (send_message) phone=${dedupe.formattedPhone}`);
+            return new Response(
+              JSON.stringify({ success: true, deduped: true }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
         console.log(`${ownerCheck.tag} Sending message to ${String(phone || '').replace(/\D/g, '')}`);
         const result = await sendEvolutionMessage(config, phone, message);
+
+        // Persist a lightweight send record for dedupe (no schema changes)
+        if (userId && config?.instance_name) {
+          try {
+            const dedupeKey = await getDedupeKey(config.instance_name, phone, message);
+            const { formatted } = normalizePhoneForSend(phone);
+            await supabase.from('chatbot_send_logs').insert({
+              seller_id: userId,
+              instance_name: normalizeInstance(config.instance_name),
+              contact_phone: formatted,
+              message_type: 'manual',
+              success: !!result.success,
+              api_response: dedupeKey,
+              error_message: result.success ? null : (result as any).error || 'send failed',
+            });
+          } catch (e) {
+            console.error(`${ownerCheck.tag} Failed to write dedupe log:`, e);
+          }
+        }
         
         return new Response(
           JSON.stringify(result),
@@ -549,8 +651,10 @@ Deno.serve(async (req) => {
           );
         }
 
+        const isAdminSender = userId ? await getIsAdmin(userId) : false;
+
         // Check if instance is blocked for bulk messages too
-        if (userId) {
+        if (userId && !isAdminSender) {
           const blockCheck = await checkBlockedInstance(userId);
           if (blockCheck.blocked) {
             return new Response(
@@ -561,7 +665,7 @@ Deno.serve(async (req) => {
         }
 
         // Must be CONNECTED before sending bulk
-        if (userId) {
+        if (userId && !isAdminSender) {
           const connectedCheck = await validateConnectedForSend(userId, config?.instance_name);
           if (!connectedCheck.ok) {
             console.log(`${ownerCheck.tag} Blocked send_bulk: ${connectedCheck.reason}`);
@@ -591,9 +695,39 @@ Deno.serve(async (req) => {
 
         const results = [];
         for (const msg of messages) {
+          // Dedupe per item
+          if (userId && config?.instance_name && msg?.phone && msg?.message) {
+            const dedupe = await isRecentDuplicateSend(userId, config.instance_name, msg.phone, msg.message);
+            if (dedupe.isDup) {
+              console.log(`${ownerCheck.tag} Dedupe hit (send_bulk) phone=${dedupe.formattedPhone}`);
+              results.push({ phone: msg.phone, success: true, deduped: true });
+              continue;
+            }
+          }
+
           // Add delay between messages to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1500));
           const result = await sendEvolutionMessage(config, msg.phone, msg.message);
+
+          // Persist dedupe marker regardless of success
+          if (userId && config?.instance_name && msg?.phone && msg?.message) {
+            try {
+              const dedupeKey = await getDedupeKey(config.instance_name, msg.phone, msg.message);
+              const { formatted } = normalizePhoneForSend(msg.phone);
+              await supabase.from('chatbot_send_logs').insert({
+                seller_id: userId,
+                instance_name: normalizeInstance(config.instance_name),
+                contact_phone: formatted,
+                message_type: 'manual',
+                success: !!result.success,
+                api_response: dedupeKey,
+                error_message: result.success ? null : (result as any).error || 'send failed',
+              });
+            } catch (e) {
+              console.error(`${ownerCheck.tag} Failed to write dedupe log (bulk item):`, e);
+            }
+          }
+
           results.push({ phone: msg.phone, ...result });
         }
 
