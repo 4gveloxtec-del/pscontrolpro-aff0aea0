@@ -147,6 +147,7 @@ const DEVICE_OPTIONS = [
   { value: 'PC', label: 'PC', icon: Monitor },
   { value: 'Notebook', label: 'Notebook', icon: Laptop },
   { value: 'Fire Stick', label: 'Fire Stick', icon: Flame },
+  { value: 'Projetor Android', label: 'Projetor Android', icon: Monitor },
 ] as const;
 
 export default function Clients() {

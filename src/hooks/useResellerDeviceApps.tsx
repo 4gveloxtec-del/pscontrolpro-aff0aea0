@@ -25,6 +25,7 @@ const DEVICE_MAPPING: Record<string, string[]> = {
   'PC': ['android_tv'], // PC can use Android emulator
   'Notebook': ['android_tv'], // Notebook can use Android emulator
   'Fire Stick': ['fire_stick', 'android_tv'],
+  'Projetor Android': ['android_tv'], // Projetor uses Android TV apps
 };
 
 /**

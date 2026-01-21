@@ -357,6 +357,7 @@ Deno.serve(async (req) => {
         'Celular': ['celular_android', 'iphone'],
         'TV Box': ['android_tv'],
         'Fire Stick': ['fire_stick', 'android_tv'],
+        'Projetor Android': ['android_tv'],
       };
       
       const targetTypes = new Set<string>();
