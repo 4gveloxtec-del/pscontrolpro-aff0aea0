@@ -5,11 +5,27 @@ import { ShieldX, LogOut, Clock, Mail, MessageCircle, AlertTriangle, Loader2 } f
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AccessDenied() {
   const { profile, signOut, role, hasSystemAccess } = useAuth();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Fetch dynamic trial days from settings
+  const { data: trialDays } = useQuery({
+    queryKey: ['seller_trial_days'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'seller_trial_days')
+        .maybeSingle();
+      return data?.value || '5';
+    },
+    staleTime: 1000 * 60 * 5,
+  });
 
   // Se o usuário ainda está em período de teste, redirecionar para dashboard
   useEffect(() => {
@@ -49,7 +65,7 @@ export default function AccessDenied() {
           </div>
           <CardTitle className="text-2xl">Período de Teste Expirado</CardTitle>
           <CardDescription>
-            Seu teste gratuito de 5 dias terminou. Entre em contato para continuar usando o sistema.
+            Seu teste gratuito de {trialDays || '5'} dias terminou. Entre em contato para continuar usando o sistema.
           </CardDescription>
         </CardHeader>
 

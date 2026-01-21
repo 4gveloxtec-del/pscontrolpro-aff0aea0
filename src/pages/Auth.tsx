@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useBruteForce } from '@/hooks/useBruteForce';
 import { validatePasswordStrength } from '@/hooks/usePasswordValidation';
 import { Button } from '@/components/ui/button';
@@ -15,6 +17,20 @@ import { Eye, EyeOff, Users, Shield, AlertTriangle, Phone, Check, X, Info } from
 export default function Auth() {
   const { user, loading, signIn, signUp, authState } = useAuth();
   const { checkLoginAttempt, recordLoginAttempt } = useBruteForce();
+
+  // Fetch dynamic trial days from settings
+  const { data: trialDays } = useQuery({
+    queryKey: ['seller_trial_days'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'seller_trial_days')
+        .maybeSingle();
+      return data?.value || '5';
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -367,7 +383,7 @@ export default function Auth() {
                   </Button>
 
                   <div className="flex items-center justify-center gap-2 text-sm font-medium text-green-500 bg-green-500/10 p-3 rounded-lg">
-                    <span>🎁 Cadastre-se e ganhe 5 dias grátis</span>
+                    <span>🎁 Cadastre-se e ganhe {trialDays || '5'} dias grátis</span>
                   </div>
                 </form>
               </TabsContent>

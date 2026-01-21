@@ -89,6 +89,15 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!existingProfile) {
+      // Get trial days from app_settings
+      const { data: trialSetting } = await supabaseAdmin
+        .from("app_settings")
+        .select("value")
+        .eq("key", "seller_trial_days")
+        .maybeSingle();
+      
+      const trialDays = parseInt(trialSetting?.value || "5", 10);
+      
       // Create profile
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
@@ -97,7 +106,7 @@ Deno.serve(async (req) => {
           email: userEmail,
           full_name: user.user_metadata?.full_name || userEmail?.split("@")[0],
           whatsapp: user.user_metadata?.whatsapp || null,
-          subscription_expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days trial
+          subscription_expires_at: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString(),
           is_permanent: isFirstUser,
           is_active: true,
         });
