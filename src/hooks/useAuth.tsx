@@ -154,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchingUserData = useRef(false);
   const authStateRef = useRef<AuthState>('loading');
   const sessionRef = useRef<Session | null>(null);
+  const recoveringMissingSession = useRef(false);
 
   // Keep refs in sync to avoid stale-closure bugs (timeouts, async handlers)
   useEffect(() => {
@@ -164,6 +165,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  /**
+   * CRITICAL SELF-HEAL:
+   * We should never stay in a state where authState='authenticated' but user is null.
+   * This can happen when we temporarily rely on cached profile/role while the session
+   * restore is slow/fails, and it can lead to infinite "tela branca"/"trava" states.
+   *
+   * Strategy:
+   * - Attempt to recover the session once via getSession()
+   * - If still missing, fall back to unauthenticated and clear cache markers
+   */
+  useEffect(() => {
+    if (authState !== 'authenticated') return;
+    if (user) return;
+    if (recoveringMissingSession.current) return;
+
+    recoveringMissingSession.current = true;
+    console.warn('[useAuth] Inconsistent state: authenticated without user. Attempting recovery...');
+
+    // Keep UI stable while we attempt session recovery.
+    setAuthState('loading');
+
+    const recover = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+
+        if (!error && data?.session?.user) {
+          console.log('[useAuth] Session recovered successfully');
+          setSession(data.session);
+          setUser(data.session.user);
+          setAuthState('authenticated');
+          return;
+        }
+
+        console.warn('[useAuth] Session recovery failed; forcing unauthenticated', error);
+        clearCachedData();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRole(null);
+        setAuthState('unauthenticated');
+      } catch (e) {
+        console.error('[useAuth] Session recovery exception; forcing unauthenticated', e);
+        clearCachedData();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRole(null);
+        setAuthState('unauthenticated');
+      } finally {
+        recoveringMissingSession.current = false;
+      }
+    };
+
+    recover();
+  }, [authState, user]);
 
   // Fetch trial days from app_settings
   useEffect(() => {
