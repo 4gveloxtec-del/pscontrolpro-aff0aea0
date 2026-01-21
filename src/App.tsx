@@ -53,6 +53,7 @@ const SellerChatbotMenu = lazy(() => import("./pages/SellerChatbotMenu"));
 const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ProjectDocumentation = lazy(() => import("./pages/ProjectDocumentation"));
 
 // Loading fallback component - lightweight
 const PageLoader = memo(() => (
@@ -165,6 +166,7 @@ const AppRoutes = () => {
         <Route path="/auth" element={<Auth />} />
         <Route path="/access-denied" element={<AccessDenied />} />
         <Route path="/force-password-update" element={<ForcePasswordUpdate />} />
+        <Route path="/project-docs" element={<ProjectDocumentation />} />
         {/* Redirect old shared-panels route to servers */}
         <Route path="/shared-panels" element={<Navigate to="/servers" replace />} />
         
