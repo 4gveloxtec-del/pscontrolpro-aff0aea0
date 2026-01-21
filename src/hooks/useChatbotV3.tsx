@@ -13,6 +13,8 @@ export interface ChatbotConfig {
   response_delay_max: number;
   typing_enabled: boolean;
   ignore_groups: boolean;
+  use_list_message: boolean;
+  list_button_text: string;
 }
 
 export interface ChatbotMenu {
