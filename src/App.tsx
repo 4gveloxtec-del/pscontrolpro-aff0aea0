@@ -90,17 +90,20 @@ function RootRedirect() {
 
 // Wrapper to check if user needs password update and redirect if no access
 function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
-  const { user, needsPasswordUpdate, loading, hasSystemAccess } = useAuth();
+  const { user, needsPasswordUpdate, loading, hasSystemAccess, authState } = useAuth();
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Se usuário logado sem acesso ao sistema, redireciona para access-denied
-    if (!loading && user && !hasSystemAccess) {
+    // ONLY redirect if auth is fully verified and user doesn't have access
+    // Never redirect during loading state
+    if (authState === 'authenticated' && user && !hasSystemAccess) {
       navigate('/access-denied', { replace: true });
     }
-  }, [loading, user, hasSystemAccess, navigate]);
+  }, [authState, user, hasSystemAccess, navigate]);
   
-  if (loading) {
+  // CRITICAL: Show loading while auth is being verified
+  // This prevents premature redirects on page reload
+  if (loading || authState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -109,6 +112,11 @@ function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
+  }
+  
+  // If unauthenticated, redirect to auth
+  if (authState === 'unauthenticated' || !user) {
+    return <Navigate to="/auth" replace />;
   }
   
   // Aguarda o redirecionamento acontecer via useEffect

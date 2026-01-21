@@ -12,6 +12,10 @@ interface ProtectedRouteProps {
 /**
  * Componente que protege rotas baseado em permissões
  * 
+ * IMPORTANTE: Este componente NÃO redireciona para login enquanto o estado
+ * de autenticação está sendo verificado (loading/authState === 'loading').
+ * Isso evita logouts intermitentes ao recarregar a página.
+ * 
  * - Se requireSystemAccess=true, apenas admin e seller podem acessar
  * - Se allowedRoles é especificado, apenas esses roles podem acessar
  * - Users sem permissão são redirecionados para /access-denied
@@ -21,9 +25,11 @@ export function ProtectedRoute({
   allowedRoles,
   requireSystemAccess = false 
 }: ProtectedRouteProps) {
-  const { role, loading, hasSystemAccess } = useAuth();
+  const { role, loading, hasSystemAccess, authState, user } = useAuth();
 
-  if (loading) {
+  // CRITICAL: NEVER redirect while authentication is being verified
+  // This prevents logout on page reload
+  if (loading || authState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -32,6 +38,11 @@ export function ProtectedRoute({
         </div>
       </div>
     );
+  }
+
+  // Only redirect to auth if explicitly unauthenticated (no user)
+  if (authState === 'unauthenticated' || !user) {
+    return <Navigate to="/auth" replace />;
   }
 
   // Se requer acesso ao sistema (admin ou seller)
@@ -44,7 +55,7 @@ export function ProtectedRoute({
     return <Navigate to="/access-denied" replace />;
   }
 
-  // Se não tem role nenhum, também bloqueia
+  // Se não tem role nenhum após autenticação confirmada, também bloqueia
   if (!role) {
     return <Navigate to="/access-denied" replace />;
   }

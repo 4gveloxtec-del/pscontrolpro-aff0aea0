@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 export default function AdminAuth() {
   const navigate = useNavigate();
-  const { signIn, user, role, loading: authLoading, isAdmin } = useAuth();
+  const { signIn, user, role, loading: authLoading, isAdmin, authState } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,18 +18,19 @@ export default function AdminAuth() {
   const [error, setError] = useState('');
 
   // Se já logado como admin, redirecionar para dashboard admin
+  // CRITICAL: Only redirect when authState is 'authenticated' to prevent premature redirects
   useEffect(() => {
-    if (!authLoading && user && isAdmin) {
+    if (authState === 'authenticated' && user && isAdmin) {
       navigate('/admin/dashboard', { replace: true });
     }
-  }, [user, isAdmin, authLoading, navigate]);
+  }, [user, isAdmin, authState, navigate]);
 
   // Se logado mas não é admin, mostrar erro
   useEffect(() => {
-    if (!authLoading && user && role && !isAdmin) {
+    if (authState === 'authenticated' && user && role && !isAdmin) {
       setError('Acesso negado. Esta área é exclusiva para administradores.');
     }
-  }, [user, role, isAdmin, authLoading]);
+  }, [user, role, isAdmin, authState]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,16 +51,20 @@ export default function AdminAuth() {
     setLoading(false);
   };
 
-  if (authLoading) {
+  // CRITICAL: Show loading while auth is being verified
+  if (authLoading || authState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-slate-300 text-sm">Verificando sessão...</p>
+        </div>
       </div>
     );
   }
 
   // Se acabou de logar, pode levar alguns instantes para carregar a role
-  if (user && !role) {
+  if (authState === 'authenticated' && user && !role) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="flex flex-col items-center gap-3">

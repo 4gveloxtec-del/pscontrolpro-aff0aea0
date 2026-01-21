@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, Users, Shield, AlertTriangle, Phone, Check, X, Info } from 'lucide-react';
 
 export default function Auth() {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp, authState } = useAuth();
   const { checkLoginAttempt, recordLoginAttempt } = useBruteForce();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -43,15 +43,21 @@ export default function Auth() {
     { label: 'Símbolo especial', met: /[^a-zA-Z0-9]/.test(registerPassword) },
   ], [registerPassword]);
 
-  if (loading) {
+  // CRITICAL: Show loading while auth is being verified
+  // This prevents showing auth page briefly before redirect
+  if (loading || authState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-primary text-xl">Carregando...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Verificando sessão...</p>
+        </div>
       </div>
     );
   }
 
-  if (user) {
+  // Only redirect if authenticated (session confirmed)
+  if (authState === 'authenticated' && user) {
     return <Navigate to="/dashboard" replace />;
   }
 
