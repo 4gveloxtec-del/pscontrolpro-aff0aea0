@@ -726,21 +726,65 @@ export default function Clients() {
         finalPassword = null;
       }
       
-      const { data: insertedData, error } = await supabase.from('clients').insert([{
-        ...clientData,
-        login: finalLogin,
-        password: finalPassword,
-        credentials_fingerprint: credentialsFingerprint,
-        seller_id: user!.id,
-        renewed_at: new Date().toISOString(), // Track creation as first renewal for monthly profit
-      }]).select('id').single();
-      if (error) throw error;
+      // Anti-duplicidade (Etapa 4): se já existir cliente com mesmo seller_id + phone, reutilizar registro
+      // (Não cria novo registro)
+      let reusedExistingClient = false;
+      let insertedData: { id: string } | null = null;
+
+      const normalizedPhone = correctedData.phone || null;
+      if (normalizedPhone) {
+        const { data: existingClient, error: existingError } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('seller_id', user!.id)
+          .eq('phone', normalizedPhone)
+          .maybeSingle();
+        if (existingError) throw existingError;
+
+        if (existingClient?.id) {
+          reusedExistingClient = true;
+          // Atualiza dados básicos sem recriar nem alterar "renewed_at" (evita duplicidade e evita registrar "renovação" indevida)
+          const { error: updateError } = await supabase
+            .from('clients')
+            .update({
+              ...clientData,
+              login: finalLogin,
+              password: finalPassword,
+              credentials_fingerprint: credentialsFingerprint,
+              seller_id: user!.id,
+            })
+            .eq('id', existingClient.id);
+          if (updateError) throw updateError;
+
+          insertedData = { id: existingClient.id };
+        }
+      }
+
+      if (!insertedData) {
+        const { data: created, error } = await supabase
+          .from('clients')
+          .insert([
+            {
+              ...clientData,
+              login: finalLogin,
+              password: finalPassword,
+              credentials_fingerprint: credentialsFingerprint,
+              seller_id: user!.id,
+              renewed_at: new Date().toISOString(), // Track creation as first renewal for monthly profit
+            },
+          ])
+          .select('id')
+          .single();
+        if (error) throw error;
+        insertedData = created;
+      }
       
       // Shared credits are tracked by counting clients with the same login/password on the server
       // No need to insert into panel_clients - the SharedCreditPicker counts directly from clients table
       
       // If it's a credit-based server and NOT using shared credit, register the screens used
-      if (!selectedSharedCredit && correctedData.server_id && insertedData?.id) {
+      // Se reutilizou cliente existente, não registrar slots/apps para evitar duplicações derivadas
+      if (!reusedExistingClient && !selectedSharedCredit && correctedData.server_id && insertedData?.id) {
         const server = servers.find(s => s.id === correctedData.server_id);
         if (server?.is_credit_based) {
           const screensUsed = parseInt(screens || '1');
@@ -795,7 +839,7 @@ export default function Clients() {
       }
       
       // Save external apps in background - don't block the response
-      if (externalApps.length > 0 && insertedData?.id) {
+      if (!reusedExistingClient && externalApps.length > 0 && insertedData?.id) {
         (async () => {
           for (const app of externalApps) {
             if (!app.appId) continue;
