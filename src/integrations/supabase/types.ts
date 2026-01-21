@@ -1268,6 +1268,7 @@ export type Database = {
           created_at: string | null
           email: string
           full_name: string | null
+          hide_revenue: boolean
           id: string
           is_active: boolean | null
           is_permanent: boolean | null
@@ -1288,6 +1289,7 @@ export type Database = {
           created_at?: string | null
           email: string
           full_name?: string | null
+          hide_revenue?: boolean
           id: string
           is_active?: boolean | null
           is_permanent?: boolean | null
@@ -1308,6 +1310,7 @@ export type Database = {
           created_at?: string | null
           email?: string
           full_name?: string | null
+          hide_revenue?: boolean
           id?: string
           is_active?: boolean | null
           is_permanent?: boolean | null
