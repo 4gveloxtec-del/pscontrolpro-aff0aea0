@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, forwardRef } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Users, Shield, AlertTriangle, Phone, Check, X, Info } from 'lucide-react';
 
-export default function Auth() {
+const Auth = forwardRef<HTMLDivElement>(function Auth(_props, ref) {
   const { user, loading, signIn, signUp, authState } = useAuth();
   const { checkLoginAttempt, recordLoginAttempt } = useBruteForce();
 
@@ -393,4 +393,8 @@ export default function Auth() {
       </div>
     </div>
   );
-}
+});
+
+Auth.displayName = 'Auth';
+
+export default Auth;

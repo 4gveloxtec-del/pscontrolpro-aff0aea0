@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Shield, Eye, EyeOff, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function AdminAuth() {
+const AdminAuth = forwardRef<HTMLDivElement>(function AdminAuth(_props, ref) {
   const navigate = useNavigate();
   const { signIn, user, role, loading: authLoading, isAdmin, authState } = useAuth();
   const [email, setEmail] = useState('');
@@ -167,4 +167,8 @@ export default function AdminAuth() {
       </Card>
     </div>
   );
-}
+});
+
+AdminAuth.displayName = 'AdminAuth';
+
+export default AdminAuth;
