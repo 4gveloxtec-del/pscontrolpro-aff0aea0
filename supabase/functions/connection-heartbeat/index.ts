@@ -5,6 +5,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Evolution API may send event names as UPPER_SNAKE (e.g. MESSAGES_UPSERT)
+// while our internal switch expects dot-lowercase (e.g. messages.upsert).
+function normalizeWebhookEvent(raw: unknown): string {
+  const e = String(raw || "").trim();
+  if (!e) return "";
+
+  const lower = e.toLowerCase();
+
+  // Already in dot format
+  if (lower.includes(".")) return lower;
+
+  // Common Evolution event naming patterns
+  const key = lower.replace(/\s+/g, "").replace(/-/g, "_");
+  const map: Record<string, string> = {
+    messages_upsert: "messages.upsert",
+    connection_update: "connection.update",
+    qrcode_updated: "qrcode.updated",
+    instance_ready: "instance.ready",
+    connection_lost: "connection.lost",
+    logout: "logout",
+  };
+
+  if (map[key]) return map[key];
+
+  // Fallback: convert snake_case to dot.case
+  return key.replace(/_/g, ".");
+}
+
 // Normalize API URL
 function normalizeApiUrl(url: string): string {
   let cleanUrl = url.trim();
@@ -165,11 +193,12 @@ Deno.serve(async (req: Request) => {
     // WEBHOOK HANDLER - Receive events from Evolution API
     // ============================================================
     if (action === 'webhook' || webhook_event) {
-      const event = webhook_event || body.event;
+      const rawEvent = webhook_event || body.event;
+      const event = normalizeWebhookEvent(rawEvent);
       const instanceName = body.instance || body.data?.instance?.instanceName;
       const eventData = body.data || body;
       
-      console.log('[Webhook] Received event:', event || 'unknown', 'instance:', instanceName || 'unknown');
+      console.log('[Webhook] Received event:', rawEvent || 'unknown', '=>', event || 'unknown', 'instance:', instanceName || 'unknown');
       
       if (!instanceName) {
         return new Response(

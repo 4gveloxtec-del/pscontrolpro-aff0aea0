@@ -183,7 +183,15 @@ Deno.serve(async (req) => {
 
       // Extrair dados pelo path se configurado
       let extractedData = apiResponse;
-      if (api.response_path && typeof apiResponse === 'object') {
+
+      // If no response_path is configured, prefer common "reply" field (avoids huge JSON dumps)
+      // Many chatbot APIs return a ready-to-send WhatsApp message in "reply".
+      if (!api.response_path && apiResponse && typeof apiResponse === 'object') {
+        const maybeReply = (apiResponse as Record<string, unknown>)['reply'];
+        if (typeof maybeReply === 'string' && maybeReply.trim()) {
+          extractedData = maybeReply;
+        }
+      } else if (api.response_path && typeof apiResponse === 'object') {
         extractedData = extractByPath(apiResponse, api.response_path);
       }
 
