@@ -52,11 +52,20 @@ interface PanelClient {
 }
 
 // Calculate pro-rata price
+// AUDIT FIX: Safe numeric handling and precision rounding
 const calculateProRataPrice = (monthlyPrice: number, daysUsed: number, totalDays: number = 30): number => {
-  if (daysUsed <= 0 || totalDays <= 0) return monthlyPrice;
-  const remainingDays = totalDays - daysUsed;
+  const safePrice = Number(monthlyPrice) || 0;
+  const safeDaysUsed = Number(daysUsed) || 0;
+  const safeTotalDays = Number(totalDays) || 30;
+  
+  if (safePrice <= 0 || safeTotalDays <= 0) return 0;
+  if (safeDaysUsed <= 0) return safePrice;
+  
+  const remainingDays = safeTotalDays - safeDaysUsed;
   if (remainingDays <= 0) return 0;
-  return (monthlyPrice / totalDays) * remainingDays;
+  
+  // Round to 2 decimal places for currency precision
+  return Math.round((safePrice / safeTotalDays) * remainingDays * 100) / 100;
 };
 
 // Get current day of month for pro-rata

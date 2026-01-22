@@ -205,8 +205,15 @@ export default function Bills() {
     }
   });
 
-  const totalPending = bills.filter(b => !b.is_paid).reduce((sum, b) => sum + b.amount, 0);
-  const totalOverdue = bills.filter(b => getBillStatus(b) === 'overdue').reduce((sum, b) => sum + b.amount, 0);
+  // AUDIT FIX: Safe numeric coercion for bill totals
+  const totalPending = bills.filter(b => !b.is_paid).reduce((sum, b) => {
+    const amount = Number(b.amount) || 0;
+    return sum + (amount > 0 ? amount : 0);
+  }, 0);
+  const totalOverdue = bills.filter(b => getBillStatus(b) === 'overdue').reduce((sum, b) => {
+    const amount = Number(b.amount) || 0;
+    return sum + (amount > 0 ? amount : 0);
+  }, 0);
 
   const statusColors = {
     pending: 'border-l-warning',

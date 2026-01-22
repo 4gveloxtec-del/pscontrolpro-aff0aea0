@@ -68,14 +68,22 @@ interface ClientOnServer {
 }
 
 // Calculate pro-rata price based on remaining days
+// AUDIT FIX: Precise calculation with safe numeric handling
 const calculateProRataPrice = (monthlyPrice: number): { price: number; remainingDays: number } => {
+  const safePrice = Number(monthlyPrice) || 0;
+  if (safePrice <= 0) return { price: 0, remainingDays: 0 };
+  
   const today = new Date();
+  today.setHours(12, 0, 0, 0); // Normalize to noon
   const monthEnd = endOfMonth(today);
+  monthEnd.setHours(12, 0, 0, 0);
+  
   const remainingDays = differenceInDays(monthEnd, today) + 1; // +1 to include today
   const totalDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   
-  const price = (monthlyPrice / totalDays) * remainingDays;
-  return { price, remainingDays };
+  // Round to 2 decimal places for currency precision
+  const price = Math.round((safePrice / totalDays) * remainingDays * 100) / 100;
+  return { price: Math.max(0, price), remainingDays: Math.max(0, remainingDays) };
 };
 
 // Helper to get duration category from days
@@ -88,12 +96,16 @@ const getDurationCategory = (days: number): 'monthly' | 'quarterly' | 'semiannua
 };
 
 // Helper to calculate remaining days from expiration date
+// AUDIT FIX: Normalize to noon to avoid DST/timezone edge cases
 const getRemainingDaysFromExpiration = (expirationDate: string): number => {
+  if (!expirationDate) return 0;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const expDate = new Date(expirationDate);
-  expDate.setHours(0, 0, 0, 0);
-  return Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  today.setHours(12, 0, 0, 0);
+  const expStr = expirationDate.includes('T') ? expirationDate : `${expirationDate}T12:00:00`;
+  const expDate = new Date(expStr);
+  expDate.setHours(12, 0, 0, 0);
+  const diff = Math.round((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return diff;
 };
 
 // Extended interface to include decrypted credentials

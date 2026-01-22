@@ -205,41 +205,67 @@ export default function Dashboard() {
   const unpaidClients = clients.filter(c => !c.is_paid);
 
   // Count clients renewed this month (for monthly revenue)
+  // AUDIT FIX: Normalize dates to noon to avoid timezone edge cases
   const clientsRenewedThisMonth = clients.filter(c => {
     if (!c.renewed_at || !c.is_paid) return false;
-    const renewedDate = new Date(c.renewed_at);
-    return !isBefore(renewedDate, monthStart) && !isBefore(new Date(c.expiration_date), today);
+    const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
+    const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
+    const renewedDate = new Date(renewedStr);
+    const expDate = new Date(expStr);
+    return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
   });
 
   // Monthly revenue: only clients renewed this month (plan_price + premium_price)
-  const monthlyRevenue = clientsRenewedThisMonth.reduce((sum, c) => sum + (c.plan_price || 0) + (c.premium_price || 0), 0);
+  // AUDIT FIX: Use Number() for safe numeric coercion
+  const monthlyRevenue = clientsRenewedThisMonth.reduce((sum, c) => {
+    const planPrice = Number(c.plan_price) || 0;
+    const premiumPrice = Number(c.premium_price) || 0;
+    return sum + planPrice + premiumPrice;
+  }, 0);
 
   const totalRevenue = monthlyRevenue;
 
   // Total server costs
-  const totalServerCosts = serversData.reduce((sum, s) => sum + (s.monthly_cost || 0), 0);
+  // AUDIT FIX: Safe numeric coercion
+  const totalServerCosts = serversData.reduce((sum, s) => {
+    const cost = Number(s.monthly_cost) || 0;
+    return sum + (cost > 0 ? cost : 0);
+  }, 0);
   
   // Total bills costs
-  const totalBillsCosts = billsData.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+  // AUDIT FIX: Safe numeric coercion with parseFloat fallback
+  const totalBillsCosts = billsData.reduce((sum, b) => {
+    const amount = parseFloat(String(b.amount)) || 0;
+    return sum + (amount > 0 ? amount : 0);
+  }, 0);
   
   // Net profit (revenue - server costs - bills)
-  const netProfit = totalRevenue - totalServerCosts - totalBillsCosts;
+  // AUDIT FIX: Round to 2 decimal places
+  const netProfit = Math.round((totalRevenue - totalServerCosts - totalBillsCosts) * 100) / 100;
 
   // Calculate profit per server (based on monthly renewals)
+  // AUDIT FIX: Normalize dates and safe numeric handling
   const serverProfits = serversData.map(server => {
     const serverClients = clients.filter(c => {
       if (c.server_id !== server.id || !c.is_paid || !c.renewed_at) return false;
-      const renewedDate = new Date(c.renewed_at);
-      return !isBefore(renewedDate, monthStart) && !isBefore(new Date(c.expiration_date), today);
+      const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
+      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
+      const renewedDate = new Date(renewedStr);
+      const expDate = new Date(expStr);
+      return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
     });
-    const serverRevenue = serverClients.reduce((sum, c) => sum + (c.plan_price || 0) + (c.premium_price || 0), 0);
-    const serverCost = server.monthly_cost || 0;
-    const serverProfit = serverRevenue - serverCost;
+    const serverRevenue = serverClients.reduce((sum, c) => {
+      const planPrice = Number(c.plan_price) || 0;
+      const premiumPrice = Number(c.premium_price) || 0;
+      return sum + planPrice + premiumPrice;
+    }, 0);
+    const serverCost = Number(server.monthly_cost) || 0;
+    const serverProfit = Math.round((serverRevenue - serverCost) * 100) / 100;
     
     return {
       ...server,
       clientCount: serverClients.length,
-      revenue: serverRevenue,
+      revenue: Math.round(serverRevenue * 100) / 100,
       cost: serverCost,
       profit: serverProfit,
     };
@@ -255,38 +281,57 @@ export default function Dashboard() {
   const allCategories = [...new Set(clients.map(c => getCategoryString(c.category)))];
 
   // Calculate revenue per category (based on monthly renewals)
+  // AUDIT FIX: Normalize dates and safe numeric handling
   const categoryProfits = allCategories.map(category => {
     const categoryClients = clients.filter(c => {
       if (getCategoryString(c.category) !== category || !c.is_paid || !c.renewed_at) return false;
-      const renewedDate = new Date(c.renewed_at);
-      return !isBefore(renewedDate, monthStart) && !isBefore(new Date(c.expiration_date), today);
+      const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
+      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
+      const renewedDate = new Date(renewedStr);
+      const expDate = new Date(expStr);
+      return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
     });
-    const categoryRevenue = categoryClients.reduce((sum, c) => sum + (c.plan_price || 0) + (c.premium_price || 0), 0);
+    const categoryRevenue = categoryClients.reduce((sum, c) => {
+      const planPrice = Number(c.plan_price) || 0;
+      const premiumPrice = Number(c.premium_price) || 0;
+      return sum + planPrice + premiumPrice;
+    }, 0);
     const totalCategoryClients = clients.filter(c => getCategoryString(c.category) === category).length;
     
     return {
       category,
       clientCount: categoryClients.length,
       totalClients: totalCategoryClients,
-      revenue: categoryRevenue,
+      revenue: Math.round(categoryRevenue * 100) / 100,
     };
   }).sort((a, b) => b.revenue - a.revenue);
 
   // Clients expiring in specific days (1, 2, 3, 4, 5 days)
+  // AUDIT FIX: Normalize dates to avoid timezone issues
   const getClientsExpiringInDays = (days: number) => {
     return clients.filter(c => {
-      const expDate = new Date(c.expiration_date);
-      const diff = differenceInDays(expDate, today);
+      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
+      const expDate = new Date(expStr);
+      expDate.setHours(12, 0, 0, 0);
+      const todayNoon = new Date(today);
+      todayNoon.setHours(12, 0, 0, 0);
+      const diff = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
       return diff === days;
     });
   };
 
   // Clients expiring from 0 to 7 days (used for cobrança em massa), sorted by days remaining
+  // AUDIT FIX: Consistent date normalization
   const urgentClients = clients
-    .map(c => ({
-      ...c,
-      daysRemaining: differenceInDays(new Date(c.expiration_date), today)
-    }))
+    .map(c => {
+      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
+      const expDate = new Date(expStr);
+      expDate.setHours(12, 0, 0, 0);
+      const todayNoon = new Date(today);
+      todayNoon.setHours(12, 0, 0, 0);
+      const daysRemaining = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...c, daysRemaining };
+    })
     .filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 7)
     .sort((a, b) => a.daysRemaining - b.daysRemaining);
 

@@ -38,16 +38,28 @@ export default function Reports() {
       // Paid clients only
       const paidClients = clients.filter(c => c.is_paid);
 
-      // CORRECTED: Total revenue = only PAID clients' plan_price + premium_price
-      const totalRevenue = paidClients.reduce((sum, c) => sum + (c.plan_price || 0) + (c.premium_price || 0), 0);
+      // AUDIT FIX: Safe numeric coercion for total revenue
+      const totalRevenue = paidClients.reduce((sum, c) => {
+        const planPrice = Number(c.plan_price) || 0;
+        const premiumPrice = Number(c.premium_price) || 0;
+        return sum + planPrice + premiumPrice;
+      }, 0);
       
       // Monthly revenue = only clients renewed THIS MONTH with valid expiration
+      // AUDIT FIX: Normalize dates to noon to avoid timezone issues
       const clientsRenewedThisMonth = clients.filter(c => {
         if (!c.renewed_at || !c.is_paid) return false;
-        const renewedDate = new Date(c.renewed_at);
-        return !isBefore(renewedDate, monthStart) && !isBefore(new Date(c.expiration_date), today);
+        const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
+        const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
+        const renewedDate = new Date(renewedStr);
+        const expDate = new Date(expStr);
+        return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
       });
-      const monthlyRevenue = clientsRenewedThisMonth.reduce((sum, c) => sum + (c.plan_price || 0) + (c.premium_price || 0), 0);
+      const monthlyRevenue = clientsRenewedThisMonth.reduce((sum, c) => {
+        const planPrice = Number(c.plan_price) || 0;
+        const premiumPrice = Number(c.premium_price) || 0;
+        return sum + planPrice + premiumPrice;
+      }, 0);
 
       const totalServerCosts = servers
         .filter(s => s.is_active)
