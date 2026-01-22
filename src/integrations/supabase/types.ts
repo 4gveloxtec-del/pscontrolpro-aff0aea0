@@ -736,6 +736,59 @@ export type Database = {
           },
         ]
       }
+      command_logs: {
+        Row: {
+          api_request: Json | null
+          api_response: Json | null
+          command_id: string | null
+          command_text: string
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          owner_id: string
+          response_sent: string | null
+          sender_phone: string
+          success: boolean
+        }
+        Insert: {
+          api_request?: Json | null
+          api_response?: Json | null
+          command_id?: string | null
+          command_text: string
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          owner_id: string
+          response_sent?: string | null
+          sender_phone: string
+          success?: boolean
+        }
+        Update: {
+          api_request?: Json | null
+          api_response?: Json | null
+          command_id?: string | null
+          command_text?: string
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          owner_id?: string
+          response_sent?: string | null
+          sender_phone?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_logs_command_id_fkey"
+            columns: ["command_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_commands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connection_alerts: {
         Row: {
           alert_type: string
@@ -2182,6 +2235,51 @@ export type Database = {
         }
         Relationships: []
       }
+      test_apis: {
+        Row: {
+          api_body_template: Json | null
+          api_headers: Json | null
+          api_method: string
+          api_url: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          owner_id: string
+          response_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          api_body_template?: Json | null
+          api_headers?: Json | null
+          api_method?: string
+          api_url: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          owner_id: string
+          response_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          api_body_template?: Json | null
+          api_headers?: Json | null
+          api_method?: string
+          api_url?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          owner_id?: string
+          response_path?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tutorials: {
         Row: {
           created_at: string
@@ -2238,6 +2336,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_commands: {
+        Row: {
+          api_id: string
+          command: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          owner_id: string
+          response_template: string
+          updated_at: string
+          usage_count: number
+        }
+        Insert: {
+          api_id: string
+          command: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          owner_id: string
+          response_template?: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Update: {
+          api_id?: string
+          command?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          owner_id?: string
+          response_template?: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_commands_api_id_fkey"
+            columns: ["api_id"]
+            isOneToOne: false
+            referencedRelation: "test_apis"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_global_config: {
         Row: {

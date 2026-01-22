@@ -47,6 +47,7 @@ const MessageHistory = lazy(() => import("./pages/MessageHistory"));
 const Tutorials = lazy(() => import("./pages/Tutorials"));
 const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
+const TestCommands = lazy(() => import("./pages/TestCommands"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ProjectDocumentation = lazy(() => import("./pages/ProjectDocumentation"));
 
@@ -213,6 +214,7 @@ const AppRoutes = () => {
           <Route path="/message-history" element={<MessageHistory />} />
           <Route path="/external-apps" element={<ExternalApps />} />
           <Route path="/my-apps" element={<MyApps />} />
+          <Route path="/test-commands" element={<TestCommands />} />
           
           {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
           <Route path="/sellers" element={

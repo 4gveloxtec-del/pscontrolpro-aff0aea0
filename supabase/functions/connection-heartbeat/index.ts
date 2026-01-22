@@ -216,6 +216,79 @@ Deno.serve(async (req: Request) => {
           alertType = 'session_invalid';
           alertMessage = 'Sessão do WhatsApp encerrada';
           break;
+
+        case 'messages.upsert':
+          // Processar mensagens recebidas - verificar se é comando
+          const messages = eventData.messages || eventData.data?.messages || [];
+          for (const msg of messages) {
+            // Ignorar mensagens enviadas pelo bot
+            if (msg.key?.fromMe) continue;
+            
+            const messageText = msg.message?.conversation || 
+                               msg.message?.extendedTextMessage?.text || 
+                               '';
+            
+            // Verificar se é um comando (começa com /)
+            if (messageText.startsWith('/')) {
+              const senderPhone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || '';
+              
+              console.log(`[Webhook] Command detected: "${messageText}" from ${senderPhone}`);
+              
+              // Chamar edge function de processamento de comando
+              try {
+                const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+                const commandResponse = await fetch(`${supabaseUrl}/functions/v1/process-whatsapp-command`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({
+                    seller_id: instance.seller_id,
+                    command_text: messageText.trim(),
+                    sender_phone: senderPhone,
+                    instance_name: instanceName,
+                  }),
+                });
+                
+                const cmdResult = await commandResponse.json();
+                console.log(`[Webhook] Command result:`, cmdResult);
+                
+                // Se comando foi processado com sucesso, enviar resposta via WhatsApp
+                if (cmdResult.success && cmdResult.response) {
+                  // Buscar config global para enviar resposta
+                  const { data: globalConfig } = await supabase
+                    .from('whatsapp_global_config')
+                    .select('api_url, api_token')
+                    .eq('is_active', true)
+                    .maybeSingle();
+                  
+                  if (globalConfig?.api_url && globalConfig?.api_token) {
+                    const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
+                    await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': globalConfig.api_token,
+                      },
+                      body: JSON.stringify({
+                        number: senderPhone,
+                        text: cmdResult.response,
+                      }),
+                    });
+                    console.log(`[Webhook] Command response sent to ${senderPhone}`);
+                  }
+                } else if (cmdResult.not_found) {
+                  // Comando não encontrado - não fazer nada (fluxo normal continua)
+                  console.log(`[Webhook] Command not found, ignoring`);
+                }
+              } catch (cmdError) {
+                console.error(`[Webhook] Command processing error:`, cmdError);
+              }
+            }
+            // Se não for comando, deixar o fluxo normal do chatbot/automação
+          }
+          break;
       }
 
       // Update instance status
