@@ -202,12 +202,16 @@ Deno.serve(async (req) => {
     const results: any[] = [];
 
     for (const instance of instances) {
-      console.log(`[reconfigure-webhook] Processing instance: ${instance.instance_name}`);
+      // Use instance_name as the primary name - this is typically the name created by our system
+      // Only fall back to original_instance_name if instance_name doesn't exist
+      // Note: For most cases, instance_name IS the Evolution API instance name (e.g., "seller_c4f9e3be")
+      const evolutionInstanceName = instance.instance_name || instance.original_instance_name;
+      console.log(`[reconfigure-webhook] Processing instance: ${evolutionInstanceName} (original: ${instance.original_instance_name || 'none'})`);
       
       const result = await configureWebhook(
         globalConfig.api_url,
         globalConfig.api_token,
-        instance.instance_name
+        evolutionInstanceName
       );
 
       // Update database
