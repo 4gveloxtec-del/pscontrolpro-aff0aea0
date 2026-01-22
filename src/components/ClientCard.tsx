@@ -3,11 +3,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Phone, Mail, Calendar as CalendarIcon, CreditCard, 
-  Copy, DollarSign, Globe, Server, Eye, EyeOff, 
+  Phone, Calendar as CalendarIcon, CreditCard, 
+  Copy, DollarSign, Globe, Server, 
   MessageCircle, RefreshCw, Edit, Archive, Trash2,
-  Lock, Loader2, ExternalLink, Tv, AppWindow, Clock,
-  CheckCircle2, AlertCircle, XCircle, User
+  Lock, Loader2, Tv, AppWindow,
+  CheckCircle2, AlertCircle, XCircle
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -65,8 +65,6 @@ interface ClientCardProps {
   onDecrypt: (client: Client) => void;
   onMarkPaid: (client: Client) => void;
   maskData: (data: string, type: 'name' | 'phone' | 'email' | 'credentials') => string;
-  statusColors: Record<ClientStatus, string>;
-  statusBadges: Record<ClientStatus, string>;
   statusLabels: Record<ClientStatus, string>;
 }
 
@@ -93,8 +91,6 @@ export const ClientCard = memo(function ClientCard({
   onDecrypt,
   onMarkPaid,
   maskData,
-  statusColors,
-  statusBadges,
   statusLabels,
 }: ClientCardProps) {
   const today = new Date();

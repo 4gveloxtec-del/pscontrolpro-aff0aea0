@@ -21,7 +21,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Send, Copy, MessageCircle, CreditCard, Tv, Wifi, Crown, Tag, Loader2, WifiOff, Calendar, RefreshCw, Bell, MoreHorizontal, CheckCircle, Zap } from 'lucide-react';
+import { Send, Copy, MessageCircle, CreditCard, Tv, Wifi, Crown, Tag, Loader2, Calendar, RefreshCw, Bell, CheckCircle, Zap } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';

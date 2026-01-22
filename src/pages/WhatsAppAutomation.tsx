@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { 
-  MessageCircle, Settings, Users, AlertTriangle, Loader2, RefreshCw, Shield, Ban, Eye, Clock, ListOrdered, Sparkles, CheckCircle
+  MessageCircle, Settings, Users, Loader2, RefreshCw, Shield, Ban, Eye, Clock, ListOrdered, CheckCircle
 } from 'lucide-react';
 import { WhatsAppGlobalConfig } from '@/components/WhatsAppGlobalConfig';
 import { WhatsAppSellerConfig } from '@/components/WhatsAppSellerConfig';

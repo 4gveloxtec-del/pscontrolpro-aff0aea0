@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -32,12 +32,11 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Search, Phone, Mail, Calendar as CalendarIcon, CreditCard, User, Trash2, Edit, Eye, EyeOff, MessageCircle, RefreshCw, Lock, Loader2, Monitor, Smartphone, Tv, Gamepad2, Laptop, Flame, ChevronDown, ExternalLink, AppWindow, Send, Archive, RotateCcw, Sparkles, Server, Copy, UserPlus, WifiOff, CheckCircle, X, DollarSign, Globe, ArrowRightLeft } from 'lucide-react';
+import { Plus, Search, Phone, Mail, Calendar as CalendarIcon, CreditCard, User, Trash2, Eye, EyeOff, MessageCircle, Lock, Loader2, Monitor, Smartphone, Tv, Gamepad2, Laptop, Flame, ChevronDown, ExternalLink, AppWindow, Send, Archive, RotateCcw, Sparkles, Server, Copy, UserPlus, CheckCircle, X, DollarSign, Globe, ArrowRightLeft } from 'lucide-react';
 import { BulkImportClients } from '@/components/BulkImportClients';
 import { BulkServerMigration } from '@/components/BulkServerMigration';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { format, addDays, addMonths, isBefore, isAfter, startOfToday, differenceInDays } from 'date-fns';
@@ -45,12 +44,11 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { SendMessageDialog } from '@/components/SendMessageDialog';
 import { PlanSelector } from '@/components/PlanSelector';
-import { SharedCreditPicker, SharedCreditSelection } from '@/components/SharedCreditPicker';
+import { SharedCreditSelection } from '@/components/SharedCreditPicker';
 import { DnsFieldsSection, SharedCreditsSection, AppsSection, AdditionalServersSection } from '@/components/client-form';
 import { Badge } from '@/components/ui/badge';
-import { ClientExternalApps, ClientExternalAppsDisplay } from '@/components/ClientExternalApps';
+import { ClientExternalAppsDisplay } from '@/components/ClientExternalApps';
 import { ClientPremiumAccounts, PremiumAccount } from '@/components/ClientPremiumAccounts';
-import { LazyAccountsDisplay } from '@/components/LazyAccountsDisplay';
 import { LazyPremiumAccounts } from '@/components/LazyPremiumAccounts';
 import { PaginationControls } from '@/components/PaginationControls';
 import { BulkLoyaltyMessage } from '@/components/BulkLoyaltyMessage';
