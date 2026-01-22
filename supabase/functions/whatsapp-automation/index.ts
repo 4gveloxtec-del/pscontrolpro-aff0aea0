@@ -689,8 +689,10 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        // Add delay between messages
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Add random delay between messages (15-30 seconds) to avoid WhatsApp bans
+        const delayMs = Math.floor(Math.random() * 15000) + 15000; // 15000-30000ms
+        console.log(`Waiting ${delayMs / 1000}s before next message...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
 
