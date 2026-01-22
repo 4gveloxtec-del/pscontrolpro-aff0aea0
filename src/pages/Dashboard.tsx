@@ -245,11 +245,11 @@ export default function Dashboard() {
     };
   }).sort((a, b) => b.profit - a.profit);
 
-  // Get all unique categories from clients (handle object categories)
+  // Get all unique categories from clients (handle object categories and normalize)
   const getCategoryString = (cat: unknown): string => {
     if (!cat) return 'Sem categoria';
-    if (typeof cat === 'object') return (cat as { name?: string })?.name || 'Sem categoria';
-    return String(cat);
+    if (typeof cat === 'object') return ((cat as { name?: string })?.name || 'Sem categoria').trim().toUpperCase();
+    return String(cat).trim().toUpperCase();
   };
   
   const allCategories = [...new Set(clients.map(c => getCategoryString(c.category)))];

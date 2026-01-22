@@ -403,8 +403,11 @@ export default function PanelResellers() {
     const daysUntilExpiration = differenceInDays(expirationDate, today);
 
     // Status filter
-    if (filter === 'active' && (daysUntilExpiration < 0 || daysUntilExpiration > 7)) return false;
+    // Active: not expired and not expiring within 7 days (daysUntilExpiration > 7)
+    if (filter === 'active' && daysUntilExpiration <= 7) return false;
+    // Expiring: expires within 1-7 days (not expired, but close)
     if (filter === 'expiring' && (daysUntilExpiration < 0 || daysUntilExpiration > 7)) return false;
+    // Expired: already expired
     if (filter === 'expired' && daysUntilExpiration >= 0) return false;
 
     // Server filter
