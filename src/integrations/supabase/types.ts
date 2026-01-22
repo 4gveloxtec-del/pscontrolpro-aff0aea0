@@ -587,6 +587,7 @@ export type Database = {
           created_at: string | null
           credentials_fingerprint: string | null
           device: string | null
+          device_model: string | null
           dns: string | null
           email: string | null
           expected_payment_date: string | null
@@ -634,6 +635,7 @@ export type Database = {
           created_at?: string | null
           credentials_fingerprint?: string | null
           device?: string | null
+          device_model?: string | null
           dns?: string | null
           email?: string | null
           expected_payment_date?: string | null
@@ -681,6 +683,7 @@ export type Database = {
           created_at?: string | null
           credentials_fingerprint?: string | null
           device?: string | null
+          device_model?: string | null
           dns?: string | null
           email?: string | null
           expected_payment_date?: string | null

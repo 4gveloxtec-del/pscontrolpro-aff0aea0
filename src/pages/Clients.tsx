@@ -104,6 +104,7 @@ interface Client {
   // App type fields
   app_name: string | null;
   app_type: string | null;
+  device_model: string | null;
 }
 
 interface ClientCategory {
@@ -258,6 +259,7 @@ export default function Clients() {
     gerencia_app_devices: [] as MacDevice[], // Múltiplos dispositivos MAC
     app_name: '', // Nome do aplicativo usado pelo cliente
     app_type: 'server' as 'server' | 'own', // Tipo de app: servidor ou próprio
+    device_model: '', // Modelo/identificação do dispositivo (ex: "Samsung 55 Sala")
     has_adult_content: false, // Conteúdo adulto (+18)
   });
 
@@ -1351,6 +1353,7 @@ export default function Clients() {
       gerencia_app_devices: [],
       app_name: '',
       app_type: 'server',
+      device_model: '',
       has_adult_content: false,
     });
     setSelectedSharedCredit(null);
@@ -1518,6 +1521,7 @@ export default function Clients() {
       gerencia_app_devices: formData.gerencia_app_devices.filter(d => d.mac.trim() !== ''),
       app_name: formData.app_name || null,
       app_type: formData.app_type || 'server',
+      device_model: formData.device_model || null,
       additional_servers: validAdditionalServers,
       has_adult_content: formData.has_adult_content || false,
     };
@@ -1654,6 +1658,7 @@ export default function Clients() {
       gerencia_app_devices: client.gerencia_app_devices || [],
       app_name: (client as any).app_name || '',
       app_type: (client as any).app_type || 'server',
+      device_model: (client as any).device_model || '',
       has_adult_content: (client as any).has_adult_content || false,
     });
     // Load and decrypt additional servers if client has them
@@ -2316,6 +2321,40 @@ export default function Clients() {
                     </PopoverContent>
                   </Popover>
                 </div>
+
+                {/* Device Model & App Name - Show when device is selected */}
+                {formData.device && (
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-muted/30 border border-dashed">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Tv className="h-4 w-4 text-muted-foreground" />
+                        Modelo/Identificação do Aparelho
+                      </Label>
+                      <Input
+                        value={formData.device_model}
+                        onChange={(e) => setFormData({ ...formData, device_model: e.target.value })}
+                        placeholder="Ex: Samsung 55 Sala, LG Quarto, TV Cozinha..."
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Identifique o aparelho para lembrar depois (opcional)
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Monitor className="h-4 w-4 text-muted-foreground" />
+                        Nome do Aplicativo
+                      </Label>
+                      <Input
+                        value={formData.app_name}
+                        onChange={(e) => setFormData({ ...formData, app_name: e.target.value })}
+                        placeholder="Ex: IPTV Smarters, TiviMate, Duplex..."
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Qual app o cliente usa? (opcional)
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* DNS Fields - Dynamic with add/remove */}
                 <DnsFieldsSection

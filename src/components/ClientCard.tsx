@@ -6,7 +6,7 @@ import {
   Phone, Mail, Calendar as CalendarIcon, CreditCard, 
   Copy, DollarSign, Globe, Server, Eye, EyeOff, 
   MessageCircle, RefreshCw, Edit, Archive, Trash2,
-  Lock, Loader2, ExternalLink
+  Lock, Loader2, ExternalLink, Tv, AppWindow
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ interface Client {
   phone: string | null;
   email: string | null;
   device: string | null;
+  device_model: string | null;
+  app_name: string | null;
   dns: string | null;
   expiration_date: string;
   plan_name: string | null;
@@ -230,6 +232,24 @@ export const ClientCard = memo(function ClientCard({
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-accent text-accent-foreground">
                   <Server className="h-3 w-3" />
                   {client.server_name_2}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Device Model & App Name - Beautiful display */}
+          {(client.device_model || client.app_name) && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              {client.device_model && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  <Tv className="h-3 w-3" />
+                  {client.device_model}
+                </span>
+              )}
+              {client.app_name && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                  <AppWindow className="h-3 w-3" />
+                  {client.app_name}
                 </span>
               )}
             </div>
