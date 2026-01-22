@@ -689,9 +689,13 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        // Add random delay between messages (15-30 seconds) to avoid WhatsApp bans
-        const delayMs = Math.floor(Math.random() * 15000) + 15000; // 15000-30000ms
-        console.log(`Waiting ${delayMs / 1000}s before next message...`);
+        // ESTRATÉGIA ANTI-BAN: Delay humanizado de 2 a 5 minutos entre mensagens
+        // Simula comportamento humano real - ninguém envia várias mensagens em segundos
+        const minDelay = 2 * 60 * 1000; // 2 minutos em ms
+        const maxDelay = 5 * 60 * 1000; // 5 minutos em ms
+        const delayMs = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
+        const delayMinutes = (delayMs / 1000 / 60).toFixed(1);
+        console.log(`⏱️ Aguardando ${delayMinutes} minutos antes da próxima mensagem (anti-ban humanizado)...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
