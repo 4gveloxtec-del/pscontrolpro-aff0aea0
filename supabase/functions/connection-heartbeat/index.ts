@@ -178,20 +178,39 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Find seller by instance name
-      const { data: instance } = await supabase
+      // Find seller by instance name - try exact match first, then original_instance_name
+      console.log(`[Webhook] Looking for instance: "${instanceName}"`);
+      
+      let instance = null;
+      
+      // First try instance_name
+      const { data: inst1 } = await supabase
         .from('whatsapp_seller_instances')
         .select('seller_id, instance_name, is_connected')
-        .or(`instance_name.eq.${instanceName},original_instance_name.eq.${instanceName}`)
+        .eq('instance_name', instanceName)
         .maybeSingle();
+      
+      if (inst1) {
+        instance = inst1;
+      } else {
+        // Try original_instance_name
+        const { data: inst2 } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('seller_id, instance_name, is_connected')
+          .eq('original_instance_name', instanceName)
+          .maybeSingle();
+        instance = inst2;
+      }
 
       if (!instance) {
-        console.log('[Webhook] Instance not found:', instanceName);
+        console.log('[Webhook] Instance not found for:', instanceName);
         return new Response(
-          JSON.stringify({ error: 'Instance not found' }),
+          JSON.stringify({ error: 'Instance not found', instance_name: instanceName }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      
+      console.log(`[Webhook] Found seller_id: ${instance.seller_id} for instance: ${instanceName}`);
 
       // Handle different webhook events
       let newConnectionState = instance.is_connected;
@@ -263,7 +282,7 @@ Deno.serve(async (req: Request) => {
                 });
                 
                 const cmdResult = await commandResponse.json();
-                console.log(`[Webhook] Command result:`, cmdResult);
+                console.log(`[Webhook] Command result for seller ${instance.seller_id}:`, JSON.stringify(cmdResult));
                 
                 // Se comando foi processado com sucesso, enviar resposta via WhatsApp
                 if (cmdResult.success && cmdResult.response) {
@@ -276,7 +295,10 @@ Deno.serve(async (req: Request) => {
                   
                   if (globalConfig?.api_url && globalConfig?.api_token) {
                     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-                    await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
+                    const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                    console.log(`[Webhook] Sending response to ${senderPhone} via ${sendUrl}`);
+                    
+                    const sendResponse = await fetch(sendUrl, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -287,11 +309,21 @@ Deno.serve(async (req: Request) => {
                         text: cmdResult.response,
                       }),
                     });
-                    console.log(`[Webhook] Command response sent to ${senderPhone}`);
+                    
+                    if (!sendResponse.ok) {
+                      const errText = await sendResponse.text();
+                      console.error(`[Webhook] Failed to send response: ${sendResponse.status} - ${errText}`);
+                    } else {
+                      console.log(`[Webhook] Command response sent to ${senderPhone}`);
+                    }
+                  } else {
+                    console.error(`[Webhook] Global config not found or inactive - cannot send response`);
                   }
                 } else if (cmdResult.not_found) {
                   // Comando não encontrado - não fazer nada (fluxo normal continua)
-                  console.log(`[Webhook] Command not found, ignoring`);
+                  console.log(`[Webhook] Command "${messageText}" not found for seller ${instance.seller_id}, ignoring`);
+                } else if (cmdResult.error) {
+                  console.error(`[Webhook] Command error: ${cmdResult.error}`);
                 }
               } catch (cmdError) {
                 console.error(`[Webhook] Command processing error:`, cmdError);

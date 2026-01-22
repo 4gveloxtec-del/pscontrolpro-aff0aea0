@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
     }
 
     // Normalizar comando (lowercase, sem espaços extras)
+    // O comando é armazenado COM a barra no banco (ex: /teste)
     const normalizedCommand = command_text.toLowerCase().trim().split(' ')[0];
 
     // Buscar comando do owner
