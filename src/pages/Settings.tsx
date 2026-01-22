@@ -28,7 +28,6 @@ import {
   DollarSign,
   Monitor,
   ExternalLink,
-  Clock,
 } from 'lucide-react';
 import { LayoutGrid, Trash2, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
