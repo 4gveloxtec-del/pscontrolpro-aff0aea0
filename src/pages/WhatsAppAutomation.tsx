@@ -260,6 +260,11 @@ export default function WhatsAppAutomation() {
                 {isConnected ? <CheckCircle className="h-5 w-5 text-success" /> : <AlertTriangle className="h-5 w-5 text-warning" />}
                 Status
               </CardTitle>
+              {isConnected && sellerInstance?.connected_phone && (
+                <p className="text-sm font-medium text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  📱 Número conectado: <strong>{sellerInstance.connected_phone}</strong>
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               <StatusBadges 
