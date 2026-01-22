@@ -86,52 +86,58 @@ export function FloatingNotifications() {
   // Check if push notifications are enabled
   const isPushEnabled = localStorage.getItem(PUSH_SUBSCRIPTION_STORAGE) === 'true';
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ['clients-notifications', user?.id],
+  // OPTIMIZED: Single consolidated query for all notification data
+  // This reduces CPU overhead on mobile devices by combining 3 queries into 1
+  const { data: notificationData } = useQuery({
+    queryKey: ['consolidated-notifications', user?.id],
     queryFn: async () => {
-      if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, phone, expiration_date, plan_name, created_at')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false);
-      if (error) throw error;
-      return data as Client[] || [];
-    },
-    enabled: !!user?.id && isSeller,
-    refetchInterval: 60000,
-  });
-
-  // Plans query removed - was not being used anywhere
-
-  // Fetch external apps expiring soon (0-30 days)
-  const { data: expiringExternalApps = [] } = useQuery({
-    queryKey: ['expiring-external-apps', user?.id],
-    queryFn: async () => {
-      if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('client_external_apps')
-        .select(`
-          expiration_date,
-          client:clients(name, phone),
-          external_app:external_apps(name)
-        `)
-        .eq('seller_id', user.id)
-        .not('expiration_date', 'is', null);
-      if (error) throw error;
+      if (!user?.id || !isSeller) return { clients: [], externalApps: [], pendingPayments: [] };
       
-      const today = startOfToday();
-      const result: ExternalAppExpiring[] = [];
-      
-      for (const item of data || []) {
+      // Execute all queries in parallel with Promise.all
+      const [clientsResult, externalAppsResult, pendingPaymentsResult] = await Promise.all([
+        // Query 1: All active clients
+        supabase
+          .from('clients')
+          .select('id, name, phone, expiration_date, plan_name, created_at')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false),
+        
+        // Query 2: External apps with expiration
+        supabase
+          .from('client_external_apps')
+          .select(`
+            expiration_date,
+            client:clients(name, phone),
+            external_app:external_apps(name)
+          `)
+          .eq('seller_id', user.id)
+          .not('expiration_date', 'is', null),
+        
+        // Query 3: Clients with pending payments
+        supabase
+          .from('clients')
+          .select('id, name, phone, pending_amount, expected_payment_date')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false)
+          .eq('is_paid', false)
+          .gt('pending_amount', 0)
+          .not('expected_payment_date', 'is', null)
+      ]);
+
+      // Process clients
+      const clients = (clientsResult.data as Client[]) || [];
+
+      // Process external apps
+      const todayDate = startOfToday();
+      const externalApps: ExternalAppExpiring[] = [];
+      for (const item of externalAppsResult.data || []) {
         if (!item.expiration_date || !item.client || !item.external_app) continue;
         const clientData = item.client as unknown as { name: string; phone: string | null };
         const appData = item.external_app as unknown as { name: string };
-        const daysRemaining = differenceInDays(new Date(item.expiration_date), today);
+        const daysRemaining = differenceInDays(new Date(item.expiration_date), todayDate);
         
-        // Show apps expiring within 30 days
         if (daysRemaining >= 0 && daysRemaining <= 30) {
-          result.push({
+          externalApps.push({
             clientName: clientData.name,
             clientPhone: clientData.phone,
             appName: appData.name,
@@ -140,42 +146,20 @@ export function FloatingNotifications() {
           });
         }
       }
-      
-      return result.sort((a, b) => a.daysRemaining - b.daysRemaining);
-    },
-    enabled: !!user?.id && isSeller,
-    refetchInterval: 60000,
-  });
+      externalApps.sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-  // Fetch clients with pending payments
-  const { data: pendingPaymentClients = [] } = useQuery({
-    queryKey: ['pending-payments-notifications', user?.id],
-    queryFn: async () => {
-      if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, phone, pending_amount, expected_payment_date')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false)
-        .eq('is_paid', false)
-        .gt('pending_amount', 0)
-        .not('expected_payment_date', 'is', null);
-      if (error) throw error;
-      
-      const todayDate = startOfToday();
-      const result: PendingPaymentClient[] = [];
+      // Process pending payments
+      const pendingPayments: PendingPaymentClient[] = [];
       const seen = new Set<string>();
-      
-      for (const client of data || []) {
+      for (const client of pendingPaymentsResult.data || []) {
         if (!client.expected_payment_date || !client.pending_amount) continue;
         const daysRemaining = differenceInDays(new Date(client.expected_payment_date), todayDate);
         
-        // Show payments due today, tomorrow, or overdue (within -7 days)
         if (daysRemaining <= 1 && daysRemaining >= -7) {
           const key = client.phone ? `phone:${String(client.phone).trim()}` : `id:${client.id}`;
           if (seen.has(key)) continue;
           seen.add(key);
-          result.push({
+          pendingPayments.push({
             id: client.id,
             name: client.name,
             phone: client.phone,
@@ -188,12 +172,19 @@ export function FloatingNotifications() {
           });
         }
       }
-      
-      return result.sort((a, b) => a.daysRemaining - b.daysRemaining);
+      pendingPayments.sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+      return { clients, externalApps, pendingPayments };
     },
     enabled: !!user?.id && isSeller,
-    refetchInterval: 60000,
+    refetchInterval: 120000, // Increased to 2 minutes (was 60s) - reduces CPU load
+    staleTime: 60000, // Consider data fresh for 1 minute
   });
+
+  // Extract data with defaults
+  const clients = notificationData?.clients || [];
+  const expiringExternalApps = notificationData?.externalApps || [];
+  const pendingPaymentClients = notificationData?.pendingPayments || [];
 
   const today = startOfToday();
 
