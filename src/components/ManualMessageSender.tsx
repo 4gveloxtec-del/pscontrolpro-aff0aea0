@@ -119,13 +119,21 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
     enabled: !!client.id,
   });
 
-  const formatDate = (dateStr: string): string => new Date(dateStr).toLocaleDateString('pt-BR');
+  // Format date without timezone shift - uses T12:00:00 to avoid UTC midnight issues
+  const formatDate = (dateStr: string): string => {
+    if (!dateStr) return '';
+    // Parse as local date by adding T12:00:00 to avoid timezone issues
+    const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+    return new Date(normalizedDate).toLocaleDateString('pt-BR');
+  };
 
   const daysUntil = (dateStr: string): number => {
+    if (!dateStr) return 0;
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(dateStr);
-    target.setHours(0, 0, 0, 0);
+    today.setHours(12, 0, 0, 0);
+    const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+    const target = new Date(normalizedDate);
+    target.setHours(12, 0, 0, 0);
     return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 

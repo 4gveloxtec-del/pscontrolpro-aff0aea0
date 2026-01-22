@@ -184,15 +184,20 @@ async function sendEvolutionMessage(
   return { success: false, error: 'Número não encontrado no WhatsApp' };
 }
 
+// Format date to DD/MM/YYYY - uses T12:00:00 to avoid timezone shift
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('pt-BR');
+  if (!dateStr) return '';
+  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+  return new Date(normalizedDate).toLocaleDateString('pt-BR');
 }
 
 function daysUntil(dateStr: string): number {
+  if (!dateStr) return 0;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
+  today.setHours(12, 0, 0, 0);
+  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+  const target = new Date(normalizedDate);
+  target.setHours(12, 0, 0, 0);
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
