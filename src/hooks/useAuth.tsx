@@ -689,17 +689,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSeller = role === 'seller';
   const isUser = role === 'user';
   
-  // Calcular período de teste usando o valor dinâmico do banco
+  // Calcular período de teste/assinatura
   const trialInfo = (() => {
-    if (!profile?.created_at || role !== 'user') {
+    if (!profile) {
       return { isInTrial: false, daysRemaining: 0, trialExpired: false };
     }
     
-    const createdAt = new Date(profile.created_at);
-    const trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+    // Permanentes nunca estão em trial
+    if (profile.is_permanent) {
+      return { isInTrial: false, daysRemaining: 999, trialExpired: false };
+    }
+    
     const now = new Date();
+    let trialEndDate: Date;
+    
+    // Se tem subscription_expires_at, usa ele (seller com assinatura)
+    if (profile.subscription_expires_at) {
+      trialEndDate = new Date(profile.subscription_expires_at);
+    } else if (profile.created_at) {
+      // Senão, calcula baseado em created_at + trialDays (novo usuário/seller em trial)
+      const createdAt = new Date(profile.created_at);
+      trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+    } else {
+      return { isInTrial: false, daysRemaining: 0, trialExpired: false };
+    }
+    
     const daysRemaining = Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
+    // Para sellers, mostra como "assinatura" não "trial"
+    // Para users, mostra como "trial"
     return {
       isInTrial: daysRemaining > 0,
       daysRemaining: Math.max(0, daysRemaining),

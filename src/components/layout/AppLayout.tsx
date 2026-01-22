@@ -28,35 +28,44 @@ import {
 import { toast } from 'sonner';
 import { navItems, filterNavItems } from '@/config/navigation';
 
-// Banner de período de teste
-function TrialBanner({ daysRemaining }: { daysRemaining: number }) {
+// Banner de período de teste / assinatura
+function TrialBanner({ daysRemaining, isSeller }: { daysRemaining: number; isSeller: boolean }) {
   const openAdminWhatsApp = () => {
     const phone = '5531998518865';
-    const message = `Olá! Estou usando o período de teste do PSControl e gostaria de ativar minha conta como revendedor.`;
+    const message = isSeller 
+      ? `Olá! Minha assinatura do PSControl está vencendo em ${daysRemaining} dias e gostaria de renovar.`
+      : `Olá! Estou usando o período de teste do PSControl e gostaria de ativar minha conta como revendedor.`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
+
+  const isUrgent = daysRemaining <= 3;
+  const label = isSeller ? 'Assinatura:' : 'Período de teste:';
+  const buttonText = isSeller ? 'Renovar' : 'Ativar conta';
 
   return (
     <div className={cn(
       "flex items-center justify-between gap-3 px-4 py-2 text-sm",
-      daysRemaining <= 2 
+      isUrgent 
         ? "bg-destructive/10 text-destructive border-b border-destructive/20" 
         : "bg-warning/10 text-warning border-b border-warning/20"
     )}>
       <div className="flex items-center gap-2">
         <Clock className="h-4 w-4" />
         <span>
-          <strong>Período de teste:</strong> {daysRemaining} {daysRemaining === 1 ? 'dia restante' : 'dias restantes'}
+          <strong>{label}</strong> {daysRemaining} {daysRemaining === 1 ? 'dia restante' : 'dias restantes'}
         </span>
       </div>
       <Button
         size="sm"
-        variant="ghost"
+        variant={isUrgent ? "destructive" : "ghost"}
         onClick={openAdminWhatsApp}
-        className="gap-1 h-7 text-xs hover:bg-green-500/20"
+        className={cn(
+          "gap-1 h-7 text-xs",
+          !isUrgent && "hover:bg-green-500/20"
+        )}
       >
         <MessageCircle className="h-3 w-3" />
-        Ativar conta
+        {buttonText}
       </Button>
     </div>
   );
@@ -180,7 +189,7 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppLayout() {
-  const { user, loading, hasSystemAccess, trialInfo, isUser } = useAuth();
+  const { user, loading, hasSystemAccess, trialInfo, isUser, isSeller, profile } = useAuth();
   const isMobile = useIsMobile();
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -190,7 +199,8 @@ export function AppLayout() {
     console.log('[AppLayout] Inicialização única - Seller area loaded');
   });
   
-  const showTrialBanner = isUser && trialInfo.isInTrial;
+  // Mostrar banner para: users em trial OU sellers com assinatura vencendo (não permanentes)
+  const showTrialBanner = !profile?.is_permanent && trialInfo.isInTrial && trialInfo.daysRemaining <= 30;
 
   const sidebarWidth = getSidebarWidth(menuStyle);
   const isIconsOnly = menuStyle === 'icons-only';
@@ -251,7 +261,7 @@ export function AppLayout() {
             : { left: 0, right: 0, top: 'env(safe-area-inset-top)' }
           }
         >
-          <TrialBanner daysRemaining={trialInfo.daysRemaining} />
+          <TrialBanner daysRemaining={trialInfo.daysRemaining} isSeller={isSeller} />
         </div>
       )}
 
