@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +46,7 @@ export const findServerTemplate = (templates: ServerTemplate[], serverName: stri
 const AdminServerTemplates = () => {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ServerTemplate | null>(null);
   const [formData, setFormData] = useState({ name: '', icon_url: '', panel_url: '' });
@@ -388,9 +391,13 @@ const AdminServerTemplates = () => {
                       size="sm"
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                       onClick={() => {
-                        if (confirm('Remover este template?')) {
-                          deleteMutation.mutate(template.id);
-                        }
+                        confirm({
+                          title: 'Remover template',
+                          description: `Tem certeza que deseja remover o template "${template.name}"?`,
+                          confirmText: 'Remover',
+                          variant: 'destructive',
+                          onConfirm: () => deleteMutation.mutate(template.id),
+                        });
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -413,6 +420,9 @@ const AdminServerTemplates = () => {
           <p>• Se o revendedor definir valores personalizados, eles terão prioridade sobre o template</p>
         </CardContent>
       </Card>
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +57,7 @@ const EMOJI_OPTIONS = ['📱', '📺', '🎬', '🎮', '📡', '🌐', '💎', '
 export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: ServerAppsManagerProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ServerApp | null>(null);
   const [formData, setFormData] = useState({
@@ -377,7 +380,20 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
                   </h3>
                   <div className="grid gap-2">
                     {ownApps.map((app) => (
-                      <AppCard key={app.id} app={app} onEdit={handleEdit} onDelete={deleteMutation.mutate} />
+                      <AppCard 
+                        key={app.id} 
+                        app={app} 
+                        onEdit={handleEdit} 
+                        onDelete={(app) => {
+                          confirm({
+                            title: 'Excluir app',
+                            description: `Tem certeza que deseja excluir o app "${app.name}"?`,
+                            confirmText: 'Excluir',
+                            variant: 'destructive',
+                            onConfirm: () => deleteMutation.mutate(app.id),
+                          });
+                        }} 
+                      />
                     ))}
                   </div>
                 </div>
@@ -392,7 +408,20 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
                   </h3>
                   <div className="grid gap-2">
                     {partnershipApps.map((app) => (
-                      <AppCard key={app.id} app={app} onEdit={handleEdit} onDelete={deleteMutation.mutate} />
+                      <AppCard 
+                        key={app.id} 
+                        app={app} 
+                        onEdit={handleEdit} 
+                        onDelete={(app) => {
+                          confirm({
+                            title: 'Excluir app',
+                            description: `Tem certeza que deseja excluir o app "${app.name}"?`,
+                            confirmText: 'Excluir',
+                            variant: 'destructive',
+                            onConfirm: () => deleteMutation.mutate(app.id),
+                          });
+                        }} 
+                      />
                     ))}
                   </div>
                 </div>
@@ -407,6 +436,9 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
           </Button>
         </DialogFooter>
       </DialogContent>
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </Dialog>
   );
 }
@@ -415,11 +447,11 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
 function AppCard({ 
   app, 
   onEdit, 
-  onDelete 
+  onDelete
 }: { 
   app: ServerApp; 
   onEdit: (app: ServerApp) => void; 
-  onDelete: (id: string) => void;
+  onDelete: (app: ServerApp) => void;
 }) {
   return (
     <div className={cn(
@@ -492,11 +524,7 @@ function AppCard({
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-destructive hover:text-destructive"
-          onClick={() => {
-            if (confirm('Tem certeza que deseja excluir este app?')) {
-              onDelete(app.id);
-            }
-          }}
+          onClick={() => onDelete(app)}
         >
           <Trash2 className="h-4 w-4" />
         </Button>

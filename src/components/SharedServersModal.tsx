@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +53,7 @@ export function SharedServersModal({
 }: SharedServersModalProps) {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
@@ -278,7 +281,15 @@ export function SharedServersModal({
                             size="sm"
                             variant="ghost"
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteServerMutation.mutate(server.id)}
+                            onClick={() => {
+                              confirm({
+                                title: 'Remover servidor',
+                                description: `Tem certeza que deseja remover "${server.name}" da lista compartilhada?`,
+                                confirmText: 'Remover',
+                                variant: 'destructive',
+                                onConfirm: () => deleteServerMutation.mutate(server.id),
+                              });
+                            }}
                             disabled={deleteServerMutation.isPending}
                           >
                             ×

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -107,6 +109,7 @@ const defaultFormData: FormData = {
 export default function MyApps() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ResellerDeviceApp | null>(null);
@@ -701,9 +704,13 @@ export default function MyApps() {
                       size="sm"
                       className="text-destructive hover:text-destructive"
                       onClick={() => {
-                        if (confirm('Deseja excluir este aplicativo?')) {
-                          deleteMutation.mutate(app.id);
-                        }
+                        confirm({
+                          title: 'Excluir app',
+                          description: `Deseja excluir o aplicativo "${app.name}"?`,
+                          confirmText: 'Excluir',
+                          variant: 'destructive',
+                          onConfirm: () => deleteMutation.mutate(app.id),
+                        });
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -715,6 +722,9 @@ export default function MyApps() {
           })}
         </div>
       )}
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

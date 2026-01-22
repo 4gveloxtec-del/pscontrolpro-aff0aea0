@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,6 +44,7 @@ interface AdminLandingPlatformsProps {
 
 export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newPlatform, setNewPlatform] = useState({
     name: '',
@@ -308,9 +311,13 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
                     size="icon"
                     className="h-8 w-8 text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Remover esta plataforma?')) {
-                        deleteMutation.mutate(platform.id);
-                      }
+                      confirm({
+                        title: 'Remover plataforma',
+                        description: `Tem certeza que deseja remover a plataforma "${platform.display_name}"?`,
+                        confirmText: 'Remover',
+                        variant: 'destructive',
+                        onConfirm: () => deleteMutation.mutate(platform.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -458,6 +465,9 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
           <p className="text-sm">Clique em "Adicionar" para criar a primeira</p>
         </div>
       )}
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

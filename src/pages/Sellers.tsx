@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { toast } from 'sonner';
 import { Search, UserCog, Calendar, Plus, Shield, Trash2, Key, UserPlus, Copy, Check, RefreshCw, FlaskConical, Users, MessageCircle, Send, RotateCcw, Loader2, Zap, CheckCircle, XCircle } from 'lucide-react';
 import { format, addDays, isBefore, startOfToday } from 'date-fns';
@@ -79,6 +80,7 @@ type FilterType = 'all' | 'active' | 'expired';
 export default function Sellers() {
   const { isAdmin, session } = useAuth();
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -1041,9 +1043,13 @@ export default function Sellers() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          if (confirm(`Gerar nova senha temporária para ${seller.email}?`)) {
-                            changePasswordMutation.mutate(seller.id);
-                          }
+                          confirm({
+                            title: 'Nova senha temporária',
+                            description: `Gerar nova senha temporária para ${seller.email}?`,
+                            confirmText: 'Gerar',
+                            variant: 'warning',
+                            onConfirm: () => changePasswordMutation.mutate(seller.id),
+                          });
                         }}
                       >
                         <Key className="h-3.5 w-3.5 mr-1" />

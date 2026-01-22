@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -74,6 +76,7 @@ export function ServerCreditClients({
   onClose,
 }: ServerCreditClientsProps) {
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [selectedSlotType, setSelectedSlotType] = useState<'iptv' | 'p2p'>('iptv');
   const [viewMode, setViewMode] = useState<'assign' | 'view'>('view');
@@ -332,9 +335,13 @@ export function ServerCreditClients({
                     size="icon"
                     className="text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Remover cliente deste crédito?')) {
-                        removeClientMutation.mutate(sc.id);
-                      }
+                      confirm({
+                        title: 'Remover cliente',
+                        description: `Tem certeza que deseja remover "${sc.client?.name}" deste crédito?`,
+                        confirmText: 'Remover',
+                        variant: 'destructive',
+                        onConfirm: () => removeClientMutation.mutate(sc.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -423,6 +430,9 @@ export function ServerCreditClients({
           </div>
         )}
       </DialogContent>
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </Dialog>
   );
 }

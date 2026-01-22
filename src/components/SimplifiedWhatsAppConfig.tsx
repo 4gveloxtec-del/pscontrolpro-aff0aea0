@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { 
@@ -38,6 +40,7 @@ interface InstanceStatus {
 
 export function SimplifiedWhatsAppConfig() {
   const { user } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
@@ -290,84 +293,78 @@ export function SimplifiedWhatsAppConfig() {
   };
 
   // Disconnect instance
-  const handleDisconnect = async () => {
-    if (!confirm('Tem certeza que deseja desconectar? Você precisará escanear o QR Code novamente.')) {
-      return;
-    }
-    
-    setIsDisconnecting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
-        body: { action: 'disconnect' },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast.success('WhatsApp desconectado');
-        setStatus(prev => prev ? { ...prev, is_connected: false } : null);
-        setQrCode(null);
-      } else {
-        toast.error(data.error || 'Erro ao desconectar');
-      }
-    } catch (err: any) {
-      toast.error('Erro: ' + err.message);
-    } finally {
-      setIsDisconnecting(false);
-    }
+  const handleDisconnect = () => {
+    confirm({
+      title: 'Desconectar WhatsApp',
+      description: 'Tem certeza que deseja desconectar? Você precisará escanear o QR Code novamente.',
+      confirmText: 'Desconectar',
+      variant: 'warning',
+      onConfirm: async () => {
+        setIsDisconnecting(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'disconnect' },
+          });
+          if (error) throw error;
+          if (data.success) {
+            toast.success('WhatsApp desconectado');
+            setStatus(prev => prev ? { ...prev, is_connected: false } : null);
+            setQrCode(null);
+          } else {
+            toast.error(data.error || 'Erro ao desconectar');
+          }
+        } catch (err: any) {
+          toast.error('Erro: ' + err.message);
+        } finally {
+          setIsDisconnecting(false);
+        }
+      },
+    });
   };
 
   // Recreate instance with new auto-generated name
-  const handleRecreateInstance = async () => {
-    if (!confirm('Isso irá desconectar sua instância atual e criar uma nova com nome automático. Você precisará escanear o QR Code novamente. Continuar?')) {
-      return;
-    }
-    
-    setIsRecreating(true);
-    try {
-      // First disconnect
-      await supabase.functions.invoke('configure-seller-instance', {
-        body: { action: 'disconnect' },
-      });
-
-      // Delete current instance record to force new auto-creation
-      if (user?.id) {
-        await supabase
-          .from('whatsapp_seller_instances')
-          .delete()
-          .eq('seller_id', user.id);
-      }
-
-      // Create new instance with auto-generated name
-      const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
-        body: { action: 'auto_create' },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast.success(`Nova instância criada: ${data.instance_name}`);
-        await loadStatus();
-        
-        // Auto-get QR code
-        if (data.qrcode) {
-          setQrCode(data.qrcode);
-        } else {
-          const { data: qrData } = await supabase.functions.invoke('configure-seller-instance', {
-            body: { action: 'get_qrcode' },
+  const handleRecreateInstance = () => {
+    confirm({
+      title: 'Recriar instância',
+      description: 'Isso irá desconectar sua instância atual e criar uma nova com nome automático. Você precisará escanear o QR Code novamente. Continuar?',
+      confirmText: 'Recriar',
+      variant: 'warning',
+      onConfirm: async () => {
+        setIsRecreating(true);
+        try {
+          await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'disconnect' },
           });
-          if (qrData?.qrcode) {
-            setQrCode(qrData.qrcode);
+          if (user?.id) {
+            await supabase.from('whatsapp_seller_instances').delete().eq('seller_id', user.id);
           }
+          const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'auto_create' },
+          });
+          if (error) throw error;
+          if (data.success) {
+            toast.success(`Nova instância criada: ${data.instance_name}`);
+            await loadStatus();
+            if (data.qrcode) {
+              setQrCode(data.qrcode);
+            } else {
+              const { data: qrData } = await supabase.functions.invoke('configure-seller-instance', {
+                body: { action: 'get_qrcode' },
+              });
+              if (qrData?.qrcode) {
+                setQrCode(qrData.qrcode);
+              }
+            }
+          } else {
+            toast.error(data.error || 'Erro ao criar nova instância');
+          }
+        } catch (err: any) {
+          toast.error('Erro: ' + err.message);
+        } finally {
+          setIsRecreating(false);
         }
-      } else {
-        toast.error(data.error || 'Erro ao criar nova instância');
-      }
-    } catch (err: any) {
-      toast.error('Erro: ' + err.message);
-    } finally {
-      setIsRecreating(false);
-    }
+      },
+    });
   };
 
   if (isLoading) {
