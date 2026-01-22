@@ -153,9 +153,12 @@ function replaceVariables(template: string, variables: Record<string, string>): 
   return result;
 }
 
-// Format date to DD/MM/YYYY
+// Format date to DD/MM/YYYY - uses T12:00:00 to avoid timezone shift
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  if (!dateStr) return '';
+  // Parse as local date by adding T12:00:00 to avoid timezone issues
+  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+  const date = new Date(normalizedDate);
   return date.toLocaleDateString('pt-BR');
 }
 

@@ -540,8 +540,14 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
   });
 
   const replaceVariables = (text: string): string => {
-    const expDate = new Date(client.expiration_date);
+    // Parse date with T12:00:00 to avoid timezone shift issues
+    const normalizedExpDate = client.expiration_date?.includes('T') 
+      ? client.expiration_date 
+      : `${client.expiration_date}T12:00:00`;
+    const expDate = new Date(normalizedExpDate);
+    expDate.setHours(12, 0, 0, 0);
     const today = new Date();
+    today.setHours(12, 0, 0, 0);
     const daysLeft = differenceInDays(expDate, today);
 
     let dynamicDate = '';

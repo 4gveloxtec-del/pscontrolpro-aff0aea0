@@ -131,10 +131,13 @@ export function WelcomeMessagePreview({
   // Get selected template
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || bestTemplate;
 
-  // Format expiration date
+  // Format expiration date - uses T12:00:00 to avoid timezone shift
   const formatDate = (dateStr: string) => {
     try {
-      return format(new Date(dateStr), 'dd/MM/yyyy');
+      if (!dateStr) return '';
+      // Parse as local date by adding T12:00:00 to avoid timezone issues
+      const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+      return format(new Date(normalizedDate), 'dd/MM/yyyy');
     } catch {
       return dateStr;
     }
@@ -143,8 +146,12 @@ export function WelcomeMessagePreview({
   // Calculate days remaining
   const getDaysRemaining = (dateStr: string) => {
     try {
-      const expDate = new Date(dateStr);
+      if (!dateStr) return '0';
+      const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+      const expDate = new Date(normalizedDate);
+      expDate.setHours(12, 0, 0, 0);
       const today = new Date();
+      today.setHours(12, 0, 0, 0);
       const diff = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       return String(diff);
     } catch {

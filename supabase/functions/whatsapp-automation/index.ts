@@ -165,27 +165,34 @@ function replaceVariables(template: string, variables: Record<string, string>): 
   return result;
 }
 
-// Format date to DD/MM/YYYY
+// Format date to DD/MM/YYYY - uses T12:00:00 to avoid timezone shift
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  if (!dateStr) return '';
+  // Parse as local date by adding T12:00:00 to avoid timezone issues
+  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+  const date = new Date(normalizedDate);
   return date.toLocaleDateString('pt-BR');
 }
 
 // Calculate days until date
 function daysUntil(dateStr: string): number {
+  if (!dateStr) return 0;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
+  today.setHours(12, 0, 0, 0);
+  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+  const target = new Date(normalizedDate);
+  target.setHours(12, 0, 0, 0);
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 // Calculate days since date (for overdue)
 function daysSince(dateStr: string): number {
+  if (!dateStr) return 0;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
+  today.setHours(12, 0, 0, 0);
+  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+  const target = new Date(normalizedDate);
+  target.setHours(12, 0, 0, 0);
   return Math.ceil((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
 }
 
