@@ -22,6 +22,11 @@ interface Client {
   category: string;
   plan_name: string;
   plan_price: number;
+  server_name?: string | null;
+  login?: string | null;
+  password?: string | null;
+  device?: string | null;
+  telegram?: string | null;
 }
 
 interface ManualMessageSenderProps {
@@ -139,14 +144,20 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
 
   const replaceVariables = (template: string): string => {
     return template
-      .replace(/\{nome\}/g, client.name || '')
-      .replace(/\{empresa\}/g, (profile as any)?.company_name || profile?.full_name || '')
-      .replace(/\{vencimento\}/g, formatDate(client.expiration_date))
-      .replace(/\{dias_restantes\}/g, String(daysUntil(client.expiration_date)))
-      .replace(/\{valor\}/g, String(client.plan_price || 0))
-      .replace(/\{plano\}/g, client.plan_name || '')
-      .replace(/\{pix\}/g, (profile as any)?.pix_key || '')
-      .replace(/\{servico\}/g, client.category || 'IPTV');
+      .replace(/\{nome\}/gi, client.name || '')
+      .replace(/\{empresa\}/gi, (profile as any)?.company_name || profile?.full_name || '')
+      .replace(/\{vencimento\}/gi, formatDate(client.expiration_date))
+      .replace(/\{dias_restantes\}/gi, String(daysUntil(client.expiration_date)))
+      .replace(/\{valor\}/gi, String(client.plan_price || 0))
+      .replace(/\{plano\}/gi, client.plan_name || '')
+      .replace(/\{pix\}/gi, (profile as any)?.pix_key || '')
+      .replace(/\{servico\}/gi, client.category || 'IPTV')
+      .replace(/\{categoria\}/gi, client.category || 'IPTV')
+      .replace(/\{servidor\}/gi, client.server_name || '')
+      .replace(/\{login\}/gi, client.login || '')
+      .replace(/\{senha\}/gi, client.password || '')
+      .replace(/\{dispositivo\}/gi, client.device || '')
+      .replace(/\{telegram\}/gi, client.telegram || '');
   };
 
   const getTemplateForType = (type: string) => {
