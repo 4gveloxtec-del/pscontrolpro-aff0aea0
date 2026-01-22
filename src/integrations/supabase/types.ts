@@ -2073,6 +2073,36 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_servers: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          icon_url: string | null
+          id: string
+          name: string
+          name_normalized: string
+          panel_url: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          icon_url?: string | null
+          id?: string
+          name: string
+          name_normalized: string
+          panel_url?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          icon_url?: string | null
+          id?: string
+          name?: string
+          name_normalized?: string
+          panel_url?: string | null
+        }
+        Relationships: []
+      }
       system_health_config: {
         Row: {
           auto_repair_enabled: boolean | null

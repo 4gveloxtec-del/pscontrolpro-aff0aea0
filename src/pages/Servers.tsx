@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BulkImportServers } from '@/components/BulkImportServers';
 import { ServerImageUpload } from '@/components/ServerImageUpload';
 import { AdminServerTemplatesModal } from '@/components/AdminServerTemplatesModal';
+import { SharedServersModal } from '@/components/SharedServersModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface ServerData {
@@ -78,6 +79,7 @@ export default function Servers() {
   const [appsServer, setAppsServer] = useState<ServerData | null>(null);
   const [templateApplied, setTemplateApplied] = useState(false);
   const [showAdminTemplatesModal, setShowAdminTemplatesModal] = useState(false);
+  const [showSharedServersModal, setShowSharedServersModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     monthly_cost: '',
@@ -96,12 +98,12 @@ export default function Servers() {
   });
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
 
-  // Fetch admin server templates (icons and panel URLs)
+  // Fetch shared servers (collaborative list from all resellers)
   const { data: serverTemplates = [] } = useQuery({
-    queryKey: ['admin-server-templates'],
+    queryKey: ['shared-servers'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('default_server_icons')
+        .from('shared_servers')
         .select('*')
         .order('name');
       if (error) throw error;
@@ -143,24 +145,24 @@ export default function Servers() {
       
       if (template.icon_url || panelUrl) {
         setTemplateApplied(true);
-        toast.success('Template do admin aplicado!', {
-          description: 'Ícone e link preenchidos automaticamente',
+        toast.success('Dados preenchidos automaticamente!', {
+          description: 'Ícone e link do servidor cadastrado',
           duration: 2000,
         });
       }
     }
   }, [serverTemplates, editingServer]);
 
-  // Handle template selection from modal
-  const handleSelectAdminTemplate = (template: { name: string; icon_url: string; panel_url?: string | null }) => {
+  // Handle shared server selection from modal
+  const handleSelectSharedServer = (server: { name: string; icon_url: string; panel_url?: string | null }) => {
     setFormData(prev => ({
       ...prev,
-      name: template.name,
-      icon_url: template.icon_url || '',
-      panel_url: template.panel_url || '',
+      name: server.name,
+      icon_url: server.icon_url || '',
+      panel_url: server.panel_url || '',
     }));
     setTemplateApplied(true);
-    toast.success('Servidor do ADM selecionado!', {
+    toast.success('Servidor selecionado!', {
       description: 'Dados preenchidos automaticamente. Você pode editá-los.',
       duration: 3000,
     });
@@ -426,16 +428,21 @@ export default function Servers() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-              {/* Admin Templates Button - Only show when creating new server */}
-              {!editingServer && serverTemplates.length > 0 && (
+              {/* Shared Servers Button - Only show when creating new server */}
+              {!editingServer && (
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full gap-2 border-primary/50 hover:bg-primary/10"
-                  onClick={() => setShowAdminTemplatesModal(true)}
+                  className="w-full gap-2 border-primary/50 hover:bg-primary/10 bg-primary/5"
+                  onClick={() => setShowSharedServersModal(true)}
                 >
-                  <FolderOpen className="h-4 w-4" />
-                  Ver Servidores do ADM
+                  <Users className="h-4 w-4" />
+                  Ver Servidores Cadastrados
+                  {serverTemplates.length > 0 && (
+                    <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                      {serverTemplates.length}
+                    </span>
+                  )}
                 </Button>
               )}
 
@@ -1036,11 +1043,11 @@ export default function Servers() {
         />
       )}
 
-      {/* Admin Server Templates Modal */}
-      <AdminServerTemplatesModal
-        open={showAdminTemplatesModal}
-        onOpenChange={setShowAdminTemplatesModal}
-        onSelectTemplate={handleSelectAdminTemplate}
+      {/* Shared Servers Modal */}
+      <SharedServersModal
+        open={showSharedServersModal}
+        onOpenChange={setShowSharedServersModal}
+        onSelectServer={handleSelectSharedServer}
       />
 
       {/* Global Confirm Dialog */}
