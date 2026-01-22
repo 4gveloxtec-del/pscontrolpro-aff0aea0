@@ -6,6 +6,7 @@ import { Users, Server, CreditCard, TrendingUp, Shield, Activity } from 'lucide-
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdminBroadcastResellers } from '@/components/AdminBroadcastResellers';
+import { AdminNotificationCreator } from '@/components/AdminNotificationCreator';
 
 export default function AdminDashboard() {
   const { profile } = useAuth();
@@ -96,6 +97,7 @@ export default function AdminDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <AdminNotificationCreator />
           <AdminBroadcastResellers />
         </div>
       </div>

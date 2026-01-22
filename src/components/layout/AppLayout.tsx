@@ -6,6 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { useMenuStyle } from '@/hooks/useMenuStyle';
 import { FloatingNotifications } from '@/components/FloatingNotifications';
+import { AdminNotificationsFloat } from '@/components/AdminNotificationsFloat';
 import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 import { OnboardingProgressBar } from '@/components/OnboardingProgressBar';
 import { useState, useEffect } from 'react';
@@ -320,6 +321,7 @@ export function AppLayout() {
         </>
       )}
       <FloatingNotifications />
+      <AdminNotificationsFloat />
       <OnboardingTutorial />
       <OnboardingProgressBar />
     </div>
