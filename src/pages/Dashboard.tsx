@@ -4,7 +4,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { MonthlyProfitHistory } from '@/components/dashboard/MonthlyProfitHistory';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Trash2, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter, MessageCircle } from 'lucide-react';
+import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter, MessageCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
