@@ -226,9 +226,8 @@ export default function Plans() {
           .eq('screens', syncPrice.screens);
       }
       
-      // Sync plan_price for clients with this plan that have price 0 or null
+      // Sync plan_price for clients that already have this plan_id but have price 0 or null
       if (data.price !== undefined && data.price > 0) {
-        // Update clients that have this plan_id and plan_price = 0 or null
         await supabase
           .from('clients')
           .update({ 
@@ -243,7 +242,6 @@ export default function Plans() {
         if (syncPrice && (syncPrice.category === 'IPTV' || syncPrice.category === 'P2P')) {
           const otherCategory = syncPrice.category === 'IPTV' ? 'P2P' : 'IPTV';
           
-          // Find the equivalent plan ID
           const { data: equivalentPlans } = await supabase
             .from('plans')
             .select('id')
@@ -263,11 +261,65 @@ export default function Plans() {
           }
         }
       }
+
+      // NEW: Vincular plan_id em clientes que não têm plan_id mas têm plan_price igual
+      if (data.price !== undefined && data.price > 0 && syncPrice) {
+        // Buscar clientes sem plan_id, com plan_price igual, mesma categoria
+        const { data: orphanClients } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('seller_id', user!.id)
+          .is('plan_id', null)
+          .eq('plan_price', data.price)
+          .eq('category', syncPrice.category)
+          .limit(500);
+
+        if (orphanClients && orphanClients.length > 0) {
+          const clientIds = orphanClients.map(c => c.id);
+          await supabase
+            .from('clients')
+            .update({ plan_id: id, plan_name: data.name })
+            .in('id', clientIds);
+        }
+
+        // Também para categoria equivalente (IPTV <-> P2P)
+        if (syncPrice.category === 'IPTV' || syncPrice.category === 'P2P') {
+          const otherCategory = syncPrice.category === 'IPTV' ? 'P2P' : 'IPTV';
+          const { data: equivalentPlans } = await supabase
+            .from('plans')
+            .select('id, name')
+            .eq('seller_id', user!.id)
+            .eq('category', otherCategory)
+            .eq('duration_days', syncPrice.duration_days)
+            .eq('screens', syncPrice.screens)
+            .limit(1);
+
+          if (equivalentPlans && equivalentPlans.length > 0) {
+            const eqPlan = equivalentPlans[0];
+            const { data: orphansOther } = await supabase
+              .from('clients')
+              .select('id')
+              .eq('seller_id', user!.id)
+              .is('plan_id', null)
+              .eq('plan_price', data.price)
+              .eq('category', otherCategory)
+              .limit(500);
+
+            if (orphansOther && orphansOther.length > 0) {
+              const otherIds = orphansOther.map(c => c.id);
+              await supabase
+                .from('clients')
+                .update({ plan_id: eqPlan.id, plan_name: eqPlan.name })
+                .in('id', otherIds);
+            }
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
-      toast.success('Plano atualizado! Clientes com valor R$ 0 foram sincronizados.');
+      toast.success('Plano atualizado e clientes sincronizados!');
       resetForm();
       setIsDialogOpen(false);
       setEditingPlan(null);

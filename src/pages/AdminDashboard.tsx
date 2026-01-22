@@ -1,12 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Server, CreditCard, TrendingUp, Shield, Activity } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Server, CreditCard, Shield, Activity, RefreshCw, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdminBroadcastResellers } from '@/components/AdminBroadcastResellers';
 import { AdminNotificationCreator } from '@/components/AdminNotificationCreator';
+import { toast } from 'sonner';
 
 export default function AdminDashboard() {
   const { profile } = useAuth();
@@ -45,6 +47,23 @@ export default function AdminDashboard() {
         .order('created_at', { ascending: false })
         .limit(5);
       return data || [];
+    }
+  });
+
+  // Mutation para sincronizar planos de todos os clientes
+  const syncPlansMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-client-plans', {
+        body: { dry_run: false }
+      });
+      if (error) throw error;
+      return data as { synced: number };
+    },
+    onSuccess: (data) => {
+      toast.success(`Sincronização concluída! ${data.synced} cliente(s) atualizado(s).`);
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro na sincronização: ${error.message}`);
     }
   });
 
@@ -97,6 +116,20 @@ export default function AdminDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncPlansMutation.mutate()}
+            disabled={syncPlansMutation.isPending}
+            className="border-slate-600 hover:bg-slate-700"
+          >
+            {syncPlansMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Sincronizar Planos
+          </Button>
           <AdminNotificationCreator />
           <AdminBroadcastResellers />
         </div>
