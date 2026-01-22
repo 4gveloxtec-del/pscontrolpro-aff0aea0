@@ -97,7 +97,7 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
   const queryClient = useQueryClient();
   const { decrypt } = useCrypto();
   const { isPrivacyMode } = usePrivacyMode();
-  const { markAsSent, isSent, getSentInfo } = useSentMessages();
+  const { markAsSent, getSentInfo } = useSentMessages();
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [message, setMessage] = useState('');
   const [platform, setPlatform] = useState<'whatsapp' | 'telegram'>('whatsapp');

@@ -137,8 +137,6 @@ interface ServerData {
 }
 
 type FilterType = 'all' | 'active' | 'expiring' | 'expired' | 'expired_not_called' | 'unpaid' | 'with_paid_apps' | 'archived';
-type CategoryFilterType = 'all' | 'IPTV' | 'P2P' | 'Contas Premium' | 'SSH' | 'custom';
-
 const DEFAULT_CATEGORIES = ['IPTV', 'P2P', 'Contas Premium', 'SSH', 'Revendedor'] as const;
 
 const DEVICE_OPTIONS = [
@@ -158,9 +156,9 @@ export default function Clients() {
   const { encrypt, decrypt } = useCrypto();
   const { generateFingerprint } = useFingerprint();
   const { isPrivacyMode, maskData } = usePrivacyMode();
-  const { isSent, getSentInfo, clearSentMark, sentCount, clearAllSentMarks } = useSentMessages();
-  const { renewClient: executeRenewal, isRenewing, isPending: isRenewalPending, calculateNewExpiration } = useRenewalMutation(user?.id);
-  const { validateForCreate, validateForUpdate, validateForDelete, acquireLock, releaseLock, isLocked } = useClientValidation();
+  const { isSent, clearSentMark, sentCount, clearAllSentMarks } = useSentMessages();
+  const { renewClient: executeRenewal, isRenewing, isPending: isRenewalPending } = useRenewalMutation(user?.id);
+  const { validateForCreate, validateForUpdate, validateForDelete, acquireLock, releaseLock } = useClientValidation();
   const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -205,7 +203,7 @@ export default function Clients() {
   // State for popovers inside the dialog
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [expirationPopoverOpen, setExpirationPopoverOpen] = useState(false);
-  const [paidAppsExpirationPopoverOpen, setPaidAppsExpirationPopoverOpen] = useState(false);
+  const [, setPaidAppsExpirationPopoverOpen] = useState(false);
   // Bulk message queue for expired not called clients
   const [bulkMessageQueue, setBulkMessageQueue] = useState<Client[]>([]);
   const [bulkMessageIndex, setBulkMessageIndex] = useState(0);
@@ -348,7 +346,6 @@ export default function Clients() {
   // Get selected server details for screen options
   const selectedServer = servers.find(s => s.id === formData.server_id);
   const maxScreens = selectedServer?.total_screens_per_credit || 1;
-  const hasMultipleScreenOptions = maxScreens > 1;
   
   // Check if WPLAY for special screen options
   const isWplayServer = selectedServer?.name?.toUpperCase() === 'WPLAY';
@@ -652,31 +649,6 @@ export default function Clients() {
       correctedData: validationResult.data as Record<string, unknown> 
     };
   }, [validateForCreate, validateForUpdate]);
-
-  // Check for duplicate login/mac on the same server
-  const checkDuplicates = async (
-    serverId: string | null,
-    login: string | null,
-    excludeClientId?: string
-  ): Promise<string | null> => {
-    if (!serverId || !login) return null;
-
-    let query = supabase
-      .from('clients')
-      .select('id, login')
-      .eq('seller_id', user!.id)
-      .eq('server_id', serverId)
-      .eq('is_archived', false);
-
-    if (excludeClientId) {
-      query = query.neq('id', excludeClientId);
-    }
-
-    const { data: existingClients } = await query;
-    
-    // We allow shared credentials up to MAX_CLIENTS_PER_CREDENTIAL, so this is handled separately
-    return null;
-  };
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; expiration_date: string; phone?: string | null; email?: string | null; device?: string | null; dns?: string | null; plan_id?: string | null; plan_name?: string | null; plan_price?: number | null; server_id?: string | null; server_name?: string | null; login?: string | null; password?: string | null; is_paid?: boolean; notes?: string | null; screens?: string; category?: string | null; has_paid_apps?: boolean; paid_apps_duration?: string | null; paid_apps_expiration?: string | null; telegram?: string | null; premium_password?: string | null; has_adult_content?: boolean }) => {
@@ -1374,27 +1346,6 @@ export default function Clients() {
     }
   };
 
-  const handlePaidAppsDurationChange = (duration: string) => {
-    let daysToAdd = 30;
-    switch (duration) {
-      case '3_months':
-        daysToAdd = 90;
-        break;
-      case '6_months':
-        daysToAdd = 180;
-        break;
-      case '1_year':
-        daysToAdd = 365;
-        break;
-    }
-    const newExpDate = format(addDays(new Date(), daysToAdd), 'yyyy-MM-dd');
-    setFormData({
-      ...formData,
-      paid_apps_duration: duration,
-      paid_apps_expiration: newExpDate,
-    });
-  };
-
   const handleServerChange = (serverId: string) => {
     if (serverId === 'manual') {
       setFormData({ ...formData, server_id: '', server_name: '' });
@@ -1406,21 +1357,6 @@ export default function Clients() {
         ...formData,
         server_id: server.id,
         server_name: server.name,
-      });
-    }
-  };
-
-  const handleServer2Change = (serverId: string) => {
-    if (serverId === 'none') {
-      setFormData({ ...formData, server_id_2: '', server_name_2: '', login_2: '', password_2: '' });
-      return;
-    }
-    const server = servers.find(s => s.id === serverId);
-    if (server) {
-      setFormData({
-        ...formData,
-        server_id_2: server.id,
-        server_name_2: server.name,
       });
     }
   };
@@ -1718,16 +1654,6 @@ export default function Clients() {
       planName: renewPlanId !== clientToRenew.plan_id ? selectedPlan?.name || clientToRenew.plan_name : clientToRenew.plan_name,
       planPrice: renewPlanId !== clientToRenew.plan_id ? selectedPlan?.price || clientToRenew.plan_price : clientToRenew.plan_price,
     });
-  };
-
-  const handleOpenPanel = (client: Client) => {
-    // Find the server associated with this client
-    const server = servers.find(s => s.id === client.server_id);
-    if (server?.panel_url) {
-      window.open(server.panel_url, '_blank');
-    } else {
-      toast.error('Este servidor não tem URL do painel configurada');
-    }
   };
 
   const getClientServer = (client: Client) => {
