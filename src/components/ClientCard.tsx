@@ -6,7 +6,8 @@ import {
   Phone, Mail, Calendar as CalendarIcon, CreditCard, 
   Copy, DollarSign, Globe, Server, Eye, EyeOff, 
   MessageCircle, RefreshCw, Edit, Archive, Trash2,
-  Lock, Loader2, ExternalLink, Tv, AppWindow
+  Lock, Loader2, ExternalLink, Tv, AppWindow, Clock,
+  CheckCircle2, AlertCircle, XCircle, User
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -69,6 +70,12 @@ interface ClientCardProps {
   statusLabels: Record<ClientStatus, string>;
 }
 
+const statusIcons: Record<ClientStatus, typeof CheckCircle2> = {
+  active: CheckCircle2,
+  expiring: AlertCircle,
+  expired: XCircle,
+};
+
 export const ClientCard = memo(function ClientCard({
   client,
   status,
@@ -99,6 +106,7 @@ export const ClientCard = memo(function ClientCard({
   const isRecentlyAdded = client.created_at && new Date(client.created_at) > twoHoursAgo;
   const categoryName = typeof client.category === 'object' ? (client.category as any)?.name : client.category;
   const isReseller = categoryName === 'Revendedor';
+  const StatusIcon = statusIcons[status];
 
   const handleCopyDns = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -117,212 +125,272 @@ export const ClientCard = memo(function ClientCard({
   return (
     <Card
       className={cn(
-        'border-l-4 transition-all duration-200 hover:shadow-lg',
-        isReseller && !isAdmin ? 'border-l-purple-500' : statusColors[status],
-        !client.is_paid && 'ring-1 ring-destructive/50',
-        isRecentlyAdded && 'ring-2 ring-primary/50 bg-primary/5',
-        isReseller && !isAdmin && 'bg-purple-500/5'
+        'group relative overflow-hidden transition-all duration-300',
+        'hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-0.5',
+        'border border-border/50 bg-gradient-to-br from-card to-card/80',
+        isRecentlyAdded && 'ring-2 ring-primary/40 shadow-lg shadow-primary/10',
+        isReseller && !isAdmin && 'bg-gradient-to-br from-purple-500/5 to-card'
       )}
     >
-      <CardContent className="p-4">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-lg">{maskData(client.name, 'name')}</h3>
+      {/* Status indicator bar */}
+      <div className={cn(
+        'absolute top-0 left-0 right-0 h-1',
+        status === 'active' && 'bg-gradient-to-r from-green-500 to-emerald-400',
+        status === 'expiring' && 'bg-gradient-to-r from-yellow-500 to-orange-400',
+        status === 'expired' && 'bg-gradient-to-r from-red-500 to-rose-400'
+      )} />
+
+      <CardContent className="p-4 pt-5">
+        {/* Header Section */}
+        <div className="flex items-start gap-3 mb-4">
+          {/* Avatar */}
+          <div className={cn(
+            'flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold',
+            'bg-gradient-to-br shadow-inner',
+            status === 'active' && 'from-green-500/20 to-emerald-500/10 text-green-600 dark:text-green-400',
+            status === 'expiring' && 'from-yellow-500/20 to-orange-500/10 text-yellow-600 dark:text-yellow-400',
+            status === 'expired' && 'from-red-500/20 to-rose-500/10 text-red-600 dark:text-red-400'
+          )}>
+            {client.name.charAt(0).toUpperCase()}
+          </div>
+
+          {/* Name & Status */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-base truncate">
+                {maskData(client.name, 'name')}
+              </h3>
               {isRecentlyAdded && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-primary text-primary-foreground animate-pulse">
+                <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 animate-pulse">
                   NOVO
-                </span>
+                </Badge>
               )}
             </div>
-            <div className="flex flex-wrap gap-1">
-              <span className={cn('text-xs px-2 py-0.5 rounded-full', statusBadges[status])}>
-                {statusLabels[status]} {daysLeft > 0 && status !== 'expired' && `(${daysLeft}d)`}
-              </span>
+            
+            {/* Status & Category badges */}
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  'text-[10px] px-2 py-0.5 gap-1 border-0',
+                  status === 'active' && 'bg-green-500/15 text-green-600 dark:text-green-400',
+                  status === 'expiring' && 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+                  status === 'expired' && 'bg-red-500/15 text-red-600 dark:text-red-400'
+                )}
+              >
+                <StatusIcon className="h-3 w-3" />
+                {statusLabels[status]}
+                {daysLeft > 0 && status !== 'expired' && ` (${daysLeft}d)`}
+              </Badge>
+              
               {client.category && (
-                <span className={cn(
-                  'text-xs px-2 py-0.5 rounded-full',
-                  isReseller && !isAdmin 
-                    ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' 
-                    : 'bg-primary/10 text-primary'
-                )}>
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    'text-[10px] px-2 py-0.5 border-0',
+                    isReseller && !isAdmin 
+                      ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                      : 'bg-primary/10 text-primary'
+                  )}
+                >
                   {categoryName}
-                </span>
+                </Badge>
               )}
+
               {isSent && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-600 dark:text-green-400">
-                  Mensagem enviada
-                </span>
+                <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-0 bg-green-500/15 text-green-600 dark:text-green-400 gap-1">
+                  <MessageCircle className="h-2.5 w-2.5" />
+                  Enviado
+                </Badge>
               )}
             </div>
           </div>
+
+          {/* Payment Status */}
           {!client.is_paid && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-xs bg-destructive/10 text-destructive hover:bg-green-500/20 hover:text-green-600 transition-colors"
+              className="h-8 px-2.5 text-xs bg-red-500/10 text-red-600 hover:bg-green-500/20 hover:text-green-600 transition-all rounded-lg"
               onClick={(e) => {
                 e.stopPropagation();
                 onMarkPaid(client);
               }}
               title="Clique para marcar como pago"
             >
-              <DollarSign className="h-3 w-3 mr-1" />
-              Não Pago
+              <DollarSign className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
 
-        {/* Contact Info */}
-        <div className="space-y-2 text-sm">
-          {client.phone && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="h-3.5 w-3.5" />
-              <span>{maskData(client.phone, 'phone')}</span>
-            </div>
-          )}
-          {client.email && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="h-3.5 w-3.5" />
-              <span className="truncate">{maskData(client.email, 'email')}</span>
-            </div>
-          )}
-          {client.dns && (
-            <div className="flex items-center gap-2 text-muted-foreground group">
-              <Globe className="h-3.5 w-3.5 text-blue-500" />
-              <span className="truncate text-blue-600 dark:text-blue-400 font-medium">{client.dns}</span>
+        {/* Info Grid */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {/* Expiration */}
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+            <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium">
+              {format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy")}
+            </span>
+          </div>
+
+          {/* Phone */}
+          {client.phone ? (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 group/phone">
+              <Phone className="h-3.5 w-3.5 text-green-500" />
+              <span className="text-xs truncate flex-1">{maskData(client.phone, 'phone')}</span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={handleCopyDns}
-                title="Copiar DNS"
+                className="h-5 w-5 p-0 opacity-0 group-hover/phone:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(client.phone!);
+                  toast.success('Telefone copiado!');
+                }}
               >
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
-          )}
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <CalendarIcon className="h-3.5 w-3.5" />
-            <span>{format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy")}</span>
-          </div>
-
-          {/* Plan + Server Badges */}
-          {(client.plan_name || client.server_name || client.server_name_2) && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              {client.plan_name && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-secondary text-secondary-foreground border border-border">
-                  <CreditCard className="h-3 w-3" />
-                  {client.plan_name}
-                  {client.plan_price && !isPrivacyMode && (
-                    <span className="text-muted-foreground ml-1">
-                      R$ {client.plan_price.toFixed(2)}
-                    </span>
-                  )}
-                </span>
-              )}
-              {client.server_name && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-accent text-accent-foreground">
-                  <Server className="h-3 w-3" />
-                  {client.server_name}
-                </span>
-              )}
-              {client.server_name_2 && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-accent text-accent-foreground">
-                  <Server className="h-3 w-3" />
-                  {client.server_name_2}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Device Model & App Name - Beautiful display */}
-          {(client.device_model || client.app_name) && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              {client.device_model && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                  <Tv className="h-3 w-3" />
-                  {client.device_model}
-                </span>
-              )}
-              {client.app_name && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                  <AppWindow className="h-3 w-3" />
-                  {client.app_name}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Credentials */}
-          {hasCredentials && (
-            <div className="mt-3 p-2 bg-muted/50 rounded-md space-y-1">
-              {isDecrypted && decryptedCredentials ? (
-                <>
-                  {decryptedCredentials.login && (
-                    <div className="flex items-center justify-between group">
-                      <span className="text-xs text-muted-foreground">Login:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs font-mono">{maskData(decryptedCredentials.login, 'credentials')}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => handleCopyCredentials(e, decryptedCredentials.login, 'Login')}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {decryptedCredentials.password && (
-                    <div className="flex items-center justify-between group">
-                      <span className="text-xs text-muted-foreground">Senha:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs font-mono">{maskData(decryptedCredentials.password, 'credentials')}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => handleCopyCredentials(e, decryptedCredentials.password, 'Senha')}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full h-6 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDecrypt(client);
-                  }}
-                  disabled={isDecrypting}
-                >
-                  {isDecrypting ? (
-                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                  ) : (
-                    <Lock className="h-3 w-3 mr-1" />
-                  )}
-                  {isDecrypting ? 'Descriptografando...' : 'Ver credenciais'}
-                </Button>
-              )}
+          ) : (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/20">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground/50" />
+              <span className="text-xs text-muted-foreground/50">Sem telefone</span>
             </div>
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t">
-          <div className="flex items-center gap-1">
+        {/* DNS */}
+        {client.dns && (
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10 mb-3 group/dns">
+            <Globe className="h-3.5 w-3.5 text-blue-500" />
+            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium truncate flex-1">
+              {client.dns}
+            </span>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-5 w-5 p-0 opacity-0 group-hover/dns:opacity-100 transition-opacity"
+              onClick={handleCopyDns}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
+        {/* Badges Section - Plan, Server, Device, App */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {client.plan_name && (
+            <Badge variant="secondary" className="text-[10px] gap-1 font-normal">
+              <CreditCard className="h-3 w-3" />
+              {client.plan_name}
+              {client.plan_price && !isPrivacyMode && (
+                <span className="text-muted-foreground">
+                  R${client.plan_price.toFixed(0)}
+                </span>
+              )}
+            </Badge>
+          )}
+          
+          {client.server_name && (
+            <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-accent/50">
+              <Server className="h-3 w-3" />
+              {client.server_name}
+            </Badge>
+          )}
+          
+          {client.server_name_2 && (
+            <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-accent/50">
+              <Server className="h-3 w-3" />
+              {client.server_name_2}
+            </Badge>
+          )}
+
+          {client.device_model && (
+            <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+              <Tv className="h-3 w-3" />
+              {client.device_model}
+            </Badge>
+          )}
+
+          {client.app_name && (
+            <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+              <AppWindow className="h-3 w-3" />
+              {client.app_name}
+            </Badge>
+          )}
+        </div>
+
+        {/* Credentials Section */}
+        {hasCredentials && (
+          <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 mb-3">
+            {isDecrypted && decryptedCredentials ? (
+              <div className="space-y-1.5">
+                {decryptedCredentials.login && (
+                  <div className="flex items-center justify-between group/cred">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>
+                    <div className="flex items-center gap-1.5">
+                      <code className="text-xs font-mono bg-background/80 px-2 py-0.5 rounded">
+                        {maskData(decryptedCredentials.login, 'credentials')}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 opacity-0 group-hover/cred:opacity-100"
+                        onClick={(e) => handleCopyCredentials(e, decryptedCredentials.login, 'Login')}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {decryptedCredentials.password && (
+                  <div className="flex items-center justify-between group/cred">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Senha</span>
+                    <div className="flex items-center gap-1.5">
+                      <code className="text-xs font-mono bg-background/80 px-2 py-0.5 rounded">
+                        {maskData(decryptedCredentials.password, 'credentials')}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 opacity-0 group-hover/cred:opacity-100"
+                        onClick={(e) => handleCopyCredentials(e, decryptedCredentials.password, 'Senha')}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full h-7 text-xs gap-1.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDecrypt(client);
+                }}
+                disabled={isDecrypting}
+              >
+                {isDecrypting ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Lock className="h-3 w-3" />
+                )}
+                {isDecrypting ? 'Descriptografando...' : 'Ver credenciais'}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Actions Bar */}
+        <div className="flex items-center justify-between pt-3 border-t border-border/50">
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-green-500/10 hover:text-green-600"
               onClick={(e) => {
                 e.stopPropagation();
                 onMessage(client);
@@ -334,7 +402,7 @@ export const ClientCard = memo(function ClientCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-blue-500/10 hover:text-blue-600"
               onClick={(e) => {
                 e.stopPropagation();
                 onRenew(client);
@@ -346,7 +414,7 @@ export const ClientCard = memo(function ClientCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-primary/10 hover:text-primary"
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit(client);
@@ -356,11 +424,12 @@ export const ClientCard = memo(function ClientCard({
               <Edit className="h-4 w-4" />
             </Button>
           </div>
-          <div className="flex items-center gap-1">
+          
+          <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-warning"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-yellow-500/10 hover:text-yellow-600"
               onClick={(e) => {
                 e.stopPropagation();
                 onArchive(client);
@@ -372,7 +441,7 @@ export const ClientCard = memo(function ClientCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-red-500/10 hover:text-red-600"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(client);
