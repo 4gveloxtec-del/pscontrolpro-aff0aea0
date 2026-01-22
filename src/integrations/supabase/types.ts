@@ -444,7 +444,8 @@ export type Database = {
           devices: Json | null
           email: string | null
           expiration_date: string | null
-          external_app_id: string
+          external_app_id: string | null
+          fixed_app_name: string | null
           id: string
           notes: string | null
           password: string | null
@@ -457,7 +458,8 @@ export type Database = {
           devices?: Json | null
           email?: string | null
           expiration_date?: string | null
-          external_app_id: string
+          external_app_id?: string | null
+          fixed_app_name?: string | null
           id?: string
           notes?: string | null
           password?: string | null
@@ -470,7 +472,8 @@ export type Database = {
           devices?: Json | null
           email?: string | null
           expiration_date?: string | null
-          external_app_id?: string
+          external_app_id?: string | null
+          fixed_app_name?: string | null
           id?: string
           notes?: string | null
           password?: string | null

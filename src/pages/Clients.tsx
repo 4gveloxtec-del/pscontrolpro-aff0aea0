@@ -851,15 +851,26 @@ export default function Clients() {
               }
             }
             
-            await supabase.from('client_external_apps').insert([{
+            // Check if it's a fixed app (starts with "fixed-") or a custom app (UUID)
+            const isFixedApp = app.appId.startsWith('fixed-');
+            const fixedAppName = isFixedApp ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') : null;
+            
+            // Build insert data with proper typing - use type assertion for new column
+            const insertData = {
               client_id: insertedData.id,
-              external_app_id: app.appId,
               seller_id: user!.id,
-              devices: app.devices.filter(d => d.mac.trim() !== ''),
+              devices: app.devices.filter(d => d.mac.trim() !== '') as unknown as any,
               email: app.email || null,
               password: encryptedPassword,
               expiration_date: app.expirationDate || null,
-            }]);
+              external_app_id: isFixedApp ? null : app.appId,
+              fixed_app_name: fixedAppName,
+            } as any;
+            
+            const { error } = await supabase.from('client_external_apps').insert(insertData);
+            if (error) {
+              console.error('Error saving external app:', error);
+            }
           }
         })();
       }
@@ -1036,15 +1047,26 @@ export default function Clients() {
                 }
               }
               
-              await supabase.from('client_external_apps').insert([{
+              // Check if it's a fixed app (starts with "fixed-") or a custom app (UUID)
+              const isFixedApp = app.appId.startsWith('fixed-');
+              const fixedAppName = isFixedApp ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') : null;
+              
+              // Build insert data with proper typing
+              const insertData = {
                 client_id: id,
-                external_app_id: app.appId,
                 seller_id: user.id,
-                devices: app.devices.filter(d => d.mac.trim() !== ''),
+                devices: app.devices.filter(d => d.mac.trim() !== '') as unknown as any,
                 email: app.email || null,
                 password: encryptedPassword,
                 expiration_date: app.expirationDate || null,
-              }]);
+                external_app_id: isFixedApp ? null : app.appId,
+                fixed_app_name: fixedAppName,
+              } as any;
+              
+              const { error } = await supabase.from('client_external_apps').insert(insertData);
+              if (error) {
+                console.error('Error saving external app:', error);
+              }
             }
           }
           

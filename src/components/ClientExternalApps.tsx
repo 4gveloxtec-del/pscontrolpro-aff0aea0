@@ -64,12 +64,14 @@ interface MacDevice {
 interface ClientExternalApp {
   id: string;
   client_id: string;
-  external_app_id: string;
+  external_app_id: string | null;
   seller_id: string;
   devices: MacDevice[];
   email: string | null;
   password: string | null;
   notes: string | null;
+  expiration_date: string | null;
+  fixed_app_name: string | null;
   external_app?: ExternalApp;
 }
 
@@ -147,13 +149,22 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
   // Initialize local apps from linked apps when editing
   useEffect(() => {
     if (clientId && linkedApps.length > 0) {
-      setLocalApps(linkedApps.map(la => ({
-        appId: la.external_app_id,
-        devices: la.devices || [],
-        email: la.email || '',
-        password: la.password || '',
-        expirationDate: (la as unknown as { expiration_date?: string }).expiration_date || '',
-      })));
+      setLocalApps(linkedApps.map(la => {
+        // Determine appId: use external_app_id if available, otherwise reconstruct fixed-* id from fixed_app_name
+        let appId = la.external_app_id || '';
+        if (!appId && la.fixed_app_name) {
+          // Reconstruct the fixed-* id from the app name
+          appId = 'fixed-' + la.fixed_app_name.toLowerCase().replace(/\s+/g, '-');
+        }
+        
+        return {
+          appId,
+          devices: la.devices || [],
+          email: la.email || '',
+          password: la.password || '',
+          expirationDate: la.expiration_date || '',
+        };
+      }));
     }
   }, [clientId, linkedApps]);
 
@@ -580,38 +591,45 @@ export function ClientExternalAppsDisplay({ clientId, sellerId }: { clientId: st
 
   return (
     <div className="space-y-2 mt-2">
-      {linkedApps.map((app) => (
-        <div key={app.id} className="space-y-1.5 p-2 rounded-lg bg-violet-500/5 border border-violet-500/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {/* App name as clickable link like servers */}
-              {app.external_app?.website_url ? (
-                <span 
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 cursor-pointer hover:bg-violet-500/20 transition-colors"
-                  onClick={() => window.open(app.external_app?.website_url!, '_blank')}
-                  title={`Abrir painel ${app.external_app?.name}`}
-                >
-                  <AppWindow className="h-3.5 w-3.5" />
-                  {app.external_app?.name}
-                  <ExternalLink className="h-3 w-3 opacity-60" />
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                  <AppWindow className="h-3.5 w-3.5" />
-                  {app.external_app?.name}
-                </span>
-              )}
-              {(app as unknown as { expiration_date?: string }).expiration_date && (
-                <Badge variant="outline" className="text-[10px] px-1.5 border-violet-500/30 text-violet-600 dark:text-violet-400">
-                  <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
-                  {format(new Date((app as unknown as { expiration_date: string }).expiration_date + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })}
-                </Badge>
-              )}
+      {linkedApps.map((app) => {
+        // Get app name - from external_app relation or fixed_app_name
+        const appName = app.external_app?.name || app.fixed_app_name || 'App';
+        const websiteUrl = app.external_app?.website_url || 
+          (app.fixed_app_name ? FIXED_EXTERNAL_APPS.find(f => f.name === app.fixed_app_name)?.website_url : null);
+        const authType = app.external_app?.auth_type || 'mac_key';
+        
+        return (
+          <div key={app.id} className="space-y-1.5 p-2 rounded-lg bg-violet-500/5 border border-violet-500/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {/* App name as clickable link like servers */}
+                {websiteUrl ? (
+                  <span 
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 cursor-pointer hover:bg-violet-500/20 transition-colors"
+                    onClick={() => window.open(websiteUrl, '_blank')}
+                    title={`Abrir painel ${appName}`}
+                  >
+                    <AppWindow className="h-3.5 w-3.5" />
+                    {appName}
+                    <ExternalLink className="h-3 w-3 opacity-60" />
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                    <AppWindow className="h-3.5 w-3.5" />
+                    {appName}
+                  </span>
+                )}
+                {app.expiration_date && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 border-violet-500/30 text-violet-600 dark:text-violet-400">
+                    <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
+                    {format(new Date(app.expiration_date + 'T12:00:00'), 'dd/MM/yy', { locale: ptBR })}
+                  </Badge>
+                )}
+              </div>
             </div>
-          </div>
           
-          {/* MAC + Device Key display */}
-          {app.external_app?.auth_type === 'mac_key' && app.devices.length > 0 && (
+            {/* MAC + Device Key display */}
+            {authType === 'mac_key' && app.devices.length > 0 && (
             <div className="space-y-1">
               {app.devices.map((device, idx) => (
                 <div key={idx} className="flex items-center justify-between gap-2 p-1.5 rounded bg-muted/50 text-xs">
@@ -658,7 +676,7 @@ export function ClientExternalAppsDisplay({ clientId, sellerId }: { clientId: st
           )}
           
           {/* Email + Password display */}
-          {app.external_app?.auth_type === 'email_password' && (app.email || app.password) && (
+          {authType === 'email_password' && (app.email || app.password) && (
             <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 text-xs">
               <Mail className="h-3 w-3 text-violet-500" />
               <span className="font-mono text-muted-foreground truncate">{app.email}</span>
@@ -677,7 +695,8 @@ export function ClientExternalAppsDisplay({ clientId, sellerId }: { clientId: st
             </div>
           )}
         </div>
-      ))}
+        )
+      })}
     </div>
   );
 }
