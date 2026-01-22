@@ -23,7 +23,9 @@ async function checkEvolutionConnection(
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const baseUrl = normalizeApiUrl(apiUrl);
-      const url = `${baseUrl}/instance/connectionState/${instanceName}`;
+      
+      // Use fetchInstances endpoint which returns owner/phone info
+      const url = `${baseUrl}/instance/fetchInstances?instanceName=${instanceName}`;
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
@@ -45,17 +47,26 @@ async function checkEvolutionConnection(
       }
 
       const result = await response.json();
-      const state = result?.instance?.state || result?.state || 'unknown';
+      
+      // fetchInstances returns array of instances
+      const instanceData = Array.isArray(result) ? result[0] : result;
+      
+      if (!instanceData) {
+        return { connected: false, error: 'Instance not found', state: 'not_found' };
+      }
+      
+      // Get connection state - check both possible formats
+      const state = instanceData?.connectionStatus || instanceData?.instance?.state || 'unknown';
       const isConnected = state === 'open';
       
-      // Extract phone number from various possible response formats
-      // Evolution API returns owner as "5511999999999@s.whatsapp.net" or just the number
+      // Extract phone number from ownerJid (format: 5511999999999@s.whatsapp.net)
       let phone: string | undefined;
-      const ownerJid = result?.instance?.owner || result?.owner || result?.instance?.ownerJid || result?.ownerJid;
+      const ownerJid = instanceData?.ownerJid || instanceData?.owner || instanceData?.instance?.owner;
       if (ownerJid) {
-        // Remove @s.whatsapp.net suffix if present
         phone = ownerJid.replace(/@.*$/, '');
       }
+      
+      console.log(`[checkEvolutionConnection] Instance: ${instanceName}, State: ${state}, Phone: ${phone || 'not available'}`);
       
       return { connected: isConnected, state, phone };
     } catch (error: any) {
