@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +30,7 @@ interface ResellerAppsManagerProps {
 
 export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ResellerApp | null>(null);
   const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '' });
@@ -340,9 +343,13 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                     size="sm"
                     className="text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Remover este app?')) {
-                        deleteMutation.mutate(app.id);
-                      }
+                      confirm({
+                        title: 'Remover app',
+                        description: `Tem certeza que deseja remover o app "${app.name}"?`,
+                        confirmText: 'Remover',
+                        variant: 'destructive',
+                        onConfirm: () => deleteMutation.mutate(app.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -356,6 +363,9 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
           </div>
         )}
       </CardContent>
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </Card>
   );
 }

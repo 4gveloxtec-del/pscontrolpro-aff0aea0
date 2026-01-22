@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -73,6 +75,7 @@ const FIXED_EXTERNAL_APPS: ExternalApp[] = [
 export function ExternalAppsManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ExternalApp | null>(null);
   const [formData, setFormData] = useState({
@@ -473,9 +476,13 @@ export function ExternalAppsManager() {
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => {
-                              if (confirm(`Remover o app "${app.name}"?`)) {
-                                deleteMutation.mutate(app.id);
-                              }
+                              confirm({
+                                title: 'Remover app',
+                                description: `Tem certeza que deseja remover o app "${app.name}"?`,
+                                confirmText: 'Remover',
+                                variant: 'destructive',
+                                onConfirm: () => deleteMutation.mutate(app.id),
+                              });
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -490,6 +497,9 @@ export function ExternalAppsManager() {
           </div>
         </div>
       )}
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

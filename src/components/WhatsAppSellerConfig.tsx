@@ -4,6 +4,8 @@ import { useWhatsAppSellerInstance } from '@/hooks/useWhatsAppSellerInstance';
 import { useWhatsAppGlobalConfig } from '@/hooks/useWhatsAppGlobalConfig';
 import { useTrialApiStatus } from '@/hooks/useTrialApiStatus';
 import { supabase } from '@/integrations/supabase/client';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,6 +68,7 @@ export function WhatsAppSellerConfig() {
     isLoading: isLoadingTrialStatus
   } = useTrialApiStatus();
   
+  const { dialogProps, confirm } = useConfirmDialog();
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRunningAutomation, setIsRunningAutomation] = useState(false);
@@ -444,57 +447,53 @@ export function WhatsAppSellerConfig() {
   };
 
   // Disconnect WhatsApp instance
-  const handleDisconnect = async () => {
-    if (!confirm('Tem certeza que deseja desconectar? Você precisará escanear o QR Code novamente.')) {
-      return;
-    }
-    
-    setIsDisconnecting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
-        body: { action: 'disconnect' },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast.success('WhatsApp desconectado');
-        setFormData(prev => ({ ...prev, is_connected: false }));
-        setQrCode(null);
-        await refetch();
-      } else {
-        toast.error(data.error || 'Erro ao desconectar');
-      }
-    } catch (err: any) {
-      toast.error('Erro: ' + err.message);
-    } finally {
-      setIsDisconnecting(false);
-    }
+  const handleDisconnect = () => {
+    confirm({
+      title: 'Desconectar WhatsApp',
+      description: 'Tem certeza que deseja desconectar? Você precisará escanear o QR Code novamente.',
+      confirmText: 'Desconectar',
+      variant: 'warning',
+      onConfirm: async () => {
+        setIsDisconnecting(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'disconnect' },
+          });
+          if (error) throw error;
+          if (data.success) {
+            toast.success('WhatsApp desconectado');
+            setFormData(prev => ({ ...prev, is_connected: false }));
+            setQrCode(null);
+            await refetch();
+          } else {
+            toast.error(data.error || 'Erro ao desconectar');
+          }
+        } catch (err: any) {
+          toast.error('Erro: ' + err.message);
+        } finally {
+          setIsDisconnecting(false);
+        }
+      },
+    });
   };
 
   // Recreate instance with new auto-generated name
-  const handleRecreateInstance = async () => {
-    if (!confirm('Isso irá desconectar sua instância atual e criar uma nova com nome automático. Você precisará escanear o QR Code novamente. Continuar?')) {
-      return;
-    }
-    
-    setIsRecreating(true);
-    try {
-      // First disconnect
-      await supabase.functions.invoke('configure-seller-instance', {
-        body: { action: 'disconnect' },
-      });
-
-      // Delete current instance record to force new auto-creation
-      if (instance?.id) {
-        await supabase
-          .from('whatsapp_seller_instances')
-          .delete()
-          .eq('id', instance.id);
-      }
-
-      // Create new instance with auto-generated name
-      const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+  const handleRecreateInstance = () => {
+    confirm({
+      title: 'Recriar instância',
+      description: 'Isso irá desconectar sua instância atual e criar uma nova. Você precisará escanear o QR Code novamente.',
+      confirmText: 'Recriar',
+      variant: 'warning',
+      onConfirm: async () => {
+        setIsRecreating(true);
+        try {
+          await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'disconnect' },
+          });
+          if (instance?.id) {
+            await supabase.from('whatsapp_seller_instances').delete().eq('id', instance.id);
+          }
+          const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
         body: { action: 'auto_create' },
       });
 
