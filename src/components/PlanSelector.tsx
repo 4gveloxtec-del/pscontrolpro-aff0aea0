@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Crown } from 'lucide-react';
+import { sortPlansForDisplay } from '@/lib/planStandardization';
 
 export interface Plan {
   id: string;
@@ -90,18 +91,7 @@ export function PlanSelector({
 
   // Group and sort plans
   const sortedPlans = useMemo(() => {
-    return [...plans].filter(p => p && p.name).sort((a, b) => {
-      // First by duration
-      if ((a.duration_days || 0) !== (b.duration_days || 0)) {
-        return (a.duration_days || 0) - (b.duration_days || 0);
-      }
-      // Then by screens
-      if ((a.screens || 1) !== (b.screens || 1)) {
-        return (a.screens || 1) - (b.screens || 1);
-      }
-      // Then by name (with null safety)
-      return (a.name || '').localeCompare(b.name || '');
-    });
+    return sortPlansForDisplay([...plans].filter((p) => p && p.name));
   }, [plans]);
 
   const filteredPlans = useMemo(() => {

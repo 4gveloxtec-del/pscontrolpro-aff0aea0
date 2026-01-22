@@ -62,21 +62,43 @@ Deno.serve(async (req) => {
     // Create default plans if none exist
     if (!existingPlans || existingPlans.length === 0) {
       const defaultPlans = [
-        // IPTV Plans
-        { seller_id: userId, name: 'IPTV Mensal', price: 0, duration_days: 30, category: 'IPTV', is_active: true },
-        { seller_id: userId, name: 'IPTV Trimestral', price: 0, duration_days: 90, category: 'IPTV', is_active: true },
-        { seller_id: userId, name: 'IPTV Semestral', price: 0, duration_days: 180, category: 'IPTV', is_active: true },
-        { seller_id: userId, name: 'IPTV Anual', price: 0, duration_days: 365, category: 'IPTV', is_active: true },
-        // SSH Plans
-        { seller_id: userId, name: 'SSH Mensal', price: 0, duration_days: 30, category: 'SSH', is_active: true },
-        { seller_id: userId, name: 'SSH Trimestral', price: 0, duration_days: 90, category: 'SSH', is_active: true },
-        { seller_id: userId, name: 'SSH Semestral', price: 0, duration_days: 180, category: 'SSH', is_active: true },
-        { seller_id: userId, name: 'SSH Anual', price: 0, duration_days: 365, category: 'SSH', is_active: true },
-        // P2P Plans
-        { seller_id: userId, name: 'P2P Mensal', price: 0, duration_days: 30, category: 'P2P', is_active: true },
-        { seller_id: userId, name: 'P2P Trimestral', price: 0, duration_days: 90, category: 'P2P', is_active: true },
-        { seller_id: userId, name: 'P2P Semestral', price: 0, duration_days: 180, category: 'P2P', is_active: true },
-        { seller_id: userId, name: 'P2P Anual', price: 0, duration_days: 365, category: 'P2P', is_active: true },
+        // IPTV (1-3 telas) - Mensal/Trimestral/Semestral/Anual
+        { seller_id: userId, name: 'IPTV 1 Tela Mensal', price: 0, duration_days: 30, category: 'IPTV', screens: 1, is_active: true },
+        { seller_id: userId, name: 'IPTV 2 Telas Mensal', price: 0, duration_days: 30, category: 'IPTV', screens: 2, is_active: true },
+        { seller_id: userId, name: 'IPTV 3 Telas Mensal', price: 0, duration_days: 30, category: 'IPTV', screens: 3, is_active: true },
+        { seller_id: userId, name: 'IPTV 1 Tela Trimestral', price: 0, duration_days: 90, category: 'IPTV', screens: 1, is_active: true },
+        { seller_id: userId, name: 'IPTV 2 Telas Trimestral', price: 0, duration_days: 90, category: 'IPTV', screens: 2, is_active: true },
+        { seller_id: userId, name: 'IPTV 3 Telas Trimestral', price: 0, duration_days: 90, category: 'IPTV', screens: 3, is_active: true },
+        { seller_id: userId, name: 'IPTV 1 Tela Semestral', price: 0, duration_days: 180, category: 'IPTV', screens: 1, is_active: true },
+        { seller_id: userId, name: 'IPTV 2 Telas Semestral', price: 0, duration_days: 180, category: 'IPTV', screens: 2, is_active: true },
+        { seller_id: userId, name: 'IPTV 3 Telas Semestral', price: 0, duration_days: 180, category: 'IPTV', screens: 3, is_active: true },
+        { seller_id: userId, name: 'IPTV 1 Tela Anual', price: 0, duration_days: 365, category: 'IPTV', screens: 1, is_active: true },
+        { seller_id: userId, name: 'IPTV 2 Telas Anual', price: 0, duration_days: 365, category: 'IPTV', screens: 2, is_active: true },
+        { seller_id: userId, name: 'IPTV 3 Telas Anual', price: 0, duration_days: 365, category: 'IPTV', screens: 3, is_active: true },
+
+        // P2P (1-3 telas) - Mensal/Trimestral/Semestral/Anual
+        { seller_id: userId, name: 'P2P 1 Tela Mensal', price: 0, duration_days: 30, category: 'P2P', screens: 1, is_active: true },
+        { seller_id: userId, name: 'P2P 2 Telas Mensal', price: 0, duration_days: 30, category: 'P2P', screens: 2, is_active: true },
+        { seller_id: userId, name: 'P2P 3 Telas Mensal', price: 0, duration_days: 30, category: 'P2P', screens: 3, is_active: true },
+        { seller_id: userId, name: 'P2P 1 Tela Trimestral', price: 0, duration_days: 90, category: 'P2P', screens: 1, is_active: true },
+        { seller_id: userId, name: 'P2P 2 Telas Trimestral', price: 0, duration_days: 90, category: 'P2P', screens: 2, is_active: true },
+        { seller_id: userId, name: 'P2P 3 Telas Trimestral', price: 0, duration_days: 90, category: 'P2P', screens: 3, is_active: true },
+        { seller_id: userId, name: 'P2P 1 Tela Semestral', price: 0, duration_days: 180, category: 'P2P', screens: 1, is_active: true },
+        { seller_id: userId, name: 'P2P 2 Telas Semestral', price: 0, duration_days: 180, category: 'P2P', screens: 2, is_active: true },
+        { seller_id: userId, name: 'P2P 3 Telas Semestral', price: 0, duration_days: 180, category: 'P2P', screens: 3, is_active: true },
+        { seller_id: userId, name: 'P2P 1 Tela Anual', price: 0, duration_days: 365, category: 'P2P', screens: 1, is_active: true },
+        { seller_id: userId, name: 'P2P 2 Telas Anual', price: 0, duration_days: 365, category: 'P2P', screens: 2, is_active: true },
+        { seller_id: userId, name: 'P2P 3 Telas Anual', price: 0, duration_days: 365, category: 'P2P', screens: 3, is_active: true },
+
+        // SSH (1-2 logins) - Mensal/Trimestral/Semestral/Anual
+        { seller_id: userId, name: 'SSH 1 Login Mensal', price: 0, duration_days: 30, category: 'SSH', screens: 1, is_active: true },
+        { seller_id: userId, name: 'SSH 2 Logins Mensal', price: 0, duration_days: 30, category: 'SSH', screens: 2, is_active: true },
+        { seller_id: userId, name: 'SSH 1 Login Trimestral', price: 0, duration_days: 90, category: 'SSH', screens: 1, is_active: true },
+        { seller_id: userId, name: 'SSH 2 Logins Trimestral', price: 0, duration_days: 90, category: 'SSH', screens: 2, is_active: true },
+        { seller_id: userId, name: 'SSH 1 Login Semestral', price: 0, duration_days: 180, category: 'SSH', screens: 1, is_active: true },
+        { seller_id: userId, name: 'SSH 2 Logins Semestral', price: 0, duration_days: 180, category: 'SSH', screens: 2, is_active: true },
+        { seller_id: userId, name: 'SSH 1 Login Anual', price: 0, duration_days: 365, category: 'SSH', screens: 1, is_active: true },
+        { seller_id: userId, name: 'SSH 2 Logins Anual', price: 0, duration_days: 365, category: 'SSH', screens: 2, is_active: true },
       ];
 
       const { error: insertPlansError } = await supabase

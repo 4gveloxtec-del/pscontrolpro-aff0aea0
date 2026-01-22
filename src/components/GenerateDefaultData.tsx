@@ -18,17 +18,44 @@ interface GenerateDefaultDataProps {
 
 // Default plans for SELLERS (sell to end clients)
 const SELLER_PLANS = [
-  // IPTV Plans
-  { name: 'IPTV Mensal 1 Tela', price: 25, duration_days: 30, category: 'IPTV', screens: 1 },
-  { name: 'IPTV Mensal 2 Telas', price: 40, duration_days: 30, category: 'IPTV', screens: 2 },
-  { name: 'IPTV Mensal 3 Telas', price: 55, duration_days: 30, category: 'IPTV', screens: 3 },
-  { name: 'IPTV Trimestral 1 Tela', price: 65, duration_days: 90, category: 'IPTV', screens: 1 },
-  { name: 'IPTV Semestral 1 Tela', price: 120, duration_days: 180, category: 'IPTV', screens: 1 },
-  { name: 'IPTV Anual 1 Tela', price: 200, duration_days: 365, category: 'IPTV', screens: 1 },
-  // P2P Plans
-  { name: 'P2P Mensal', price: 20, duration_days: 30, category: 'P2P', screens: 1 },
-  { name: 'P2P Trimestral', price: 50, duration_days: 90, category: 'P2P', screens: 1 },
-  { name: 'P2P Semestral', price: 90, duration_days: 180, category: 'P2P', screens: 1 },
+  // IPTV Plans (1-3 telas em Mensal/Trimestral/Semestral/Anual)
+  { name: 'IPTV 1 Tela Mensal', price: 25, duration_days: 30, category: 'IPTV', screens: 1 },
+  { name: 'IPTV 2 Telas Mensal', price: 40, duration_days: 30, category: 'IPTV', screens: 2 },
+  { name: 'IPTV 3 Telas Mensal', price: 55, duration_days: 30, category: 'IPTV', screens: 3 },
+  { name: 'IPTV 1 Tela Trimestral', price: 75, duration_days: 90, category: 'IPTV', screens: 1 },
+  { name: 'IPTV 2 Telas Trimestral', price: 120, duration_days: 90, category: 'IPTV', screens: 2 },
+  { name: 'IPTV 3 Telas Trimestral', price: 165, duration_days: 90, category: 'IPTV', screens: 3 },
+  { name: 'IPTV 1 Tela Semestral', price: 150, duration_days: 180, category: 'IPTV', screens: 1 },
+  { name: 'IPTV 2 Telas Semestral', price: 240, duration_days: 180, category: 'IPTV', screens: 2 },
+  { name: 'IPTV 3 Telas Semestral', price: 330, duration_days: 180, category: 'IPTV', screens: 3 },
+  { name: 'IPTV 1 Tela Anual', price: 300, duration_days: 365, category: 'IPTV', screens: 1 },
+  { name: 'IPTV 2 Telas Anual', price: 480, duration_days: 365, category: 'IPTV', screens: 2 },
+  { name: 'IPTV 3 Telas Anual', price: 660, duration_days: 365, category: 'IPTV', screens: 3 },
+
+  // P2P Plans (1-3 telas em Mensal/Trimestral/Semestral/Anual)
+  { name: 'P2P 1 Tela Mensal', price: 20, duration_days: 30, category: 'P2P', screens: 1 },
+  { name: 'P2P 2 Telas Mensal', price: 30, duration_days: 30, category: 'P2P', screens: 2 },
+  { name: 'P2P 3 Telas Mensal', price: 40, duration_days: 30, category: 'P2P', screens: 3 },
+  { name: 'P2P 1 Tela Trimestral', price: 60, duration_days: 90, category: 'P2P', screens: 1 },
+  { name: 'P2P 2 Telas Trimestral', price: 90, duration_days: 90, category: 'P2P', screens: 2 },
+  { name: 'P2P 3 Telas Trimestral', price: 120, duration_days: 90, category: 'P2P', screens: 3 },
+  { name: 'P2P 1 Tela Semestral', price: 120, duration_days: 180, category: 'P2P', screens: 1 },
+  { name: 'P2P 2 Telas Semestral', price: 180, duration_days: 180, category: 'P2P', screens: 2 },
+  { name: 'P2P 3 Telas Semestral', price: 240, duration_days: 180, category: 'P2P', screens: 3 },
+  { name: 'P2P 1 Tela Anual', price: 240, duration_days: 365, category: 'P2P', screens: 1 },
+  { name: 'P2P 2 Telas Anual', price: 360, duration_days: 365, category: 'P2P', screens: 2 },
+  { name: 'P2P 3 Telas Anual', price: 480, duration_days: 365, category: 'P2P', screens: 3 },
+
+  // SSH Plans (1-2 logins em Mensal/Trimestral/Semestral/Anual)
+  { name: 'SSH 1 Login Mensal', price: 15, duration_days: 30, category: 'SSH', screens: 1 },
+  { name: 'SSH 2 Logins Mensal', price: 25, duration_days: 30, category: 'SSH', screens: 2 },
+  { name: 'SSH 1 Login Trimestral', price: 45, duration_days: 90, category: 'SSH', screens: 1 },
+  { name: 'SSH 2 Logins Trimestral', price: 75, duration_days: 90, category: 'SSH', screens: 2 },
+  { name: 'SSH 1 Login Semestral', price: 90, duration_days: 180, category: 'SSH', screens: 1 },
+  { name: 'SSH 2 Logins Semestral', price: 150, duration_days: 180, category: 'SSH', screens: 2 },
+  { name: 'SSH 1 Login Anual', price: 180, duration_days: 365, category: 'SSH', screens: 1 },
+  { name: 'SSH 2 Logins Anual', price: 300, duration_days: 365, category: 'SSH', screens: 2 },
+
   // Premium Plans (Netflix, Spotify, etc.)
   { name: 'Netflix Mensal', price: 15, duration_days: 30, category: 'Premium', screens: 1 },
   { name: 'Spotify Mensal', price: 10, duration_days: 30, category: 'Premium', screens: 1 },

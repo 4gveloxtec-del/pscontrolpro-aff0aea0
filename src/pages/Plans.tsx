@@ -30,6 +30,13 @@ import { Plus, Package, DollarSign, Clock, Edit, Trash2, Monitor, RefreshCw, Cro
 import { cn } from '@/lib/utils';
 import { GenerateDefaultData } from '@/components/GenerateDefaultData';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import {
+  buildStandardCorePlanMatrix,
+  buildStandardPlanName,
+  isCoreCategory,
+  sortPlansForDisplay,
+  STANDARD_DURATIONS,
+} from '@/lib/planStandardization';
 
 interface Plan {
   id: string;
@@ -394,6 +401,97 @@ export default function Plans() {
     return matchesCategory && matchesDuration;
   });
 
+  const orderedFilteredPlans = sortPlansForDisplay(filteredPlans);
+
+  const standardizeCorePlansMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('Usuário não autenticado');
+
+      // Only standardize core categories (IPTV/P2P/SSH) and only the standard durations.
+      const required = buildStandardCorePlanMatrix();
+      const standardDurationSet = new Set(STANDARD_DURATIONS.map((d) => d.days));
+
+      const existingCore = plans.filter(
+        (p) => isCoreCategory(p.category) && standardDurationSet.has(p.duration_days as any),
+      );
+
+      const keyOf = (category: string, screens: number, duration_days: number) => `${category}|${screens}|${duration_days}`;
+
+      const existingByKey = new Map<string, Plan>();
+      for (const p of existingCore) {
+        const key = keyOf(p.category, p.screens || 1, p.duration_days);
+        if (!existingByKey.has(key)) existingByKey.set(key, p);
+      }
+
+      // Monthly base prices (used to auto-fill trimestral/semestral/anual if missing)
+      const monthlyPriceByCatScreens = new Map<string, number>();
+      for (const p of existingCore) {
+        if (p.duration_days === 30) {
+          monthlyPriceByCatScreens.set(`${p.category}|${p.screens || 1}`, p.price || 0);
+        }
+      }
+
+      const updates: Promise<unknown>[] = [];
+      const inserts: Array<Omit<Plan, 'id'> & { seller_id: string }> = [];
+
+      for (const row of required) {
+        const standardName = buildStandardPlanName(row.category, row.screens, row.duration_days);
+        const existing = existingByKey.get(keyOf(row.category, row.screens, row.duration_days));
+
+        if (existing) {
+          if (existing.name !== standardName || existing.screens !== row.screens || existing.duration_days !== row.duration_days) {
+            updates.push(
+              (async () => {
+                const { error } = await supabase
+                  .from('plans')
+                  .update({
+                    name: standardName,
+                    category: row.category,
+                    screens: row.screens,
+                    duration_days: row.duration_days,
+                  })
+                  .eq('id', existing.id);
+                if (error) throw error;
+              })(),
+            );
+          }
+          continue;
+        }
+
+        const durationMeta = STANDARD_DURATIONS.find((d) => d.days === row.duration_days);
+        const monthlyBase = monthlyPriceByCatScreens.get(`${row.category}|${row.screens}`) ?? 0;
+        const price = durationMeta ? Number((monthlyBase * durationMeta.multiplierFromMonthly).toFixed(2)) : 0;
+
+        inserts.push({
+          seller_id: user.id,
+          name: standardName,
+          description: null,
+          price,
+          duration_days: row.duration_days,
+          is_active: true,
+          category: row.category,
+          screens: row.screens,
+        });
+      }
+
+      if (updates.length > 0) await Promise.all(updates);
+
+      if (inserts.length > 0) {
+        const { error } = await supabase.from('plans').insert(inserts);
+        if (error) throw error;
+      }
+
+      return { inserted: inserts.length, updated: updates.length };
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      toast.success(`Planos padronizados! (${res.updated} atualizado(s), ${res.inserted} criado(s))`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const getDurationLabel = (days: number) => {
     if (days === 30) return 'Mensal';
     if (days === 90) return 'Trimestral';
@@ -453,6 +551,19 @@ export default function Plans() {
             <RefreshCw className={cn("h-4 w-4", syncAllClientsMutation.isPending && "animate-spin")} />
             {syncAllClientsMutation.isPending ? 'Sincronizando...' : 'Sincronizar'}
           </Button>
+
+          {!isAdmin && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => standardizeCorePlansMutation.mutate()}
+              disabled={standardizeCorePlansMutation.isPending || isLoading}
+              title="Cria/ajusta automaticamente IPTV, P2P e SSH (1-3 telas/logins) em Mensal/Trimestral/Semestral/Anual"
+            >
+              <RefreshCw className={cn("h-4 w-4", standardizeCorePlansMutation.isPending && "animate-spin")} />
+              {standardizeCorePlansMutation.isPending ? 'Padronizando...' : 'Padronizar Planos'}
+            </Button>
+          )}
 
           {/* New Product Dialog */}
           <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
@@ -890,7 +1001,7 @@ export default function Plans() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredPlans.map((plan) => (
+          {orderedFilteredPlans.map((plan) => (
             <Card
               key={plan.id}
               className={cn(
