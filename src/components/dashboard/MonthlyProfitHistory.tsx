@@ -105,13 +105,19 @@ export function MonthlyProfitHistory({
   const years = Object.keys(profitsByYear).map(Number).sort((a, b) => b - a);
 
   // Calculate annual totals
+  // AUDIT FIX: Apply precision rounding to annual totals
   const getYearTotal = (year: number) => {
     const yearProfits = profitsByYear[year] || [];
+    const revenue = yearProfits.reduce((sum, p) => sum + (Number(p.revenue) || 0), 0);
+    const serverCosts = yearProfits.reduce((sum, p) => sum + (Number(p.server_costs) || 0), 0);
+    const billsCosts = yearProfits.reduce((sum, p) => sum + (Number(p.bills_costs) || 0), 0);
+    const netProfit = yearProfits.reduce((sum, p) => sum + (Number(p.net_profit) || 0), 0);
+    
     return {
-      revenue: yearProfits.reduce((sum, p) => sum + Number(p.revenue), 0),
-      serverCosts: yearProfits.reduce((sum, p) => sum + Number(p.server_costs), 0),
-      billsCosts: yearProfits.reduce((sum, p) => sum + Number(p.bills_costs), 0),
-      netProfit: yearProfits.reduce((sum, p) => sum + Number(p.net_profit), 0),
+      revenue: Math.round(revenue * 100) / 100,
+      serverCosts: Math.round(serverCosts * 100) / 100,
+      billsCosts: Math.round(billsCosts * 100) / 100,
+      netProfit: Math.round(netProfit * 100) / 100,
       monthCount: yearProfits.length,
     };
   };
