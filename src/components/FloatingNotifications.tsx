@@ -465,7 +465,7 @@ export function FloatingNotifications() {
                       <p className="font-medium text-sm truncate">{paymentItem.name}</p>
                       <p className="text-xs text-emerald-600 dark:text-emerald-400 truncate flex items-center gap-1">
                         <DollarSign className="h-3 w-3" />
-                        R$ {paymentItem.pending_amount.toFixed(2)}
+                        R$ {(Number(paymentItem.pending_amount) || 0).toFixed(2)}
                         {paymentItem.daysRemaining < 0 && (
                           <span className="text-red-500 ml-1">
                             ({Math.abs(paymentItem.daysRemaining)}d atrasado)

@@ -425,8 +425,10 @@ export default function PanelResellers() {
     return true;
   });
 
+  // AUDIT FIX: Normalize dates to noon to prevent timezone off-by-one errors
   const getStatusBadge = (expirationDate: string) => {
-    const expDate = new Date(expirationDate);
+    const normalized = expirationDate.includes('T') ? expirationDate : `${expirationDate}T12:00:00`;
+    const expDate = new Date(normalized);
     const days = differenceInDays(expDate, today);
     
     if (days < 0) {

@@ -30,24 +30,31 @@ export function usePaymentNotifications() {
 
     const today = startOfToday();
     
+    // AUDIT FIX: Normalize dates to noon to prevent timezone off-by-one errors
+    const normalizeDate = (dateStr: string) => {
+      const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+      return new Date(normalized);
+    };
+    
     // Clientes com pagamento para hoje
     const paymentToday = clients.filter(c => 
-      differenceInDays(new Date(c.expected_payment_date), today) === 0
+      differenceInDays(normalizeDate(c.expected_payment_date), today) === 0
     );
     
     // Clientes com pagamento atrasado (ontem ou antes)
     const paymentOverdue = clients.filter(c => 
-      differenceInDays(new Date(c.expected_payment_date), today) < 0
+      differenceInDays(normalizeDate(c.expected_payment_date), today) < 0
     );
     
     // Clientes com pagamento amanhã
     const paymentTomorrow = clients.filter(c => 
-      differenceInDays(new Date(c.expected_payment_date), today) === 1
+      differenceInDays(normalizeDate(c.expected_payment_date), today) === 1
     );
 
     // Prioridade: pagamentos atrasados
+    // AUDIT FIX: Safe numeric coercion in reduce operations
     if (paymentOverdue.length > 0) {
-      const totalOverdue = paymentOverdue.reduce((sum, c) => sum + c.pending_amount, 0);
+      const totalOverdue = paymentOverdue.reduce((sum, c) => sum + (Number(c.pending_amount) || 0), 0);
       const names = paymentOverdue.slice(0, 3).map(c => c.name).join(', ');
       const extra = paymentOverdue.length > 3 ? ` +${paymentOverdue.length - 3}` : '';
       
@@ -61,7 +68,7 @@ export function usePaymentNotifications() {
 
     // Pagamentos para hoje
     if (paymentToday.length > 0) {
-      const totalToday = paymentToday.reduce((sum, c) => sum + c.pending_amount, 0);
+      const totalToday = paymentToday.reduce((sum, c) => sum + (Number(c.pending_amount) || 0), 0);
       const names = paymentToday.slice(0, 3).map(c => c.name).join(', ');
       const extra = paymentToday.length > 3 ? ` +${paymentToday.length - 3}` : '';
       
@@ -77,7 +84,7 @@ export function usePaymentNotifications() {
 
     // Pagamentos para amanhã
     if (paymentTomorrow.length > 0 && paymentOverdue.length === 0 && paymentToday.length === 0) {
-      const totalTomorrow = paymentTomorrow.reduce((sum, c) => sum + c.pending_amount, 0);
+      const totalTomorrow = paymentTomorrow.reduce((sum, c) => sum + (Number(c.pending_amount) || 0), 0);
       
       new Notification('Lembrete: Cobranças amanhã', {
         body: `${paymentTomorrow.length} cliente(s) - Total: R$ ${totalTomorrow.toFixed(2)}`,
@@ -110,9 +117,14 @@ export function usePaymentNotifications() {
       if (error) throw error;
 
       const todayDate = startOfToday();
+      // AUDIT FIX: Normalize dates to prevent timezone issues
+      const normalizeDate = (dateStr: string) => {
+        const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+        return new Date(normalized);
+      };
       const pendingClients = (clients || []).filter(c => {
         if (!c.expected_payment_date || !c.pending_amount) return false;
-        const days = differenceInDays(new Date(c.expected_payment_date), todayDate);
+        const days = differenceInDays(normalizeDate(c.expected_payment_date), todayDate);
         // Incluir atrasados (negativos), hoje (0), e amanhã (1)
         return days <= 1;
       }) as ClientWithPayment[];
