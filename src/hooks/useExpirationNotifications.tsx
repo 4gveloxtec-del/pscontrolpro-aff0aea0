@@ -27,16 +27,22 @@ export function useExpirationNotifications() {
 
     const today = startOfToday();
     
+    // AUDIT FIX: Normalize dates to noon to prevent timezone off-by-one errors
+    const normalizeDate = (dateStr: string) => {
+      const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+      return new Date(normalized);
+    };
+    
     const expiringToday = clients.filter(c => 
-      differenceInDays(new Date(c.expiration_date), today) === 0
+      differenceInDays(normalizeDate(c.expiration_date), today) === 0
     );
     
     const expiringTomorrow = clients.filter(c => 
-      differenceInDays(new Date(c.expiration_date), today) === 1
+      differenceInDays(normalizeDate(c.expiration_date), today) === 1
     );
     
     const expiringSoon = clients.filter(c => {
-      const days = differenceInDays(new Date(c.expiration_date), today);
+      const days = differenceInDays(normalizeDate(c.expiration_date), today);
       return days >= 2 && days <= 3;
     });
 
@@ -97,8 +103,13 @@ export function useExpirationNotifications() {
       if (error) throw error;
 
       const todayDate = startOfToday();
+      // AUDIT FIX: Normalize dates to prevent timezone issues
+      const normalizeDate = (dateStr: string) => {
+        const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+        return new Date(normalized);
+      };
       const expiringClients = (clients || []).filter(c => {
-        const days = differenceInDays(new Date(c.expiration_date), todayDate);
+        const days = differenceInDays(normalizeDate(c.expiration_date), todayDate);
         return days >= 0 && days <= 3;
       });
 

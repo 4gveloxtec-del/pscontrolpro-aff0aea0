@@ -54,9 +54,10 @@ export function ExpirationDaySummary({
         return clientExpDateString === dateString;
       });
       
+      // AUDIT FIX: Safe numeric coercion
       const totalRevenue = clientsForDay.reduce((sum, client) => {
-        const planPrice = client.plan_price || 0;
-        const premiumPrice = client.premium_price || 0;
+        const planPrice = Number(client.plan_price) || 0;
+        const premiumPrice = Number(client.premium_price) || 0;
         return sum + planPrice + premiumPrice;
       }, 0);
 

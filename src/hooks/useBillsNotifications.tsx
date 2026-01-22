@@ -63,30 +63,37 @@ export function useBillsNotifications() {
 
     const today = startOfToday();
     
+    // AUDIT FIX: Normalize dates to noon to prevent timezone off-by-one errors
+    const normalizeDate = (dateStr: string) => {
+      const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+      return new Date(normalized);
+    };
+    
     // Contas vencidas (ontem ou antes)
     const overdueList = bills.filter(b => 
-      differenceInDays(new Date(b.due_date), today) < 0
+      differenceInDays(normalizeDate(b.due_date), today) < 0
     );
     
     // Contas para hoje
     const todayList = bills.filter(b => 
-      differenceInDays(new Date(b.due_date), today) === 0
+      differenceInDays(normalizeDate(b.due_date), today) === 0
     );
     
     // Contas para amanhã
     const tomorrowList = bills.filter(b => 
-      differenceInDays(new Date(b.due_date), today) === 1
+      differenceInDays(normalizeDate(b.due_date), today) === 1
     );
 
     // Contas próximas (dentro do período configurado, excluindo hoje e amanhã)
     const upcomingList = bills.filter(b => {
-      const days = differenceInDays(new Date(b.due_date), today);
+      const days = differenceInDays(normalizeDate(b.due_date), today);
       return days > 1 && days <= notificationDays;
     });
 
     // Contas vencidas - prioridade máxima
+    // AUDIT FIX: Safe numeric coercion in reduce operations
     if (overdueList.length > 0) {
-      const totalOverdue = overdueList.reduce((sum, b) => sum + b.amount, 0);
+      const totalOverdue = overdueList.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
       const descriptions = overdueList.slice(0, 3).map(b => b.description).join(', ');
       const extra = overdueList.length > 3 ? ` +${overdueList.length - 3}` : '';
       
@@ -100,7 +107,7 @@ export function useBillsNotifications() {
 
     // Contas para hoje
     if (todayList.length > 0) {
-      const totalToday = todayList.reduce((sum, b) => sum + b.amount, 0);
+      const totalToday = todayList.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
       const descriptions = todayList.slice(0, 3).map(b => b.description).join(', ');
       const extra = todayList.length > 3 ? ` +${todayList.length - 3}` : '';
       
@@ -116,7 +123,7 @@ export function useBillsNotifications() {
 
     // Contas para amanhã (só mostra se não tiver vencidas nem hoje)
     if (tomorrowList.length > 0 && overdueList.length === 0 && todayList.length === 0) {
-      const totalTomorrow = tomorrowList.reduce((sum, b) => sum + b.amount, 0);
+      const totalTomorrow = tomorrowList.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
       
       new Notification('Lembrete: Contas amanhã', {
         body: `${tomorrowList.length} conta(s) - Total: R$ ${totalTomorrow.toFixed(2)}`,
@@ -127,7 +134,7 @@ export function useBillsNotifications() {
 
     // Contas próximas (dentro do período configurado)
     if (upcomingList.length > 0 && overdueList.length === 0 && todayList.length === 0 && tomorrowList.length === 0) {
-      const totalUpcoming = upcomingList.reduce((sum, b) => sum + b.amount, 0);
+      const totalUpcoming = upcomingList.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
       const descriptions = upcomingList.slice(0, 3).map(b => b.description).join(', ');
       const extra = upcomingList.length > 3 ? ` +${upcomingList.length - 3}` : '';
       
@@ -160,9 +167,14 @@ export function useBillsNotifications() {
       if (error) throw error;
 
       const todayDate = startOfToday();
+      // AUDIT FIX: Normalize dates to prevent timezone issues
+      const normalizeDate = (dateStr: string) => {
+        const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+        return new Date(normalized);
+      };
       const pendingBills = (bills || []).filter(b => {
         if (!b.due_date || !b.amount) return false;
-        const days = differenceInDays(new Date(b.due_date), todayDate);
+        const days = differenceInDays(normalizeDate(b.due_date), todayDate);
         // Incluir atrasados (negativos) e contas dentro do período configurado
         return days <= notificationDays;
       }) as Bill[];
