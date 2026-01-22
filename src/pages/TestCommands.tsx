@@ -593,7 +593,7 @@ export default function TestCommands() {
               <Label>Nome *</Label>
               <Input
                 value={apiForm.name}
-                onChange={(e) => setApiForm({ ...apiForm, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiForm({ ...apiForm, name: e.target.value })}
                 placeholder="Ex: StarPlay Teste"
                 required
               />
@@ -602,14 +602,14 @@ export default function TestCommands() {
               <Label>Descrição</Label>
               <Input
                 value={apiForm.description}
-                onChange={(e) => setApiForm({ ...apiForm, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiForm({ ...apiForm, description: e.target.value })}
                 placeholder="Descrição opcional"
               />
             </div>
             <div className="grid grid-cols-4 gap-2">
               <div className="col-span-1 space-y-2">
                 <Label>Método</Label>
-                <Select value={apiForm.api_method} onValueChange={(v) => setApiForm({ ...apiForm, api_method: v })}>
+                <Select value={apiForm.api_method} onValueChange={(v: string) => setApiForm({ ...apiForm, api_method: v })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -623,7 +623,7 @@ export default function TestCommands() {
                 <Label>URL *</Label>
                 <Input
                   value={apiForm.api_url}
-                  onChange={(e) => setApiForm({ ...apiForm, api_url: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiForm({ ...apiForm, api_url: e.target.value })}
                   placeholder="https://api.exemplo.com/gerar-teste"
                   required
                 />
@@ -633,7 +633,7 @@ export default function TestCommands() {
               <Label>Headers (JSON)</Label>
               <Textarea
                 value={apiForm.api_headers}
-                onChange={(e) => setApiForm({ ...apiForm, api_headers: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setApiForm({ ...apiForm, api_headers: e.target.value })}
                 placeholder='{"Authorization": "Bearer token"}'
                 className="font-mono text-sm"
                 rows={2}
@@ -644,7 +644,7 @@ export default function TestCommands() {
                 <Label>Body Template (JSON)</Label>
                 <Textarea
                   value={apiForm.api_body_template}
-                  onChange={(e) => setApiForm({ ...apiForm, api_body_template: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setApiForm({ ...apiForm, api_body_template: e.target.value })}
                   placeholder='{"action": "generate_test"}'
                   className="font-mono text-sm"
                   rows={3}
@@ -655,7 +655,7 @@ export default function TestCommands() {
               <Label>Caminho da Resposta (opcional)</Label>
               <Input
                 value={apiForm.response_path}
-                onChange={(e) => setApiForm({ ...apiForm, response_path: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiForm({ ...apiForm, response_path: e.target.value })}
                 placeholder="data.credentials (deixe vazio para resposta completa)"
               />
               <p className="text-xs text-muted-foreground">
@@ -665,7 +665,7 @@ export default function TestCommands() {
             <div className="flex items-center gap-2">
               <Switch
                 checked={apiForm.is_active}
-                onCheckedChange={(v) => setApiForm({ ...apiForm, is_active: v })}
+                onCheckedChange={(v: boolean) => setApiForm({ ...apiForm, is_active: v })}
               />
               <Label>API ativa</Label>
             </div>
@@ -698,7 +698,7 @@ export default function TestCommands() {
               <Label>Comando *</Label>
               <Input
                 value={commandForm.command}
-                onChange={(e) => setCommandForm({ ...commandForm, command: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCommandForm({ ...commandForm, command: e.target.value })}
                 placeholder="/teste"
                 className="font-mono"
                 required
@@ -709,7 +709,7 @@ export default function TestCommands() {
             </div>
             <div className="space-y-2">
               <Label>API *</Label>
-              <Select value={commandForm.api_id} onValueChange={(v) => setCommandForm({ ...commandForm, api_id: v })}>
+              <Select value={commandForm.api_id} onValueChange={(v: string) => setCommandForm({ ...commandForm, api_id: v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma API" />
                 </SelectTrigger>
@@ -726,7 +726,7 @@ export default function TestCommands() {
               <Label>Descrição</Label>
               <Input
                 value={commandForm.description}
-                onChange={(e) => setCommandForm({ ...commandForm, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCommandForm({ ...commandForm, description: e.target.value })}
                 placeholder="Gera um teste de 24h"
               />
             </div>
@@ -734,7 +734,7 @@ export default function TestCommands() {
               <Label>Template de Resposta *</Label>
               <Textarea
                 value={commandForm.response_template}
-                onChange={(e) => setCommandForm({ ...commandForm, response_template: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCommandForm({ ...commandForm, response_template: e.target.value })}
                 placeholder="✅ *Teste Gerado!*&#10;&#10;{response}"
                 rows={4}
                 required
@@ -746,7 +746,7 @@ export default function TestCommands() {
             <div className="flex items-center gap-2">
               <Switch
                 checked={commandForm.is_active}
-                onCheckedChange={(v) => setCommandForm({ ...commandForm, is_active: v })}
+                onCheckedChange={(v: boolean) => setCommandForm({ ...commandForm, is_active: v })}
               />
               <Label>Comando ativo</Label>
             </div>
