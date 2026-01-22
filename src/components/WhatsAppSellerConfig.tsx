@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
@@ -27,8 +26,7 @@ import {
   Lock,
   PartyPopper,
   CheckCircle2,
-  Sparkles,
-  Clock
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -494,34 +492,36 @@ export function WhatsAppSellerConfig() {
             await supabase.from('whatsapp_seller_instances').delete().eq('id', instance.id);
           }
           const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
-        body: { action: 'auto_create' },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast.success(`Nova instância criada: ${data.instance_name}`);
-        await refetch();
-        
-        // Auto-get QR code
-        if (data.qrcode) {
-          setQrCode(data.qrcode);
-        } else {
-          const { data: qrData } = await supabase.functions.invoke('configure-seller-instance', {
-            body: { action: 'get_qrcode' },
+            body: { action: 'auto_create' },
           });
-          if (qrData?.qrcode) {
-            setQrCode(qrData.qrcode);
+
+          if (error) throw error;
+
+          if (data.success) {
+            toast.success(`Nova instância criada: ${data.instance_name}`);
+            await refetch();
+            
+            // Auto-get QR code
+            if (data.qrcode) {
+              setQrCode(data.qrcode);
+            } else {
+              const { data: qrData } = await supabase.functions.invoke('configure-seller-instance', {
+                body: { action: 'get_qrcode' },
+              });
+              if (qrData?.qrcode) {
+                setQrCode(qrData.qrcode);
+              }
+            }
+          } else {
+            toast.error(data.error || 'Erro ao criar nova instância');
           }
+        } catch (err: any) {
+          toast.error('Erro: ' + err.message);
+        } finally {
+          setIsRecreating(false);
         }
-      } else {
-        toast.error(data.error || 'Erro ao criar nova instância');
-      }
-    } catch (err: any) {
-      toast.error('Erro: ' + err.message);
-    } finally {
-      setIsRecreating(false);
-    }
+      },
+    });
   };
 
   if (isLoading || isLoadingConfig) {
@@ -613,6 +613,7 @@ export function WhatsAppSellerConfig() {
   const apiInactive = !isApiActive || !apiConfigured;
 
   return (
+    <>
     <div className="space-y-6">
       {/* Connection Status Card */}
       <div className={cn(
@@ -1026,5 +1027,9 @@ export function WhatsAppSellerConfig() {
         </ul>
       </div>
     </div>
+    
+    {/* Global Confirm Dialog */}
+    <ConfirmDialog {...dialogProps} />
+  </>
   );
 }
