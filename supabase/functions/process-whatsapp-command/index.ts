@@ -103,8 +103,9 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (cmdError) {
-      console.error('[process-command] DB error:', cmdError);
-      throw cmdError;
+      const errorMsg = cmdError.message || cmdError.details || JSON.stringify(cmdError);
+      console.error('[process-command] DB error:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     if (!commandData) {
@@ -229,7 +230,17 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+    // Handle all error types properly
+    let message = 'Unknown error';
+    if (error instanceof Error) {
+      message = error.message;
+    } else if (typeof error === 'string') {
+      message = error;
+    } else if (error && typeof error === 'object') {
+      // Handle PostgrestError and other object errors
+      const errObj = error as Record<string, unknown>;
+      message = errObj.message as string || errObj.error as string || errObj.details as string || JSON.stringify(error);
+    }
     console.error('[process-command] Error:', message);
     return new Response(
       JSON.stringify({ success: false, error: message }),
