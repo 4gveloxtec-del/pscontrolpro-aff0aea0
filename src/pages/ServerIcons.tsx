@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plus, Trash2, Edit, Server, Image, ExternalLink } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface ServerIcon {
   id: string;
@@ -20,6 +22,7 @@ interface ServerIcon {
 
 const ServerIcons = () => {
   const { user } = useAuth();
+  const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIcon, setEditingIcon] = useState<ServerIcon | null>(null);
@@ -256,9 +259,13 @@ const ServerIcons = () => {
                     size="sm"
                     className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                     onClick={() => {
-                      if (confirm('Remover este ícone?')) {
-                        deleteMutation.mutate(icon.id);
-                      }
+                      confirm({
+                        title: 'Remover ícone',
+                        description: `Tem certeza que deseja remover o ícone "${icon.name}"?`,
+                        confirmText: 'Remover',
+                        variant: 'destructive',
+                        onConfirm: () => deleteMutation.mutate(icon.id),
+                      });
                     }}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -281,6 +288,8 @@ const ServerIcons = () => {
           <p>• Se o revendedor definir um ícone personalizado, ele terá prioridade sobre o padrão</p>
         </CardContent>
       </Card>
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

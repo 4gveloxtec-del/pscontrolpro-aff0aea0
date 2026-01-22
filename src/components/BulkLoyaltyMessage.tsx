@@ -13,6 +13,8 @@ import { Heart, Users, CheckCircle, X, Play, Pause, RotateCcw, Gift, Phone, Cale
 import { cn } from '@/lib/utils';
 import { useSentMessages } from '@/hooks/useSentMessages';
 import { differenceInDays, parseISO } from 'date-fns';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface Template {
   id: string;
@@ -62,6 +64,7 @@ export function BulkLoyaltyMessage({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(true);
   
+  const { dialogProps, confirm } = useConfirmDialog();
   const { 
     getSentCountByType, 
     getClientsSentByType,
@@ -219,10 +222,16 @@ export function BulkLoyaltyMessage({
 
   // Reset all sent marks for this type
   const handleResetSentMarks = () => {
-    if (confirm(`Limpar todas as marcações de envio para ${selectedTemplateType === 'loyalty' ? 'Fidelização' : 'Indicação'}?`)) {
-      clearAllSentMarks(selectedTemplateType);
-      toast.success('Marcações limpas!');
-    }
+    confirm({
+      title: 'Limpar marcações de envio',
+      description: `Tem certeza que deseja limpar todas as marcações de envio para ${selectedTemplateType === 'loyalty' ? 'Fidelização' : 'Indicação'}?`,
+      confirmText: 'Limpar',
+      variant: 'destructive',
+      onConfirm: () => {
+        clearAllSentMarks(selectedTemplateType);
+        toast.success('Marcações limpas!');
+      },
+    });
   };
 
   const progress = queue.length > 0 ? ((currentIndex) / queue.length) * 100 : 0;
@@ -450,6 +459,9 @@ export function BulkLoyaltyMessage({
           </div>
         </div>
       </DialogContent>
+      
+      {/* Global Confirm Dialog */}
+      <ConfirmDialog {...dialogProps} />
     </Dialog>
   );
 }
