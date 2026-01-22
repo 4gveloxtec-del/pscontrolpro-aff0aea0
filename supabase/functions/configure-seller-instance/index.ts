@@ -5,8 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Fixed global webhook URL
-const GLOBAL_WEBHOOK_URL = "https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/chatbot-webhook";
+// Fixed global webhook URL - points to connection-heartbeat which handles all webhook events
+const GLOBAL_WEBHOOK_URL = "https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat";
 
 // Clean and normalize API URL
 function normalizeApiUrl(url: string): string {
@@ -120,6 +120,7 @@ async function configureWebhook(
     console.log(`Configuring webhook at: ${webhookUrl}`);
     console.log(`Webhook target: ${GLOBAL_WEBHOOK_URL}`);
 
+    // Use the correct nested webhook format for Evolution API
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
@@ -127,47 +128,28 @@ async function configureWebhook(
         'apikey': apiToken,
       },
       body: JSON.stringify({
-        url: GLOBAL_WEBHOOK_URL,
-        webhook_by_events: false,
-        webhook_base64: false,
-        events: [
-          "MESSAGES_UPSERT",
-          "MESSAGES_UPDATE",
-          "CONNECTION_UPDATE",
-          "QRCODE_UPDATED"
-        ],
+        webhook: {
+          url: GLOBAL_WEBHOOK_URL,
+          enabled: true,
+          webhookByEvents: false,
+          webhookBase64: false,
+          events: [
+            "MESSAGES_UPSERT",
+            "CONNECTION_UPDATE",
+            "QRCODE_UPDATED"
+          ]
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Webhook configuration error:', response.status, errorText);
-      
-      // Try alternative endpoint format
-      const altUrl = `${baseUrl}/instance/setWebhook/${instanceName}`;
-      console.log(`Trying alternative: ${altUrl}`);
-      
-      const altResponse = await fetch(altUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': apiToken,
-        },
-        body: JSON.stringify({
-          url: GLOBAL_WEBHOOK_URL,
-          enabled: true,
-          events: ["MESSAGES_UPSERT"]
-        }),
-      });
-      
-      if (!altResponse.ok) {
-        const altError = await altResponse.text();
-        console.error('Alternative webhook configuration failed:', altError);
-        return { success: false, error: `Falha ao configurar webhook: ${response.status}` };
-      }
+      return { success: false, error: `Falha ao configurar webhook: ${response.status}` };
     }
 
-    console.log('Webhook configured successfully');
+    const result = await response.json();
+    console.log('Webhook configured successfully:', result);
     return { success: true };
   } catch (error: unknown) {
     console.error('Error configuring webhook:', error);
