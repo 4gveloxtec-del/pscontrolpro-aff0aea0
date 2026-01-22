@@ -680,7 +680,6 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
 
     const messageType = selectedTemplate ? templates.find(t => t.id === selectedTemplate)?.type || 'custom' : 'custom';
     const templateName = selectedTemplate ? templates.find(t => t.id === selectedTemplate)?.name : undefined;
-    const phone = platform === 'telegram' ? (client.telegram || '') : (client.phone || '');
 
     // Always save to history (online-only mode)
     await saveHistoryMutation.mutateAsync({

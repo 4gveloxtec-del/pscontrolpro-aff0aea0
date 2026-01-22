@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
@@ -102,18 +102,7 @@ export function FloatingNotifications() {
     refetchInterval: 60000,
   });
 
-  const { data: plans = [] } = useQuery({
-    queryKey: ['plans-for-notifications', user?.id],
-    queryFn: async () => {
-      if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('plans')
-        .select('id, duration_days');
-      if (error) throw error;
-      return data as Plan[] || [];
-    },
-    enabled: !!user?.id && isSeller,
-  });
+  // Plans query removed - was not being used anywhere
 
   // Fetch external apps expiring soon (0-30 days)
   const { data: expiringExternalApps = [] } = useQuery({
@@ -344,7 +333,7 @@ export function FloatingNotifications() {
     return 'text-warning/70 bg-warning/10';
   };
 
-  const openWhatsApp = (phone: string, name: string) => {
+  const openWhatsApp = (phone: string, _name: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     window.open(`https://wa.me/${formattedPhone}`, '_blank');

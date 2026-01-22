@@ -44,7 +44,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { SendMessageDialog } from '@/components/SendMessageDialog';
 import { PlanSelector } from '@/components/PlanSelector';
-import { SharedCreditSelection } from '@/components/SharedCreditPicker';
+import type { SharedCreditSelection } from '@/components/SharedCreditPicker';
 import { DnsFieldsSection, SharedCreditsSection, AppsSection, AdditionalServersSection } from '@/components/client-form';
 import { Badge } from '@/components/ui/badge';
 import { ClientExternalAppsDisplay } from '@/components/ClientExternalApps';
