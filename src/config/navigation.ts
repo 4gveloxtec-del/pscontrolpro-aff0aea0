@@ -20,6 +20,7 @@ import {
   HeartPulse,
   Smartphone,
   Terminal,
+  UserSearch,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -48,6 +49,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { title: 'Clientes', href: '/clients', icon: Users, sellerOnly: true },
+      { title: 'Consulta 360°', href: '/consulta-avancada', icon: UserSearch, sellerOnly: true },
       { title: 'Meus Aplicativos', href: '/my-apps', icon: Smartphone, sellerOnly: true },
       { title: 'Apps Pagos', href: '/external-apps', icon: AppWindow, sellerOnly: true },
       { title: 'Servidores', href: '/servers', icon: Server, sellerOnly: true },

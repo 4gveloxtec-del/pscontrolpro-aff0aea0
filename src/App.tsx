@@ -48,6 +48,7 @@ const Tutorials = lazy(() => import("./pages/Tutorials"));
 const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
 const TestCommands = lazy(() => import("./pages/TestCommands"));
+const ClientLookup = lazy(() => import("./pages/ClientLookup"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ProjectDocumentation = lazy(() => import("./pages/ProjectDocumentation"));
 
@@ -215,6 +216,7 @@ const AppRoutes = () => {
           <Route path="/external-apps" element={<ExternalApps />} />
           <Route path="/my-apps" element={<MyApps />} />
           <Route path="/test-commands" element={<TestCommands />} />
+          <Route path="/consulta-avancada" element={<SellerOnly><ClientLookup /></SellerOnly>} />
           
           {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
           <Route path="/sellers" element={
