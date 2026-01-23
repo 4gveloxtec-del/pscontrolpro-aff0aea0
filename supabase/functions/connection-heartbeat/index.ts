@@ -355,6 +355,21 @@ Deno.serve(async (req: Request) => {
       
       console.log(`[Webhook] Found seller_id: ${instance.seller_id} for instance: ${instanceName}`);
 
+      // -------- LOG ALL INCOMING WEBHOOK EVENTS FOR DEBUGGING --------
+      try {
+        await supabase.from('connection_logs').insert({
+          seller_id: instance.seller_id,
+          instance_name: instanceName,
+          event_type: event || 'unknown',
+          event_source: 'evolution_webhook',
+          is_connected: instance.is_connected,
+          metadata: { raw_event: rawEvent, keys: Object.keys(body) },
+        });
+      } catch (logErr) {
+        console.error('[Webhook] Failed to log event:', logErr);
+      }
+      // ----------------------------------------------------------------
+
       // Handle different webhook events
       let newConnectionState = instance.is_connected;
       let sessionValid = true;
