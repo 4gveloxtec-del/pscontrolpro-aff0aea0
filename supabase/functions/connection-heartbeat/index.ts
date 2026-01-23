@@ -260,13 +260,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    // NOTE: Some webhook providers may send JSON with unexpected headers; parse from text for robustness.
+    const rawText = await req.text().catch(() => "");
+    let body: any = {};
+    try {
+      body = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      body = {};
+    }
+
     const { action, seller_id, webhook_event } = body;
 
     // ============================================================
     // WEBHOOK HANDLER - Receive events from Evolution API
+    // IMPORTANT: Evolution sends webhooks with { event, instance, data } (no action/webhook_event)
     // ============================================================
-    if (action === 'webhook' || webhook_event) {
+    const isWebhookRequest = action === 'webhook' || !!webhook_event || !!(body as any)?.event;
+
+    if (isWebhookRequest) {
       // Log full payload for debugging - ENHANCED
       const fullPayloadStr = JSON.stringify(body);
       console.log('[Webhook] ===== INCOMING WEBHOOK =====');
@@ -409,8 +420,9 @@ Deno.serve(async (req: Request) => {
             // ===============================================================
             // MENSAGENS RECEBIDAS - Verificar se é comando
             // ===============================================================
-            if (messageText.startsWith('/')) {
-              console.log(`[Webhook] Command detected: "${messageText}" from ${senderPhone}`);
+            const trimmedForCommand = String(messageText || '').trimStart();
+            if (trimmedForCommand.startsWith('/')) {
+              console.log(`[Webhook] Command detected: "${trimmedForCommand}" from ${senderPhone}`);
               
               // Buscar configuração de logs do seller
               const { data: configData } = await supabase
@@ -433,7 +445,7 @@ Deno.serve(async (req: Request) => {
                   },
                   body: JSON.stringify({
                     seller_id: instance.seller_id,
-                    command_text: messageText.trim(),
+                    command_text: trimmedForCommand.trim(),
                     sender_phone: senderPhone,
                     instance_name: instanceName,
                     logs_enabled: logsEnabled,
