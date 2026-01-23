@@ -119,8 +119,34 @@ export function TestIntegrationConfig() {
     logs_enabled: true,
   });
 
-  // Update form when config loads - using useEffect properly
+  // Default form values constant
+  const defaultFormData = {
+    server_id: '',
+    category: 'IPTV',
+    client_name_prefix: 'Teste',
+    map_login_path: 'username',
+    map_password_path: 'password',
+    map_dns_path: 'dns',
+    map_expiration_path: 'expiresAtFormatted',
+    auto_create_client: true,
+    send_welcome_message: false,
+    detect_renewal_enabled: true,
+    detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+    logs_enabled: true,
+  };
+
+  // Unified effect: Reset to defaults when no API selected, load config when available
   useEffect(() => {
+    if (!selectedApiId) {
+      // No API selected - reset to defaults
+      setFormData(defaultFormData);
+      return;
+    }
+    
+    // API selected but config not loaded yet - wait
+    if (configLoading) return;
+    
+    // API selected and config loaded (or null if new)
     if (config) {
       setFormData({
         server_id: config.server_id || '',
@@ -136,28 +162,11 @@ export function TestIntegrationConfig() {
         detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
         logs_enabled: config.logs_enabled ?? true,
       });
+    } else {
+      // New API without existing config - use defaults
+      setFormData(defaultFormData);
     }
-  }, [config]);
-  
-  // Reset form when API selection changes
-  useEffect(() => {
-    if (!selectedApiId) {
-      setFormData({
-        server_id: '',
-        category: 'IPTV',
-        client_name_prefix: 'Teste',
-        map_login_path: 'username',
-        map_password_path: 'password',
-        map_dns_path: 'dns',
-        map_expiration_path: 'expiresAtFormatted',
-        auto_create_client: true,
-        send_welcome_message: false,
-        detect_renewal_enabled: true,
-        detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
-        logs_enabled: true,
-      });
-    }
-  }, [selectedApiId]);
+  }, [selectedApiId, config, configLoading]);
 
   // Save mutation
   const saveMutation = useMutation({
