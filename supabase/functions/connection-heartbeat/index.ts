@@ -171,24 +171,48 @@ function extractWhatsAppMessageText(msg: any): string {
 // participantAlt or in the webhook-level `sender` field.
 function normalizeJidToPhone(jid: string): string {
   if (!jid) return '';
+  
+  // Skip LID-only values (internal WhatsApp IDs, not phone numbers)
+  // LIDs look like: 131417912660033@lid or just a long number without country code format
+  if (jid.includes('@lid') && !jid.includes('@s.whatsapp.net')) {
+    // LID without phone number - need to get from participantAlt or sender
+    return '';
+  }
+  
   const raw = jid
     .replace('@s.whatsapp.net', '')
     .replace('@c.us', '')
     .replace('@lid', '');
-  return String(raw).replace(/\D/g, '');
+  
+  // Validate it looks like a phone number (should start with country code)
+  const digits = String(raw).replace(/\D/g, '');
+  
+  // Phone numbers should be 10-15 digits (with country code)
+  // LIDs are typically longer or have unusual patterns
+  if (digits.length >= 10 && digits.length <= 15) {
+    return digits;
+  }
+  
+  return '';
 }
 
 function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string {
+  // Priority order: prefer fields that are more likely to have the real phone number
   const candidates: string[] = [
+    // participantAlt usually has the real phone when participant is LID
     msg?.key?.participantAlt,
     msg?.participantAlt,
-    msg?.key?.participant,
-    msg?.participant,
+    // Webhook-level sender field from Evolution API
+    body?.sender,
+    eventData?.sender,
+    // For individual chats, remoteJid IS the sender's phone
     msg?.key?.remoteJid,
     msg?.remoteJid,
-    eventData?.sender,
+    // Fallback to participant (may be LID)
+    msg?.key?.participant,
+    msg?.participant,
+    // Deep nested possibilities
     eventData?.data?.sender,
-    body?.sender,
     body?.data?.sender,
   ].filter(Boolean);
 
