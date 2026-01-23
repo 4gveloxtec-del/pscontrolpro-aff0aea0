@@ -14,7 +14,8 @@ import {
   RefreshCw,
   Smartphone,
   Unplug,
-  Activity
+  Activity,
+  Pencil
 } from 'lucide-react';
 import {
   Dialog,
@@ -46,6 +47,7 @@ export function SimplifiedWhatsAppConfig() {
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isRecreating, setIsRecreating] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
   const [status, setStatus] = useState<InstanceStatus | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -322,6 +324,38 @@ export function SimplifiedWhatsAppConfig() {
     });
   };
 
+  // Rename instance to use company name
+  const handleRenameInstance = () => {
+    confirm({
+      title: 'Renomear instância',
+      description: 'Sua instância será renomeada para usar o nome da sua empresa. Você precisará escanear o QR Code novamente para reconectar. Certifique-se de ter configurado o nome da empresa em Configurações.',
+      confirmText: 'Renomear',
+      variant: 'warning',
+      onConfirm: async () => {
+        setIsRenaming(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'rename_instance' },
+          });
+          if (error) throw error;
+          if (data.success) {
+            toast.success(data.message || `Instância renomeada para: ${data.new_name}`);
+            await loadStatus();
+            if (data.qrcode) {
+              setQrCode(data.qrcode);
+            }
+          } else {
+            toast.error(data.error || 'Erro ao renomear instância');
+          }
+        } catch (err: any) {
+          toast.error('Erro: ' + err.message);
+        } finally {
+          setIsRenaming(false);
+        }
+      },
+    });
+  };
+
   // Recreate instance with new auto-generated name
   const handleRecreateInstance = () => {
     confirm({
@@ -561,6 +595,21 @@ export function SimplifiedWhatsAppConfig() {
                 <Button 
                   variant="outline" 
                   size="sm"
+                  onClick={handleRenameInstance}
+                  disabled={isRenaming}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                >
+                  {isRenaming ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Pencil className="h-4 w-4 mr-2" />
+                  )}
+                  Renomear
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
                   onClick={handleDisconnect}
                   disabled={isDisconnecting}
                   className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -585,12 +634,12 @@ export function SimplifiedWhatsAppConfig() {
                   ) : (
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
-                  Recriar Instância
+                  Recriar
                 </Button>
               </div>
               
               <p className="text-xs text-green-700 dark:text-green-400">
-                💡 Use "Recriar Instância" para gerar um novo nome automático e ativar as configurações mais recentes do chatbot
+                ✏️ <strong>Renomear:</strong> Usa o nome da sua empresa configurado em "Configurações"
               </p>
             </CardContent>
           </Card>
