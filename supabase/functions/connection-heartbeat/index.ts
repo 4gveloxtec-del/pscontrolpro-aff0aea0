@@ -1,9 +1,83 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Default renewal keywords
+const DEFAULT_RENEWAL_KEYWORDS = ['renovado', 'renovação', 'renovacao', 'renewed', 'prorrogado', 'estendido', 'renovou', 'extensão'];
+
+/**
+ * Detecta se uma mensagem enviada é de renovação e sincroniza o cliente no app
+ * SEM enviar notificação duplicada (a API do servidor já enviou)
+ */
+async function detectAndSyncRenewal(
+  supabase: SupabaseClient,
+  sellerId: string,
+  clientPhone: string,
+  messageText: string
+): Promise<void> {
+  if (!messageText || messageText.length < 10) return;
+  
+  try {
+    // Buscar configuração de integração do seller
+    const { data: config } = await supabase
+      .from('test_integration_config')
+      .select('detect_renewal_enabled, detect_renewal_keywords')
+      .eq('seller_id', sellerId)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    // Se não tem config ou detecção desabilitada, ignorar
+    if (!config?.detect_renewal_enabled) {
+      return;
+    }
+    
+    // Usar keywords configuradas ou padrão
+    const keywords: string[] = config?.detect_renewal_keywords && Array.isArray(config.detect_renewal_keywords)
+      ? config.detect_renewal_keywords
+      : DEFAULT_RENEWAL_KEYWORDS;
+    
+    const lowerMessage = messageText.toLowerCase();
+    
+    // Verificar se contém alguma keyword de renovação
+    const hasRenewalKeyword = keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()));
+    
+    if (!hasRenewalKeyword) {
+      return; // Não é mensagem de renovação
+    }
+    
+    console.log(`[Webhook] Renewal message detected for phone ${clientPhone}: "${messageText.substring(0, 100)}..."`);
+    
+    // Chamar função de sincronização de renovação
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/sync-client-renewal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        seller_id: sellerId,
+        client_phone: clientPhone,
+        message_content: messageText,
+        source: 'message_detection',
+      }),
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`[Webhook] Renewal sync result:`, JSON.stringify(result));
+    } else {
+      console.error(`[Webhook] Renewal sync failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('[Webhook] Error detecting renewal:', error);
+  }
+}
 
 // Evolution API may send event names as UPPER_SNAKE (e.g. MESSAGES_UPSERT)
 // while our internal switch expects dot-lowercase (e.g. messages.upsert).
@@ -277,14 +351,12 @@ Deno.serve(async (req: Request) => {
           break;
 
         case 'messages.upsert':
-          // Processar mensagens recebidas - verificar se é comando
+          // Processar mensagens recebidas/enviadas
           const messages = eventData.messages || eventData.data?.messages || [];
           for (const msg of messages) {
-            // Ignorar mensagens enviadas pelo bot
-            if (msg.key?.fromMe) continue;
+            const remoteJid = msg.key?.remoteJid || '';
             
             // Ignorar mensagens de grupos - apenas conversas individuais
-            const remoteJid = msg.key?.remoteJid || '';
             if (remoteJid.includes('@g.us')) {
               console.log(`[Webhook] Ignoring group message from: ${remoteJid}`);
               continue;
@@ -294,10 +366,21 @@ Deno.serve(async (req: Request) => {
                                msg.message?.extendedTextMessage?.text || 
                                '';
             
-            // Verificar se é um comando (começa com /)
+            const senderPhone = remoteJid.replace('@s.whatsapp.net', '') || '';
+            
+            // ===============================================================
+            // MENSAGENS ENVIADAS (fromMe = true) - Detectar renovação da API do servidor
+            // ===============================================================
+            if (msg.key?.fromMe) {
+              // Verificar se é mensagem de renovação automática do servidor
+              await detectAndSyncRenewal(supabase, instance.seller_id, senderPhone, messageText);
+              continue; // Não processar mais nada para mensagens enviadas
+            }
+            
+            // ===============================================================
+            // MENSAGENS RECEBIDAS - Verificar se é comando
+            // ===============================================================
             if (messageText.startsWith('/')) {
-              const senderPhone = remoteJid.replace('@s.whatsapp.net', '') || '';
-              
               console.log(`[Webhook] Command detected: "${messageText}" from ${senderPhone}`);
               
               // Chamar edge function de processamento de comando

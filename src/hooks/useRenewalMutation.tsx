@@ -356,6 +356,7 @@ export function useRenewalMutation(userId: string | undefined) {
         expiration_date: newExpirationDate,
         is_paid: true,
         renewed_at: new Date().toISOString(),
+        renewed_via_api: false, // Renovação manual - pode enviar notificação
       };
 
       // Include plan info if provided
