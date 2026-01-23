@@ -123,27 +123,44 @@ function unwrapWhatsAppMessage(message: any): any {
 }
 
 function extractWhatsAppMessageText(msg: any): string {
+  // Try unwrapping msg.message first (standard structure)
   const unwrapped = unwrapWhatsAppMessage(msg?.message);
+  
+  // Also try unwrapping msg directly (some Evolution payloads put content at root)
+  const unwrappedDirect = unwrapWhatsAppMessage(msg);
 
   const text =
+    // Standard nested structure: msg.message.conversation
     unwrapped?.conversation ||
     unwrapped?.extendedTextMessage?.text ||
-    // Media captions
+    // Direct structure: msg.conversation (seen in some Evolution payloads)
+    unwrappedDirect?.conversation ||
+    unwrappedDirect?.extendedTextMessage?.text ||
+    // Media captions (nested)
     unwrapped?.imageMessage?.caption ||
     unwrapped?.videoMessage?.caption ||
     unwrapped?.documentMessage?.caption ||
-    // Interactive responses
+    // Media captions (direct)
+    unwrappedDirect?.imageMessage?.caption ||
+    unwrappedDirect?.videoMessage?.caption ||
+    unwrappedDirect?.documentMessage?.caption ||
+    // Interactive responses (nested)
     unwrapped?.buttonsResponseMessage?.selectedDisplayText ||
     unwrapped?.buttonsResponseMessage?.selectedButtonId ||
     unwrapped?.listResponseMessage?.singleSelectReply?.selectedRowId ||
     unwrapped?.listResponseMessage?.title ||
     unwrapped?.templateButtonReplyMessage?.selectedDisplayText ||
     unwrapped?.templateButtonReplyMessage?.selectedId ||
+    // Interactive responses (direct)
+    unwrappedDirect?.buttonsResponseMessage?.selectedDisplayText ||
+    unwrappedDirect?.listResponseMessage?.singleSelectReply?.selectedRowId ||
     // Common alternative payload fields from Evolution
     msg?.messageBody ||
     msg?.body ||
     msg?.text ||
     (typeof msg?.message === 'string' ? msg.message : '') ||
+    // Last resort: check if conversation is directly on msg (without unwrap)
+    msg?.conversation ||
     '';
 
   return String(text || '');
