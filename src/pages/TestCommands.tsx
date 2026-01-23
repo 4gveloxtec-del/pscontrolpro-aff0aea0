@@ -1133,7 +1133,7 @@ export default function TestCommands() {
             
             {/* Test Response Preview */}
             {testResponse && (
-              <div className="space-y-3 border rounded-lg p-3 bg-muted/50">
+              <div className="space-y-2 border rounded-lg p-3 bg-muted/50">
                 <div className="flex items-center gap-2 text-xs font-medium text-green-600">
                   <CheckCircle className="h-3.5 w-3.5" />
                   Resposta da API
@@ -1141,87 +1141,94 @@ export default function TestCommands() {
                 <div className="bg-background rounded p-2 text-[10px] font-mono max-h-24 overflow-y-auto">
                   <pre>{JSON.stringify(testResponse, null, 2)}</pre>
                 </div>
-                
-                {/* Custom Response Toggle */}
-                <div className="flex items-center justify-between p-2 border rounded-lg bg-background">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                    <div>
-                      <p className="font-medium text-xs">Personalizar mensagem</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={apiForm.use_custom_response}
-                    onCheckedChange={(v) => setApiForm({ ...apiForm, use_custom_response: v })}
-                  />
-                </div>
-                
-                {apiForm.use_custom_response && (
-                  <>
-                    {/* Variables Available */}
-                    <div className="text-[10px] text-muted-foreground">
-                      <p className="font-medium mb-1">Variáveis da API:</p>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {['{usuario}', '{senha}', '{vencimento}', '{dns}', '{pacote}', '{nome}'].map(v => (
-                          <button
-                            key={v}
-                            type="button"
-                            onClick={() => {
-                              const newTemplate = apiForm.custom_response_template + v;
-                              handleTemplateChange(newTemplate);
-                            }}
-                            className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] hover:bg-primary/20 transition-colors cursor-pointer"
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="font-medium mb-1">Variáveis do sistema:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {['{empresa}', '{pix}', '{servidor}', '{plano}', '{valor}', '{dias_restantes}', '{apps}', '{links}', '{mac}'].map(v => (
-                          <button
-                            key={v}
-                            type="button"
-                            onClick={() => {
-                              const newTemplate = apiForm.custom_response_template + v;
-                              handleTemplateChange(newTemplate);
-                            }}
-                            className="bg-secondary/50 text-secondary-foreground px-1.5 py-0.5 rounded text-[9px] hover:bg-secondary/80 transition-colors cursor-pointer"
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Custom Template Editor */}
-                    <div className="space-y-1.5">
-                      <Label className="text-sm">Mensagem personalizada</Label>
-                      <Textarea
-                        value={apiForm.custom_response_template}
-                        onChange={(e) => handleTemplateChange(e.target.value)}
-                        placeholder={`✅ *Teste!*\n👤 {usuario}\n🔑 {senha}`}
-                        className="font-mono text-xs min-h-[80px]"
-                        rows={4}
-                      />
-                    </div>
-                    
-                    {/* Live Preview */}
-                    {previewMessage && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1 text-xs font-medium">
-                          <Eye className="h-3.5 w-3.5" />
-                          Preview
-                        </div>
-                        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-2">
-                          <pre className="text-xs whitespace-pre-wrap">{previewMessage}</pre>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
             )}
+            
+            {/* Custom Response Section - Always Visible */}
+            <div className={`space-y-3 border-2 rounded-lg p-3 transition-colors ${apiForm.use_custom_response ? 'border-primary bg-primary/5' : 'border-dashed border-muted-foreground/30 bg-muted/30'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-full ${apiForm.use_custom_response ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                    <MessageSquare className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Personalizar Mensagem</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {apiForm.use_custom_response ? 'Ativo - sua mensagem será enviada' : 'Desativado - resposta padrão da API'}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={apiForm.use_custom_response}
+                  onCheckedChange={(v) => setApiForm({ ...apiForm, use_custom_response: v })}
+                />
+              </div>
+              
+              {apiForm.use_custom_response && (
+                <>
+                  {/* Variables Available */}
+                  <div className="text-[10px] text-muted-foreground border-t pt-3">
+                    <p className="font-medium mb-1.5 text-foreground">📦 Variáveis da API:</p>
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {['{usuario}', '{senha}', '{vencimento}', '{dns}', '{pacote}', '{nome}'].map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => {
+                            const newTemplate = apiForm.custom_response_template + v;
+                            handleTemplateChange(newTemplate);
+                          }}
+                          className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] hover:bg-primary/20 transition-colors cursor-pointer"
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="font-medium mb-1.5 text-foreground">⚙️ Variáveis do sistema:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {['{empresa}', '{pix}', '{servidor}', '{plano}', '{valor}', '{dias_restantes}', '{apps}', '{links}', '{mac}'].map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => {
+                            const newTemplate = apiForm.custom_response_template + v;
+                            handleTemplateChange(newTemplate);
+                          }}
+                          className="bg-secondary/50 text-secondary-foreground px-1.5 py-0.5 rounded text-[9px] hover:bg-secondary/80 transition-colors cursor-pointer"
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Custom Template Editor */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">✍️ Sua mensagem personalizada</Label>
+                    <Textarea
+                      value={apiForm.custom_response_template}
+                      onChange={(e) => handleTemplateChange(e.target.value)}
+                      placeholder={`✅ *Teste Gerado!*\n\n👤 Usuário: {usuario}\n🔑 Senha: {senha}\n📅 Validade: {vencimento}\n\n📥 Baixe seu app:\n{links}\n\n🏢 {empresa}`}
+                      className="font-mono text-xs min-h-[100px]"
+                      rows={5}
+                    />
+                  </div>
+                  
+                  {/* Live Preview */}
+                  {previewMessage && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+                        <Eye className="h-3.5 w-3.5" />
+                        Preview da mensagem
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-3">
+                        <pre className="text-xs whitespace-pre-wrap">{previewMessage}</pre>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             
             <div className="space-y-1.5">
               <Label className="text-sm">Caminho da Resposta (opcional)</Label>
