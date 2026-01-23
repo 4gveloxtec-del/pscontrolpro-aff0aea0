@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare } from 'lucide-react';
+import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope } from 'lucide-react';
 import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -111,6 +111,10 @@ export default function TestCommands() {
     response_template: '✅ *Teste Gerado!*\n\n{response}',
     is_active: true,
   });
+
+  // Diagnosis State
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnosisResult, setDiagnosisResult] = useState<any>(null);
 
   // Fetch APIs
   const { data: apis = [], isLoading: apisLoading } = useQuery({
@@ -539,18 +543,137 @@ export default function TestCommands() {
     }
   };
 
+  // Diagnose function
+  const handleDiagnose = async () => {
+    if (!user?.id) return;
+    
+    setDiagnosing(true);
+    setDiagnosisResult(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('connection-heartbeat', {
+        body: { action: 'diagnose', seller_id: user.id },
+      });
+      
+      if (error) throw error;
+      
+      setDiagnosisResult(data?.diagnosis || null);
+      
+      if (data?.diagnosis?.recommendations?.length > 0) {
+        toast.warning('Problemas detectados! Veja os detalhes abaixo.');
+      } else {
+        toast.success('Configuração parece correta!');
+      }
+    } catch (error) {
+      toast.error('Erro ao diagnosticar: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setDiagnosing(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Terminal className="h-5 w-5 text-primary" />
-          Comandos de Teste
-        </h1>
-        <p className="text-xs text-muted-foreground mt-1">
-          Configure comandos para gerar testes via WhatsApp
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Terminal className="h-5 w-5 text-primary" />
+            Comandos de Teste
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Configure comandos para gerar testes via WhatsApp
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleDiagnose}
+          disabled={diagnosing}
+          className="self-start sm:self-center"
+        >
+          {diagnosing ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Stethoscope className="h-4 w-4 mr-2" />
+          )}
+          Diagnosticar
+        </Button>
       </div>
+
+      {/* Diagnosis Result */}
+      {diagnosisResult && (
+        <Card className={`border-2 ${diagnosisResult.recommendations?.length > 0 ? 'border-amber-500 bg-amber-500/10' : 'border-green-500 bg-green-500/10'}`}>
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              {diagnosisResult.recommendations?.length > 0 ? (
+                <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm mb-2">
+                  {diagnosisResult.recommendations?.length > 0 ? 'Problemas Detectados' : 'Tudo OK!'}
+                </h3>
+                
+                {/* Status Summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-3">
+                  <div className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${diagnosisResult.is_connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                    WhatsApp: {diagnosisResult.is_connected ? 'Conectado' : 'Desconectado'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${diagnosisResult.webhook?.configured ? 'bg-green-500' : 'bg-red-500'}`} />
+                    Webhook: {diagnosisResult.webhook?.configured ? 'OK' : 'Erro'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${diagnosisResult.commands?.active > 0 ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    Comandos: {diagnosisResult.commands?.active || 0}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${diagnosisResult.recent_events?.message_events > 0 ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    Msgs recebidas: {diagnosisResult.recent_events?.message_events || 0}
+                  </div>
+                </div>
+                
+                {/* Recommendations */}
+                {diagnosisResult.recommendations?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium">Recomendações:</p>
+                    <ul className="text-xs space-y-1">
+                      {diagnosisResult.recommendations.map((rec: string, i: number) => (
+                        <li key={i} className="flex items-start gap-1">
+                          <span className="text-amber-500">•</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Webhook Details */}
+                {diagnosisResult.webhook?.config && (
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      Ver detalhes do webhook
+                    </summary>
+                    <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-x-auto">
+                      {JSON.stringify(diagnosisResult.webhook.config, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6"
+                onClick={() => setDiagnosisResult(null)}
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4 h-auto">

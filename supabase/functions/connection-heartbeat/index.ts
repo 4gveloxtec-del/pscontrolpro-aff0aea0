@@ -267,12 +267,25 @@ Deno.serve(async (req: Request) => {
     // WEBHOOK HANDLER - Receive events from Evolution API
     // ============================================================
     if (action === 'webhook' || webhook_event) {
+      // Log full payload for debugging
+      console.log('[Webhook] FULL PAYLOAD:', JSON.stringify(body).substring(0, 2000));
+      
       const rawEvent = webhook_event || body.event;
       const event = normalizeWebhookEvent(rawEvent);
-      const instanceName = body.instance || body.data?.instance?.instanceName;
+      
+      // Enhanced instance name extraction - handle multiple payload formats
+      const instanceName = 
+        body.instance || 
+        body.data?.instance?.instanceName ||
+        body.data?.instance?.name ||
+        body.instanceName ||
+        body.sender?.instance ||
+        body.apikey?.instanceName ||
+        (body.data?.key?.remoteJid ? body.instance : null);
+      
       const eventData = body.data || body;
       
-      console.log('[Webhook] Received event:', rawEvent || 'unknown', '=>', event || 'unknown', 'instance:', instanceName || 'unknown');
+      console.log('[Webhook] Parsed - event:', rawEvent || 'unknown', '=>', event || 'unknown', 'instance:', instanceName || 'unknown');
       
       if (!instanceName) {
         return new Response(
@@ -971,6 +984,140 @@ Deno.serve(async (req: Request) => {
         
         return new Response(
           JSON.stringify({ success: true, deleted: result.data }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ============================================================
+      // DIAGNOSE WEBHOOK - Check if webhook is configured correctly
+      // ============================================================
+      case 'diagnose': {
+        if (!seller_id) {
+          return new Response(
+            JSON.stringify({ error: 'seller_id required' }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const { data: instance } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('*')
+          .eq('seller_id', seller_id)
+          .maybeSingle();
+
+        if (!instance?.instance_name) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Instância não encontrada',
+              diagnosis: {
+                instance_configured: false,
+              }
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Check webhook configuration on Evolution API
+        const baseUrl = normalizeApiUrl(globalConfig.api_url);
+        let webhookConfig = null;
+        let webhookError = null;
+
+        try {
+          const webhookCheckUrl = `${baseUrl}/webhook/find/${instance.instance_name}`;
+          console.log(`[Diagnose] Checking webhook at: ${webhookCheckUrl}`);
+          
+          const webhookResponse = await fetch(webhookCheckUrl, {
+            method: 'GET',
+            headers: {
+              'apikey': globalConfig.api_token,
+            },
+          });
+
+          if (webhookResponse.ok) {
+            webhookConfig = await webhookResponse.json();
+            console.log('[Diagnose] Webhook config:', JSON.stringify(webhookConfig));
+          } else {
+            webhookError = `${webhookResponse.status} - ${await webhookResponse.text()}`;
+          }
+        } catch (err) {
+          webhookError = (err as Error).message;
+        }
+
+        // Check recent connection logs
+        const { data: recentLogs } = await supabase
+          .from('connection_logs')
+          .select('event_type, created_at, event_source')
+          .eq('seller_id', seller_id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        // Check if we received any messages.upsert events
+        const messageEvents = recentLogs?.filter(l => l.event_type === 'messages.upsert') || [];
+
+        // Check for commands
+        const { data: commands } = await supabase
+          .from('whatsapp_commands')
+          .select('id, command, is_active')
+          .eq('owner_id', seller_id);
+
+        // Check test integration config
+        const { data: testConfig } = await supabase
+          .from('test_integration_config')
+          .select('*')
+          .eq('seller_id', seller_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        const diagnosis = {
+          instance_configured: true,
+          instance_name: instance.instance_name,
+          is_connected: instance.is_connected,
+          session_valid: instance.session_valid,
+          last_heartbeat: instance.last_heartbeat_at,
+          webhook: {
+            configured: webhookConfig !== null,
+            config: webhookConfig,
+            error: webhookError,
+            expected_url: 'https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat',
+          },
+          commands: {
+            total: commands?.length || 0,
+            active: commands?.filter(c => c.is_active).length || 0,
+            list: commands?.map(c => ({ command: c.command, active: c.is_active })) || [],
+          },
+          test_integration: {
+            configured: testConfig !== null,
+            auto_create_client: testConfig?.auto_create_client,
+            logs_enabled: testConfig?.logs_enabled,
+          },
+          recent_events: {
+            total: recentLogs?.length || 0,
+            message_events: messageEvents.length,
+            events: recentLogs?.map(l => ({ type: l.event_type, source: l.event_source, at: l.created_at })) || [],
+          },
+          recommendations: [] as string[],
+        };
+
+        // Generate recommendations
+        if (!instance.is_connected) {
+          diagnosis.recommendations.push('A instância WhatsApp não está conectada. Reconecte escaneando o QR Code.');
+        }
+        if (!webhookConfig) {
+          diagnosis.recommendations.push('Webhook não encontrado na Evolution API. Reconfigure o webhook.');
+        } else if (webhookConfig.webhook?.url !== diagnosis.webhook.expected_url && 
+                   webhookConfig.url !== diagnosis.webhook.expected_url) {
+          diagnosis.recommendations.push('URL do webhook incorreta. Reconfigure o webhook.');
+        }
+        if (messageEvents.length === 0) {
+          diagnosis.recommendations.push('Nenhum evento de mensagem recebido. Envie uma mensagem de teste para verificar.');
+        }
+        if (!commands || commands.length === 0) {
+          diagnosis.recommendations.push('Nenhum comando configurado. Crie um comando /teste.');
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, diagnosis }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
