@@ -119,25 +119,32 @@ export function TestIntegrationConfig() {
     logs_enabled: true,
   });
 
-  // Update form when config loads
-  useState(() => {
-    if (config) {
-      setFormData({
-        server_id: config.server_id || '',
-        category: config.category || 'IPTV',
-        client_name_prefix: config.client_name_prefix || 'Teste',
-        map_login_path: config.map_login_path || 'username',
-        map_password_path: config.map_password_path || 'password',
-        map_dns_path: config.map_dns_path || 'dns',
-        map_expiration_path: config.map_expiration_path || 'expiresAtFormatted',
-        auto_create_client: config.auto_create_client ?? true,
-        send_welcome_message: config.send_welcome_message ?? false,
-        detect_renewal_enabled: config.detect_renewal_enabled ?? true,
-        detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
-        logs_enabled: config.logs_enabled ?? true,
-      });
-    }
-  });
+  // Update form when config loads - using useEffect properly
+  const [configLoaded, setConfigLoaded] = useState(false);
+  
+  // Effect to update form when config changes
+  if (config && !configLoaded) {
+    setFormData({
+      server_id: config.server_id || '',
+      category: config.category || 'IPTV',
+      client_name_prefix: config.client_name_prefix || 'Teste',
+      map_login_path: config.map_login_path || 'username',
+      map_password_path: config.map_password_path || 'password',
+      map_dns_path: config.map_dns_path || 'dns',
+      map_expiration_path: config.map_expiration_path || 'expiresAtFormatted',
+      auto_create_client: config.auto_create_client ?? true,
+      send_welcome_message: config.send_welcome_message ?? false,
+      detect_renewal_enabled: config.detect_renewal_enabled ?? true,
+      detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+      logs_enabled: config.logs_enabled ?? true,
+    });
+    setConfigLoaded(true);
+  }
+  
+  // Reset configLoaded when API changes
+  if (!config && configLoaded) {
+    setConfigLoaded(false);
+  }
 
   // Save mutation
   const saveMutation = useMutation({
@@ -187,6 +194,7 @@ export function TestIntegrationConfig() {
     onSuccess: () => {
       toast.success('Configuração salva!');
       queryClient.invalidateQueries({ queryKey: ['test-integration-config'] });
+      setConfigLoaded(false); // Reset to allow reload
       refetchConfig();
     },
     onError: (error: Error) => {
@@ -290,7 +298,7 @@ export function TestIntegrationConfig() {
 
                 {formData.auto_create_client && (
                   <>
-                    {/* Server Selection */}
+                    {/* Server Selection - Auto-save on change */}
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <Server className="h-4 w-4" />
@@ -303,9 +311,16 @@ export function TestIntegrationConfig() {
                       ) : (
                         <Select
                           value={formData.server_id}
-                          onValueChange={(value) => setFormData({ ...formData, server_id: value })}
+                          onValueChange={(value) => {
+                            setFormData({ ...formData, server_id: value });
+                            // Auto-save when server is selected
+                            const selectedServer = servers.find(s => s.id === value);
+                            if (selectedServer && selectedApiId) {
+                              toast.success(`Servidor "${selectedServer.name}" selecionado! Clique em Salvar para confirmar.`);
+                            }
+                          }}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className={formData.server_id ? 'border-green-500' : ''}>
                             <SelectValue placeholder="Selecione o servidor" />
                           </SelectTrigger>
                           <SelectContent>
@@ -316,6 +331,11 @@ export function TestIntegrationConfig() {
                             ))}
                           </SelectContent>
                         </Select>
+                      )}
+                      {formData.server_id && (
+                        <p className="text-xs text-green-600">
+                          ✓ Servidor configurado - clientes de teste serão vinculados a ele
+                        </p>
                       )}
                     </div>
 
