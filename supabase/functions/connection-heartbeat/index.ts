@@ -236,11 +236,11 @@ function getSenderPhoneFromWebhook(
       msg?.participantAlt,
       msg?.key?.participant,
       msg?.participant,
-      // Avoid webhook-level sender in groups as it might be instance number
+      eventData?.sender,
+      body?.sender,
     ];
   } else if (isFromMe) {
     // SENT messages: remoteJid is the RECIPIENT (the person we're sending TO)
-    // We need this for detecting renewal sync (who received the message)
     candidates = [
       msg?.key?.remoteJid,
       msg?.remoteJid,
@@ -251,30 +251,15 @@ function getSenderPhoneFromWebhook(
     // remoteJid is the SENDER (the CLIENT who sent us the message)
     // This is where we need to send the RESPONSE
     // =====================================================================
-    // Priority order for received messages:
-    // 1. remoteJid - This is THE primary field for received messages
-    // 2. participantAlt - Fallback for some Evolution versions
-    // 3. pushName related fields should NOT be used (they're display names, not phones)
-    // 
-    // IMPORTANT: We DO NOT use body.sender or eventData.sender for received messages
-    // because these often contain the INSTANCE's own number, not the client's!
     candidates = [
       msg?.key?.remoteJid,
       msg?.remoteJid,
-      // Fallback to participantAlt if remoteJid fails (some Evolution versions)
       msg?.key?.participantAlt,
       msg?.participantAlt,
+      // Add webhook-level sender as fallback
+      eventData?.sender,
+      body?.sender,
     ];
-    
-    // Only add webhook-level sender as LAST resort and only if different from instance
-    const webhookSender = eventData?.sender || body?.sender;
-    if (webhookSender) {
-      const webhookSenderPhone = normalizeJidToPhone(String(webhookSender));
-      // Only add if it's NOT the instance's own number
-      if (webhookSenderPhone && webhookSenderPhone !== instancePhone) {
-        candidates.push(webhookSender);
-      }
-    }
   }
 
   // Log candidates for debugging
@@ -282,18 +267,30 @@ function getSenderPhoneFromWebhook(
   console.log(`[getSenderPhone] instancePhone to avoid: ${instancePhone || 'not provided'}`);
   console.log(`[getSenderPhone] candidates:`, candidates.filter(Boolean).map(c => String(c).substring(0, 30)));
 
+  // First pass: try to find a phone that is NOT the instance's phone
   for (const c of candidates.filter(Boolean)) {
     const phone = normalizeJidToPhone(String(c));
     if (phone) {
-      // CRITICAL: If we have the instance phone, make sure we're not returning it
-      // for received messages (this would cause bot to respond to itself)
-      if (!isFromMe && instancePhone && phone === instancePhone) {
-        console.log(`[getSenderPhone] SKIPPING candidate ${phone} - matches instance phone!`);
+      // If we have instancePhone, skip if it matches
+      if (instancePhone && phone === instancePhone) {
+        console.log(`[getSenderPhone] Skipping candidate ${phone} - matches instance phone`);
         continue;
       }
-      
       console.log(`[getSenderPhone] Extracted phone: ${phone} from candidate: ${String(c).substring(0, 30)}`);
       return phone;
+    }
+  }
+  
+  // Second pass: if no phone found, try again without the instance filter
+  // (better to return something than nothing)
+  if (instancePhone) {
+    console.log(`[getSenderPhone] First pass failed, trying without instance filter...`);
+    for (const c of candidates.filter(Boolean)) {
+      const phone = normalizeJidToPhone(String(c));
+      if (phone) {
+        console.log(`[getSenderPhone] Fallback extracted phone: ${phone} from candidate: ${String(c).substring(0, 30)}`);
+        return phone;
+      }
     }
   }
   
@@ -774,75 +771,75 @@ Deno.serve(async (req: Request) => {
                       // Gerar variações do número para tentar múltiplos formatos
                       const phoneVariants: string[] = [];
                     
-                    // Formato original
-                    phoneVariants.push(cleanPhone);
-                    
-                    // Com DDI 55 se não tiver
-                    if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
-                      phoneVariants.push(`55${cleanPhone}`);
-                    }
-                    
-                    // Sem DDI se tiver
-                    if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
-                      phoneVariants.push(cleanPhone.substring(2));
-                    }
-                    
-                    // Com 9º dígito (celular brasileiro)
-                    if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
-                      const ddd = cleanPhone.substring(2, 4);
-                      const num = cleanPhone.substring(4);
-                      if (!num.startsWith('9') && parseInt(ddd) >= 11) {
-                        phoneVariants.push(`55${ddd}9${num}`);
-                      }
-                    }
-                    
-                    // Sem 9º dígito
-                    if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
-                      const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
-                      phoneVariants.push(without9);
-                    }
-                    
-                    // Dedupe
-                    const uniqueVariants = [...new Set(phoneVariants)];
-                    console.log(`[Webhook] Sending response to ${senderPhone}, trying ${uniqueVariants.length} format(s): ${uniqueVariants.join(', ')}`);
-                    
-                    let messageSent = false;
-                    for (const phoneVariant of uniqueVariants) {
-                      const sendResponse = await fetch(sendUrl, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'apikey': globalConfig.api_token,
-                        },
-                        body: JSON.stringify({
-                          number: phoneVariant,
-                          text: textToSend,
-                        }),
-                      });
+                      // Formato original
+                      phoneVariants.push(cleanPhone);
                       
-                      if (sendResponse.ok) {
-                        console.log(`[Webhook] Command response sent successfully with format: ${phoneVariant}`);
-                        messageSent = true;
-                        break;
-                      } else {
-                        const errText = await sendResponse.text();
-                        console.log(`[Webhook] Format ${phoneVariant} failed (${sendResponse.status}): ${errText.substring(0, 100)}`);
+                      // Com DDI 55 se não tiver
+                      if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+                        phoneVariants.push(`55${cleanPhone}`);
                       }
-                    }
-                    
-                    if (!messageSent) {
-                      console.error(`[Webhook] All ${uniqueVariants.length} phone formats failed for ${senderPhone}`);
-                      // Log failure for debugging - fire and forget
-                      try {
-                        await supabase.from('command_logs').insert({
-                          owner_id: instance.seller_id,
-                          command_text: trimmedForCommand,
-                          sender_phone: senderPhone,
-                          success: false,
-                          error_message: `Failed to send response - all ${uniqueVariants.length} phone formats failed`,
+                      
+                      // Sem DDI se tiver
+                      if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+                        phoneVariants.push(cleanPhone.substring(2));
+                      }
+                      
+                      // Com 9º dígito (celular brasileiro)
+                      if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
+                        const ddd = cleanPhone.substring(2, 4);
+                        const num = cleanPhone.substring(4);
+                        if (!num.startsWith('9') && parseInt(ddd) >= 11) {
+                          phoneVariants.push(`55${ddd}9${num}`);
+                        }
+                      }
+                      
+                      // Sem 9º dígito
+                      if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
+                        const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
+                        phoneVariants.push(without9);
+                      }
+                      
+                      // Dedupe
+                      const uniqueVariants = [...new Set(phoneVariants)];
+                      console.log(`[Webhook] Sending response to ${senderPhone}, trying ${uniqueVariants.length} format(s): ${uniqueVariants.join(', ')}`);
+                      
+                      let messageSent = false;
+                      for (const phoneVariant of uniqueVariants) {
+                        const sendResponse = await fetch(sendUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': globalConfig.api_token,
+                          },
+                          body: JSON.stringify({
+                            number: phoneVariant,
+                            text: textToSend,
+                          }),
                         });
-                      } catch { /* ignore logging errors */ }
-                    }
+                        
+                        if (sendResponse.ok) {
+                          console.log(`[Webhook] Command response sent successfully with format: ${phoneVariant}`);
+                          messageSent = true;
+                          break;
+                        } else {
+                          const errText = await sendResponse.text();
+                          console.log(`[Webhook] Format ${phoneVariant} failed (${sendResponse.status}): ${errText.substring(0, 100)}`);
+                        }
+                      }
+                      
+                      if (!messageSent) {
+                        console.error(`[Webhook] All ${uniqueVariants.length} phone formats failed for ${senderPhone}`);
+                        // Log failure for debugging - fire and forget
+                        try {
+                          await supabase.from('command_logs').insert({
+                            owner_id: instance.seller_id,
+                            command_text: trimmedForCommand,
+                            sender_phone: senderPhone,
+                            success: false,
+                            error_message: `Failed to send response - all ${uniqueVariants.length} phone formats failed`,
+                          });
+                        } catch { /* ignore logging errors */ }
+                      }
                     } else {
                       console.error(`[Webhook] Global config not found or inactive - cannot send response`);
                       // Log this critical issue
