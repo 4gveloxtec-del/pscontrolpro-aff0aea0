@@ -27,14 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare } from 'lucide-react';
 import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
@@ -489,37 +481,39 @@ export default function TestCommands() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Terminal className="h-6 w-6 text-primary" />
-            Comandos de Teste
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Configure comandos personalizados para gerar testes via WhatsApp
-          </p>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <Terminal className="h-5 w-5 text-primary" />
+          Comandos de Teste
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1">
+          Configure comandos para gerar testes via WhatsApp
+        </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="commands" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="commands" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Terminal className="h-4 w-4" />
-            Comandos ({commands.length})
+            <span className="hidden sm:inline">Comandos</span>
+            <span className="sm:hidden">Cmd</span>
+            <span className="text-muted-foreground">({commands.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="apis" className="flex items-center gap-2">
+          <TabsTrigger value="apis" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Link2 className="h-4 w-4" />
-            APIs ({apis.length})
+            <span>APIs</span>
+            <span className="text-muted-foreground">({apis.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="integration" className="flex items-center gap-2">
+          <TabsTrigger value="integration" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Settings className="h-4 w-4" />
-            Integração
+            <span className="hidden sm:inline">Integração</span>
+            <span className="sm:hidden">Config</span>
           </TabsTrigger>
-          <TabsTrigger value="logs" className="flex items-center gap-2">
+          <TabsTrigger value="logs" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Activity className="h-4 w-4" />
-            Logs
+            <span>Logs</span>
           </TabsTrigger>
         </TabsList>
 
@@ -665,64 +659,54 @@ export default function TestCommands() {
         </TabsContent>
 
         {/* Logs Tab */}
-        <TabsContent value="logs" className="space-y-4">
+        <TabsContent value="logs" className="space-y-3">
           {logsLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : logs.length === 0 ? (
             <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhum log de execução.</p>
+              <CardContent className="py-6 text-center text-muted-foreground">
+                <Activity className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">Nenhum log de execução.</p>
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Comando</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Tempo</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-mono">{log.command_text}</TableCell>
-                      <TableCell>{log.sender_phone}</TableCell>
-                      <TableCell>
+            <div className="space-y-2">
+              {logs.map((log) => (
+                <Card key={log.id} className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <code className="text-xs font-mono text-primary truncate">{log.command_text}</code>
                         {log.success ? (
-                          <Badge variant="default" className="bg-green-500/20 text-green-400">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Sucesso
-                          </Badge>
+                          <CheckCircle className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
                         ) : (
-                          <Badge variant="destructive">
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Erro
-                          </Badge>
+                          <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {log.execution_time_ms ? (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Clock className="h-3 w-3" />
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                        <span className="truncate">{log.sender_phone}</span>
+                        {log.execution_time_ms && (
+                          <span className="flex items-center gap-0.5">
+                            <Clock className="h-2.5 w-2.5" />
                             {log.execution_time_ms}ms
                           </span>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(log.created_at), "dd/MM HH:mm", { locale: ptBR })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {format(new Date(log.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                  {!log.success && log.error_message && (
+                    <p className="mt-2 text-[10px] text-destructive bg-destructive/10 p-2 rounded">
+                      {log.error_message}
+                    </p>
+                  )}
+                </Card>
+              ))}
+            </div>
           )}
         </TabsContent>
       </Tabs>
