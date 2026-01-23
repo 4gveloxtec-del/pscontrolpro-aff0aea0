@@ -2316,6 +2316,144 @@ export type Database = {
         }
         Relationships: []
       }
+      test_generation_log: {
+        Row: {
+          api_id: string | null
+          api_response: Json | null
+          client_created: boolean | null
+          client_id: string | null
+          created_at: string | null
+          dns: string | null
+          error_message: string | null
+          expiration_date: string | null
+          id: string
+          password: string | null
+          seller_id: string
+          sender_phone: string
+          username: string | null
+        }
+        Insert: {
+          api_id?: string | null
+          api_response?: Json | null
+          client_created?: boolean | null
+          client_id?: string | null
+          created_at?: string | null
+          dns?: string | null
+          error_message?: string | null
+          expiration_date?: string | null
+          id?: string
+          password?: string | null
+          seller_id: string
+          sender_phone: string
+          username?: string | null
+        }
+        Update: {
+          api_id?: string | null
+          api_response?: Json | null
+          client_created?: boolean | null
+          client_id?: string | null
+          created_at?: string | null
+          dns?: string | null
+          error_message?: string | null
+          expiration_date?: string | null
+          id?: string
+          password?: string | null
+          seller_id?: string
+          sender_phone?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_generation_log_api_id_fkey"
+            columns: ["api_id"]
+            isOneToOne: false
+            referencedRelation: "test_apis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_generation_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_integration_config: {
+        Row: {
+          api_id: string | null
+          auto_create_client: boolean | null
+          category: string | null
+          client_name_prefix: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          map_dns_path: string | null
+          map_expiration_path: string | null
+          map_login_path: string | null
+          map_password_path: string | null
+          seller_id: string
+          send_welcome_message: boolean | null
+          server_id: string | null
+          server_name: string | null
+          test_counter: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_id?: string | null
+          auto_create_client?: boolean | null
+          category?: string | null
+          client_name_prefix?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          map_dns_path?: string | null
+          map_expiration_path?: string | null
+          map_login_path?: string | null
+          map_password_path?: string | null
+          seller_id: string
+          send_welcome_message?: boolean | null
+          server_id?: string | null
+          server_name?: string | null
+          test_counter?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_id?: string | null
+          auto_create_client?: boolean | null
+          category?: string | null
+          client_name_prefix?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          map_dns_path?: string | null
+          map_expiration_path?: string | null
+          map_login_path?: string | null
+          map_password_path?: string | null
+          seller_id?: string
+          send_welcome_message?: boolean | null
+          server_id?: string | null
+          server_name?: string | null
+          test_counter?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_integration_config_api_id_fkey"
+            columns: ["api_id"]
+            isOneToOne: false
+            referencedRelation: "test_apis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_integration_config_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tutorials: {
         Row: {
           created_at: string

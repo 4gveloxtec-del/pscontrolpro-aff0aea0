@@ -36,7 +36,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings } from 'lucide-react';
+import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -384,7 +385,7 @@ export default function TestCommands() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="commands" className="flex items-center gap-2">
             <Terminal className="h-4 w-4" />
             Comandos ({commands.length})
@@ -392,6 +393,10 @@ export default function TestCommands() {
           <TabsTrigger value="apis" className="flex items-center gap-2">
             <Link2 className="h-4 w-4" />
             APIs ({apis.length})
+          </TabsTrigger>
+          <TabsTrigger value="integration" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Integração
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
@@ -533,6 +538,11 @@ export default function TestCommands() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Integration Tab */}
+        <TabsContent value="integration" className="space-y-4">
+          <TestIntegrationConfig />
         </TabsContent>
 
         {/* Logs Tab */}
