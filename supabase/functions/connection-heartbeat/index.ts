@@ -192,26 +192,37 @@ function normalizeJidToPhone(jid: string): string {
 }
 
 function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string {
-  // Priority order: prefer fields that are more likely to have the real phone number
-  const candidates: string[] = [
-    // participantAlt usually has the real phone when participant is LID
-    msg?.key?.participantAlt,
-    msg?.participantAlt,
-    // Webhook-level sender field from Evolution API
-    body?.sender,
-    eventData?.sender,
-    // For individual chats, remoteJid IS the sender's phone
-    msg?.key?.remoteJid,
-    msg?.remoteJid,
-    // Fallback to participant (may be LID)
-    msg?.key?.participant,
-    msg?.participant,
-    // Deep nested possibilities
-    eventData?.data?.sender,
-    body?.data?.sender,
-  ].filter(Boolean);
+  const remoteJid = String(msg?.key?.remoteJid || msg?.remoteJid || '');
+  const isGroupChat = remoteJid.includes('@g.us');
 
-  for (const c of candidates) {
+  // For INDIVIDUAL chats: remoteJid IS the sender's phone number (highest priority)
+  // For GROUP chats: we need participant/participantAlt since remoteJid is the group ID
+  const candidates: string[] = isGroupChat
+    ? [
+        // In groups, participantAlt usually has the real phone when participant is LID
+        msg?.key?.participantAlt,
+        msg?.participantAlt,
+        msg?.key?.participant,
+        msg?.participant,
+        // Fallback to webhook-level sender
+        eventData?.sender,
+        body?.sender,
+        eventData?.data?.sender,
+        body?.data?.sender,
+      ]
+    : [
+        // In individual chats, remoteJid IS the sender - prioritize it
+        msg?.key?.remoteJid,
+        msg?.remoteJid,
+        // Fallback to participantAlt if remoteJid fails
+        msg?.key?.participantAlt,
+        msg?.participantAlt,
+        // Last resort
+        eventData?.sender,
+        body?.sender,
+      ];
+
+  for (const c of candidates.filter(Boolean)) {
     const phone = normalizeJidToPhone(String(c));
     if (phone) return phone;
   }
