@@ -5,6 +5,7 @@ import { MonthlyProfitHistory } from '@/components/dashboard/MonthlyProfitHistor
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter, MessageCircle } from 'lucide-react';
+import { RecentAutoMessages } from '@/components/dashboard/RecentAutoMessages';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -974,6 +975,9 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Recent Auto Messages Widget */}
+          <RecentAutoMessages />
 
           {/* Urgent Clients List - Sorted by days remaining */}
           {urgentClients.length > 0 && (
