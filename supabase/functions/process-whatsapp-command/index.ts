@@ -61,6 +61,46 @@ function formatResponse(data: unknown): string {
   return String(data);
 }
 
+/**
+ * Aplica template customizado com variáveis da resposta da API
+ * Variáveis suportadas: {usuario}, {senha}, {vencimento}, {dns}, {pacote}, {resposta}
+ */
+function applyCustomTemplate(template: string, apiResponse: Record<string, unknown>): string {
+  // Mapeamento de variáveis para possíveis campos na resposta
+  const variableMapping: Record<string, string[]> = {
+    usuario: ['username', 'user', 'login', 'usuario'],
+    senha: ['password', 'pass', 'senha'],
+    vencimento: ['expiresAtFormatted', 'expiresAt', 'expires', 'expiration', 'vencimento', 'validade'],
+    dns: ['dns', 'server', 'host', 'url'],
+    pacote: ['package', 'plan', 'plano', 'pacote'],
+    nome: ['name', 'nome', 'client_name'],
+  };
+
+  let result = template;
+
+  // Substituir cada variável
+  for (const [varName, possibleKeys] of Object.entries(variableMapping)) {
+    let value = '';
+    
+    // Procurar valor na resposta usando os possíveis nomes de campo
+    for (const key of possibleKeys) {
+      if (apiResponse[key] !== undefined && apiResponse[key] !== null) {
+        value = String(apiResponse[key]);
+        break;
+      }
+    }
+    
+    // Substituir a variável (case insensitive)
+    const regex = new RegExp(`\\{${varName}\\}`, 'gi');
+    result = result.replace(regex, value);
+  }
+  
+  // Substituir {resposta} com a resposta formatada completa (fallback)
+  result = result.replace(/\{resposta\}/gi, formatResponse(apiResponse));
+  
+  return result;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -95,7 +135,8 @@ Deno.serve(async (req) => {
       .select(`
         id, command, response_template, is_active,
         test_apis (
-          id, api_url, api_method, api_headers, api_body_template, response_path, is_active
+          id, api_url, api_method, api_headers, api_body_template, response_path, is_active,
+          custom_response_template, use_custom_response
         )
       `)
       .eq('owner_id', seller_id)
@@ -125,6 +166,8 @@ Deno.serve(async (req) => {
       api_headers: Record<string, string>;
       api_body_template: Record<string, unknown> | null;
       response_path: string | null;
+      custom_response_template: string | null;
+      use_custom_response: boolean;
       is_active: boolean;
     } | null;
 
@@ -195,9 +238,18 @@ Deno.serve(async (req) => {
         extractedData = extractByPath(apiResponse, api.response_path);
       }
 
-      // Formatar resposta
-      const formattedResponse = formatResponse(extractedData);
-      const finalMessage = commandData.response_template.replace('{response}', formattedResponse);
+      // Determinar mensagem final
+      let finalMessage: string;
+      
+      // Se tem template customizado e está habilitado, usar ele
+      if (api.use_custom_response && api.custom_response_template && typeof apiResponse === 'object') {
+        console.log('[process-command] Using custom response template');
+        finalMessage = applyCustomTemplate(api.custom_response_template, apiResponse as Record<string, unknown>);
+      } else {
+        // Usar resposta formatada padrão
+        const formattedResponse = formatResponse(extractedData);
+        finalMessage = commandData.response_template.replace('{response}', formattedResponse);
+      }
 
       result = { success: true, response: finalMessage };
 

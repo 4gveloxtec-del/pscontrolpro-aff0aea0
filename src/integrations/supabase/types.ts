@@ -2331,13 +2331,17 @@ export type Database = {
           api_method: string
           api_url: string
           created_at: string
+          custom_response_template: string | null
           description: string | null
           id: string
           is_active: boolean
+          last_test_at: string | null
+          last_test_response: Json | null
           name: string
           owner_id: string
           response_path: string | null
           updated_at: string
+          use_custom_response: boolean | null
         }
         Insert: {
           api_body_template?: Json | null
@@ -2345,13 +2349,17 @@ export type Database = {
           api_method?: string
           api_url: string
           created_at?: string
+          custom_response_template?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
+          last_test_at?: string | null
+          last_test_response?: Json | null
           name: string
           owner_id: string
           response_path?: string | null
           updated_at?: string
+          use_custom_response?: boolean | null
         }
         Update: {
           api_body_template?: Json | null
@@ -2359,13 +2367,17 @@ export type Database = {
           api_method?: string
           api_url?: string
           created_at?: string
+          custom_response_template?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
+          last_test_at?: string | null
+          last_test_response?: Json | null
           name?: string
           owner_id?: string
           response_path?: string | null
           updated_at?: string
+          use_custom_response?: boolean | null
         }
         Relationships: []
       }
