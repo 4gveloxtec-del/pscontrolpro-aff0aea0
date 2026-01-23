@@ -1144,17 +1144,25 @@ export default function TestCommands() {
               </div>
             )}
             
-            {/* Custom Response Section - Always Visible */}
-            <div className={`space-y-3 border-2 rounded-lg p-3 transition-colors ${apiForm.use_custom_response ? 'border-primary bg-primary/5' : 'border-dashed border-muted-foreground/30 bg-muted/30'}`}>
+            {/* Custom Response Section - Always Visible with highlight */}
+            <div className={`space-y-3 border-2 rounded-lg p-4 transition-all ${apiForm.use_custom_response ? 'border-primary bg-primary/5 shadow-md' : 'border-dashed border-primary/50 bg-gradient-to-r from-primary/5 to-primary/10'}`}>
+              {!apiForm.use_custom_response && (
+                <div className="flex items-center gap-2 text-xs text-primary font-medium mb-2 animate-pulse">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  💡 Personalize a mensagem que será enviada ao cliente!
+                </div>
+              )}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded-full ${apiForm.use_custom_response ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                    <MessageSquare className="h-4 w-4" />
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${apiForm.use_custom_response ? 'bg-primary text-primary-foreground' : 'bg-primary/20'}`}>
+                    <MessageSquare className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="font-semibold text-sm">Personalizar Mensagem</p>
+                    <p className="font-bold text-sm">✨ Personalizar Mensagem</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {apiForm.use_custom_response ? 'Ativo - sua mensagem será enviada' : 'Desativado - resposta padrão da API'}
+                      {apiForm.use_custom_response 
+                        ? '✅ Ativo - sua mensagem personalizada será enviada' 
+                        : 'Clique para criar sua própria mensagem de resposta'}
                     </p>
                   </div>
                 </div>
