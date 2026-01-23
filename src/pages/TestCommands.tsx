@@ -143,7 +143,7 @@ export default function TestCommands() {
   });
 
   // Fetch Logs
-  const { data: logs = [], isLoading: logsLoading } = useQuery({
+  const { data: logs = [], isLoading: logsLoading, refetch: refetchLogs } = useQuery({
     queryKey: ['command-logs', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -156,6 +156,42 @@ export default function TestCommands() {
       return data as CommandLog[];
     },
     enabled: !!user?.id,
+  });
+
+  // Fetch global logs_enabled setting
+  const { data: logsConfig, refetch: refetchLogsConfig } = useQuery({
+    queryKey: ['logs-config', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('test_integration_config')
+        .select('id, logs_enabled')
+        .eq('seller_id', user!.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Toggle logs mutation
+  const toggleLogsMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (logsConfig?.id) {
+        const { error } = await supabase
+          .from('test_integration_config')
+          .update({ logs_enabled: enabled })
+          .eq('id', logsConfig.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      refetchLogsConfig();
+      toast.success(logsConfig?.logs_enabled ? 'Logs desativados' : 'Logs ativados');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
   });
 
   // API Mutations
@@ -303,18 +339,24 @@ export default function TestCommands() {
 
   const clearLogsMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      // Delete all logs for this user
+      const { error, count } = await supabase
         .from('command_logs')
         .delete()
-        .eq('owner_id', user!.id);
+        .eq('owner_id', user!.id)
+        .select('id');
+      
+      console.log('[clearLogs] Delete result:', { error, count });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['command-logs'] });
+      refetchLogs();
       toast.success('Logs limpos com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      console.error('[clearLogs] Error:', error);
+      toast.error('Erro ao limpar logs: ' + error.message);
     },
   });
 
@@ -678,40 +720,59 @@ export default function TestCommands() {
         <TabsContent value="logs" className="space-y-3">
           {/* Logs Controls */}
           <Card className="p-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {logs.length} registro{logs.length !== 1 ? 's' : ''}
-                </span>
-                <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {logs.length} registro{logs.length !== 1 ? 's' : ''}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    confirm({
+                      title: 'Limpar todos os logs',
+                      description: 'Tem certeza que deseja excluir todos os logs? Esta ação não pode ser desfeita.',
+                      confirmText: 'Limpar',
+                      variant: 'destructive',
+                      onConfirm: () => clearLogsMutation.mutate(),
+                    });
+                  }}
+                  disabled={logs.length === 0 || clearLogsMutation.isPending}
+                  className="text-xs"
+                >
+                  {clearLogsMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  ) : (
+                    <Trash2 className="h-3 w-3 mr-1" />
+                  )}
+                  Limpar Logs
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  confirm({
-                    title: 'Limpar todos os logs',
-                    description: 'Tem certeza que deseja excluir todos os logs? Esta ação não pode ser desfeita.',
-                    confirmText: 'Limpar',
-                    variant: 'destructive',
-                    onConfirm: () => clearLogsMutation.mutate(),
-                  });
-                }}
-                disabled={logs.length === 0 || clearLogsMutation.isPending}
-                className="text-xs"
-              >
-                {clearLogsMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : (
-                  <Trash2 className="h-3 w-3 mr-1" />
-                )}
-                Limpar Logs
-              </Button>
+              
+              {/* Toggle logs enabled */}
+              {logsConfig && (
+                <div className="flex items-center justify-between p-2 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">Salvar logs de comandos</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {logsConfig.logs_enabled ? 'Logs estão sendo salvos' : 'Logs desativados'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={logsConfig.logs_enabled ?? true}
+                    onCheckedChange={(checked) => toggleLogsMutation.mutate(checked)}
+                    disabled={toggleLogsMutation.isPending}
+                  />
+                </div>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              💡 Para ativar/desativar os logs, vá na aba "Integr." (ícone ⚙️)
-            </p>
           </Card>
 
           {logsLoading ? (
