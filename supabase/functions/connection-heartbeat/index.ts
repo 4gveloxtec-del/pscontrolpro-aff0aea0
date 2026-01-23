@@ -496,7 +496,30 @@ Deno.serve(async (req: Request) => {
             // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
             const messageText = extractWhatsAppMessageText(msg);
             
-            const senderPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '') || '';
+            // Extração robusta do telefone do remetente
+            // Prioridade: participantAlt (tem o número real) > participant > remoteJid
+            // O formato @lid é um ID interno do WhatsApp, precisamos do número real
+            const extractPhoneFromJid = (jid: string): string => {
+              if (!jid) return '';
+              return jid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@c.us', '');
+            };
+            
+            let senderPhone = '';
+            // Para conversas individuais, o participantAlt geralmente tem o número real
+            if (msg.key?.participantAlt) {
+              senderPhone = extractPhoneFromJid(msg.key.participantAlt);
+            } else if (msg.key?.participant) {
+              senderPhone = extractPhoneFromJid(msg.key.participant);
+            }
+            // Se ainda vazio e não é @lid, usar remoteJid
+            if (!senderPhone && !remoteJid.includes('@lid')) {
+              senderPhone = extractPhoneFromJid(remoteJid);
+            }
+            // Se é @lid mas não tem participant, tentar extrair número do próprio @lid
+            if (!senderPhone && remoteJid.includes('@lid')) {
+              // Alguns LIDs podem ter formato diferente, logar para debug
+              console.log(`[Webhook] LID without participant: ${remoteJid}, key:`, JSON.stringify(msg.key || {}));
+            }
             
             console.log(`[Webhook] Message from ${senderPhone}: "${String(messageText).substring(0, 50)}", fromMe: ${msg.key?.fromMe}`);
 
