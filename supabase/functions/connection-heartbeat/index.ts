@@ -172,10 +172,14 @@ function extractWhatsAppMessageText(msg: any): string {
 function normalizeJidToPhone(jid: string): string {
   if (!jid) return '';
 
-  const raw = jid
+  // Some providers append extra device/session markers like ":1234" before the suffix.
+  // Also, some payloads may still include the suffix even when the real number is present.
+  const beforeColon = String(jid).split(':')[0];
+  const raw = beforeColon
     .replace('@s.whatsapp.net', '')
     .replace('@c.us', '')
-    .replace('@lid', '');
+    .replace('@lid', '')
+    .replace('@g.us', '');
   
   // Validate it looks like a phone number (E.164 digits only, 10-15 digits).
   // IMPORTANT: Some Evolution/WhatsApp payloads can carry a real phone even when suffix is "@lid".
@@ -229,6 +233,16 @@ function getSenderPhoneFromWebhook(
   
   let candidates: string[] = [];
 
+  // Helper: always try to trust remoteJid first for RECEIVED 1:1 messages.
+  // This is the most reliable field across Evolution/Baileys formats.
+  if (!isGroupChat && !isFromMe) {
+    const remotePhone = normalizeJidToPhone(remoteJid);
+    if (remotePhone && (!instancePhone || remotePhone !== instancePhone)) {
+      console.log(`[getSenderPhone] Using remoteJid as sender: ${remotePhone}`);
+      return remotePhone;
+    }
+  }
+
   if (isGroupChat) {
     // In groups, we always need participant/participantAlt for the actual sender
     candidates = [
@@ -252,11 +266,22 @@ function getSenderPhoneFromWebhook(
     // This is where we need to send the RESPONSE
     // =====================================================================
     candidates = [
+      // Message-level identifiers (most reliable)
       msg?.key?.remoteJid,
       msg?.remoteJid,
       msg?.key?.participantAlt,
       msg?.participantAlt,
-      // Add webhook-level sender as fallback
+      msg?.key?.participant,
+      msg?.participant,
+      // Event/body-level fallbacks (varies by Evolution version)
+      eventData?.key?.remoteJid,
+      eventData?.remoteJid,
+      eventData?.message?.key?.remoteJid,
+      body?.data?.key?.remoteJid,
+      body?.data?.message?.key?.remoteJid,
+      body?.from,
+      eventData?.from,
+      // Last resort: webhook-level sender (can be the instance phone in some formats)
       eventData?.sender,
       body?.sender,
     ];
@@ -267,7 +292,7 @@ function getSenderPhoneFromWebhook(
   console.log(`[getSenderPhone] instancePhone to avoid: ${instancePhone || 'not provided'}`);
   console.log(`[getSenderPhone] candidates:`, candidates.filter(Boolean).map(c => String(c).substring(0, 30)));
 
-  // First pass: try to find a phone that is NOT the instance's phone
+  // Try to find a phone that is NOT the instance's phone
   for (const c of candidates.filter(Boolean)) {
     const phone = normalizeJidToPhone(String(c));
     if (phone) {
@@ -280,20 +305,7 @@ function getSenderPhoneFromWebhook(
       return phone;
     }
   }
-  
-  // Second pass: if no phone found, try again without the instance filter
-  // (better to return something than nothing)
-  if (instancePhone) {
-    console.log(`[getSenderPhone] First pass failed, trying without instance filter...`);
-    for (const c of candidates.filter(Boolean)) {
-      const phone = normalizeJidToPhone(String(c));
-      if (phone) {
-        console.log(`[getSenderPhone] Fallback extracted phone: ${phone} from candidate: ${String(c).substring(0, 30)}`);
-        return phone;
-      }
-    }
-  }
-  
+
   console.log(`[getSenderPhone] FAILED to extract phone from any candidate`);
   return '';
 }
