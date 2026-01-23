@@ -25,10 +25,7 @@ export function AdminNotificationsFloat() {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewNotifications, setHasNewNotifications] = useState(false);
 
-  // Don't show for admins - they create notifications, not receive them
-  if (isAdmin || !user) return null;
-
-  // Fetch all notifications
+  // Fetch all notifications - always call hooks regardless of conditions
   const { data: notifications = [] } = useQuery({
     queryKey: ['admin-notifications'],
     queryFn: async () => {
@@ -42,7 +39,8 @@ export function AdminNotificationsFloat() {
       if (error) throw error;
       return data as AdminNotification[];
     },
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 60000,
+    enabled: !!user && !isAdmin, // Only fetch for non-admin users
   });
 
   // Fetch read notification IDs
@@ -57,7 +55,7 @@ export function AdminNotificationsFloat() {
       if (error) throw error;
       return data.map((r) => r.notification_id);
     },
-    enabled: !!user,
+    enabled: !!user && !isAdmin,
   });
 
   const unreadNotifications = notifications.filter((n) => !readIds.includes(n.id));
@@ -66,11 +64,12 @@ export function AdminNotificationsFloat() {
   // Mark as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
+      if (!user) return;
       const { error } = await supabase
         .from('admin_notification_reads')
         .insert({
           notification_id: notificationId,
-          user_id: user!.id,
+          user_id: user.id,
         });
 
       if (error && !error.message.includes('duplicate')) throw error;
@@ -102,7 +101,7 @@ export function AdminNotificationsFloat() {
     if (hasUrgent && !isOpen) {
       setIsOpen(true);
     }
-  }, [unreadNotifications]);
+  }, [unreadNotifications, isOpen]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -130,6 +129,8 @@ export function AdminNotificationsFloat() {
     }
   };
 
+  // Early returns AFTER all hooks are called
+  if (isAdmin || !user) return null;
   if (notifications.length === 0) return null;
 
   return (
