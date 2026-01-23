@@ -9,9 +9,13 @@ const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
 
 // Wrap DialogPortal to avoid ref warning in React 18+
-const DialogPortal = ({ children, ...props }: DialogPrimitive.DialogPortalProps) => (
-  <DialogPrimitive.Portal {...props}>{children}</DialogPrimitive.Portal>
-);
+// Portal doesn't accept ref, so we explicitly omit it from props
+const DialogPortal = ({ 
+  children, 
+  ...props 
+}: DialogPrimitive.DialogPortalProps) => {
+  return <DialogPrimitive.Portal {...props}>{children}</DialogPrimitive.Portal>;
+};
 DialogPortal.displayName = "DialogPortal";
 
 const DialogClose = DialogPrimitive.Close;
