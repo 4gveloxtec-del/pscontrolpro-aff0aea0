@@ -267,29 +267,45 @@ Deno.serve(async (req: Request) => {
     // WEBHOOK HANDLER - Receive events from Evolution API
     // ============================================================
     if (action === 'webhook' || webhook_event) {
-      // Log full payload for debugging
-      console.log('[Webhook] FULL PAYLOAD:', JSON.stringify(body).substring(0, 2000));
+      // Log full payload for debugging - ENHANCED
+      const fullPayloadStr = JSON.stringify(body);
+      console.log('[Webhook] ===== INCOMING WEBHOOK =====');
+      console.log('[Webhook] Raw payload length:', fullPayloadStr.length);
+      console.log('[Webhook] Raw payload (first 3000 chars):', fullPayloadStr.substring(0, 3000));
       
       const rawEvent = webhook_event || body.event;
       const event = normalizeWebhookEvent(rawEvent);
       
-      // Enhanced instance name extraction - handle multiple payload formats
+      // Enhanced instance name extraction - handle ALL possible Evolution API formats
       const instanceName = 
         body.instance || 
         body.data?.instance?.instanceName ||
         body.data?.instance?.name ||
+        body.data?.instance ||
         body.instanceName ||
         body.sender?.instance ||
         body.apikey?.instanceName ||
-        (body.data?.key?.remoteJid ? body.instance : null);
+        body.server?.instanceName ||
+        (typeof body.data?.key?.remoteJid === 'string' ? body.instance : null) ||
+        // Evolution API v2 format variations
+        body.data?.instanceName ||
+        body.destination?.instanceName ||
+        body.source?.instance;
       
       const eventData = body.data || body;
       
-      console.log('[Webhook] Parsed - event:', rawEvent || 'unknown', '=>', event || 'unknown', 'instance:', instanceName || 'unknown');
+      console.log('[Webhook] Parsed - rawEvent:', rawEvent || 'NOT_SET', '=>', event || 'EMPTY');
+      console.log('[Webhook] Parsed - instanceName:', instanceName || 'NOT_FOUND');
+      console.log('[Webhook] Available keys:', Object.keys(body).join(', '));
+      if (body.data) {
+        console.log('[Webhook] body.data keys:', Object.keys(body.data).join(', '));
+      }
       
       if (!instanceName) {
+        console.error('[Webhook] CRITICAL: Could not extract instance name from payload!');
+        console.error('[Webhook] Full body structure:', JSON.stringify(body, null, 2).substring(0, 1500));
         return new Response(
-          JSON.stringify({ error: 'Instance name required' }),
+          JSON.stringify({ error: 'Instance name required', received_keys: Object.keys(body) }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -1022,6 +1038,8 @@ Deno.serve(async (req: Request) => {
         const baseUrl = normalizeApiUrl(globalConfig.api_url);
         let webhookConfig = null;
         let webhookError = null;
+        let webhookEventsEnabled: string[] = [];
+        let webhookUrl = '';
 
         try {
           const webhookCheckUrl = `${baseUrl}/webhook/find/${instance.instance_name}`;
@@ -1037,6 +1055,18 @@ Deno.serve(async (req: Request) => {
           if (webhookResponse.ok) {
             webhookConfig = await webhookResponse.json();
             console.log('[Diagnose] Webhook config:', JSON.stringify(webhookConfig));
+            
+            // Extract webhook URL and events from different response formats
+            webhookUrl = webhookConfig?.webhook?.url || webhookConfig?.url || webhookConfig?.webhookUrl || '';
+            webhookEventsEnabled = webhookConfig?.webhook?.events || webhookConfig?.events || [];
+            
+            // Some API versions return events as object with boolean values
+            if (typeof webhookEventsEnabled === 'object' && !Array.isArray(webhookEventsEnabled)) {
+              const eventsObj = webhookEventsEnabled as Record<string, boolean>;
+              webhookEventsEnabled = Object.entries(eventsObj)
+                .filter(([_, enabled]) => enabled)
+                .map(([event]) => event);
+            }
           } else {
             webhookError = `${webhookResponse.status} - ${await webhookResponse.text()}`;
           }
@@ -1050,10 +1080,18 @@ Deno.serve(async (req: Request) => {
           .select('event_type, created_at, event_source')
           .eq('seller_id', seller_id)
           .order('created_at', { ascending: false })
-          .limit(10);
+          .limit(20);
 
         // Check if we received any messages.upsert events
         const messageEvents = recentLogs?.filter(l => l.event_type === 'messages.upsert') || [];
+
+        // Check recent command logs
+        const { data: recentCommandLogs } = await supabase
+          .from('command_logs')
+          .select('command_text, created_at, success, error_message')
+          .eq('owner_id', seller_id)
+          .order('created_at', { ascending: false })
+          .limit(10);
 
         // Check for commands
         const { data: commands } = await supabase
@@ -1069,6 +1107,14 @@ Deno.serve(async (req: Request) => {
           .eq('is_active', true)
           .maybeSingle();
 
+        const expectedUrl = 'https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat';
+        const urlMatches = webhookUrl.includes('connection-heartbeat') || webhookUrl === expectedUrl;
+        const hasMessagesEvent = webhookEventsEnabled.some(e => 
+          e.toLowerCase().includes('messages') || 
+          e.toLowerCase().includes('message') ||
+          e === 'MESSAGES_UPSERT'
+        );
+
         const diagnosis = {
           instance_configured: true,
           instance_name: instance.instance_name,
@@ -1076,10 +1122,14 @@ Deno.serve(async (req: Request) => {
           session_valid: instance.session_valid,
           last_heartbeat: instance.last_heartbeat_at,
           webhook: {
-            configured: webhookConfig !== null,
-            config: webhookConfig,
+            configured: webhookConfig !== null && !webhookError,
+            url: webhookUrl,
+            url_correct: urlMatches,
+            events_enabled: webhookEventsEnabled,
+            has_messages_event: hasMessagesEvent,
+            expected_url: expectedUrl,
             error: webhookError,
-            expected_url: 'https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat',
+            raw_config: webhookConfig,
           },
           commands: {
             total: commands?.length || 0,
@@ -1094,30 +1144,67 @@ Deno.serve(async (req: Request) => {
           recent_events: {
             total: recentLogs?.length || 0,
             message_events: messageEvents.length,
-            events: recentLogs?.map(l => ({ type: l.event_type, source: l.event_source, at: l.created_at })) || [],
+            events: recentLogs?.slice(0, 5).map(l => ({ type: l.event_type, source: l.event_source, at: l.created_at })) || [],
+          },
+          recent_commands: {
+            total: recentCommandLogs?.length || 0,
+            logs: recentCommandLogs?.slice(0, 5).map(l => ({ 
+              command: l.command_text, 
+              success: l.success, 
+              error: l.error_message,
+              at: l.created_at 
+            })) || [],
           },
           recommendations: [] as string[],
+          critical_issues: [] as string[],
         };
 
-        // Generate recommendations
+        // Generate recommendations and critical issues
         if (!instance.is_connected) {
-          diagnosis.recommendations.push('A instância WhatsApp não está conectada. Reconecte escaneando o QR Code.');
+          diagnosis.critical_issues.push('❌ Instância WhatsApp DESCONECTADA. Reconecte escaneando o QR Code.');
         }
-        if (!webhookConfig) {
-          diagnosis.recommendations.push('Webhook não encontrado na Evolution API. Reconfigure o webhook.');
-        } else if (webhookConfig.webhook?.url !== diagnosis.webhook.expected_url && 
-                   webhookConfig.url !== diagnosis.webhook.expected_url) {
-          diagnosis.recommendations.push('URL do webhook incorreta. Reconfigure o webhook.');
+        
+        if (!webhookConfig || webhookError) {
+          diagnosis.critical_issues.push('❌ Webhook NÃO ENCONTRADO na Evolution API. O bot não receberá mensagens!');
+          diagnosis.recommendations.push('Configure o webhook na Evolution API apontando para: ' + expectedUrl);
+        } else {
+          if (!urlMatches) {
+            diagnosis.critical_issues.push('❌ URL do webhook INCORRETA. O bot não receberá mensagens!');
+            diagnosis.recommendations.push(`Corrija a URL do webhook de "${webhookUrl}" para "${expectedUrl}"`);
+          }
+          if (!hasMessagesEvent) {
+            diagnosis.critical_issues.push('❌ Evento MESSAGES_UPSERT não está habilitado no webhook!');
+            diagnosis.recommendations.push('Habilite o evento "MESSAGES_UPSERT" nas configurações do webhook.');
+          }
         }
-        if (messageEvents.length === 0) {
-          diagnosis.recommendations.push('Nenhum evento de mensagem recebido. Envie uma mensagem de teste para verificar.');
+        
+        if (messageEvents.length === 0 && instance.is_connected) {
+          diagnosis.recommendations.push('Nenhum evento de mensagem recebido ainda. Envie uma mensagem de teste no WhatsApp.');
         }
+        
         if (!commands || commands.length === 0) {
-          diagnosis.recommendations.push('Nenhum comando configurado. Crie um comando /teste.');
+          diagnosis.recommendations.push('Nenhum comando configurado. Crie um comando como /teste.');
+        } else {
+          const activeCommands = commands.filter(c => c.is_active);
+          if (activeCommands.length === 0) {
+            diagnosis.recommendations.push('Todos os comandos estão desativados. Ative pelo menos um.');
+          }
         }
 
+        // Overall status
+        const isFullyWorking = 
+          instance.is_connected && 
+          webhookConfig && 
+          urlMatches && 
+          hasMessagesEvent && 
+          (commands?.filter(c => c.is_active).length || 0) > 0;
+
         return new Response(
-          JSON.stringify({ success: true, diagnosis }),
+          JSON.stringify({ 
+            success: true, 
+            status: isFullyWorking ? 'OK' : 'ISSUES_FOUND',
+            diagnosis 
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
