@@ -16,7 +16,9 @@ import {
   Power,
   PowerOff,
   Users,
-  Clock
+  Clock,
+  RefreshCw,
+  Webhook
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -30,9 +32,11 @@ export function WhatsAppGlobalConfig() {
   } = useWhatsAppGlobalConfig();
   
   const [pendingSellersCount, setPendingSellersCount] = useState(0);
+  const [connectedSellersCount, setConnectedSellersCount] = useState(0);
   
   const [showToken, setShowToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isReconfiguringWebhooks, setIsReconfiguringWebhooks] = useState(false);
   const [formData, setFormData] = useState({
     api_url: '',
     api_token: '',
@@ -54,16 +58,23 @@ export function WhatsAppGlobalConfig() {
 
   // Fetch count of sellers waiting for API activation
   useEffect(() => {
-    const fetchPendingSellers = async () => {
-      const { count } = await supabase
-        .from('whatsapp_seller_instances')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_connected', false);
+    const fetchSellerCounts = async () => {
+      const [pendingResult, connectedResult] = await Promise.all([
+        supabase
+          .from('whatsapp_seller_instances')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_connected', false),
+        supabase
+          .from('whatsapp_seller_instances')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_connected', true)
+      ]);
       
-      setPendingSellersCount(count || 0);
+      setPendingSellersCount(pendingResult.count || 0);
+      setConnectedSellersCount(connectedResult.count || 0);
     };
     
-    fetchPendingSellers();
+    fetchSellerCounts();
   }, []);
 
   // Save config
@@ -91,6 +102,40 @@ export function WhatsAppGlobalConfig() {
       toast.error(error.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Reconfigure webhooks for all instances
+  const handleReconfigureWebhooks = async () => {
+    setIsReconfiguringWebhooks(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reconfigure-webhook', {
+        body: { action: 'reconfigure' }
+      });
+
+      if (error) {
+        toast.error('Erro ao reconfigurar: ' + error.message);
+        return;
+      }
+
+      const successCount = data?.results?.filter((r: any) => r.success)?.length || 0;
+      const failCount = data?.results?.filter((r: any) => !r.success)?.length || 0;
+
+      if (successCount > 0 && failCount === 0) {
+        toast.success(`✅ ${successCount} instância(s) reconfiguradas com sucesso!`);
+      } else if (successCount > 0 && failCount > 0) {
+        toast.warning(`${successCount} configuradas, ${failCount} falharam`);
+      } else if (failCount > 0) {
+        toast.error(`Falha em ${failCount} instância(s)`);
+      } else {
+        toast.info('Nenhuma instância para reconfigurar');
+      }
+
+      console.log('[Webhook Reconfigure]', data);
+    } catch (error: any) {
+      toast.error('Erro: ' + error.message);
+    } finally {
+      setIsReconfiguringWebhooks(false);
     }
   };
 
@@ -168,6 +213,33 @@ export function WhatsAppGlobalConfig() {
         </AlertDescription>
       </Alert>
 
+      {/* Webhook Auto-Config Section */}
+      {connectedSellersCount > 0 && (
+        <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
+          <div className="flex items-center gap-2">
+            <Webhook className="h-5 w-5 text-primary" />
+            <span className="font-medium">Configuração de Webhooks</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Reconfigure os webhooks de todas as <strong>{connectedSellersCount}</strong> instâncias conectadas 
+            para usar o endpoint centralizado. Isso garante que mensagens e comandos funcionem corretamente.
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={handleReconfigureWebhooks}
+            disabled={isReconfiguringWebhooks}
+            className="w-full"
+          >
+            {isReconfiguringWebhooks ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Reconfigurar Webhooks de Todas as Instâncias
+          </Button>
+        </div>
+      )}
+
       {/* Form */}
       <div className="space-y-4">
         <div className="space-y-2">
@@ -240,7 +312,7 @@ export function WhatsAppGlobalConfig() {
         <ul className="text-sm text-muted-foreground space-y-1">
           <li>• <strong>Admin:</strong> Configura URL, Token e opcionalmente nome da instância</li>
           <li>• <strong>Revendedores:</strong> Conectam suas próprias instâncias via QR Code</li>
-          <li>• <strong>Detecção:</strong> Sistema identifica automaticamente Admin vs Revendedor</li>
+          <li>• <strong>Webhooks:</strong> Configurados automaticamente ao criar/conectar instância</li>
           <li>• <strong>Chatbots:</strong> Cada um tem seu próprio chatbot independente</li>
           <li>• <strong>Privacidade:</strong> Você não tem acesso às conversas dos revendedores</li>
         </ul>
