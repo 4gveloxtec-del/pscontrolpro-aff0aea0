@@ -611,6 +611,122 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      case 'rename_instance': {
+        // Rename instance to use company name
+        const { data: instance } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('*')
+          .eq('seller_id', user.id)
+          .maybeSingle();
+
+        if (!instance?.instance_name) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Nenhuma instância configurada' }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get seller's company name
+        const { data: sellerProfile } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', user.id)
+          .single();
+
+        if (!sellerProfile?.company_name) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Configure o nome da empresa primeiro em Configurações' }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Generate new name
+        const newInstanceName = generateInstanceName(sellerProfile.company_name, user.id);
+        
+        // Check if already renamed
+        if (instance.instance_name === newInstanceName) {
+          return new Response(
+            JSON.stringify({ success: true, message: 'Instância já está com o nome correto', instance_name: newInstanceName }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get global config
+        const { data: globalConfig } = await supabase
+          .from('whatsapp_global_config')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!globalConfig) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'API global não configurada' }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const baseUrl = normalizeApiUrl(globalConfig.api_url);
+
+        // Step 1: Delete old instance from Evolution API
+        try {
+          const deleteUrl = `${baseUrl}/instance/delete/${instance.instance_name}`;
+          console.log(`Deleting old instance: ${instance.instance_name}`);
+          
+          await fetch(deleteUrl, {
+            method: 'DELETE',
+            headers: { 'apikey': globalConfig.api_token },
+          });
+        } catch (err) {
+          console.log('Delete error (continuing):', err);
+        }
+
+        // Step 2: Create new instance with company name
+        const createResult = await createInstance(
+          globalConfig.api_url,
+          globalConfig.api_token,
+          newInstanceName
+        );
+
+        if (!createResult.success) {
+          return new Response(
+            JSON.stringify({ success: false, error: createResult.error || 'Falha ao criar nova instância' }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Step 3: Configure webhook for new instance
+        const webhookResult = await configureWebhook(
+          globalConfig.api_url,
+          globalConfig.api_token,
+          newInstanceName
+        );
+
+        // Step 4: Update database with new instance name
+        await supabase
+          .from('whatsapp_seller_instances')
+          .update({
+            instance_name: newInstanceName,
+            original_instance_name: instance.instance_name, // Keep old name for reference
+            is_connected: false, // Need to reconnect
+            webhook_auto_configured: webhookResult.success,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', instance.id);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            old_name: instance.instance_name,
+            new_name: newInstanceName,
+            qrcode: createResult.qrcode,
+            message: `Instância renomeada para "${newInstanceName}". Escaneie o QR Code para reconectar.`
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Ação inválida' }),
