@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw } from 'lucide-react';
+import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity } from 'lucide-react';
 
 interface TestApi {
   id: string;
@@ -43,6 +43,7 @@ interface TestIntegrationConfigData {
   send_welcome_message: boolean;
   detect_renewal_enabled: boolean;
   detect_renewal_keywords: string[] | null;
+  logs_enabled: boolean;
   is_active: boolean;
 }
 
@@ -115,6 +116,7 @@ export function TestIntegrationConfig() {
     send_welcome_message: false,
     detect_renewal_enabled: true,
     detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+    logs_enabled: true,
   });
 
   // Update form when config loads
@@ -132,6 +134,7 @@ export function TestIntegrationConfig() {
         send_welcome_message: config.send_welcome_message ?? false,
         detect_renewal_enabled: config.detect_renewal_enabled ?? true,
         detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+        logs_enabled: config.logs_enabled ?? true,
       });
     }
   });
@@ -164,6 +167,7 @@ export function TestIntegrationConfig() {
         send_welcome_message: formData.send_welcome_message,
         detect_renewal_enabled: formData.detect_renewal_enabled,
         detect_renewal_keywords: keywordsArray,
+        logs_enabled: formData.logs_enabled,
         is_active: true,
       };
 
@@ -441,6 +445,26 @@ export function TestIntegrationConfig() {
                       </p>
                     </div>
                   )}
+
+                  {/* Logs Toggle */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20">
+                    <div className="flex items-center gap-3">
+                      <Activity className="h-5 w-5 text-orange-600" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">Salvar logs de comandos</p>
+                          <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Quando ativado, registra cada execução de comando para debug
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.logs_enabled}
+                      onCheckedChange={(checked) => setFormData({ ...formData, logs_enabled: checked })}
+                    />
+                  </div>
                 </div>
 
                 <Button

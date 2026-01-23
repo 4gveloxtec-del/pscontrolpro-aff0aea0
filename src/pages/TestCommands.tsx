@@ -301,6 +301,23 @@ export default function TestCommands() {
     },
   });
 
+  const clearLogsMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('command_logs')
+        .delete()
+        .eq('owner_id', user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['command-logs'] });
+      toast.success('Logs limpos com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const resetApiForm = () => {
     setApiForm({
       name: '',
@@ -660,6 +677,44 @@ export default function TestCommands() {
 
         {/* Logs Tab */}
         <TabsContent value="logs" className="space-y-3">
+          {/* Logs Controls */}
+          <Card className="p-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  {logs.length} registro{logs.length !== 1 ? 's' : ''}
+                </span>
+                <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  confirm({
+                    title: 'Limpar todos os logs',
+                    description: 'Tem certeza que deseja excluir todos os logs? Esta ação não pode ser desfeita.',
+                    confirmText: 'Limpar',
+                    variant: 'destructive',
+                    onConfirm: () => clearLogsMutation.mutate(),
+                  });
+                }}
+                disabled={logs.length === 0 || clearLogsMutation.isPending}
+                className="text-xs"
+              >
+                {clearLogsMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <Trash2 className="h-3 w-3 mr-1" />
+                )}
+                Limpar Logs
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              💡 Para ativar/desativar os logs, vá na aba "Integração"
+            </p>
+          </Card>
+
           {logsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

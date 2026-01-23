@@ -114,9 +114,9 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const body = await req.json();
-    const { seller_id, command_text, sender_phone, instance_name } = body;
+    const { seller_id, command_text, sender_phone, instance_name, logs_enabled = true } = body;
 
-    console.log(`[process-command] Received: "${command_text}" from ${sender_phone} for seller ${seller_id}`);
+    console.log(`[process-command] Received: "${command_text}" from ${sender_phone} for seller ${seller_id}, logs_enabled: ${logs_enabled}`);
 
     if (!seller_id || !command_text || !sender_phone) {
       return new Response(
@@ -261,19 +261,23 @@ Deno.serve(async (req) => {
 
     const executionTime = Date.now() - startTime;
 
-    // Registrar log
-    await supabase.from('command_logs').insert({
-      owner_id: seller_id,
-      command_id: commandData.id,
-      command_text: normalizedCommand,
-      sender_phone,
-      api_request: apiRequest,
-      api_response: typeof apiResponse === 'object' ? apiResponse : { raw: apiResponse },
-      response_sent: result.response || null,
-      success: result.success,
-      error_message: result.error || null,
-      execution_time_ms: executionTime,
-    });
+    // Registrar log apenas se habilitado
+    if (logs_enabled) {
+      await supabase.from('command_logs').insert({
+        owner_id: seller_id,
+        command_id: commandData.id,
+        command_text: normalizedCommand,
+        sender_phone,
+        api_request: apiRequest,
+        api_response: typeof apiResponse === 'object' ? apiResponse : { raw: apiResponse },
+        response_sent: result.response || null,
+        success: result.success,
+        error_message: result.error || null,
+        execution_time_ms: executionTime,
+      });
+    } else {
+      console.log(`[process-command] Logs disabled, skipping log insert`);
+    }
 
     // Atualizar contador de uso
     if (result.success) {
