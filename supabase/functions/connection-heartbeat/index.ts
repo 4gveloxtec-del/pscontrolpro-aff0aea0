@@ -407,9 +407,17 @@ Deno.serve(async (req: Request) => {
 
         case 'messages.upsert':
           // Processar mensagens recebidas/enviadas
-          const messages = eventData.messages || eventData.data?.messages || [];
+          // Evolution API pode enviar em diferentes formatos dependendo da versão
+          const messagesRaw = eventData.messages || eventData.data?.messages || body.messages || [];
+          const messages = Array.isArray(messagesRaw) ? messagesRaw : [messagesRaw].filter(Boolean);
+          
+          console.log(`[Webhook] messages.upsert received, message count: ${messages.length}`);
+          if (messages.length === 0) {
+            console.log(`[Webhook] No messages found in payload. eventData keys: ${Object.keys(eventData).join(',')}`);
+          }
+          
           for (const msg of messages) {
-            const remoteJid = msg.key?.remoteJid || '';
+            const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
             
             // Ignorar mensagens de grupos - apenas conversas individuais
             if (remoteJid.includes('@g.us')) {
@@ -417,11 +425,19 @@ Deno.serve(async (req: Request) => {
               continue;
             }
             
-            const messageText = msg.message?.conversation || 
-                               msg.message?.extendedTextMessage?.text || 
-                               '';
+            // Extração robusta do texto - múltiplos formatos possíveis
+            const messageText = 
+              msg.message?.conversation || 
+              msg.message?.extendedTextMessage?.text ||
+              msg.messageBody ||
+              msg.body ||
+              msg.text ||
+              (typeof msg.message === 'string' ? msg.message : '') ||
+              '';
             
-            const senderPhone = remoteJid.replace('@s.whatsapp.net', '') || '';
+            const senderPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '') || '';
+            
+            console.log(`[Webhook] Message from ${senderPhone}: "${String(messageText).substring(0, 50)}", fromMe: ${msg.key?.fromMe}`);
             
             // ===============================================================
             // MENSAGENS ENVIADAS (fromMe = true) - Detectar renovação da API do servidor
@@ -547,18 +563,59 @@ Deno.serve(async (req: Request) => {
                     
                     if (!messageSent) {
                       console.error(`[Webhook] All ${uniqueVariants.length} phone formats failed for ${senderPhone}`);
+                      // Log failure for debugging - fire and forget
+                      try {
+                        await supabase.from('command_logs').insert({
+                          owner_id: instance.seller_id,
+                          command_text: trimmedForCommand,
+                          sender_phone: senderPhone,
+                          success: false,
+                          error_message: `Failed to send response - all ${uniqueVariants.length} phone formats failed`,
+                        });
+                      } catch { /* ignore logging errors */ }
                     }
                   } else {
                     console.error(`[Webhook] Global config not found or inactive - cannot send response`);
+                    // Log this critical issue
+                    try {
+                      await supabase.from('command_logs').insert({
+                        owner_id: instance.seller_id,
+                        command_text: trimmedForCommand,
+                        sender_phone: senderPhone,
+                        success: false,
+                        error_message: 'Global WhatsApp config not found or inactive',
+                      });
+                    } catch { /* ignore logging errors */ }
                   }
                 } else if (cmdResult.not_found) {
                   // Comando não encontrado - não fazer nada (fluxo normal continua)
-                  console.log(`[Webhook] Command "${messageText}" not found for seller ${instance.seller_id}, ignoring`);
+                  console.log(`[Webhook] Command "${trimmedForCommand}" not found for seller ${instance.seller_id}, ignoring`);
                 } else if (cmdResult.error) {
                   console.error(`[Webhook] Command error: ${cmdResult.error}`);
+                  // Log command errors
+                  try {
+                    await supabase.from('command_logs').insert({
+                      owner_id: instance.seller_id,
+                      command_text: trimmedForCommand,
+                      sender_phone: senderPhone,
+                      success: false,
+                      error_message: cmdResult.error,
+                    });
+                  } catch { /* ignore logging errors */ }
                 }
               } catch (cmdError) {
-                console.error(`[Webhook] Command processing error:`, cmdError);
+                const errMsg = cmdError instanceof Error ? cmdError.message : String(cmdError);
+                console.error(`[Webhook] Command processing error:`, errMsg);
+                // Log processing errors
+                try {
+                  await supabase.from('command_logs').insert({
+                    owner_id: instance.seller_id,
+                    command_text: trimmedForCommand,
+                    sender_phone: senderPhone,
+                    success: false,
+                    error_message: `Processing error: ${errMsg}`,
+                  });
+                } catch { /* ignore logging errors */ }
               }
             }
             // Se não for comando, deixar o fluxo normal do chatbot/automação
