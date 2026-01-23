@@ -9,6 +9,53 @@ interface CommandResult {
   success: boolean;
   response?: string;
   error?: string;
+  // Optional field to provide a safe, user-facing message when we want the bot to reply
+  // even if the command was not processed (e.g. missing required inputs).
+  user_message?: string;
+}
+
+function normalizePhoneDigits(input: unknown): string {
+  const digits = String(input || '').replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 15) return '';
+  return digits;
+}
+
+function isBlank(v: unknown): boolean {
+  return v === null || v === undefined || (typeof v === 'string' && !v.trim());
+}
+
+function buildTestCommandPayload(params: {
+  base: Record<string, unknown>;
+  clientPhone: string;
+  clientName: string;
+  testPlan: string;
+  serverId: string;
+  serverName: string | null;
+  sellerId: string;
+  instanceName: string | null;
+}): Record<string, unknown> {
+  const payload: Record<string, unknown> = { ...params.base };
+
+  // Guarantee required fields are present (root-level) using common key names.
+  // We set the canonical keys unconditionally; aliases only if missing.
+  payload.phone = params.clientPhone;
+  payload.name = params.clientName;
+  payload.plan = params.testPlan;
+  payload.server = params.serverName || params.serverId;
+  payload.seller_id = params.sellerId;
+
+  // Aliases (do not overwrite if already present)
+  if (isBlank(payload.client_phone)) payload.client_phone = params.clientPhone;
+  if (isBlank(payload.number)) payload.number = params.clientPhone;
+  if (isBlank(payload.client_name)) payload.client_name = params.clientName;
+  if (isBlank(payload.test_plan)) payload.test_plan = params.testPlan;
+  if (isBlank(payload.package)) payload.package = params.testPlan;
+  if (isBlank(payload.pacote)) payload.pacote = params.testPlan;
+  if (isBlank(payload.server_id)) payload.server_id = params.serverId;
+  if (isBlank(payload.reseller_id)) payload.reseller_id = params.sellerId;
+  if (params.instanceName && isBlank(payload.instance_name)) payload.instance_name = params.instanceName;
+
+  return payload;
 }
 
 /**
@@ -164,9 +211,18 @@ Deno.serve(async (req) => {
 
     console.log(`[process-command] Received: "${command_text}" from ${sender_phone} for seller ${seller_id}, logs_enabled: ${logs_enabled}`);
 
-    if (!seller_id || !command_text || !sender_phone) {
+    // More explicit validation (this was previously a generic "Missing required fields")
+    const missing: string[] = [];
+    if (!seller_id) missing.push('seller_id');
+    if (!command_text) missing.push('command_text');
+    if (!sender_phone) missing.push('sender_phone');
+    if (missing.length > 0) {
+      const userMsg = missing.includes('sender_phone')
+        ? 'Informe o telefone do cliente'
+        : 'Dados obrigatórios ausentes para processar o comando';
+
       return new Response(
-        JSON.stringify({ success: false, error: "Missing required fields" }),
+        JSON.stringify({ success: false, error: `Missing required fields: ${missing.join(', ')}`, user_message: userMsg }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
@@ -181,7 +237,7 @@ Deno.serve(async (req) => {
       .select(`
         id, command, response_template, is_active,
         test_apis (
-          id, api_url, api_method, api_headers, api_body_template, response_path, is_active,
+          id, name, api_url, api_method, api_headers, api_body_template, response_path, is_active,
           custom_response_template, use_custom_response
         )
       `)
@@ -207,6 +263,7 @@ Deno.serve(async (req) => {
     const apiData = commandData.test_apis as unknown;
     const api = apiData as {
       id: string;
+      name?: string;
       api_url: string;
       api_method: string;
       api_headers: Record<string, string>;
@@ -271,6 +328,51 @@ Deno.serve(async (req) => {
     let apiResponse: unknown = null;
     let apiRequest: Record<string, unknown> = { url: api.api_url, method: api.api_method };
 
+    // ===============================================================
+    // /teste e /testestar: garantir payload mínimo para geração de teste
+    // ===============================================================
+    const isTestCommand = normalizedCommand === '/teste' || normalizedCommand === '/testestar';
+    let testConfig: { server_id: string | null; server_name: string | null; client_name_prefix: string | null; category: string | null } | null = null;
+    const clientPhone = normalizePhoneDigits(sender_phone);
+    const testPlan = (api?.name && String(api.name).trim())
+      ? String(api.name).trim()
+      : normalizedCommand.replace('/', '').trim();
+
+    if (isTestCommand) {
+      const { data: cfg, error: cfgErr } = await supabase
+        .from('test_integration_config')
+        .select('server_id, server_name, client_name_prefix, category')
+        .eq('seller_id', seller_id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (cfgErr) {
+        console.error('[process-command] test_integration_config error:', cfgErr);
+      }
+      testConfig = cfg as any;
+
+      if (!clientPhone) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'client_phone_missing', user_message: 'Informe o telefone do cliente' }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+
+      if (!testConfig?.server_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'server_missing', user_message: 'Selecione um servidor válido' }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+
+      if (!testPlan) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'test_plan_missing', user_message: 'Plano de teste não encontrado' }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+    }
+
     try {
       const fetchOptions: RequestInit = {
         method: api.api_method,
@@ -280,17 +382,54 @@ Deno.serve(async (req) => {
         },
       };
 
-      if (api.api_method === 'POST' && api.api_body_template) {
+      // Build request for /teste and /testestar
+      let finalUrl = api.api_url;
+      if (isTestCommand) {
+        const clientNamePrefix = (testConfig?.client_name_prefix || '').trim();
+        const clientName = clientNamePrefix
+          ? `${clientNamePrefix}`
+          : `Cliente ${clientPhone.slice(-4)}`;
+
+        const base = (api.api_body_template && typeof api.api_body_template === 'object')
+          ? api.api_body_template
+          : {};
+
+        const payload = buildTestCommandPayload({
+          base,
+          clientPhone,
+          clientName,
+          testPlan,
+          serverId: testConfig!.server_id!,
+          serverName: testConfig?.server_name || null,
+          sellerId: seller_id,
+          instanceName: instance_name || null,
+        });
+
+        if (api.api_method === 'POST') {
+          fetchOptions.body = JSON.stringify(payload);
+          apiRequest.body = payload;
+        } else if (api.api_method === 'GET') {
+          const url = new URL(finalUrl);
+          url.searchParams.set('phone', clientPhone);
+          url.searchParams.set('name', String(payload.name || ''));
+          url.searchParams.set('plan', String(payload.plan || ''));
+          url.searchParams.set('server', String(payload.server || ''));
+          url.searchParams.set('seller_id', seller_id);
+          finalUrl = url.toString();
+        }
+      } else if (api.api_method === 'POST' && api.api_body_template) {
         fetchOptions.body = JSON.stringify(api.api_body_template);
         apiRequest.body = api.api_body_template;
       }
+
+      apiRequest.url = finalUrl;
 
       console.log(`[process-command] Calling API: ${api.api_method} ${api.api_url}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
       
-      const response = await fetch(api.api_url, {
+      const response = await fetch(finalUrl, {
         ...fetchOptions,
         signal: controller.signal,
       });

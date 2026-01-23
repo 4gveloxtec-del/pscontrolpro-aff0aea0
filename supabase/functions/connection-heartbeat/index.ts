@@ -171,20 +171,15 @@ function extractWhatsAppMessageText(msg: any): string {
 // participantAlt or in the webhook-level `sender` field.
 function normalizeJidToPhone(jid: string): string {
   if (!jid) return '';
-  
-  // Skip LID-only values (internal WhatsApp IDs, not phone numbers)
-  // LIDs look like: 131417912660033@lid or just a long number without country code format
-  if (jid.includes('@lid') && !jid.includes('@s.whatsapp.net')) {
-    // LID without phone number - need to get from participantAlt or sender
-    return '';
-  }
-  
+
   const raw = jid
     .replace('@s.whatsapp.net', '')
     .replace('@c.us', '')
     .replace('@lid', '');
   
-  // Validate it looks like a phone number (should start with country code)
+  // Validate it looks like a phone number (E.164 digits only, 10-15 digits).
+  // IMPORTANT: Some Evolution/WhatsApp payloads can carry a real phone even when suffix is "@lid".
+  // So we validate by digits length/pattern instead of hard-rejecting @lid.
   const digits = String(raw).replace(/\D/g, '');
   
   // Phone numbers should be 10-15 digits (with country code)
