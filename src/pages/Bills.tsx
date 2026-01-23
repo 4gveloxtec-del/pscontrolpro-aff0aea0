@@ -336,7 +336,7 @@ export default function Bills() {
       </div>
 
       {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-warning/5 border-warning/20">
           <CardContent className="flex items-center gap-4 p-4">
             <div className="p-3 rounded-lg bg-warning/10">
@@ -373,7 +373,7 @@ export default function Bills() {
 
       {/* Bills List */}
       {isLoading ? (
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-4">
@@ -394,7 +394,7 @@ export default function Bills() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filteredBills.map((bill) => {
             const status = getBillStatus(bill);
             return (

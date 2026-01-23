@@ -4,27 +4,47 @@
 
 /* Inter font loaded via system fonts for performance */
 
-/* Mobile-only frame layout */
+/* Responsive frame layout - mobile first, full width on tablet+ */
 .mobile-frame-outer {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
-  background-color: hsl(222 47% 11%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background-color: hsl(var(--background));
 }
 
 .mobile-frame-inner {
   width: 100%;
-  max-width: 430px;
   min-height: 100vh;
   min-height: 100dvh;
   background-color: hsl(var(--background));
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* Mobile: keep centered frame look for small screens only if desired */
+@media (max-width: 767px) {
+  .mobile-frame-outer {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  
+  .mobile-frame-inner {
+    max-width: 100%;
+  }
+}
+
+/* Tablet and Desktop: full width layout */
+@media (min-width: 768px) {
+  .mobile-frame-outer {
+    display: block;
+  }
+  
+  .mobile-frame-inner {
+    max-width: 100%;
+    box-shadow: none;
+  }
 }
 
 @layer base {
@@ -581,6 +601,134 @@ main, [role="main"] {
   /* Button group responsive */
   .button-group-responsive {
     @apply flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto sm:justify-end;
+  }
+
+  /* ============ DESKTOP RESPONSIVE UTILITIES ============ */
+
+  /* Dashboard grid - adapts to screen size */
+  .dashboard-grid {
+    @apply grid gap-3 sm:gap-4;
+    grid-template-columns: 1fr;
+  }
+  
+  @media (min-width: 768px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* Stats grid for dashboard cards */
+  .stats-grid {
+    @apply grid gap-3 sm:gap-4;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (min-width: 768px) {
+    .stats-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .stats-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  
+  @media (min-width: 1536px) {
+    .stats-grid {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+
+  /* Client cards grid */
+  .clients-grid {
+    @apply grid gap-3 sm:gap-4;
+    grid-template-columns: 1fr;
+  }
+  
+  @media (min-width: 768px) {
+    .clients-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .clients-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  
+  @media (min-width: 1536px) {
+    .clients-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* Content container with max-width on very large screens */
+  .content-container {
+    @apply w-full mx-auto;
+    max-width: 100%;
+  }
+  
+  @media (min-width: 1920px) {
+    .content-container {
+      max-width: 1800px;
+    }
+  }
+
+  /* Two column layout for desktop */
+  .layout-two-column {
+    @apply flex flex-col gap-4;
+  }
+  
+  @media (min-width: 1024px) {
+    .layout-two-column {
+      @apply flex-row;
+    }
+    
+    .layout-two-column > .layout-main {
+      flex: 2;
+    }
+    
+    .layout-two-column > .layout-sidebar {
+      flex: 1;
+      max-width: 400px;
+    }
+  }
+
+  /* Cards section that becomes multi-column on desktop */
+  .cards-section {
+    @apply space-y-3 sm:space-y-4;
+  }
+  
+  @media (min-width: 1024px) {
+    .cards-section {
+      @apply grid gap-4;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .cards-section > * {
+      margin: 0 !important;
+    }
+  }
+  
+  @media (min-width: 1536px) {
+    .cards-section {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 
   .animate-fade-in {

@@ -3347,7 +3347,7 @@ export default function Clients() {
           onPageChange={goToPage}
           isLoading={isLoading}
         />
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="clients-grid">
           {paginatedClients.map((client) => {
             const status = getClientStatus(client);
             const daysLeft = differenceInDays(new Date(client.expiration_date), today);
