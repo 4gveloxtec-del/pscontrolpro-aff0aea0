@@ -374,9 +374,14 @@ Deno.serve(async (req) => {
 
     // Atualizar contador de uso
     if (result.success) {
+      // Fetch current usage_count to increment properly
+      const currentUsageCount = typeof (commandData as Record<string, unknown>).usage_count === 'number' 
+        ? (commandData as Record<string, unknown>).usage_count as number 
+        : 0;
+      
       await supabase
         .from('whatsapp_commands')
-        .update({ usage_count: (commandData as any).usage_count + 1 || 1 })
+        .update({ usage_count: currentUsageCount + 1 })
         .eq('id', commandData.id);
 
       // Criar cliente automaticamente se API retornou dados válidos
