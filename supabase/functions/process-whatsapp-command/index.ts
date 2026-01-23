@@ -62,11 +62,18 @@ function formatResponse(data: unknown): string {
 }
 
 /**
- * Aplica template customizado com variáveis da resposta da API
- * Variáveis suportadas: {usuario}, {senha}, {vencimento}, {dns}, {pacote}, {resposta}
+ * Aplica template customizado com variáveis da resposta da API e do sistema
+ * Variáveis da API: {usuario}, {senha}, {vencimento}, {dns}, {pacote}, {nome}, {mac}, {valor}, {dias_restantes}
+ * Variáveis do sistema: {empresa}, {pix}, {servidor}, {plano}, {apps}, {links}
  */
-function applyCustomTemplate(template: string, apiResponse: Record<string, unknown>): string {
-  // Mapeamento de variáveis para possíveis campos na resposta
+function applyCustomTemplate(
+  template: string, 
+  apiResponse: Record<string, unknown>,
+  sellerData?: { company_name?: string; pix_key?: string } | null,
+  serverName?: string | null,
+  resellerApps?: Array<{ name: string; download_url?: string }> | null
+): string {
+  // Mapeamento de variáveis da API para possíveis campos na resposta
   const variableMapping: Record<string, string[]> = {
     usuario: ['username', 'user', 'login', 'usuario'],
     senha: ['password', 'pass', 'senha'],
@@ -74,11 +81,14 @@ function applyCustomTemplate(template: string, apiResponse: Record<string, unkno
     dns: ['dns', 'server', 'host', 'url'],
     pacote: ['package', 'plan', 'plano', 'pacote'],
     nome: ['name', 'nome', 'client_name'],
+    mac: ['mac', 'mac_address', 'device_mac'],
+    valor: ['price', 'value', 'valor', 'amount'],
+    dias_restantes: ['days_remaining', 'remaining_days', 'dias_restantes'],
   };
 
   let result = template;
 
-  // Substituir cada variável
+  // Substituir variáveis da API
   for (const [varName, possibleKeys] of Object.entries(variableMapping)) {
     let value = '';
     
@@ -93,6 +103,42 @@ function applyCustomTemplate(template: string, apiResponse: Record<string, unkno
     // Substituir a variável (case insensitive)
     const regex = new RegExp(`\\{${varName}\\}`, 'gi');
     result = result.replace(regex, value);
+  }
+  
+  // Substituir variáveis do sistema
+  if (sellerData?.company_name) {
+    result = result.replace(/\{empresa\}/gi, sellerData.company_name);
+  } else {
+    result = result.replace(/\{empresa\}/gi, '');
+  }
+  
+  if (sellerData?.pix_key) {
+    result = result.replace(/\{pix\}/gi, sellerData.pix_key);
+  } else {
+    result = result.replace(/\{pix\}/gi, '');
+  }
+  
+  if (serverName) {
+    result = result.replace(/\{servidor\}/gi, serverName);
+    result = result.replace(/\{plano\}/gi, serverName);
+  } else {
+    result = result.replace(/\{servidor\}/gi, '');
+    result = result.replace(/\{plano\}/gi, '');
+  }
+  
+  // Apps e links
+  if (resellerApps && resellerApps.length > 0) {
+    const appNames = resellerApps.map(a => `• ${a.name}`).join('\n');
+    const appLinks = resellerApps
+      .filter(a => a.download_url)
+      .map(a => `📥 ${a.name}: ${a.download_url}`)
+      .join('\n');
+    
+    result = result.replace(/\{apps\}/gi, appNames);
+    result = result.replace(/\{links\}/gi, appLinks);
+  } else {
+    result = result.replace(/\{apps\}/gi, '');
+    result = result.replace(/\{links\}/gi, '');
   }
   
   // Substituir {resposta} com a resposta formatada completa (fallback)
@@ -179,6 +225,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Buscar dados do vendedor para variáveis do sistema
+    let sellerData: { company_name?: string; pix_key?: string } | null = null;
+    let resellerApps: Array<{ name: string; download_url?: string }> | null = null;
+    let serverName: string | null = null;
+
+    if (api.use_custom_response && api.custom_response_template) {
+      // Only fetch if template might use system variables
+      const needsSellerData = /\{(empresa|pix)\}/i.test(api.custom_response_template);
+      const needsApps = /\{(apps|links)\}/i.test(api.custom_response_template);
+      const needsServer = /\{(servidor|plano)\}/i.test(api.custom_response_template);
+
+      if (needsSellerData) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_name, pix_key')
+          .eq('id', seller_id)
+          .maybeSingle();
+        sellerData = profile;
+      }
+
+      if (needsApps) {
+        const { data: apps } = await supabase
+          .from('reseller_device_apps')
+          .select('name, download_url')
+          .eq('seller_id', seller_id)
+          .eq('is_active', true);
+        resellerApps = apps;
+      }
+
+      if (needsServer) {
+        // Try to get the first configured server for this seller
+        const { data: serverData } = await supabase
+          .from('servers')
+          .select('name')
+          .eq('seller_id', seller_id)
+          .limit(1)
+          .maybeSingle();
+        serverName = serverData?.name || null;
+      }
+    }
+
     // Executar chamada à API
     let result: CommandResult;
     let apiResponse: unknown = null;
@@ -243,8 +330,14 @@ Deno.serve(async (req) => {
       
       // Se tem template customizado e está habilitado, usar ele
       if (api.use_custom_response && api.custom_response_template && typeof apiResponse === 'object') {
-        console.log('[process-command] Using custom response template');
-        finalMessage = applyCustomTemplate(api.custom_response_template, apiResponse as Record<string, unknown>);
+        console.log('[process-command] Using custom response template with system variables');
+        finalMessage = applyCustomTemplate(
+          api.custom_response_template, 
+          apiResponse as Record<string, unknown>,
+          sellerData,
+          serverName,
+          resellerApps
+        );
       } else {
         // Usar resposta formatada padrão
         const formattedResponse = formatResponse(extractedData);
