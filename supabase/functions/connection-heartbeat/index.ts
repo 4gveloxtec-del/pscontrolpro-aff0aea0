@@ -166,6 +166,39 @@ function extractWhatsAppMessageText(msg: any): string {
   return String(text || '');
 }
 
+// Try to extract a real phone number from various WhatsApp/Evolution fields.
+// Some payloads use @lid identifiers; in those cases the real number may appear in
+// participantAlt or in the webhook-level `sender` field.
+function normalizeJidToPhone(jid: string): string {
+  if (!jid) return '';
+  const raw = jid
+    .replace('@s.whatsapp.net', '')
+    .replace('@c.us', '')
+    .replace('@lid', '');
+  return String(raw).replace(/\D/g, '');
+}
+
+function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string {
+  const candidates: string[] = [
+    msg?.key?.participantAlt,
+    msg?.participantAlt,
+    msg?.key?.participant,
+    msg?.participant,
+    msg?.key?.remoteJid,
+    msg?.remoteJid,
+    eventData?.sender,
+    eventData?.data?.sender,
+    body?.sender,
+    body?.data?.sender,
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    const phone = normalizeJidToPhone(String(c));
+    if (phone) return phone;
+  }
+  return '';
+}
+
 // Normalize API URL
 function normalizeApiUrl(url: string): string {
   let cleanUrl = url.trim();
@@ -495,30 +528,22 @@ Deno.serve(async (req: Request) => {
             
             // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
             const messageText = extractWhatsAppMessageText(msg);
-            
+
             // Extração robusta do telefone do remetente
-            // Prioridade: participantAlt (tem o número real) > participant > remoteJid
-            // O formato @lid é um ID interno do WhatsApp, precisamos do número real
-            const extractPhoneFromJid = (jid: string): string => {
-              if (!jid) return '';
-              return jid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@c.us', '');
-            };
-            
-            let senderPhone = '';
-            // Para conversas individuais, o participantAlt geralmente tem o número real
-            if (msg.key?.participantAlt) {
-              senderPhone = extractPhoneFromJid(msg.key.participantAlt);
-            } else if (msg.key?.participant) {
-              senderPhone = extractPhoneFromJid(msg.key.participant);
-            }
-            // Se ainda vazio e não é @lid, usar remoteJid
-            if (!senderPhone && !remoteJid.includes('@lid')) {
-              senderPhone = extractPhoneFromJid(remoteJid);
-            }
-            // Se é @lid mas não tem participant, tentar extrair número do próprio @lid
-            if (!senderPhone && remoteJid.includes('@lid')) {
-              // Alguns LIDs podem ter formato diferente, logar para debug
-              console.log(`[Webhook] LID without participant: ${remoteJid}, key:`, JSON.stringify(msg.key || {}));
+            const senderPhone = getSenderPhoneFromWebhook(msg, eventData, body);
+
+            if (!senderPhone) {
+              const keyObj = msg?.key && typeof msg.key === 'object' ? msg.key : {};
+              console.log('[Webhook] Could not extract sender phone. remoteJid:', remoteJid);
+              console.log('[Webhook] key snapshot:', JSON.stringify({
+                remoteJid: keyObj?.remoteJid,
+                participant: keyObj?.participant,
+                participantAlt: keyObj?.participantAlt,
+                fromMe: keyObj?.fromMe,
+              }));
+              console.log('[Webhook] webhook sender snapshot:', JSON.stringify({
+                sender: eventData?.sender || body?.sender,
+              }));
             }
             
             console.log(`[Webhook] Message from ${senderPhone}: "${String(messageText).substring(0, 50)}", fromMe: ${msg.key?.fromMe}`);
