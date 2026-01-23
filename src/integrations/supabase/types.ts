@@ -583,6 +583,7 @@ export type Database = {
       clients: {
         Row: {
           additional_servers: Json | null
+          api_server_id: string | null
           app_name: string | null
           app_type: string | null
           archived_at: string | null
@@ -621,6 +622,7 @@ export type Database = {
           premium_price: number | null
           referral_code: string | null
           renewed_at: string | null
+          renewed_via_api: boolean | null
           seller_id: string
           server_id: string | null
           server_id_2: string | null
@@ -631,6 +633,7 @@ export type Database = {
         }
         Insert: {
           additional_servers?: Json | null
+          api_server_id?: string | null
           app_name?: string | null
           app_type?: string | null
           archived_at?: string | null
@@ -669,6 +672,7 @@ export type Database = {
           premium_price?: number | null
           referral_code?: string | null
           renewed_at?: string | null
+          renewed_via_api?: boolean | null
           seller_id: string
           server_id?: string | null
           server_id_2?: string | null
@@ -679,6 +683,7 @@ export type Database = {
         }
         Update: {
           additional_servers?: Json | null
+          api_server_id?: string | null
           app_name?: string | null
           app_type?: string | null
           archived_at?: string | null
@@ -717,6 +722,7 @@ export type Database = {
           premium_price?: number | null
           referral_code?: string | null
           renewed_at?: string | null
+          renewed_via_api?: boolean | null
           seller_id?: string
           server_id?: string | null
           server_id_2?: string | null
@@ -1947,6 +1953,53 @@ export type Database = {
           },
         ]
       }
+      server_sync_log: {
+        Row: {
+          client_id: string | null
+          client_phone: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          seller_id: string
+          server_response: Json | null
+          source: string
+          success: boolean | null
+          sync_type: string
+        }
+        Insert: {
+          client_id?: string | null
+          client_phone?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          seller_id: string
+          server_response?: Json | null
+          source: string
+          success?: boolean | null
+          sync_type: string
+        }
+        Update: {
+          client_id?: string | null
+          client_phone?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          seller_id?: string
+          server_response?: Json | null
+          source?: string
+          success?: boolean | null
+          sync_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_sync_log_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       servers: {
         Row: {
           created_at: string | null
@@ -2386,6 +2439,8 @@ export type Database = {
           category: string | null
           client_name_prefix: string | null
           created_at: string | null
+          detect_renewal_enabled: boolean | null
+          detect_renewal_keywords: string[] | null
           id: string
           is_active: boolean | null
           map_dns_path: string | null
@@ -2396,6 +2451,9 @@ export type Database = {
           send_welcome_message: boolean | null
           server_id: string | null
           server_name: string | null
+          sync_deletion_enabled: boolean | null
+          sync_webhook_secret: string | null
+          sync_webhook_url: string | null
           test_counter: number | null
           updated_at: string | null
         }
@@ -2405,6 +2463,8 @@ export type Database = {
           category?: string | null
           client_name_prefix?: string | null
           created_at?: string | null
+          detect_renewal_enabled?: boolean | null
+          detect_renewal_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
           map_dns_path?: string | null
@@ -2415,6 +2475,9 @@ export type Database = {
           send_welcome_message?: boolean | null
           server_id?: string | null
           server_name?: string | null
+          sync_deletion_enabled?: boolean | null
+          sync_webhook_secret?: string | null
+          sync_webhook_url?: string | null
           test_counter?: number | null
           updated_at?: string | null
         }
@@ -2424,6 +2487,8 @@ export type Database = {
           category?: string | null
           client_name_prefix?: string | null
           created_at?: string | null
+          detect_renewal_enabled?: boolean | null
+          detect_renewal_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
           map_dns_path?: string | null
@@ -2434,6 +2499,9 @@ export type Database = {
           send_welcome_message?: boolean | null
           server_id?: string | null
           server_name?: string | null
+          sync_deletion_enabled?: boolean | null
+          sync_webhook_secret?: string | null
+          sync_webhook_url?: string | null
           test_counter?: number | null
           updated_at?: string | null
         }

@@ -41,6 +41,8 @@ interface TestIntegrationConfigData {
   test_counter: number;
   auto_create_client: boolean;
   send_welcome_message: boolean;
+  detect_renewal_enabled: boolean;
+  detect_renewal_keywords: string[] | null;
   is_active: boolean;
 }
 
@@ -111,6 +113,8 @@ export function TestIntegrationConfig() {
     map_expiration_path: 'expiresAtFormatted',
     auto_create_client: true,
     send_welcome_message: false,
+    detect_renewal_enabled: true,
+    detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
   });
 
   // Update form when config loads
@@ -126,6 +130,8 @@ export function TestIntegrationConfig() {
         map_expiration_path: config.map_expiration_path || 'expiresAtFormatted',
         auto_create_client: config.auto_create_client ?? true,
         send_welcome_message: config.send_welcome_message ?? false,
+        detect_renewal_enabled: config.detect_renewal_enabled ?? true,
+        detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
       });
     }
   });
@@ -136,6 +142,12 @@ export function TestIntegrationConfig() {
       if (!selectedApiId) throw new Error('Selecione uma API');
 
       const selectedServer = servers.find(s => s.id === formData.server_id);
+      
+      // Parse keywords from comma-separated string
+      const keywordsArray = formData.detect_renewal_keywords
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
       
       const payload = {
         seller_id: user!.id,
@@ -150,6 +162,8 @@ export function TestIntegrationConfig() {
         map_expiration_path: formData.map_expiration_path,
         auto_create_client: formData.auto_create_client,
         send_welcome_message: formData.send_welcome_message,
+        detect_renewal_enabled: formData.detect_renewal_enabled,
+        detect_renewal_keywords: keywordsArray,
         is_active: true,
       };
 
@@ -396,7 +410,39 @@ export function TestIntegrationConfig() {
                   </>
                 )}
 
-                {/* Save Button */}
+                {/* Renewal Detection Section */}
+                <div className="border-t pt-6 mt-6 space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                    <div className="flex items-center gap-3">
+                      <RefreshCw className="h-5 w-5 text-green-600" />
+                      <div>
+                        <p className="font-medium">Sincronizar renovação automática</p>
+                        <p className="text-sm text-muted-foreground">
+                          Quando a API do servidor enviar mensagem de renovação, renovar cliente no app (sem duplicar notificação)
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.detect_renewal_enabled}
+                      onCheckedChange={(checked) => setFormData({ ...formData, detect_renewal_enabled: checked })}
+                    />
+                  </div>
+
+                  {formData.detect_renewal_enabled && (
+                    <div className="space-y-2">
+                      <Label>Palavras-chave de renovação</Label>
+                      <Input
+                        value={formData.detect_renewal_keywords}
+                        onChange={(e) => setFormData({ ...formData, detect_renewal_keywords: e.target.value })}
+                        placeholder="renovado,renovação,renewed..."
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Separe as palavras por vírgula. Quando detectar essas palavras em mensagens enviadas, o cliente será renovado no app.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <Button
                   onClick={() => saveMutation.mutate()}
                   disabled={saveMutation.isPending}
