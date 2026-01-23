@@ -2175,7 +2175,7 @@ export default function Clients() {
               </Button>
             </DialogTrigger>
           </div>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
               <DialogDescription>
@@ -3661,7 +3661,7 @@ export default function Clients() {
 
                     {/* External Apps Display */}
                     {user && (
-                      <ClientExternalAppsDisplay clientId={client.id} sellerId={user.id} />
+                      <ClientExternalAppsDisplay clientId={client.id} />
                     )}
 
                     {/* Premium Accounts - Lazy loaded, only shown on click */}
