@@ -525,8 +525,7 @@ export default function TestCommands() {
           </TabsTrigger>
           <TabsTrigger value="integration" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Integração</span>
-            <span className="sm:hidden">Config</span>
+            <span>Integr.</span>
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Activity className="h-4 w-4" />
@@ -711,7 +710,7 @@ export default function TestCommands() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              💡 Para ativar/desativar os logs, vá na aba "Integração"
+              💡 Para ativar/desativar os logs, vá na aba "Integr." (ícone ⚙️)
             </p>
           </Card>
 
