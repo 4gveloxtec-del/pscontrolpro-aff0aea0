@@ -290,6 +290,8 @@ Deno.serve(async (req: Request) => {
       // Enhanced instance name extraction - handle ALL possible Evolution API formats
       const instanceName = 
         body.instance || 
+        body.instance?.instanceName ||
+        body.instance?.name ||
         body.data?.instance?.instanceName ||
         body.data?.instance?.name ||
         body.data?.instance ||
@@ -408,7 +410,14 @@ Deno.serve(async (req: Request) => {
         case 'messages.upsert':
           // Processar mensagens recebidas/enviadas
           // Evolution API pode enviar em diferentes formatos dependendo da versão
-          const messagesRaw = eventData.messages || eventData.data?.messages || body.messages || [];
+          const messagesRaw =
+            eventData.messages ||
+            eventData.data?.messages ||
+            eventData.message ||
+            eventData.data?.message ||
+            body.messages ||
+            body.message ||
+            [];
           const messages = Array.isArray(messagesRaw) ? messagesRaw : [messagesRaw].filter(Boolean);
           
           console.log(`[Webhook] messages.upsert received, message count: ${messages.length}`);
@@ -426,9 +435,12 @@ Deno.serve(async (req: Request) => {
             }
             
             // Extração robusta do texto - múltiplos formatos possíveis
-            const messageText = 
-              msg.message?.conversation || 
+            const messageText =
+              msg.message?.conversation ||
               msg.message?.extendedTextMessage?.text ||
+              msg.message?.imageMessage?.caption ||
+              msg.message?.videoMessage?.caption ||
+              msg.message?.documentMessage?.caption ||
               msg.messageBody ||
               msg.body ||
               msg.text ||
@@ -482,9 +494,28 @@ Deno.serve(async (req: Request) => {
                     logs_enabled: logsEnabled,
                   }),
                 });
-                
-                const cmdResult = await commandResponse.json();
+
+                const cmdText = await commandResponse.text();
+                let cmdResult: any = {};
+                try {
+                  cmdResult = cmdText ? JSON.parse(cmdText) : {};
+                } catch {
+                  cmdResult = { success: false, error: 'Invalid JSON from process-whatsapp-command', raw: cmdText?.substring(0, 500) };
+                }
                 console.log(`[Webhook] Command result for seller ${instance.seller_id}:`, JSON.stringify(cmdResult));
+
+                if (!commandResponse.ok) {
+                  // Log HTTP-level failures explicitly
+                  try {
+                    await supabase.from('command_logs').insert({
+                      owner_id: instance.seller_id,
+                      command_text: trimmedForCommand,
+                      sender_phone: senderPhone,
+                      success: false,
+                      error_message: `process-whatsapp-command HTTP ${commandResponse.status}: ${String(cmdText || '').substring(0, 200)}`,
+                    });
+                  } catch { /* ignore */ }
+                }
                 
                 // Se comando foi processado com sucesso, enviar resposta via WhatsApp
                 if (cmdResult.success && cmdResult.response) {
@@ -497,7 +528,8 @@ Deno.serve(async (req: Request) => {
                   
                   if (globalConfig?.api_url && globalConfig?.api_token) {
                     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-                    const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                    // IMPORTANTE: usar sempre o nome REAL salvo no banco (pode diferir do payload em casos de rename/original_instance_name)
+                    const sendUrl = `${apiUrl}/message/sendText/${instance.instance_name}`;
                     
                     // Normalização robusta do número com variações para retry
                     const cleanPhone = senderPhone.replace(/\D/g, '');
@@ -1197,7 +1229,8 @@ Deno.serve(async (req: Request) => {
           .eq('is_active', true)
           .maybeSingle();
 
-        const expectedUrl = 'https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat';
+        // Use the actual backend base URL for this project
+        const expectedUrl = `${supabaseUrl}/functions/v1/connection-heartbeat`;
         const urlMatches = webhookUrl.includes('connection-heartbeat') || webhookUrl === expectedUrl;
         const hasMessagesEvent = webhookEventsEnabled.some(e => 
           e.toLowerCase().includes('messages') || 
