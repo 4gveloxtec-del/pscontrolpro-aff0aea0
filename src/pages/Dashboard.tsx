@@ -548,7 +548,7 @@ export default function Dashboard() {
                   </Button>
                 )}
               </div>
-               <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-7">
+               <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8">
                 {expiringToday.length > 0 && (
                   <Card 
                     className={cn(
@@ -710,7 +710,7 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="stats-grid">
             <StatCard
               title="Total de Clientes"
               value={maskData(clients.length, 'number')}
@@ -760,7 +760,7 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

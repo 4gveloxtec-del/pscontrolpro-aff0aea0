@@ -319,7 +319,7 @@ export default function Tutorials() {
 
       {/* Tutorials Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
               <div className="aspect-video bg-muted" />
@@ -341,7 +341,7 @@ export default function Tutorials() {
           </p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
           {tutorials.map((tutorial) => {
             const videoId = extractYouTubeId(tutorial.youtube_url);
             return (

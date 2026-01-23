@@ -311,8 +311,8 @@ export function AppLayout() {
         }}
       >
         <div className={cn(
-          "p-3 sm:p-4 lg:p-6 animate-fade-in min-h-full w-full max-w-full overflow-x-hidden",
-          isMobile ? "pb-4" : ""
+          "p-3 sm:p-4 lg:p-6 xl:p-8 animate-fade-in min-h-full w-full max-w-full overflow-x-hidden",
+          isMobile ? "pb-4" : "content-container"
         )}>
           <Outlet />
         </div>
