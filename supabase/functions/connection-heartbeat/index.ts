@@ -641,8 +641,14 @@ Deno.serve(async (req: Request) => {
                   } catch { /* ignore */ }
                 }
                 
-                // Se comando foi processado com sucesso, enviar resposta via WhatsApp
-                if (cmdResult.success && cmdResult.response) {
+                // Enviar resposta via WhatsApp:
+                // - em sucesso: usa cmdResult.response
+                // - em validação/erro controlado: usa cmdResult.user_message (sem alterar fluxo principal)
+                const textToSend = (cmdResult && (cmdResult.response || cmdResult.user_message))
+                  ? String(cmdResult.response || cmdResult.user_message)
+                  : '';
+
+                if (textToSend) {
                   // Buscar config global para enviar resposta
                   const { data: globalConfig } = await supabase
                     .from('whatsapp_global_config')
@@ -703,7 +709,7 @@ Deno.serve(async (req: Request) => {
                         },
                         body: JSON.stringify({
                           number: phoneVariant,
-                          text: cmdResult.response,
+                          text: textToSend,
                         }),
                       });
                       

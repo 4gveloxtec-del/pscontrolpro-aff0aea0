@@ -20,6 +20,29 @@ function normalizePhoneDigits(input: unknown): string {
   return digits;
 }
 
+function parseTestCommandArgs(commandText: string): { clientPhone: string; clientName: string } {
+  const tokens = String(commandText || '').trim().split(/\s+/).filter(Boolean);
+  const args = tokens.slice(1);
+
+  let clientPhone = '';
+  let phoneIndex = -1;
+
+  for (let i = 0; i < args.length; i++) {
+    const digits = normalizePhoneDigits(args[i]);
+    if (digits) {
+      clientPhone = digits;
+      phoneIndex = i;
+      break;
+    }
+  }
+
+  const nameParts = args.filter((_, idx) => idx !== phoneIndex);
+  const clientNameRaw = nameParts.join(' ').trim();
+  const clientName = clientNameRaw || (clientPhone ? `Cliente ${clientPhone.slice(-4)}` : 'Cliente');
+
+  return { clientPhone, clientName };
+}
+
 function isBlank(v: unknown): boolean {
   return v === null || v === undefined || (typeof v === 'string' && !v.trim());
 }
@@ -54,6 +77,26 @@ function buildTestCommandPayload(params: {
   if (isBlank(payload.server_id)) payload.server_id = params.serverId;
   if (isBlank(payload.reseller_id)) payload.reseller_id = params.sellerId;
   if (params.instanceName && isBlank(payload.instance_name)) payload.instance_name = params.instanceName;
+
+  // If the template already has a nested structure, also populate common nested objects.
+  // This avoids breaking existing integrations that expect data/client wrappers.
+  const maybeData = payload.data;
+  if (maybeData && typeof maybeData === 'object' && !Array.isArray(maybeData)) {
+    const dataObj = maybeData as Record<string, unknown>;
+    if (isBlank(dataObj.phone)) dataObj.phone = params.clientPhone;
+    if (isBlank(dataObj.name)) dataObj.name = params.clientName;
+    if (isBlank(dataObj.plan)) dataObj.plan = params.testPlan;
+    if (isBlank(dataObj.server)) dataObj.server = params.serverName || params.serverId;
+    if (isBlank(dataObj.seller_id)) dataObj.seller_id = params.sellerId;
+    if (isBlank(dataObj.server_id)) dataObj.server_id = params.serverId;
+  }
+
+  const maybeClient = payload.client;
+  if (maybeClient && typeof maybeClient === 'object' && !Array.isArray(maybeClient)) {
+    const clientObj = maybeClient as Record<string, unknown>;
+    if (isBlank(clientObj.phone)) clientObj.phone = params.clientPhone;
+    if (isBlank(clientObj.name)) clientObj.name = params.clientName;
+  }
 
   return payload;
 }
@@ -218,8 +261,8 @@ Deno.serve(async (req) => {
     if (!sender_phone) missing.push('sender_phone');
     if (missing.length > 0) {
       const userMsg = missing.includes('sender_phone')
-        ? 'Informe o telefone do cliente'
-        : 'Dados obrigatórios ausentes para processar o comando';
+        ? 'Não consegui identificar seu WhatsApp. Envie novamente a mensagem.'
+        : 'Dados obrigatórios ausentes para processar o comando.';
 
       return new Response(
         JSON.stringify({ success: false, error: `Missing required fields: ${missing.join(', ')}`, user_message: userMsg }),
@@ -333,7 +376,9 @@ Deno.serve(async (req) => {
     // ===============================================================
     const isTestCommand = normalizedCommand === '/teste' || normalizedCommand === '/testestar';
     let testConfig: { server_id: string | null; server_name: string | null; client_name_prefix: string | null; category: string | null } | null = null;
-    const clientPhone = normalizePhoneDigits(sender_phone);
+    const { clientPhone, clientName } = isTestCommand
+      ? parseTestCommandArgs(String(command_text || ''))
+      : { clientPhone: '', clientName: '' };
     const testPlan = (api?.name && String(api.name).trim())
       ? String(api.name).trim()
       : normalizedCommand.replace('/', '').trim();
@@ -353,7 +398,11 @@ Deno.serve(async (req) => {
 
       if (!clientPhone) {
         return new Response(
-          JSON.stringify({ success: false, error: 'client_phone_missing', user_message: 'Informe o telefone do cliente' }),
+          JSON.stringify({
+            success: false,
+            error: 'client_phone_missing',
+            user_message: 'Informe o telefone do cliente. Ex: /teste 5511999999999 João',
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
         );
       }
@@ -385,10 +434,8 @@ Deno.serve(async (req) => {
       // Build request for /teste and /testestar
       let finalUrl = api.api_url;
       if (isTestCommand) {
-        const clientNamePrefix = (testConfig?.client_name_prefix || '').trim();
-        const clientName = clientNamePrefix
-          ? `${clientNamePrefix}`
-          : `Cliente ${clientPhone.slice(-4)}`;
+        // Use name provided in the command. If user didn't provide it, fall back to a safe default.
+        const finalClientName = (clientName || '').trim() || `Cliente ${clientPhone.slice(-4)}`;
 
         const base = (api.api_body_template && typeof api.api_body_template === 'object')
           ? api.api_body_template
@@ -397,7 +444,7 @@ Deno.serve(async (req) => {
         const payload = buildTestCommandPayload({
           base,
           clientPhone,
-          clientName,
+          clientName: finalClientName,
           testPlan,
           serverId: testConfig!.server_id!,
           serverName: testConfig?.server_name || null,
@@ -424,7 +471,7 @@ Deno.serve(async (req) => {
 
       apiRequest.url = finalUrl;
 
-      console.log(`[process-command] Calling API: ${api.api_method} ${api.api_url}`);
+      console.log(`[process-command] Calling API: ${api.api_method} ${finalUrl}`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
