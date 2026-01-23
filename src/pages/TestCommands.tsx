@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -100,6 +100,22 @@ export default function TestCommands() {
   const [testingApi, setTestingApi] = useState(false);
   const [testResponse, setTestResponse] = useState<Record<string, unknown> | null>(null);
   const [previewMessage, setPreviewMessage] = useState('');
+  
+  // Ref for template textarea to track cursor position
+  const templateTextareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Default template model
+  const DEFAULT_TEMPLATE = `✅ *Teste Gerado com Sucesso!*
+
+👤 *Usuário:* {usuario}
+🔑 *Senha:* {senha}
+📅 *Validade:* {vencimento}
+
+📥 *Baixe seu aplicativo:*
+{links}
+
+🏢 {empresa}
+📲 Qualquer dúvida, estamos à disposição!`;
 
   // Command Dialog State
   const [commandDialogOpen, setCommandDialogOpen] = useState(false);
@@ -1174,17 +1190,49 @@ export default function TestCommands() {
               
               {apiForm.use_custom_response && (
                 <>
+                  {/* Use Template Button */}
+                  {!apiForm.custom_response_template && (
+                    <div className="border-t pt-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          handleTemplateChange(DEFAULT_TEMPLATE);
+                          toast.success('Template modelo carregado! Edite como preferir.');
+                        }}
+                      >
+                        📝 Usar Mensagem Modelo
+                      </Button>
+                    </div>
+                  )}
+                  
                   {/* Variables Available */}
                   <div className="text-[10px] text-muted-foreground border-t pt-3">
-                    <p className="font-medium mb-1.5 text-foreground">📦 Variáveis da API:</p>
+                    <p className="font-medium mb-1.5 text-foreground">📦 Variáveis da API (clique para inserir no cursor):</p>
                     <div className="flex flex-wrap gap-1 mb-3">
                       {['{usuario}', '{senha}', '{vencimento}', '{dns}', '{pacote}', '{nome}'].map(v => (
                         <button
                           key={v}
                           type="button"
                           onClick={() => {
-                            const newTemplate = apiForm.custom_response_template + v;
-                            handleTemplateChange(newTemplate);
+                            const textarea = templateTextareaRef.current;
+                            if (textarea) {
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const currentValue = apiForm.custom_response_template;
+                              const newValue = currentValue.substring(0, start) + v + currentValue.substring(end);
+                              handleTemplateChange(newValue);
+                              // Focus and set cursor position after the inserted variable
+                              setTimeout(() => {
+                                textarea.focus();
+                                textarea.setSelectionRange(start + v.length, start + v.length);
+                              }, 0);
+                            } else {
+                              // Fallback: append at end
+                              handleTemplateChange(apiForm.custom_response_template + v);
+                            }
                           }}
                           className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] hover:bg-primary/20 transition-colors cursor-pointer"
                         >
@@ -1199,8 +1247,22 @@ export default function TestCommands() {
                           key={v}
                           type="button"
                           onClick={() => {
-                            const newTemplate = apiForm.custom_response_template + v;
-                            handleTemplateChange(newTemplate);
+                            const textarea = templateTextareaRef.current;
+                            if (textarea) {
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const currentValue = apiForm.custom_response_template;
+                              const newValue = currentValue.substring(0, start) + v + currentValue.substring(end);
+                              handleTemplateChange(newValue);
+                              // Focus and set cursor position after the inserted variable
+                              setTimeout(() => {
+                                textarea.focus();
+                                textarea.setSelectionRange(start + v.length, start + v.length);
+                              }, 0);
+                            } else {
+                              // Fallback: append at end
+                              handleTemplateChange(apiForm.custom_response_template + v);
+                            }
                           }}
                           className="bg-secondary/50 text-secondary-foreground px-1.5 py-0.5 rounded text-[9px] hover:bg-secondary/80 transition-colors cursor-pointer"
                         >
@@ -1212,14 +1274,33 @@ export default function TestCommands() {
                   
                   {/* Custom Template Editor */}
                   <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">✍️ Sua mensagem personalizada</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">✍️ Sua mensagem personalizada</Label>
+                      {apiForm.custom_response_template && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            handleTemplateChange('');
+                          }}
+                        >
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
                     <Textarea
+                      ref={templateTextareaRef}
                       value={apiForm.custom_response_template}
                       onChange={(e) => handleTemplateChange(e.target.value)}
-                      placeholder={`✅ *Teste Gerado!*\n\n👤 Usuário: {usuario}\n🔑 Senha: {senha}\n📅 Validade: {vencimento}\n\n📥 Baixe seu app:\n{links}\n\n🏢 {empresa}`}
-                      className="font-mono text-xs min-h-[100px]"
-                      rows={5}
+                      placeholder="Clique em 'Usar Mensagem Modelo' ou escreva sua mensagem aqui..."
+                      className="font-mono text-xs min-h-[120px]"
+                      rows={6}
                     />
+                    <p className="text-[9px] text-muted-foreground">
+                      💡 Posicione o cursor onde deseja inserir a variável e clique nela
+                    </p>
                   </div>
                   
                   {/* Live Preview */}
