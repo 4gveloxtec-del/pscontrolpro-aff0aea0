@@ -729,36 +729,38 @@ export default function TestCommands() {
 
       {/* API Dialog */}
       <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingApi ? 'Editar API' : 'Nova API de Teste'}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg">{editingApi ? 'Editar API' : 'Nova API de Teste'}</DialogTitle>
+            <DialogDescription className="text-xs">
               Configure a API que será chamada pelo comando.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleApiSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nome *</Label>
+          <form onSubmit={handleApiSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Nome *</Label>
               <Input
                 value={apiForm.name}
                 onChange={(e) => setApiForm({ ...apiForm, name: e.target.value })}
                 placeholder="Ex: StarPlay Teste"
+                className="h-9"
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label>Descrição</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Descrição</Label>
               <Input
                 value={apiForm.description}
                 onChange={(e) => setApiForm({ ...apiForm, description: e.target.value })}
                 placeholder="Descrição opcional"
+                className="h-9"
               />
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              <div className="col-span-1 space-y-2">
-                <Label>Método</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-1 space-y-1.5">
+                <Label className="text-sm">Método</Label>
                 <Select value={apiForm.api_method} onValueChange={(v) => setApiForm({ ...apiForm, api_method: v })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -767,75 +769,74 @@ export default function TestCommands() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-3 space-y-2">
-                <Label>URL *</Label>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-sm">URL *</Label>
                 <Input
                   value={apiForm.api_url}
                   onChange={(e) => setApiForm({ ...apiForm, api_url: e.target.value })}
-                  placeholder="https://api.exemplo.com/gerar-teste"
+                  placeholder="https://api.exemplo.com/teste"
+                  className="h-9 text-xs"
                   required
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Headers (JSON)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Headers (JSON)</Label>
               <Textarea
                 value={apiForm.api_headers}
                 onChange={(e) => setApiForm({ ...apiForm, api_headers: e.target.value })}
                 placeholder='{"Authorization": "Bearer token"}'
-                className="font-mono text-sm"
+                className="font-mono text-xs min-h-[60px]"
                 rows={2}
               />
             </div>
             {apiForm.api_method === 'POST' && (
-              <div className="space-y-2">
-                <Label>Body Template (JSON)</Label>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Body Template (JSON)</Label>
                 <Textarea
                   value={apiForm.api_body_template}
                   onChange={(e) => setApiForm({ ...apiForm, api_body_template: e.target.value })}
                   placeholder='{"action": "generate_test"}'
-                  className="font-mono text-sm"
-                  rows={3}
+                  className="font-mono text-xs min-h-[60px]"
+                  rows={2}
                 />
               </div>
             )}
             
             {/* Test API Button */}
-            <div className="border-t pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleTestApi}
-                disabled={testingApi || !apiForm.api_url}
-                className="w-full"
-              >
-                {testingApi ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4 mr-2" />
-                )}
-                Testar API e Ver Resposta
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTestApi}
+              disabled={testingApi || !apiForm.api_url}
+              className="w-full h-9"
+              size="sm"
+            >
+              {testingApi ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              Testar API
+            </Button>
             
             {/* Test Response Preview */}
             {testResponse && (
-              <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
-                <div className="flex items-center gap-2 text-sm font-medium text-green-600">
-                  <CheckCircle className="h-4 w-4" />
-                  Resposta da API (dados disponíveis)
+              <div className="space-y-3 border rounded-lg p-3 bg-muted/50">
+                <div className="flex items-center gap-2 text-xs font-medium text-green-600">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Resposta da API
                 </div>
-                <div className="bg-background rounded p-3 text-xs font-mono max-h-40 overflow-y-auto">
+                <div className="bg-background rounded p-2 text-[10px] font-mono max-h-24 overflow-y-auto">
                   <pre>{JSON.stringify(testResponse, null, 2)}</pre>
                 </div>
                 
                 {/* Custom Response Toggle */}
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                <div className="flex items-center justify-between p-2 border rounded-lg bg-background">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-primary" />
+                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
                     <div>
-                      <p className="font-medium text-sm">Personalizar mensagem</p>
-                      <p className="text-xs text-muted-foreground">Editar o texto enviado ao cliente</p>
+                      <p className="font-medium text-xs">Personalizar mensagem</p>
                     </div>
                   </div>
                   <Switch
@@ -847,36 +848,36 @@ export default function TestCommands() {
                 {apiForm.use_custom_response && (
                   <>
                     {/* Variables Available */}
-                    <div className="text-xs text-muted-foreground">
-                      <p className="font-medium mb-1">Variáveis disponíveis:</p>
+                    <div className="text-[10px] text-muted-foreground">
+                      <p className="font-medium mb-1">Variáveis:</p>
                       <div className="flex flex-wrap gap-1">
-                        {['{usuario}', '{senha}', '{vencimento}', '{dns}', '{pacote}', '{nome}'].map(v => (
-                          <code key={v} className="bg-primary/10 text-primary px-1.5 py-0.5 rounded">{v}</code>
+                        {['{usuario}', '{senha}', '{vencimento}', '{dns}'].map(v => (
+                          <code key={v} className="bg-primary/10 text-primary px-1 py-0.5 rounded text-[9px]">{v}</code>
                         ))}
                       </div>
                     </div>
                     
                     {/* Custom Template Editor */}
-                    <div className="space-y-2">
-                      <Label>Mensagem personalizada</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Mensagem personalizada</Label>
                       <Textarea
                         value={apiForm.custom_response_template}
                         onChange={(e) => handleTemplateChange(e.target.value)}
-                        placeholder={`✅ *Teste Ativado!*\n\n👤 Usuário: {usuario}\n🔑 Senha: {senha}\n📅 Válido até: {vencimento}\n\n_Aproveite!_`}
-                        className="font-mono text-sm"
-                        rows={6}
+                        placeholder={`✅ *Teste!*\n👤 {usuario}\n🔑 {senha}`}
+                        className="font-mono text-xs min-h-[80px]"
+                        rows={4}
                       />
                     </div>
                     
                     {/* Live Preview */}
                     {previewMessage && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Eye className="h-4 w-4" />
-                          Preview da mensagem
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1 text-xs font-medium">
+                          <Eye className="h-3.5 w-3.5" />
+                          Preview
                         </div>
-                        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-3">
-                          <pre className="text-sm whitespace-pre-wrap">{previewMessage}</pre>
+                        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-2">
+                          <pre className="text-xs whitespace-pre-wrap">{previewMessage}</pre>
                         </div>
                       </div>
                     )}
@@ -885,29 +886,27 @@ export default function TestCommands() {
               </div>
             )}
             
-            <div className="space-y-2">
-              <Label>Caminho da Resposta (opcional)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Caminho da Resposta (opcional)</Label>
               <Input
                 value={apiForm.response_path}
                 onChange={(e) => setApiForm({ ...apiForm, response_path: e.target.value })}
-                placeholder="data.credentials (deixe vazio para resposta completa)"
+                placeholder="data.credentials"
+                className="h-9 text-xs"
               />
-              <p className="text-xs text-muted-foreground">
-                Use notação de ponto para extrair parte do JSON retornado.
-              </p>
             </div>
             <div className="flex items-center gap-2">
               <Switch
                 checked={apiForm.is_active}
                 onCheckedChange={(v) => setApiForm({ ...apiForm, is_active: !!v })}
               />
-              <Label>API ativa</Label>
+              <Label className="text-sm">API ativa</Label>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setApiDialogOpen(false)}>
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setApiDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createApiMutation.isPending || updateApiMutation.isPending}>
+              <Button type="submit" size="sm" disabled={createApiMutation.isPending || updateApiMutation.isPending}>
                 {(createApiMutation.isPending || updateApiMutation.isPending) && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 )}
@@ -920,31 +919,31 @@ export default function TestCommands() {
 
       {/* Command Dialog */}
       <Dialog open={commandDialogOpen} onOpenChange={setCommandDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingCommand ? 'Editar Comando' : 'Novo Comando'}</DialogTitle>
-            <DialogDescription>
-              Configure o comando que será reconhecido no WhatsApp.
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg">{editingCommand ? 'Editar Comando' : 'Novo Comando'}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure o comando do WhatsApp.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCommandSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Comando *</Label>
+          <form onSubmit={handleCommandSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Comando *</Label>
               <Input
                 value={commandForm.command}
                 onChange={(e) => setCommandForm({ ...commandForm, command: e.target.value })}
                 placeholder="/teste"
-                className="font-mono"
+                className="font-mono h-9"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Inicie com / (será adicionado automaticamente se não tiver)
+              <p className="text-[10px] text-muted-foreground">
+                Inicie com / (será adicionado automaticamente)
               </p>
             </div>
-            <div className="space-y-2">
-              <Label>API *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">API *</Label>
               <Select value={commandForm.api_id} onValueChange={(v) => setCommandForm({ ...commandForm, api_id: v })}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecione uma API" />
                 </SelectTrigger>
                 <SelectContent>
@@ -956,24 +955,26 @@ export default function TestCommands() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Descrição</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Descrição</Label>
               <Input
                 value={commandForm.description}
                 onChange={(e) => setCommandForm({ ...commandForm, description: e.target.value })}
                 placeholder="Gera um teste de 24h"
+                className="h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Template de Resposta *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Template de Resposta *</Label>
               <Textarea
                 value={commandForm.response_template}
                 onChange={(e) => setCommandForm({ ...commandForm, response_template: e.target.value })}
                 placeholder="✅ *Teste Gerado!*&#10;&#10;{response}"
-                rows={4}
+                className="min-h-[80px] text-sm"
+                rows={3}
                 required
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 Use <code className="bg-muted px-1 rounded">{'{response}'}</code> para inserir o resultado da API.
               </p>
             </div>
@@ -982,13 +983,13 @@ export default function TestCommands() {
                 checked={commandForm.is_active}
                 onCheckedChange={(v) => setCommandForm({ ...commandForm, is_active: !!v })}
               />
-              <Label>Comando ativo</Label>
+              <Label className="text-sm">Comando ativo</Label>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCommandDialogOpen(false)}>
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setCommandDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createCommandMutation.isPending || updateCommandMutation.isPending}>
+              <Button type="submit" size="sm" disabled={createCommandMutation.isPending || updateCommandMutation.isPending}>
                 {(createCommandMutation.isPending || updateCommandMutation.isPending) && (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 )}
