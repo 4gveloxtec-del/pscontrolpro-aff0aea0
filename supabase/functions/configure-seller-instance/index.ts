@@ -16,9 +16,27 @@ function normalizeApiUrl(url: string): string {
   return cleanUrl;
 }
 
-// Generate unique instance name from seller ID
-function generateInstanceName(sellerId: string): string {
-  // Use first 8 chars of UUID + timestamp suffix for uniqueness
+// Generate unique instance name from company name or seller ID
+function generateInstanceName(companyName: string | null, sellerId: string): string {
+  if (companyName && companyName.trim().length > 0) {
+    // Normalize company name: remove special chars, replace spaces with underscores, limit length
+    const normalized = companyName
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/[^a-zA-Z0-9\s]/g, '')  // Remove special chars
+      .replace(/\s+/g, '_')            // Replace spaces with underscores
+      .toLowerCase()
+      .substring(0, 20);               // Limit to 20 chars
+    
+    if (normalized.length >= 3) {
+      // Add short suffix for uniqueness
+      const suffix = sellerId.replace(/-/g, '').substring(0, 4);
+      return `${normalized}_${suffix}`;
+    }
+  }
+  
+  // Fallback to old format if no valid company name
   const shortId = sellerId.replace(/-/g, '').substring(0, 8);
   return `seller_${shortId}`;
 }
@@ -303,7 +321,14 @@ Deno.serve(async (req: Request) => {
           );
         }
 
-        // 3. Get global Evolution API config
+        // 3. Get seller's company name for better instance naming
+        const { data: sellerProfile } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', user.id)
+          .single();
+
+        // 4. Get global Evolution API config
         const { data: globalConfig, error: configError } = await supabase
           .from('whatsapp_global_config')
           .select('*')
@@ -322,9 +347,10 @@ Deno.serve(async (req: Request) => {
           );
         }
 
-        // 4. Generate unique instance name
-        const instanceName = generateInstanceName(user.id);
-        console.log(`Generated instance name: ${instanceName} for seller: ${user.id}`);
+        // 5. Generate unique instance name using company name
+        const instanceName = generateInstanceName(sellerProfile?.company_name || null, user.id);
+        console.log(`Generated instance name: ${instanceName} for seller: ${user.id} (company: ${sellerProfile?.company_name || 'N/A'})`);
+
 
         // 5. Create instance on Evolution API
         const createResult = await createInstance(
