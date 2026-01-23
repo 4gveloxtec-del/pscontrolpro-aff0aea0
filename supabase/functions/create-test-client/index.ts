@@ -84,6 +84,44 @@ function parseExpirationDate(dateStr: string | undefined): Date | null {
   return null;
 }
 
+/**
+ * Normaliza telefone para padrão brasileiro com DDI 55
+ * - Remove caracteres não numéricos
+ * - Adiciona DDI 55 se não existir
+ * - Garante formato consistente
+ */
+function normalizePhoneWithDDI(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  
+  // Remove tudo que não é número
+  let digits = phone.replace(/\D/g, '');
+  
+  if (digits.length < 8) {
+    console.log(`[create-test-client] Phone too short: ${digits}`);
+    return null;
+  }
+  
+  // Se começa com 55 e tem 12-13 dígitos, já está correto
+  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
+    return digits;
+  }
+  
+  // Se tem 10-11 dígitos (DDD + número), adiciona 55
+  if (digits.length >= 10 && digits.length <= 11) {
+    return '55' + digits;
+  }
+  
+  // Se tem 8-9 dígitos (apenas número local), não temos DDD - retorna como está
+  // Isso não deveria acontecer com WhatsApp, mas é um fallback
+  if (digits.length >= 8 && digits.length <= 9) {
+    console.log(`[create-test-client] Phone without DDD: ${digits}, keeping as-is`);
+    return digits;
+  }
+  
+  // Se já é um número grande (provavelmente internacional), manter como está
+  return digits;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -144,12 +182,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verificar se já existe cliente com este telefone (evitar duplicatas)
-    const normalizedPhone = sender_phone.replace(/\D/g, '');
+    // =====================================================================
+    // NORMALIZAÇÃO DO TELEFONE COM DDI 55
+    // Garante que o telefone seja salvo no formato brasileiro padrão
+    // =====================================================================
+    console.log(`[create-test-client] Raw sender_phone received: "${sender_phone}"`);
     
+    const normalizedPhone = normalizePhoneWithDDI(sender_phone);
+    
+    if (!normalizedPhone) {
+      console.error(`[create-test-client] Failed to normalize phone: ${sender_phone}`);
+      
+      await supabase.from('test_generation_log').insert({
+        seller_id,
+        api_id,
+        sender_phone,
+        api_response,
+        client_created: false,
+        error_message: `Invalid phone number: ${sender_phone}`,
+      });
+      
+      return new Response(
+        JSON.stringify({ success: false, error: 'invalid_phone', raw_phone: sender_phone }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`[create-test-client] Normalized phone: ${normalizedPhone} (from: ${sender_phone})`);
+    
+    // Verificar se já existe cliente com este telefone (evitar duplicatas)
     const { data: existingClient } = await supabase
       .from('clients')
-      .select('id, name')
+      .select('id, name, phone')
       .eq('seller_id', seller_id)
       .eq('phone', normalizedPhone)
       .maybeSingle();
@@ -272,7 +336,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[create-test-client] Client created: ${clientName} (${newClient.id})`);
+    console.log(`[create-test-client] ✅ Client created successfully:`, {
+      id: newClient.id,
+      name: clientName,
+      phone: normalizedPhone,
+      original_phone: sender_phone,
+    });
 
     // Registrar no log
     await supabase.from('test_generation_log').insert({
@@ -293,7 +362,8 @@ Deno.serve(async (req) => {
         success: true, 
         client_created: true,
         client_id: newClient.id,
-        client_name: clientName
+        client_name: clientName,
+        client_phone: normalizedPhone,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
