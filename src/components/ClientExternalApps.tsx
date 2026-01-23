@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCrypto } from '@/hooks/useCrypto';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { ExternalApp } from './ExternalAppsManager';
+import { InlineExternalAppCreator } from './InlineAppCreator';
 
 // Apps fixos visíveis para todos os revendedores
 const FIXED_EXTERNAL_APPS: ExternalApp[] = [
@@ -234,16 +235,24 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
             </Badge>
           )}
         </Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addApp}
-          className="h-7 text-xs gap-1"
-        >
-          <Plus className="h-3 w-3" />
-          Adicionar
-        </Button>
+        <div className="flex items-center gap-1">
+          <InlineExternalAppCreator 
+            sellerId={sellerId}
+            onCreated={() => {
+              // Invalidate query to refresh the list
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addApp}
+            className="h-7 text-xs gap-1"
+          >
+            <Plus className="h-3 w-3" />
+            Vincular
+          </Button>
+        </div>
       </div>
 
       {localApps.length === 0 ? (

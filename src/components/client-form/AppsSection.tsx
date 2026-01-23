@@ -9,6 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { ClientExternalApps } from '@/components/ClientExternalApps';
+import { InlineServerAppCreator } from '@/components/InlineAppCreator';
 import { useNavigate } from 'react-router-dom';
 
 interface ServerApp {
@@ -189,10 +190,14 @@ export function AppsSection({
               onClick={() => navigate('/servers')}
               className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
             >
-              <Plus className="h-3 w-3" />
-              Gerenciar Apps
               <ExternalLink className="h-3 w-3" />
+              Ir para Servidores
             </Button>
+            <InlineServerAppCreator
+              sellerId={sellerId}
+              serverId={serverId || ''}
+              serverName={serverName}
+            />
           </div>
 
           {serverApps.length === 0 ? (
