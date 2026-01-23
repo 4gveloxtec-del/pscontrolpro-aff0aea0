@@ -283,13 +283,20 @@ Deno.serve(async (req: Request) => {
             // Ignorar mensagens enviadas pelo bot
             if (msg.key?.fromMe) continue;
             
+            // Ignorar mensagens de grupos - apenas conversas individuais
+            const remoteJid = msg.key?.remoteJid || '';
+            if (remoteJid.includes('@g.us')) {
+              console.log(`[Webhook] Ignoring group message from: ${remoteJid}`);
+              continue;
+            }
+            
             const messageText = msg.message?.conversation || 
                                msg.message?.extendedTextMessage?.text || 
                                '';
             
             // Verificar se é um comando (começa com /)
             if (messageText.startsWith('/')) {
-              const senderPhone = msg.key?.remoteJid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || '';
+              const senderPhone = remoteJid.replace('@s.whatsapp.net', '') || '';
               
               console.log(`[Webhook] Command detected: "${messageText}" from ${senderPhone}`);
               
