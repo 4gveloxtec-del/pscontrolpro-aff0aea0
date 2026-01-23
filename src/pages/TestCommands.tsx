@@ -467,18 +467,23 @@ export default function TestCommands() {
 
   // Apply template with variables for preview
   const applyTemplatePreview = (template: string, data: Record<string, unknown>): string => {
-    const variableMapping: Record<string, string[]> = {
+    // Variables that come from API response
+    const apiVariableMapping: Record<string, string[]> = {
       usuario: ['username', 'user', 'login', 'usuario'],
       senha: ['password', 'pass', 'senha'],
       vencimento: ['expiresAtFormatted', 'expiresAt', 'expires', 'expiration', 'vencimento', 'validade'],
       dns: ['dns', 'server', 'host', 'url'],
       pacote: ['package', 'plan', 'plano', 'pacote'],
       nome: ['name', 'nome', 'client_name'],
+      mac: ['mac', 'mac_address', 'device_mac'],
+      valor: ['price', 'value', 'valor', 'amount'],
+      dias_restantes: ['days_remaining', 'remaining_days', 'dias_restantes'],
     };
 
     let result = template;
 
-    for (const [varName, possibleKeys] of Object.entries(variableMapping)) {
+    // Replace API variables
+    for (const [varName, possibleKeys] of Object.entries(apiVariableMapping)) {
       let value = '';
       for (const key of possibleKeys) {
         if (data[key] !== undefined && data[key] !== null) {
@@ -488,6 +493,16 @@ export default function TestCommands() {
       }
       const regex = new RegExp(`\\{${varName}\\}`, 'gi');
       result = result.replace(regex, value);
+    }
+    
+    // System variables (will be replaced in backend with actual seller data)
+    // Show placeholders for preview
+    const systemVars = ['empresa', 'pix', 'servidor', 'plano', 'apps', 'links'];
+    for (const varName of systemVars) {
+      const regex = new RegExp(`\\{${varName}\\}`, 'gi');
+      if (result.match(regex)) {
+        result = result.replace(regex, `[${varName}]`);
+      }
     }
     
     return result;
@@ -1145,10 +1160,36 @@ export default function TestCommands() {
                   <>
                     {/* Variables Available */}
                     <div className="text-[10px] text-muted-foreground">
-                      <p className="font-medium mb-1">Variáveis:</p>
+                      <p className="font-medium mb-1">Variáveis da API:</p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {['{usuario}', '{senha}', '{vencimento}', '{dns}', '{pacote}', '{nome}'].map(v => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => {
+                              const newTemplate = apiForm.custom_response_template + v;
+                              handleTemplateChange(newTemplate);
+                            }}
+                            className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] hover:bg-primary/20 transition-colors cursor-pointer"
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="font-medium mb-1">Variáveis do sistema:</p>
                       <div className="flex flex-wrap gap-1">
-                        {['{usuario}', '{senha}', '{vencimento}', '{dns}'].map(v => (
-                          <code key={v} className="bg-primary/10 text-primary px-1 py-0.5 rounded text-[9px]">{v}</code>
+                        {['{empresa}', '{pix}', '{servidor}', '{plano}', '{valor}', '{dias_restantes}', '{apps}', '{links}', '{mac}'].map(v => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => {
+                              const newTemplate = apiForm.custom_response_template + v;
+                              handleTemplateChange(newTemplate);
+                            }}
+                            className="bg-secondary/50 text-secondary-foreground px-1.5 py-0.5 rounded text-[9px] hover:bg-secondary/80 transition-colors cursor-pointer"
+                          >
+                            {v}
+                          </button>
                         ))}
                       </div>
                     </div>
