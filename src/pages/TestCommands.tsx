@@ -559,10 +559,15 @@ export default function TestCommands() {
       
       setDiagnosisResult(data?.diagnosis || null);
       
-      if (data?.diagnosis?.recommendations?.length > 0) {
-        toast.warning('Problemas detectados! Veja os detalhes abaixo.');
+      const hasCritical = data?.diagnosis?.critical_issues?.length > 0;
+      const hasRecommendations = data?.diagnosis?.recommendations?.length > 0;
+      
+      if (hasCritical) {
+        toast.error('Problemas críticos detectados! O bot não funcionará até corrigir.');
+      } else if (hasRecommendations) {
+        toast.warning('Atenção: Alguns ajustes recomendados.');
       } else {
-        toast.success('Configuração parece correta!');
+        toast.success('Tudo configurado corretamente!');
       }
     } catch (error) {
       toast.error('Erro ao diagnosticar: ' + (error instanceof Error ? error.message : String(error)));
@@ -602,17 +607,29 @@ export default function TestCommands() {
 
       {/* Diagnosis Result */}
       {diagnosisResult && (
-        <Card className={`border-2 ${diagnosisResult.recommendations?.length > 0 ? 'border-amber-500 bg-amber-500/10' : 'border-green-500 bg-green-500/10'}`}>
+        <Card className={`border-2 ${
+          diagnosisResult.critical_issues?.length > 0 
+            ? 'border-red-500 bg-red-500/10' 
+            : diagnosisResult.recommendations?.length > 0 
+              ? 'border-amber-500 bg-amber-500/10' 
+              : 'border-green-500 bg-green-500/10'
+        }`}>
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
-              {diagnosisResult.recommendations?.length > 0 ? (
+              {diagnosisResult.critical_issues?.length > 0 ? (
+                <XCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              ) : diagnosisResult.recommendations?.length > 0 ? (
                 <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
               ) : (
                 <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
               )}
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm mb-2">
-                  {diagnosisResult.recommendations?.length > 0 ? 'Problemas Detectados' : 'Tudo OK!'}
+                  {diagnosisResult.critical_issues?.length > 0 
+                    ? '🚨 Problemas Críticos!' 
+                    : diagnosisResult.recommendations?.length > 0 
+                      ? '⚠️ Atenção' 
+                      : '✅ Tudo OK!'}
                 </h3>
                 
                 {/* Status Summary */}
@@ -622,8 +639,18 @@ export default function TestCommands() {
                     WhatsApp: {diagnosisResult.is_connected ? 'Conectado' : 'Desconectado'}
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className={`h-2 w-2 rounded-full ${diagnosisResult.webhook?.configured ? 'bg-green-500' : 'bg-red-500'}`} />
-                    Webhook: {diagnosisResult.webhook?.configured ? 'OK' : 'Erro'}
+                    <span className={`h-2 w-2 rounded-full ${
+                      diagnosisResult.webhook?.configured && diagnosisResult.webhook?.url_correct && diagnosisResult.webhook?.has_messages_event 
+                        ? 'bg-green-500' 
+                        : 'bg-red-500'
+                    }`} />
+                    Webhook: {
+                      diagnosisResult.webhook?.configured && diagnosisResult.webhook?.url_correct && diagnosisResult.webhook?.has_messages_event 
+                        ? 'OK' 
+                        : diagnosisResult.webhook?.configured 
+                          ? 'Incompleto' 
+                          : 'Não configurado'
+                    }
                   </div>
                   <div className="flex items-center gap-1">
                     <span className={`h-2 w-2 rounded-full ${diagnosisResult.commands?.active > 0 ? 'bg-green-500' : 'bg-amber-500'}`} />
@@ -634,6 +661,20 @@ export default function TestCommands() {
                     Msgs recebidas: {diagnosisResult.recent_events?.message_events || 0}
                   </div>
                 </div>
+                
+                {/* Critical Issues */}
+                {diagnosisResult.critical_issues?.length > 0 && (
+                  <div className="space-y-1 mb-3 p-2 bg-red-500/20 rounded">
+                    <p className="text-xs font-bold text-red-600 dark:text-red-400">Problemas que impedem o funcionamento:</p>
+                    <ul className="text-xs space-y-1">
+                      {diagnosisResult.critical_issues.map((issue: string, i: number) => (
+                        <li key={i} className="flex items-start gap-1">
+                          {issue}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 
                 {/* Recommendations */}
                 {diagnosisResult.recommendations?.length > 0 && (
@@ -651,14 +692,47 @@ export default function TestCommands() {
                 )}
 
                 {/* Webhook Details */}
-                {diagnosisResult.webhook?.config && (
-                  <details className="mt-2 text-xs">
-                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                      Ver detalhes do webhook
+                {(diagnosisResult.webhook?.raw_config || diagnosisResult.webhook?.error) && (
+                  <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                      🔧 Detalhes técnicos do webhook
                     </summary>
-                    <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-x-auto">
-                      {JSON.stringify(diagnosisResult.webhook.config, null, 2)}
-                    </pre>
+                    <div className="mt-2 space-y-2 p-2 bg-muted rounded">
+                      <div className="space-y-1">
+                        <p><strong>URL configurada:</strong> {diagnosisResult.webhook?.url || 'Não encontrada'}</p>
+                        <p><strong>URL esperada:</strong> {diagnosisResult.webhook?.expected_url}</p>
+                        <p><strong>URL correta:</strong> {diagnosisResult.webhook?.url_correct ? '✅ Sim' : '❌ Não'}</p>
+                        <p><strong>Evento MESSAGES:</strong> {diagnosisResult.webhook?.has_messages_event ? '✅ Habilitado' : '❌ Não habilitado'}</p>
+                        {diagnosisResult.webhook?.events_enabled?.length > 0 && (
+                          <p><strong>Eventos ativos:</strong> {diagnosisResult.webhook.events_enabled.join(', ')}</p>
+                        )}
+                        {diagnosisResult.webhook?.error && (
+                          <p className="text-red-500"><strong>Erro:</strong> {diagnosisResult.webhook.error}</p>
+                        )}
+                      </div>
+                      {diagnosisResult.webhook?.raw_config && (
+                        <pre className="p-2 bg-background rounded text-[10px] overflow-x-auto max-h-32">
+                          {JSON.stringify(diagnosisResult.webhook.raw_config, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  </details>
+                )}
+
+                {/* Recent Command Logs */}
+                {diagnosisResult.recent_commands?.total > 0 && (
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                      📋 Últimos comandos processados ({diagnosisResult.recent_commands.total})
+                    </summary>
+                    <div className="mt-1 space-y-1">
+                      {diagnosisResult.recent_commands.logs.map((log: any, i: number) => (
+                        <div key={i} className={`p-1 rounded text-[10px] ${log.success ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                          <span className="font-mono">{log.command}</span>
+                          {log.error && <span className="text-red-500 ml-1">- {log.error}</span>}
+                        </div>
+                      ))}
+                    </div>
                   </details>
                 )}
               </div>
