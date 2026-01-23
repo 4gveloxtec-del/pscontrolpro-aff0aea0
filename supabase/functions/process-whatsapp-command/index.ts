@@ -376,9 +376,21 @@ Deno.serve(async (req) => {
     // ===============================================================
     const isTestCommand = normalizedCommand === '/teste' || normalizedCommand === '/testestar';
     let testConfig: { server_id: string | null; server_name: string | null; client_name_prefix: string | null; category: string | null } | null = null;
-    const { clientPhone, clientName } = isTestCommand
+    
+    // Parse arguments from command text
+    let { clientPhone, clientName } = isTestCommand
       ? parseTestCommandArgs(String(command_text || ''))
       : { clientPhone: '', clientName: '' };
+    
+    // =====================================================================
+    // CRITICAL FIX: If no phone provided in command, use SENDER's phone
+    // This allows clients to send just "/teste" and receive their own test
+    // =====================================================================
+    if (isTestCommand && !clientPhone && sender_phone) {
+      clientPhone = normalizePhoneDigits(sender_phone);
+      console.log(`[process-command] No phone in command args, using sender_phone: ${clientPhone}`);
+    }
+    
     const testPlan = (api?.name && String(api.name).trim())
       ? String(api.name).trim()
       : normalizedCommand.replace('/', '').trim();
@@ -396,12 +408,13 @@ Deno.serve(async (req) => {
       }
       testConfig = cfg as any;
 
+      // clientPhone should now be available (from args OR sender_phone)
       if (!clientPhone) {
         return new Response(
           JSON.stringify({
             success: false,
             error: 'client_phone_missing',
-            user_message: 'Informe o telefone do cliente. Ex: /teste 5511999999999 João',
+            user_message: 'Não foi possível identificar seu número. Tente novamente.',
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
         );
