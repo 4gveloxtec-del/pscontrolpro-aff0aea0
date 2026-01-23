@@ -191,7 +191,31 @@ function normalizeJidToPhone(jid: string): string {
   return '';
 }
 
-function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string {
+/**
+ * CRITICAL FUNCTION: Extract the REAL sender phone from webhook payload
+ * 
+ * The problem: Evolution API can send different fields depending on:
+ * - Message direction (fromMe: true/false)
+ * - Chat type (individual vs group)
+ * - API version
+ * 
+ * For RECEIVED messages (fromMe=false):
+ * - remoteJid contains the CLIENT's phone (who sent the message)
+ * - This is where we need to send the RESPONSE
+ * 
+ * For SENT messages (fromMe=true):
+ * - remoteJid contains the RECIPIENT's phone
+ * - sender might be our own number (the instance)
+ * 
+ * IMPORTANT: We must NEVER return the instance's own phone number
+ * when processing received commands, or the bot will respond to itself!
+ */
+function getSenderPhoneFromWebhook(
+  msg: any, 
+  eventData: any, 
+  body: any,
+  instancePhone?: string // Phone number of the connected instance (to avoid)
+): string {
   const remoteJid = String(msg?.key?.remoteJid || msg?.remoteJid || '');
   const isGroupChat = remoteJid.includes('@g.us');
   const isFromMe = msg?.key?.fromMe === true;
@@ -212,10 +236,7 @@ function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string 
       msg?.participantAlt,
       msg?.key?.participant,
       msg?.participant,
-      eventData?.sender,
-      body?.sender,
-      eventData?.data?.sender,
-      body?.data?.sender,
+      // Avoid webhook-level sender in groups as it might be instance number
     ];
   } else if (isFromMe) {
     // SENT messages: remoteJid is the RECIPIENT (the person we're sending TO)
@@ -223,31 +244,54 @@ function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string 
     candidates = [
       msg?.key?.remoteJid,
       msg?.remoteJid,
-      eventData?.sender,
-      body?.sender,
     ];
   } else {
-    // RECEIVED messages (commands come here): remoteJid is the SENDER (the person who sent us the message)
-    // This is the CLIENT's phone number - where we need to send the response
+    // =====================================================================
+    // RECEIVED messages (commands come here): 
+    // remoteJid is the SENDER (the CLIENT who sent us the message)
+    // This is where we need to send the RESPONSE
+    // =====================================================================
+    // Priority order for received messages:
+    // 1. remoteJid - This is THE primary field for received messages
+    // 2. participantAlt - Fallback for some Evolution versions
+    // 3. pushName related fields should NOT be used (they're display names, not phones)
+    // 
+    // IMPORTANT: We DO NOT use body.sender or eventData.sender for received messages
+    // because these often contain the INSTANCE's own number, not the client's!
     candidates = [
       msg?.key?.remoteJid,
       msg?.remoteJid,
       // Fallback to participantAlt if remoteJid fails (some Evolution versions)
       msg?.key?.participantAlt,
       msg?.participantAlt,
-      // Webhook-level sender field
-      eventData?.sender,
-      body?.sender,
     ];
+    
+    // Only add webhook-level sender as LAST resort and only if different from instance
+    const webhookSender = eventData?.sender || body?.sender;
+    if (webhookSender) {
+      const webhookSenderPhone = normalizeJidToPhone(String(webhookSender));
+      // Only add if it's NOT the instance's own number
+      if (webhookSenderPhone && webhookSenderPhone !== instancePhone) {
+        candidates.push(webhookSender);
+      }
+    }
   }
 
   // Log candidates for debugging
   console.log(`[getSenderPhone] fromMe=${isFromMe}, isGroup=${isGroupChat}, remoteJid=${remoteJid.substring(0, 30)}`);
+  console.log(`[getSenderPhone] instancePhone to avoid: ${instancePhone || 'not provided'}`);
   console.log(`[getSenderPhone] candidates:`, candidates.filter(Boolean).map(c => String(c).substring(0, 30)));
 
   for (const c of candidates.filter(Boolean)) {
     const phone = normalizeJidToPhone(String(c));
     if (phone) {
+      // CRITICAL: If we have the instance phone, make sure we're not returning it
+      // for received messages (this would cause bot to respond to itself)
+      if (!isFromMe && instancePhone && phone === instancePhone) {
+        console.log(`[getSenderPhone] SKIPPING candidate ${phone} - matches instance phone!`);
+        continue;
+      }
+      
       console.log(`[getSenderPhone] Extracted phone: ${phone} from candidate: ${String(c).substring(0, 30)}`);
       return phone;
     }
@@ -478,10 +522,10 @@ Deno.serve(async (req: Request) => {
       
       let instance = null;
       
-      // First try instance_name
+      // First try instance_name - include connected_phone to avoid responding to ourselves
       const { data: inst1 } = await supabase
         .from('whatsapp_seller_instances')
-        .select('seller_id, instance_name, is_connected')
+        .select('seller_id, instance_name, is_connected, connected_phone')
         .eq('instance_name', instanceName)
         .maybeSingle();
       
@@ -491,7 +535,7 @@ Deno.serve(async (req: Request) => {
         // Try original_instance_name
         const { data: inst2 } = await supabase
           .from('whatsapp_seller_instances')
-          .select('seller_id, instance_name, is_connected')
+          .select('seller_id, instance_name, is_connected, connected_phone')
           .eq('original_instance_name', instanceName)
           .maybeSingle();
         instance = inst2;
@@ -588,7 +632,10 @@ Deno.serve(async (req: Request) => {
             const messageText = extractWhatsAppMessageText(msg);
 
             // Extração robusta do telefone do remetente
-            const senderPhone = getSenderPhoneFromWebhook(msg, eventData, body);
+            // CRITICAL: Pass the instance's connected_phone to avoid returning it
+            // (which would cause bot to respond to itself instead of the client)
+            const instancePhone = instance.connected_phone ? String(instance.connected_phone).replace(/\D/g, '') : undefined;
+            const senderPhone = getSenderPhoneFromWebhook(msg, eventData, body, instancePhone);
 
             if (!senderPhone) {
               const keyObj = msg?.key && typeof msg.key === 'object' ? msg.key : {};
@@ -688,23 +735,44 @@ Deno.serve(async (req: Request) => {
                   : '';
 
                 if (textToSend) {
-                  // Buscar config global para enviar resposta
-                  const { data: globalConfig } = await supabase
-                    .from('whatsapp_global_config')
-                    .select('api_url, api_token')
-                    .eq('is_active', true)
-                    .maybeSingle();
+                  // =====================================================================
+                  // CRITICAL VALIDATION: Never send response to the instance's own number
+                  // This would cause the bot to message itself!
+                  // =====================================================================
+                  const cleanSenderPhone = senderPhone.replace(/\D/g, '');
+                  const cleanInstancePhone = instancePhone || '';
                   
-                  if (globalConfig?.api_url && globalConfig?.api_token) {
-                    const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-                    // IMPORTANTE: usar sempre o nome REAL salvo no banco (pode diferir do payload em casos de rename/original_instance_name)
-                    const sendUrl = `${apiUrl}/message/sendText/${instance.instance_name}`;
+                  if (cleanInstancePhone && cleanSenderPhone === cleanInstancePhone) {
+                    console.error(`[Webhook] BLOCKED: Attempted to send response to instance's own number: ${cleanSenderPhone}`);
+                    console.error(`[Webhook] This indicates senderPhone extraction failed - the bot was about to message itself!`);
+                    try {
+                      await supabase.from('command_logs').insert({
+                        owner_id: instance.seller_id,
+                        command_text: trimmedForCommand,
+                        sender_phone: senderPhone,
+                        success: false,
+                        error_message: `BLOCKED: Would send to instance own number (${cleanSenderPhone}). Check webhook payload extraction.`,
+                      });
+                    } catch { /* ignore */ }
+                    // Skip sending - this is a critical error in phone extraction
+                  } else {
+                    // Buscar config global para enviar resposta
+                    const { data: globalConfig } = await supabase
+                      .from('whatsapp_global_config')
+                      .select('api_url, api_token')
+                      .eq('is_active', true)
+                      .maybeSingle();
                     
-                    // Normalização robusta do número com variações para retry
-                    const cleanPhone = senderPhone.replace(/\D/g, '');
-                    
-                    // Gerar variações do número para tentar múltiplos formatos
-                    const phoneVariants: string[] = [];
+                    if (globalConfig?.api_url && globalConfig?.api_token) {
+                      const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
+                      // IMPORTANTE: usar sempre o nome REAL salvo no banco (pode diferir do payload em casos de rename/original_instance_name)
+                      const sendUrl = `${apiUrl}/message/sendText/${instance.instance_name}`;
+                      
+                      // Normalização robusta do número com variações para retry
+                      const cleanPhone = senderPhone.replace(/\D/g, '');
+                      
+                      // Gerar variações do número para tentar múltiplos formatos
+                      const phoneVariants: string[] = [];
                     
                     // Formato original
                     phoneVariants.push(cleanPhone);
@@ -775,19 +843,20 @@ Deno.serve(async (req: Request) => {
                         });
                       } catch { /* ignore logging errors */ }
                     }
-                  } else {
-                    console.error(`[Webhook] Global config not found or inactive - cannot send response`);
-                    // Log this critical issue
-                    try {
-                      await supabase.from('command_logs').insert({
-                        owner_id: instance.seller_id,
-                        command_text: trimmedForCommand,
-                        sender_phone: senderPhone,
-                        success: false,
-                        error_message: 'Global WhatsApp config not found or inactive',
-                      });
-                    } catch { /* ignore logging errors */ }
-                  }
+                    } else {
+                      console.error(`[Webhook] Global config not found or inactive - cannot send response`);
+                      // Log this critical issue
+                      try {
+                        await supabase.from('command_logs').insert({
+                          owner_id: instance.seller_id,
+                          command_text: trimmedForCommand,
+                          sender_phone: senderPhone,
+                          success: false,
+                          error_message: 'Global WhatsApp config not found or inactive',
+                        });
+                      } catch { /* ignore logging errors */ }
+                    }
+                  } // End of else block (sender not instance phone)
                 } else if (cmdResult.not_found) {
                   // Comando não encontrado - não fazer nada (fluxo normal continua)
                   console.log(`[Webhook] Command "${trimmedForCommand}" not found for seller ${instance.seller_id}, ignoring`);
