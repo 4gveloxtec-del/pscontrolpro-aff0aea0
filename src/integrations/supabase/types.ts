@@ -2455,6 +2455,7 @@ export type Database = {
           detect_renewal_keywords: string[] | null
           id: string
           is_active: boolean | null
+          logs_enabled: boolean | null
           map_dns_path: string | null
           map_expiration_path: string | null
           map_login_path: string | null
@@ -2479,6 +2480,7 @@ export type Database = {
           detect_renewal_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
+          logs_enabled?: boolean | null
           map_dns_path?: string | null
           map_expiration_path?: string | null
           map_login_path?: string | null
@@ -2503,6 +2505,7 @@ export type Database = {
           detect_renewal_keywords?: string[] | null
           id?: string
           is_active?: boolean | null
+          logs_enabled?: boolean | null
           map_dns_path?: string | null
           map_expiration_path?: string | null
           map_login_path?: string | null

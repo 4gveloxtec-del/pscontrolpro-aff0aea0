@@ -383,6 +383,16 @@ Deno.serve(async (req: Request) => {
             if (messageText.startsWith('/')) {
               console.log(`[Webhook] Command detected: "${messageText}" from ${senderPhone}`);
               
+              // Buscar configuração de logs do seller
+              const { data: configData } = await supabase
+                .from('test_integration_config')
+                .select('logs_enabled')
+                .eq('seller_id', instance.seller_id)
+                .eq('is_active', true)
+                .maybeSingle();
+              
+              const logsEnabled = configData?.logs_enabled ?? true;
+              
               // Chamar edge function de processamento de comando
               try {
                 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -397,6 +407,7 @@ Deno.serve(async (req: Request) => {
                     command_text: messageText.trim(),
                     sender_phone: senderPhone,
                     instance_name: instanceName,
+                    logs_enabled: logsEnabled,
                   }),
                 });
                 
