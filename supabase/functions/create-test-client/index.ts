@@ -205,6 +205,22 @@ Deno.serve(async (req) => {
 
     // Parsear data de expiração
     const expirationDate = parseExpirationDate(expirationStr);
+    
+    // Se não houver data de expiração, usar uma data padrão (7 dias a partir de agora para testes)
+    const defaultExpiration = new Date();
+    defaultExpiration.setDate(defaultExpiration.getDate() + 7);
+    const finalExpirationDate = expirationDate || defaultExpiration;
+
+    console.log('[create-test-client] Creating client with data:', {
+      name: clientName,
+      phone: normalizedPhone,
+      category: config.category || 'IPTV',
+      server_id: config.server_id,
+      expiration_date: finalExpirationDate.toISOString().split('T')[0],
+      has_login: !!encryptedLogin,
+      has_password: !!encryptedPassword,
+      has_dns: !!dns,
+    });
 
     // Criar o cliente
     const clientData: Record<string, unknown> = {
@@ -221,12 +237,12 @@ Deno.serve(async (req) => {
       // Servidor (se configurado)
       server_id: config.server_id || null,
       
-      // Data de expiração
-      expiration_date: expirationDate?.toISOString().split('T')[0] || null,
+      // Data de expiração (obrigatória - usa padrão se não vier da API)
+      expiration_date: finalExpirationDate.toISOString().split('T')[0],
       
       // Marcadores
       is_test: true,
-      notes: `Teste gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+      notes: `Teste gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Telefone: ${normalizedPhone}`,
     };
 
     const { data: newClient, error: insertError } = await supabase
