@@ -107,6 +107,48 @@ function normalizeWebhookEvent(raw: unknown): string {
   return key.replace(/_/g, ".");
 }
 
+// WhatsApp messages can be wrapped (ephemeral/viewOnce) depending on chat settings.
+// This helper unwraps common containers so we can reliably read text/captions.
+function unwrapWhatsAppMessage(message: any): any {
+  if (!message || typeof message !== 'object') return message;
+
+  return (
+    message?.ephemeralMessage?.message ||
+    message?.viewOnceMessage?.message ||
+    message?.viewOnceMessageV2?.message ||
+    message?.viewOnceMessageV2Extension?.message ||
+    message?.documentWithCaptionMessage?.message ||
+    message
+  );
+}
+
+function extractWhatsAppMessageText(msg: any): string {
+  const unwrapped = unwrapWhatsAppMessage(msg?.message);
+
+  const text =
+    unwrapped?.conversation ||
+    unwrapped?.extendedTextMessage?.text ||
+    // Media captions
+    unwrapped?.imageMessage?.caption ||
+    unwrapped?.videoMessage?.caption ||
+    unwrapped?.documentMessage?.caption ||
+    // Interactive responses
+    unwrapped?.buttonsResponseMessage?.selectedDisplayText ||
+    unwrapped?.buttonsResponseMessage?.selectedButtonId ||
+    unwrapped?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    unwrapped?.listResponseMessage?.title ||
+    unwrapped?.templateButtonReplyMessage?.selectedDisplayText ||
+    unwrapped?.templateButtonReplyMessage?.selectedId ||
+    // Common alternative payload fields from Evolution
+    msg?.messageBody ||
+    msg?.body ||
+    msg?.text ||
+    (typeof msg?.message === 'string' ? msg.message : '') ||
+    '';
+
+  return String(text || '');
+}
+
 // Normalize API URL
 function normalizeApiUrl(url: string): string {
   let cleanUrl = url.trim();
@@ -434,22 +476,20 @@ Deno.serve(async (req: Request) => {
               continue;
             }
             
-            // Extração robusta do texto - múltiplos formatos possíveis
-            const messageText =
-              msg.message?.conversation ||
-              msg.message?.extendedTextMessage?.text ||
-              msg.message?.imageMessage?.caption ||
-              msg.message?.videoMessage?.caption ||
-              msg.message?.documentMessage?.caption ||
-              msg.messageBody ||
-              msg.body ||
-              msg.text ||
-              (typeof msg.message === 'string' ? msg.message : '') ||
-              '';
+            // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
+            const messageText = extractWhatsAppMessageText(msg);
             
             const senderPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '') || '';
             
             console.log(`[Webhook] Message from ${senderPhone}: "${String(messageText).substring(0, 50)}", fromMe: ${msg.key?.fromMe}`);
+
+            if (!String(messageText || '').trim()) {
+              // Helps debug cases where the webhook arrives but we fail to extract the message content.
+              const msgKeys = msg && typeof msg === 'object' ? Object.keys(msg) : [];
+              const msgMessageKeys = msg?.message && typeof msg.message === 'object' ? Object.keys(msg.message) : [];
+              console.log('[Webhook] Empty messageText extracted. msg keys:', msgKeys.join(','));
+              console.log('[Webhook] Empty messageText extracted. msg.message keys:', msgMessageKeys.join(','));
+            }
             
             // ===============================================================
             // MENSAGENS ENVIADAS (fromMe = true) - Detectar renovação da API do servidor
