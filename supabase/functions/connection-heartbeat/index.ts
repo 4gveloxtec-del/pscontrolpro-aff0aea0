@@ -194,38 +194,66 @@ function normalizeJidToPhone(jid: string): string {
 function getSenderPhoneFromWebhook(msg: any, eventData: any, body: any): string {
   const remoteJid = String(msg?.key?.remoteJid || msg?.remoteJid || '');
   const isGroupChat = remoteJid.includes('@g.us');
+  const isFromMe = msg?.key?.fromMe === true;
 
-  // For INDIVIDUAL chats: remoteJid IS the sender's phone number (highest priority)
-  // For GROUP chats: we need participant/participantAlt since remoteJid is the group ID
-  const candidates: string[] = isGroupChat
-    ? [
-        // In groups, participantAlt usually has the real phone when participant is LID
-        msg?.key?.participantAlt,
-        msg?.participantAlt,
-        msg?.key?.participant,
-        msg?.participant,
-        // Fallback to webhook-level sender
-        eventData?.sender,
-        body?.sender,
-        eventData?.data?.sender,
-        body?.data?.sender,
-      ]
-    : [
-        // In individual chats, remoteJid IS the sender - prioritize it
-        msg?.key?.remoteJid,
-        msg?.remoteJid,
-        // Fallback to participantAlt if remoteJid fails
-        msg?.key?.participantAlt,
-        msg?.participantAlt,
-        // Last resort
-        eventData?.sender,
-        body?.sender,
-      ];
+  // =====================================================================
+  // CRITICAL FIX: In WhatsApp/Evolution API:
+  // - For RECEIVED messages (fromMe=false): remoteJid contains the SENDER's number
+  // - For SENT messages (fromMe=true): remoteJid contains the RECIPIENT's number
+  // - For GROUP messages: remoteJid is the group ID, sender is in participant/participantAlt
+  // =====================================================================
+  
+  let candidates: string[] = [];
+
+  if (isGroupChat) {
+    // In groups, we always need participant/participantAlt for the actual sender
+    candidates = [
+      msg?.key?.participantAlt,
+      msg?.participantAlt,
+      msg?.key?.participant,
+      msg?.participant,
+      eventData?.sender,
+      body?.sender,
+      eventData?.data?.sender,
+      body?.data?.sender,
+    ];
+  } else if (isFromMe) {
+    // SENT messages: remoteJid is the RECIPIENT (the person we're sending TO)
+    // We need this for detecting renewal sync (who received the message)
+    candidates = [
+      msg?.key?.remoteJid,
+      msg?.remoteJid,
+      eventData?.sender,
+      body?.sender,
+    ];
+  } else {
+    // RECEIVED messages (commands come here): remoteJid is the SENDER (the person who sent us the message)
+    // This is the CLIENT's phone number - where we need to send the response
+    candidates = [
+      msg?.key?.remoteJid,
+      msg?.remoteJid,
+      // Fallback to participantAlt if remoteJid fails (some Evolution versions)
+      msg?.key?.participantAlt,
+      msg?.participantAlt,
+      // Webhook-level sender field
+      eventData?.sender,
+      body?.sender,
+    ];
+  }
+
+  // Log candidates for debugging
+  console.log(`[getSenderPhone] fromMe=${isFromMe}, isGroup=${isGroupChat}, remoteJid=${remoteJid.substring(0, 30)}`);
+  console.log(`[getSenderPhone] candidates:`, candidates.filter(Boolean).map(c => String(c).substring(0, 30)));
 
   for (const c of candidates.filter(Boolean)) {
     const phone = normalizeJidToPhone(String(c));
-    if (phone) return phone;
+    if (phone) {
+      console.log(`[getSenderPhone] Extracted phone: ${phone} from candidate: ${String(c).substring(0, 30)}`);
+      return phone;
+    }
   }
+  
+  console.log(`[getSenderPhone] FAILED to extract phone from any candidate`);
   return '';
 }
 
