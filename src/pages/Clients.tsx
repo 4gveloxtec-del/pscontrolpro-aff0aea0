@@ -221,6 +221,9 @@ export default function Clients() {
   const [lookupSearchQuery, setLookupSearchQuery] = useState('');
   const [selectedLookupClientId, setSelectedLookupClientId] = useState<string | null>(null);
   const [showLookupPasswords, setShowLookupPasswords] = useState(false);
+  // State for unsaved changes confirmation
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingCloseDialog, setPendingCloseDialog] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -264,6 +267,37 @@ export default function Clients() {
     has_adult_content: false, // Conteúdo adulto (+18)
   });
 
+  // Helper to check if form has unsaved changes
+  const hasFormChanges = useCallback(() => {
+    // Check if any meaningful field has data
+    return (
+      formData.name.trim() !== '' ||
+      formData.phone.trim() !== '' ||
+      formData.login.trim() !== '' ||
+      formData.password.trim() !== '' ||
+      externalApps.length > 0 ||
+      premiumAccounts.length > 0 ||
+      additionalServers.length > 0
+    );
+  }, [formData.name, formData.phone, formData.login, formData.password, externalApps.length, premiumAccounts.length, additionalServers.length]);
+
+  // Confirm exit without saving
+  const confirmExitWithoutSaving = useCallback(() => {
+    setShowExitConfirm(false);
+    setPendingCloseDialog(false);
+    setIsDialogOpen(false);
+    setEditingClient(null);
+    resetForm();
+    setAddCategoryOpen(false);
+    setExpirationPopoverOpen(false);
+    setPaidAppsExpirationPopoverOpen(false);
+  }, []);
+
+  // Cancel exit
+  const cancelExit = useCallback(() => {
+    setShowExitConfirm(false);
+    setPendingCloseDialog(false);
+  }, []);
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients', user?.id],
@@ -2145,6 +2179,25 @@ export default function Clients() {
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          if (!open && !editingClient && hasFormChanges()) {
+            // Show confirmation before closing if there are unsaved changes
+            confirm({
+              title: 'Descartar alterações?',
+              description: 'Você tem dados não salvos. Deseja sair sem salvar?',
+              confirmText: 'Sair sem salvar',
+              cancelText: 'Continuar editando',
+              variant: 'warning',
+              onConfirm: () => {
+                setIsDialogOpen(false);
+                setEditingClient(null);
+                resetForm();
+                setAddCategoryOpen(false);
+                setExpirationPopoverOpen(false);
+                setPaidAppsExpirationPopoverOpen(false);
+              },
+            });
+            return;
+          }
           setIsDialogOpen(open);
           if (!open) {
             setEditingClient(null);
