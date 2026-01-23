@@ -415,25 +415,71 @@ Deno.serve(async (req: Request) => {
                   if (globalConfig?.api_url && globalConfig?.api_token) {
                     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
                     const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
-                    console.log(`[Webhook] Sending response to ${senderPhone} via ${sendUrl}`);
                     
-                    const sendResponse = await fetch(sendUrl, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': globalConfig.api_token,
-                      },
-                      body: JSON.stringify({
-                        number: senderPhone,
-                        text: cmdResult.response,
-                      }),
-                    });
+                    // Normalização robusta do número com variações para retry
+                    const cleanPhone = senderPhone.replace(/\D/g, '');
                     
-                    if (!sendResponse.ok) {
-                      const errText = await sendResponse.text();
-                      console.error(`[Webhook] Failed to send response: ${sendResponse.status} - ${errText}`);
-                    } else {
-                      console.log(`[Webhook] Command response sent to ${senderPhone}`);
+                    // Gerar variações do número para tentar múltiplos formatos
+                    const phoneVariants: string[] = [];
+                    
+                    // Formato original
+                    phoneVariants.push(cleanPhone);
+                    
+                    // Com DDI 55 se não tiver
+                    if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+                      phoneVariants.push(`55${cleanPhone}`);
+                    }
+                    
+                    // Sem DDI se tiver
+                    if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+                      phoneVariants.push(cleanPhone.substring(2));
+                    }
+                    
+                    // Com 9º dígito (celular brasileiro)
+                    if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
+                      const ddd = cleanPhone.substring(2, 4);
+                      const num = cleanPhone.substring(4);
+                      if (!num.startsWith('9') && parseInt(ddd) >= 11) {
+                        phoneVariants.push(`55${ddd}9${num}`);
+                      }
+                    }
+                    
+                    // Sem 9º dígito
+                    if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
+                      const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
+                      phoneVariants.push(without9);
+                    }
+                    
+                    // Dedupe
+                    const uniqueVariants = [...new Set(phoneVariants)];
+                    console.log(`[Webhook] Sending response to ${senderPhone}, trying ${uniqueVariants.length} format(s): ${uniqueVariants.join(', ')}`);
+                    
+                    let messageSent = false;
+                    for (const phoneVariant of uniqueVariants) {
+                      const sendResponse = await fetch(sendUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'apikey': globalConfig.api_token,
+                        },
+                        body: JSON.stringify({
+                          number: phoneVariant,
+                          text: cmdResult.response,
+                        }),
+                      });
+                      
+                      if (sendResponse.ok) {
+                        console.log(`[Webhook] Command response sent successfully with format: ${phoneVariant}`);
+                        messageSent = true;
+                        break;
+                      } else {
+                        const errText = await sendResponse.text();
+                        console.log(`[Webhook] Format ${phoneVariant} failed (${sendResponse.status}): ${errText.substring(0, 100)}`);
+                      }
+                    }
+                    
+                    if (!messageSent) {
+                      console.error(`[Webhook] All ${uniqueVariants.length} phone formats failed for ${senderPhone}`);
                     }
                   } else {
                     console.error(`[Webhook] Global config not found or inactive - cannot send response`);
