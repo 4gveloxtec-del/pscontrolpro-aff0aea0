@@ -229,6 +229,38 @@ Deno.serve(async (req) => {
         .from('whatsapp_commands')
         .update({ usage_count: (commandData as any).usage_count + 1 || 1 })
         .eq('id', commandData.id);
+
+      // Criar cliente automaticamente se API retornou dados válidos
+      if (apiResponse && typeof apiResponse === 'object') {
+        try {
+          console.log('[process-command] Triggering auto-create client...');
+          
+          const createClientResponse = await fetch(`${supabaseUrl}/functions/v1/create-test-client`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({
+              seller_id,
+              sender_phone,
+              api_response: apiResponse,
+              api_id: api?.id,
+              command_id: commandData.id,
+            }),
+          });
+
+          if (createClientResponse.ok) {
+            const createResult = await createClientResponse.json();
+            console.log('[process-command] Auto-create client result:', createResult);
+          } else {
+            console.error('[process-command] Auto-create client failed:', await createClientResponse.text());
+          }
+        } catch (createError) {
+          // Não falhar o comando principal se a criação do cliente falhar
+          console.error('[process-command] Auto-create client error:', createError);
+        }
+      }
     }
 
     console.log(`[process-command] Completed in ${executionTime}ms, success: ${result.success}`);
