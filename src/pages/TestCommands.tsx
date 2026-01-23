@@ -36,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare } from 'lucide-react';
 import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -51,6 +51,10 @@ interface TestApi {
   api_headers: Record<string, string>;
   api_body_template: Record<string, unknown> | null;
   response_path: string | null;
+  custom_response_template: string | null;
+  use_custom_response: boolean;
+  last_test_response: Record<string, unknown> | null;
+  last_test_at: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -95,8 +99,15 @@ export default function TestCommands() {
     api_headers: '{}',
     api_body_template: '',
     response_path: '',
+    custom_response_template: '',
+    use_custom_response: false,
     is_active: true,
   });
+  
+  // API Test State
+  const [testingApi, setTestingApi] = useState(false);
+  const [testResponse, setTestResponse] = useState<Record<string, unknown> | null>(null);
+  const [previewMessage, setPreviewMessage] = useState('');
 
   // Command Dialog State
   const [commandDialogOpen, setCommandDialogOpen] = useState(false);
@@ -167,8 +178,12 @@ export default function TestCommands() {
         api_headers: JSON.parse(data.api_headers || '{}'),
         api_body_template: data.api_body_template ? JSON.parse(data.api_body_template) : null,
         response_path: data.response_path || null,
+        custom_response_template: data.custom_response_template || null,
+        use_custom_response: data.use_custom_response,
+        last_test_response: testResponse as unknown as Record<string, unknown> | null,
+        last_test_at: testResponse ? new Date().toISOString() : null,
         is_active: data.is_active,
-      }]);
+      }] as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -192,8 +207,12 @@ export default function TestCommands() {
         api_headers: JSON.parse(data.api_headers || '{}'),
         api_body_template: data.api_body_template ? JSON.parse(data.api_body_template) : null,
         response_path: data.response_path || null,
+        custom_response_template: data.custom_response_template || null,
+        use_custom_response: data.use_custom_response,
+        last_test_response: testResponse as any,
+        last_test_at: testResponse ? new Date().toISOString() : null,
         is_active: data.is_active,
-      }).eq('id', id);
+      } as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -299,8 +318,12 @@ export default function TestCommands() {
       api_headers: '{}',
       api_body_template: '',
       response_path: '',
+      custom_response_template: '',
+      use_custom_response: false,
       is_active: true,
     });
+    setTestResponse(null);
+    setPreviewMessage('');
   };
 
   const resetCommandForm = () => {
@@ -323,9 +346,105 @@ export default function TestCommands() {
       api_headers: JSON.stringify(api.api_headers, null, 2),
       api_body_template: api.api_body_template ? JSON.stringify(api.api_body_template, null, 2) : '',
       response_path: api.response_path || '',
+      custom_response_template: api.custom_response_template || '',
+      use_custom_response: api.use_custom_response || false,
       is_active: api.is_active,
     });
+    // Load last test response if available
+    if (api.last_test_response) {
+      setTestResponse(api.last_test_response);
+    } else {
+      setTestResponse(null);
+    }
+    setPreviewMessage('');
     setApiDialogOpen(true);
+  };
+
+  // Function to test the API and get preview
+  const handleTestApi = async () => {
+    if (!apiForm.api_url) {
+      toast.error('Informe a URL da API');
+      return;
+    }
+    
+    setTestingApi(true);
+    setTestResponse(null);
+    setPreviewMessage('');
+    
+    try {
+      const fetchOptions: RequestInit = {
+        method: apiForm.api_method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...JSON.parse(apiForm.api_headers || '{}'),
+        },
+      };
+      
+      if (apiForm.api_method === 'POST' && apiForm.api_body_template) {
+        fetchOptions.body = apiForm.api_body_template;
+      }
+      
+      const response = await fetch(apiForm.api_url, fetchOptions);
+      const responseText = await response.text();
+      
+      let parsedResponse: Record<string, unknown>;
+      try {
+        parsedResponse = JSON.parse(responseText);
+      } catch {
+        parsedResponse = { reply: responseText };
+      }
+      
+      setTestResponse(parsedResponse);
+      
+      // Generate preview message
+      if (apiForm.use_custom_response && apiForm.custom_response_template) {
+        const preview = applyTemplatePreview(apiForm.custom_response_template, parsedResponse);
+        setPreviewMessage(preview);
+      }
+      
+      toast.success('API testada com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao testar API: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setTestingApi(false);
+    }
+  };
+
+  // Apply template with variables for preview
+  const applyTemplatePreview = (template: string, data: Record<string, unknown>): string => {
+    const variableMapping: Record<string, string[]> = {
+      usuario: ['username', 'user', 'login', 'usuario'],
+      senha: ['password', 'pass', 'senha'],
+      vencimento: ['expiresAtFormatted', 'expiresAt', 'expires', 'expiration', 'vencimento', 'validade'],
+      dns: ['dns', 'server', 'host', 'url'],
+      pacote: ['package', 'plan', 'plano', 'pacote'],
+      nome: ['name', 'nome', 'client_name'],
+    };
+
+    let result = template;
+
+    for (const [varName, possibleKeys] of Object.entries(variableMapping)) {
+      let value = '';
+      for (const key of possibleKeys) {
+        if (data[key] !== undefined && data[key] !== null) {
+          value = String(data[key]);
+          break;
+        }
+      }
+      const regex = new RegExp(`\\{${varName}\\}`, 'gi');
+      result = result.replace(regex, value);
+    }
+    
+    return result;
+  };
+
+  // Update preview when template changes
+  const handleTemplateChange = (template: string) => {
+    setApiForm({ ...apiForm, custom_response_template: template });
+    if (testResponse) {
+      const preview = applyTemplatePreview(template, testResponse);
+      setPreviewMessage(preview);
+    }
   };
 
   const handleEditCommand = (cmd: WhatsAppCommand) => {
@@ -610,7 +729,7 @@ export default function TestCommands() {
 
       {/* API Dialog */}
       <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingApi ? 'Editar API' : 'Nova API de Teste'}</DialogTitle>
             <DialogDescription>
@@ -680,6 +799,92 @@ export default function TestCommands() {
                 />
               </div>
             )}
+            
+            {/* Test API Button */}
+            <div className="border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTestApi}
+                disabled={testingApi || !apiForm.api_url}
+                className="w-full"
+              >
+                {testingApi ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Testar API e Ver Resposta
+              </Button>
+            </div>
+            
+            {/* Test Response Preview */}
+            {testResponse && (
+              <div className="space-y-4 border rounded-lg p-4 bg-muted/50">
+                <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                  <CheckCircle className="h-4 w-4" />
+                  Resposta da API (dados disponíveis)
+                </div>
+                <div className="bg-background rounded p-3 text-xs font-mono max-h-40 overflow-y-auto">
+                  <pre>{JSON.stringify(testResponse, null, 2)}</pre>
+                </div>
+                
+                {/* Custom Response Toggle */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="font-medium text-sm">Personalizar mensagem</p>
+                      <p className="text-xs text-muted-foreground">Editar o texto enviado ao cliente</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={apiForm.use_custom_response}
+                    onCheckedChange={(v) => setApiForm({ ...apiForm, use_custom_response: v })}
+                  />
+                </div>
+                
+                {apiForm.use_custom_response && (
+                  <>
+                    {/* Variables Available */}
+                    <div className="text-xs text-muted-foreground">
+                      <p className="font-medium mb-1">Variáveis disponíveis:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {['{usuario}', '{senha}', '{vencimento}', '{dns}', '{pacote}', '{nome}'].map(v => (
+                          <code key={v} className="bg-primary/10 text-primary px-1.5 py-0.5 rounded">{v}</code>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Custom Template Editor */}
+                    <div className="space-y-2">
+                      <Label>Mensagem personalizada</Label>
+                      <Textarea
+                        value={apiForm.custom_response_template}
+                        onChange={(e) => handleTemplateChange(e.target.value)}
+                        placeholder={`✅ *Teste Ativado!*\n\n👤 Usuário: {usuario}\n🔑 Senha: {senha}\n📅 Válido até: {vencimento}\n\n_Aproveite!_`}
+                        className="font-mono text-sm"
+                        rows={6}
+                      />
+                    </div>
+                    
+                    {/* Live Preview */}
+                    {previewMessage && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <Eye className="h-4 w-4" />
+                          Preview da mensagem
+                        </div>
+                        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg p-3">
+                          <pre className="text-sm whitespace-pre-wrap">{previewMessage}</pre>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label>Caminho da Resposta (opcional)</Label>
               <Input
