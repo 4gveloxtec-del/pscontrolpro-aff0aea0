@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -120,31 +120,44 @@ export function TestIntegrationConfig() {
   });
 
   // Update form when config loads - using useEffect properly
-  const [configLoaded, setConfigLoaded] = useState(false);
+  useEffect(() => {
+    if (config) {
+      setFormData({
+        server_id: config.server_id || '',
+        category: config.category || 'IPTV',
+        client_name_prefix: config.client_name_prefix || 'Teste',
+        map_login_path: config.map_login_path || 'username',
+        map_password_path: config.map_password_path || 'password',
+        map_dns_path: config.map_dns_path || 'dns',
+        map_expiration_path: config.map_expiration_path || 'expiresAtFormatted',
+        auto_create_client: config.auto_create_client ?? true,
+        send_welcome_message: config.send_welcome_message ?? false,
+        detect_renewal_enabled: config.detect_renewal_enabled ?? true,
+        detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+        logs_enabled: config.logs_enabled ?? true,
+      });
+    }
+  }, [config]);
   
-  // Effect to update form when config changes
-  if (config && !configLoaded) {
-    setFormData({
-      server_id: config.server_id || '',
-      category: config.category || 'IPTV',
-      client_name_prefix: config.client_name_prefix || 'Teste',
-      map_login_path: config.map_login_path || 'username',
-      map_password_path: config.map_password_path || 'password',
-      map_dns_path: config.map_dns_path || 'dns',
-      map_expiration_path: config.map_expiration_path || 'expiresAtFormatted',
-      auto_create_client: config.auto_create_client ?? true,
-      send_welcome_message: config.send_welcome_message ?? false,
-      detect_renewal_enabled: config.detect_renewal_enabled ?? true,
-      detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
-      logs_enabled: config.logs_enabled ?? true,
-    });
-    setConfigLoaded(true);
-  }
-  
-  // Reset configLoaded when API changes
-  if (!config && configLoaded) {
-    setConfigLoaded(false);
-  }
+  // Reset form when API selection changes
+  useEffect(() => {
+    if (!selectedApiId) {
+      setFormData({
+        server_id: '',
+        category: 'IPTV',
+        client_name_prefix: 'Teste',
+        map_login_path: 'username',
+        map_password_path: 'password',
+        map_dns_path: 'dns',
+        map_expiration_path: 'expiresAtFormatted',
+        auto_create_client: true,
+        send_welcome_message: false,
+        detect_renewal_enabled: true,
+        detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+        logs_enabled: true,
+      });
+    }
+  }, [selectedApiId]);
 
   // Save mutation
   const saveMutation = useMutation({
@@ -194,7 +207,6 @@ export function TestIntegrationConfig() {
     onSuccess: () => {
       toast.success('Configuração salva!');
       queryClient.invalidateQueries({ queryKey: ['test-integration-config'] });
-      setConfigLoaded(false); // Reset to allow reload
       refetchConfig();
     },
     onError: (error: Error) => {
