@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
       has_dns: !!dns,
     });
 
-    // Criar o cliente
+    // Criar o cliente - note: is_test column doesn't exist in schema, using notes to mark test clients
     const clientData: Record<string, unknown> = {
       seller_id,
       name: clientName,
@@ -240,9 +240,8 @@ Deno.serve(async (req) => {
       // Data de expiração (obrigatória - usa padrão se não vier da API)
       expiration_date: finalExpirationDate.toISOString().split('T')[0],
       
-      // Marcadores
-      is_test: true,
-      notes: `Teste gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Telefone: ${normalizedPhone}`,
+      // Marcadores - use notes to identify test clients since is_test column doesn't exist
+      notes: `[TESTE] Gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Telefone: ${normalizedPhone}`,
     };
 
     const { data: newClient, error: insertError } = await supabase

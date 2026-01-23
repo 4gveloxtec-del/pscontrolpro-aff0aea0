@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -74,6 +75,43 @@ interface CommandLog {
   created_at: string;
 }
 
+interface DiagnosisResult {
+  is_connected: boolean;
+  critical_issues?: string[];
+  recommendations?: string[];
+  webhook?: {
+    configured: boolean;
+    url_correct: boolean;
+    has_messages_event: boolean;
+    url?: string;
+    expected_url?: string;
+    events_enabled?: string[];
+    raw_config?: unknown;
+    error?: string;
+  };
+  commands?: { active: number };
+  recent_events?: { message_events: number };
+  recent_commands?: {
+    total: number;
+    logs: Array<{ command: string; success: boolean; error?: string }>;
+  };
+}
+
+// Constants moved outside component to prevent re-allocation
+const DEFAULT_TEMPLATE = `✅ *Teste Gerado com Sucesso!*
+
+👤 *Usuário:* {usuario}
+🔑 *Senha:* {senha}
+📅 *Validade:* {vencimento}
+
+📥 *Baixe seu aplicativo:*
+{links}
+
+🏢 {empresa}
+📲 Qualquer dúvida, estamos à disposição!`;
+
+const API_TEST_TIMEOUT_MS = 15000;
+
 export default function TestCommands() {
   const { user } = useAuth();
   const { dialogProps, confirm } = useConfirmDialog();
@@ -104,18 +142,6 @@ export default function TestCommands() {
   // Ref for template textarea to track cursor position
   const templateTextareaRef = useRef<HTMLTextAreaElement>(null);
   
-  // Default template model
-  const DEFAULT_TEMPLATE = `✅ *Teste Gerado com Sucesso!*
-
-👤 *Usuário:* {usuario}
-🔑 *Senha:* {senha}
-📅 *Validade:* {vencimento}
-
-📥 *Baixe seu aplicativo:*
-{links}
-
-🏢 {empresa}
-📲 Qualquer dúvida, estamos à disposição!`;
 
   // Command Dialog State
   const [commandDialogOpen, setCommandDialogOpen] = useState(false);
@@ -130,7 +156,7 @@ export default function TestCommands() {
 
   // Diagnosis State
   const [diagnosing, setDiagnosing] = useState(false);
-  const [diagnosisResult, setDiagnosisResult] = useState<any>(null);
+  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
 
   // Fetch APIs
   const { data: apis = [], isLoading: apisLoading } = useQuery({
@@ -197,41 +223,59 @@ export default function TestCommands() {
   // Toggle logs mutation
   const toggleLogsMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
-      if (logsConfig?.id) {
-        const { error } = await supabase
-          .from('test_integration_config')
-          .update({ logs_enabled: enabled })
-          .eq('id', logsConfig.id);
-        if (error) throw error;
+      if (!logsConfig?.id) {
+        throw new Error('Configuração não encontrada');
       }
+      const { error } = await supabase
+        .from('test_integration_config')
+        .update({ logs_enabled: enabled })
+        .eq('id', logsConfig.id);
+      if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, enabled) => {
       refetchLogsConfig();
-      toast.success(logsConfig?.logs_enabled ? 'Logs desativados' : 'Logs ativados');
+      toast.success(enabled ? 'Logs ativados' : 'Logs desativados');
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error('Erro ao alterar configuração: ' + error.message);
     },
   });
 
   // API Mutations
   const createApiMutation = useMutation({
     mutationFn: async (data: typeof apiForm) => {
+      let parsedHeaders: Record<string, string> = {};
+      let parsedBody: Record<string, unknown> | null = null;
+      
+      try {
+        parsedHeaders = JSON.parse(data.api_headers || '{}');
+      } catch {
+        throw new Error('Headers JSON inválido');
+      }
+      
+      if (data.api_body_template) {
+        try {
+          parsedBody = JSON.parse(data.api_body_template);
+        } catch {
+          throw new Error('Body JSON inválido');
+        }
+      }
+      
       const { error } = await supabase.from('test_apis').insert([{
         owner_id: user!.id,
         name: data.name,
         description: data.description || null,
         api_url: data.api_url,
         api_method: data.api_method,
-        api_headers: JSON.parse(data.api_headers || '{}'),
-        api_body_template: data.api_body_template ? JSON.parse(data.api_body_template) : null,
+        api_headers: parsedHeaders as Json,
+        api_body_template: parsedBody as Json | null,
         response_path: data.response_path || null,
         custom_response_template: data.custom_response_template || null,
         use_custom_response: data.use_custom_response,
-        last_test_response: testResponse as unknown as Record<string, unknown> | null,
+        last_test_response: testResponse as Json | null,
         last_test_at: testResponse ? new Date().toISOString() : null,
         is_active: data.is_active,
-      }] as any);
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -359,14 +403,12 @@ export default function TestCommands() {
 
   const clearLogsMutation = useMutation({
     mutationFn: async () => {
-      // Delete all logs for this user
-      const { error, count } = await supabase
+      // Delete all logs for this user - don't use .select() after .delete()
+      const { error } = await supabase
         .from('command_logs')
         .delete()
-        .eq('owner_id', user!.id)
-        .select('id');
+        .eq('owner_id', user!.id);
       
-      console.log('[clearLogs] Delete result:', { error, count });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -431,8 +473,8 @@ export default function TestCommands() {
     setApiDialogOpen(true);
   };
 
-  // Function to test the API and get preview
-  const handleTestApi = async () => {
+  // Function to test the API and get preview - with timeout
+  const handleTestApi = useCallback(async () => {
     if (!apiForm.api_url) {
       toast.error('Informe a URL da API');
       return;
@@ -442,6 +484,9 @@ export default function TestCommands() {
     setTestResponse(null);
     setPreviewMessage('');
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TEST_TIMEOUT_MS);
+    
     try {
       const fetchOptions: RequestInit = {
         method: apiForm.api_method,
@@ -449,6 +494,7 @@ export default function TestCommands() {
           'Content-Type': 'application/json',
           ...JSON.parse(apiForm.api_headers || '{}'),
         },
+        signal: controller.signal,
       };
       
       if (apiForm.api_method === 'POST' && apiForm.api_body_template) {
@@ -456,6 +502,8 @@ export default function TestCommands() {
       }
       
       const response = await fetch(apiForm.api_url, fetchOptions);
+      clearTimeout(timeoutId);
+      
       const responseText = await response.text();
       
       let parsedResponse: Record<string, unknown>;
@@ -475,11 +523,16 @@ export default function TestCommands() {
       
       toast.success('API testada com sucesso!');
     } catch (error) {
-      toast.error('Erro ao testar API: ' + (error instanceof Error ? error.message : String(error)));
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast.error('Timeout: API não respondeu em 15 segundos');
+      } else {
+        toast.error('Erro ao testar API: ' + (error instanceof Error ? error.message : String(error)));
+      }
     } finally {
       setTestingApi(false);
     }
-  };
+  }, [apiForm.api_url, apiForm.api_method, apiForm.api_headers, apiForm.api_body_template, apiForm.use_custom_response, apiForm.custom_response_template]);
 
   // Apply template with variables for preview
   const applyTemplatePreview = (template: string, data: Record<string, unknown>): string => {
@@ -757,7 +810,7 @@ export default function TestCommands() {
                       📋 Últimos comandos processados ({diagnosisResult.recent_commands.total})
                     </summary>
                     <div className="mt-1 space-y-1">
-                      {diagnosisResult.recent_commands.logs.map((log: any, i: number) => (
+                      {diagnosisResult.recent_commands.logs.map((log, i) => (
                         <div key={i} className={`p-1 rounded text-[10px] ${log.success ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
                           <span className="font-mono">{log.command}</span>
                           {log.error && <span className="text-red-500 ml-1">- {log.error}</span>}
@@ -848,7 +901,7 @@ export default function TestCommands() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-sm text-muted-foreground mb-3">
-                      <span className="font-medium">API:</span> {(cmd as any).test_apis?.name || 'N/A'}
+                      <span className="font-medium">API:</span> {cmd.test_apis?.name || 'N/A'}
                     </div>
                     <div className="text-sm text-muted-foreground mb-3">
                       <span className="font-medium">Usos:</span> {cmd.usage_count}

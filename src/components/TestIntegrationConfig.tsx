@@ -47,6 +47,22 @@ interface TestIntegrationConfigData {
   is_active: boolean;
 }
 
+// Constants moved outside component to prevent re-allocation on every render
+const DEFAULT_FORM_DATA = {
+  server_id: '',
+  category: 'IPTV',
+  client_name_prefix: 'Teste',
+  map_login_path: 'username',
+  map_password_path: 'password',
+  map_dns_path: 'dns',
+  map_expiration_path: 'expiresAtFormatted',
+  auto_create_client: true,
+  send_welcome_message: false,
+  detect_renewal_enabled: true,
+  detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
+  logs_enabled: true,
+};
+
 export function TestIntegrationConfig() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -119,27 +135,11 @@ export function TestIntegrationConfig() {
     logs_enabled: true,
   });
 
-  // Default form values constant
-  const defaultFormData = {
-    server_id: '',
-    category: 'IPTV',
-    client_name_prefix: 'Teste',
-    map_login_path: 'username',
-    map_password_path: 'password',
-    map_dns_path: 'dns',
-    map_expiration_path: 'expiresAtFormatted',
-    auto_create_client: true,
-    send_welcome_message: false,
-    detect_renewal_enabled: true,
-    detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
-    logs_enabled: true,
-  };
-
   // Unified effect: Reset to defaults when no API selected, load config when available
   useEffect(() => {
     if (!selectedApiId) {
       // No API selected - reset to defaults
-      setFormData(defaultFormData);
+      setFormData(DEFAULT_FORM_DATA);
       return;
     }
     
@@ -164,7 +164,7 @@ export function TestIntegrationConfig() {
       });
     } else {
       // New API without existing config - use defaults
-      setFormData(defaultFormData);
+      setFormData(DEFAULT_FORM_DATA);
     }
   }, [selectedApiId, config, configLoading]);
 

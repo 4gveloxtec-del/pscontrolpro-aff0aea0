@@ -275,7 +275,7 @@ Deno.serve(async (req: Request) => {
     // WEBHOOK HANDLER - Receive events from Evolution API
     // IMPORTANT: Evolution sends webhooks with { event, instance, data } (no action/webhook_event)
     // ============================================================
-    const isWebhookRequest = action === 'webhook' || !!webhook_event || !!(body as any)?.event;
+    const isWebhookRequest = action === 'webhook' || !!webhook_event || !!(body && typeof body === 'object' && 'event' in body);
 
     if (isWebhookRequest) {
       // Log full payload for debugging - ENHANCED
@@ -1072,12 +1072,18 @@ Deno.serve(async (req: Request) => {
           const webhookCheckUrl = `${baseUrl}/webhook/find/${instance.instance_name}`;
           console.log(`[Diagnose] Checking webhook at: ${webhookCheckUrl}`);
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+          
           const webhookResponse = await fetch(webhookCheckUrl, {
             method: 'GET',
             headers: {
               'apikey': globalConfig.api_token,
             },
+            signal: controller.signal,
           });
+          
+          clearTimeout(timeoutId);
 
           if (webhookResponse.ok) {
             webhookConfig = await webhookResponse.json();
