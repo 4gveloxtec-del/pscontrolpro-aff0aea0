@@ -221,6 +221,8 @@ export default function Clients() {
   const isBulkMessaging = bulkMessageQueue.length > 0;
   // State for additional servers (dynamic)
   const [additionalServers, setAdditionalServers] = useState<{ server_id: string; server_name: string; login: string; password: string }[]>([]);
+  // State for server partner apps (apps from servers that require authentication)
+  const [serverAppsConfig, setServerAppsConfig] = useState<{ serverId: string; serverName: string; apps: { serverAppId: string; authCode?: string; username?: string; password?: string; provider?: string }[] }[]>([]);
   // State for welcome message preview
   const [showWelcomePreview, setShowWelcomePreview] = useState(false);
   const [pendingClientData, setPendingClientData] = useState<{ data: Record<string, unknown>; screens: string } | null>(null);
@@ -1034,6 +1036,42 @@ export default function Clients() {
         })();
       }
       
+      // Save server partner app credentials in background
+      if (!reusedExistingClient && serverAppsConfig.length > 0 && insertedData?.id) {
+        (async () => {
+          for (const config of serverAppsConfig) {
+            for (const app of config.apps) {
+              if (!app.serverAppId) continue;
+              
+              // Encrypt sensitive data
+              let encryptedPassword = app.password || null;
+              if (encryptedPassword) {
+                try {
+                  encryptedPassword = await encrypt(encryptedPassword);
+                } catch (e) {
+                  console.error('Error encrypting app password:', e);
+                }
+              }
+              
+              const { error } = await supabase.from('client_server_app_credentials' as any).insert([{
+                client_id: insertedData.id,
+                seller_id: user!.id,
+                server_id: config.serverId,
+                server_app_id: app.serverAppId,
+                auth_code: app.authCode || null,
+                username: app.username || null,
+                password: encryptedPassword,
+                provider: app.provider || null,
+              }]);
+              
+              if (error) {
+                console.error('Error saving server app credential:', error);
+              }
+            }
+          }
+        })();
+      }
+      
       // Send welcome message via WhatsApp API in background (only if user confirmed)
       if (insertedData?.id && formData.phone && customWelcomeMessage !== null) {
         supabase.functions.invoke('send-welcome-message', {
@@ -1229,9 +1267,42 @@ export default function Clients() {
             }
           }
           
+          // Save/update server partner app credentials
+          await supabase.from('client_server_app_credentials' as any).delete().eq('client_id', id);
+          
+          if (serverAppsConfig.length > 0) {
+            for (const config of serverAppsConfig) {
+              for (const app of config.apps) {
+                if (!app.serverAppId) continue;
+                
+                // Encrypt sensitive data
+                let encryptedPassword = app.password || null;
+                if (encryptedPassword) {
+                  try {
+                    encryptedPassword = await encrypt(encryptedPassword);
+                  } catch (e) {
+                    console.error('Error encrypting app password:', e);
+                  }
+                }
+                
+                await supabase.from('client_server_app_credentials' as any).insert([{
+                  client_id: id,
+                  seller_id: user.id,
+                  server_id: config.serverId,
+                  server_app_id: app.serverAppId,
+                  auth_code: app.authCode || null,
+                  username: app.username || null,
+                  password: encryptedPassword,
+                  provider: app.provider || null,
+                }]);
+              }
+            }
+          }
+          
           // Invalidate related queries after background work completes
           queryClient.invalidateQueries({ queryKey: ['client-external-apps'] });
           queryClient.invalidateQueries({ queryKey: ['client-premium-accounts'] });
+          queryClient.invalidateQueries({ queryKey: ['client-server-app-credentials'] });
         })();
       }
 
@@ -1491,6 +1562,7 @@ export default function Clients() {
     setExternalApps([]);
     setPremiumAccounts([]);
     setAdditionalServers([]);
+    setServerAppsConfig([]);
   };
 
   const handlePlanChange = (planId: string) => {
@@ -1683,6 +1755,48 @@ export default function Clients() {
           expirationDate: acc.expiration_date || '',
           notes: acc.notes || '',
         })));
+      }
+      
+      // Load server partner app credentials for this client
+      const { data: existingServerAppCredentials } = await supabase
+        .from('client_server_app_credentials' as any)
+        .select('*, server_app:server_apps(*)')
+        .eq('client_id', client.id);
+      
+      if (existingServerAppCredentials && existingServerAppCredentials.length > 0) {
+        // Group by server_id
+        const groupedByServer: Record<string, { serverId: string; serverName: string; apps: { serverAppId: string; authCode?: string; username?: string; password?: string; provider?: string }[] }> = {};
+        
+        for (const cred of existingServerAppCredentials as any[]) {
+          const serverId = cred.server_id;
+          if (!groupedByServer[serverId]) {
+            // Try to get server name from server_app relationship or fallback
+            const serverName = cred.server_app?.server_id === serverId ? '' : '';
+            groupedByServer[serverId] = { serverId, serverName, apps: [] };
+          }
+          
+          // Decrypt password if present
+          let decryptedAppPassword = cred.password || '';
+          if (decryptedAppPassword) {
+            try {
+              decryptedAppPassword = await decrypt(decryptedAppPassword);
+            } catch (e) {
+              // Use raw value if decryption fails
+            }
+          }
+          
+          groupedByServer[serverId].apps.push({
+            serverAppId: cred.server_app_id,
+            authCode: cred.auth_code || '',
+            username: cred.username || '',
+            password: decryptedAppPassword,
+            provider: cred.provider || '',
+          });
+        }
+        
+        setServerAppsConfig(Object.values(groupedByServer));
+      } else {
+        setServerAppsConfig([]);
       }
     }
     
@@ -2970,6 +3084,20 @@ export default function Clients() {
                     paid_apps_duration: data.duration,
                     paid_apps_expiration: data.expiration,
                   })}
+                />
+              )}
+
+              {/* Server Partner Apps Section - Only for IPTV/P2P with server selected */}
+              {user && formData.server_id && (formData.category === 'IPTV' || formData.category === 'P2P') && (
+                <ServerPartnerAppsSection
+                  sellerId={user.id}
+                  servers={[
+                    { id: formData.server_id, name: formData.server_name || '' },
+                    ...additionalServers.filter(s => s.server_id).map(s => ({ id: s.server_id, name: s.server_name }))
+                  ]}
+                  selectedDevices={formData.device}
+                  serverAppsConfig={serverAppsConfig}
+                  onChange={setServerAppsConfig}
                 />
               )}
 
