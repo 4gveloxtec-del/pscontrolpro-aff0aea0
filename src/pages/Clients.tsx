@@ -2427,37 +2427,16 @@ export default function Clients() {
                   </Popover>
                 </div>
 
-                {/* Device Model & App Name - Show when device is selected */}
+                {/* Device Model - Show when device is selected */}
                 {formData.device && (
-                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-muted/30 border border-dashed">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Tv className="h-4 w-4 text-muted-foreground" />
-                        Modelo/Identificação do Aparelho
-                      </Label>
-                      <Input
-                        value={formData.device_model}
-                        onChange={(e) => setFormData({ ...formData, device_model: e.target.value })}
-                        placeholder="Ex: Samsung 55 Sala, LG Quarto, TV Cozinha..."
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Identifique o aparelho para lembrar depois (opcional)
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Monitor className="h-4 w-4 text-muted-foreground" />
-                        Nome do Aplicativo
-                      </Label>
-                      <Input
-                        value={formData.app_name}
-                        onChange={(e) => setFormData({ ...formData, app_name: e.target.value })}
-                        placeholder="Ex: IPTV Smarters, TiviMate, Duplex..."
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Qual app o cliente usa? (opcional)
-                      </p>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="device_model">Marca/Modelo da TV</Label>
+                    <Input
+                      id="device_model"
+                      value={formData.device_model}
+                      onChange={(e) => setFormData({ ...formData, device_model: e.target.value })}
+                      placeholder="Ex: Samsung, LG, TCL..."
+                    />
                   </div>
                 )}
 
