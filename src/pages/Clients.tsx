@@ -106,6 +106,7 @@ interface Client {
   archived_at: string | null;
   created_at: string | null;
   renewed_at: string | null;
+  updated_at?: string | null;
   gerencia_app_mac: string | null;
   gerencia_app_devices: MacDevice[] | null;
   // App type fields
@@ -312,10 +313,44 @@ export default function Clients() {
     setPendingCloseDialog(false);
   }, []);
 
-  const { data: clients = [], isLoading } = useQuery({
-    queryKey: ['clients', user?.id],
+  // Pagination state for database-level pagination
+  const [dbPage, setDbPage] = useState(0);
+  const [allLoadedClients, setAllLoadedClients] = useState<Client[]>([]);
+  const [hasMoreClients, setHasMoreClients] = useState(true);
+  const [totalClientCount, setTotalClientCount] = useState(0);
+  const CLIENTS_PER_PAGE = 50;
+
+  // Get total count of clients for accurate pagination info
+  const { data: clientCount } = useQuery({
+    queryKey: ['clients-count', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 0;
+      const { count, error } = await supabase
+        .from('clients')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', user.id);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Update total count when it changes
+  useEffect(() => {
+    if (clientCount !== undefined) {
+      setTotalClientCount(clientCount);
+      setHasMoreClients(allLoadedClients.length < clientCount);
+    }
+  }, [clientCount, allLoadedClients.length]);
+
+  const { data: fetchedClients = [], isLoading, isFetching } = useQuery({
+    queryKey: ['clients', user?.id, dbPage],
     queryFn: async () => {
       if (!user?.id) return [];
+      const from = dbPage * CLIENTS_PER_PAGE;
+      const to = from + CLIENTS_PER_PAGE - 1;
+      
       const { data, error } = await supabase
         .from('clients')
         .select(`
@@ -330,8 +365,11 @@ export default function Clients() {
           app_name, app_type, device_model, additional_servers
         `)
         .eq('seller_id', user.id)
-        .order('expiration_date', { ascending: true });
+        .order('expiration_date', { ascending: true })
+        .range(from, to);
+      
       if (error) throw error;
+      
       // Cast JSON fields to proper types
       const hydrated = (data || []).map(client => ({
         ...client,
@@ -339,16 +377,56 @@ export default function Clients() {
         additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
       })) as Client[];
 
-      // Retornar todos os clientes sem deduplicação - o banco pode ter múltiplos registros
-      // com o mesmo telefone e datas diferentes, e o usuário quer visualizar todos
       return hydrated;
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 2, // 2 minutes - reduce refetches
+    staleTime: 1000 * 60 * 2, // 2 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes cache
-    refetchOnWindowFocus: false, // Don't refetch on tab focus for performance
-    refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data after login
+    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
   });
+
+  // Accumulate loaded clients when fetching new pages
+  useEffect(() => {
+    if (dbPage === 0) {
+      // Reset on first page (fresh load) - even if empty
+      setAllLoadedClients(fetchedClients);
+      if (fetchedClients.length < CLIENTS_PER_PAGE) {
+        setHasMoreClients(false);
+      }
+    } else if (fetchedClients.length > 0) {
+      // Append new clients, avoiding duplicates by ID
+      setAllLoadedClients(prev => {
+        const existingIds = new Set(prev.map(c => c.id));
+        const newClients = fetchedClients.filter(c => !existingIds.has(c.id));
+        return [...prev, ...newClients];
+      });
+      
+      // Check if we've loaded all clients
+      if (fetchedClients.length < CLIENTS_PER_PAGE) {
+        setHasMoreClients(false);
+      }
+    }
+  }, [fetchedClients, dbPage]);
+
+  // Reset pagination when user changes or on fresh load
+  useEffect(() => {
+    if (user?.id) {
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
+    }
+  }, [user?.id]);
+
+  // Load more clients function
+  const loadMoreClients = useCallback(() => {
+    if (hasMoreClients && !isFetching) {
+      setDbPage(prev => prev + 1);
+    }
+  }, [hasMoreClients, isFetching]);
+
+  // Use accumulated clients for the rest of the component
+  const clients = allLoadedClients;
 
   // Fetch client IDs that have external apps (paid apps)
   const { data: clientsWithExternalApps = [] } = useQuery({
@@ -1107,7 +1185,12 @@ export default function Clients() {
     },
     onSuccess: () => {
       toast.dismiss('saving-client');
+      // Reset pagination to load fresh data with new client
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
       queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
       toast.success(selectedSharedCredit 
@@ -1329,22 +1412,13 @@ export default function Clients() {
       // Show saving indicator
       toast.loading('Salvando alterações...', { id: 'updating-client' });
       
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['clients'] });
-      
-      // Snapshot the previous value
-      const previousClients = queryClient.getQueryData<Client[]>(['clients', user?.id]);
-      
-      // Optimistically update the cache
-      if (previousClients) {
-        queryClient.setQueryData<Client[]>(['clients', user?.id], (old) => 
-          old?.map(client => 
-            client.id === id 
-              ? { ...client, ...data, updated_at: new Date().toISOString() } as Client
-              : client
-          ) || []
-        );
-      }
+      // Optimistically update the local state
+      const previousClients = allLoadedClients;
+      setAllLoadedClients(prev => prev.map(client => 
+        client.id === id 
+          ? { ...client, ...data, updated_at: new Date().toISOString() } as Client
+          : client
+      ));
       
       return { previousClients };
     },
@@ -1360,7 +1434,7 @@ export default function Clients() {
       toast.dismiss('updating-client');
       // Rollback to previous state
       if (context?.previousClients) {
-        queryClient.setQueryData(['clients', user?.id], context.previousClients);
+        setAllLoadedClients(context.previousClients);
       }
       toast.error(`Falha ao salvar, tente novamente: ${error.message}`);
     },
@@ -1388,25 +1462,22 @@ export default function Clients() {
       }
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['clients'] });
-      const previousClients = queryClient.getQueryData<Client[]>(['clients', user?.id]);
-      
-      // Optimistically remove from cache
-      if (previousClients) {
-        queryClient.setQueryData<Client[]>(['clients', user?.id], (old) => 
-          old?.filter(client => client.id !== id) || []
-        );
-      }
-      
+      // Optimistically remove from local state
+      const previousClients = allLoadedClients;
+      setAllLoadedClients(prev => prev.filter(client => client.id !== id));
       return { previousClients };
     },
     onSuccess: () => {
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       toast.success('Cliente excluído!');
     },
     onError: (error: Error, _id, context) => {
       if (context?.previousClients) {
-        queryClient.setQueryData(['clients', user?.id], context.previousClients);
+        setAllLoadedClients(context.previousClients);
       }
       toast.error(error.message);
     },
@@ -1418,7 +1489,11 @@ export default function Clients() {
       if (error) throw error;
     },
     onSuccess: () => {
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       toast.success('Todos os clientes foram excluídos!');
       setShowDeleteAllConfirm(false);
     },
@@ -1437,20 +1512,13 @@ export default function Clients() {
       return id;
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['clients'] });
-      const previousClients = queryClient.getQueryData<Client[]>(['clients', user?.id]);
-      
-      // Optimistically update in cache
-      if (previousClients) {
-        queryClient.setQueryData<Client[]>(['clients', user?.id], (old) => 
-          old?.map(client => 
-            client.id === id 
-              ? { ...client, is_archived: true, archived_at: new Date().toISOString() }
-              : client
-          ) || []
-        );
-      }
-      
+      // Optimistically update in local state
+      const previousClients = allLoadedClients;
+      setAllLoadedClients(prev => prev.map(client => 
+        client.id === id 
+          ? { ...client, is_archived: true, archived_at: new Date().toISOString() }
+          : client
+      ));
       return { previousClients };
     },
     onSuccess: () => {
@@ -1460,7 +1528,7 @@ export default function Clients() {
     },
     onError: (error: Error, _id, context) => {
       if (context?.previousClients) {
-        queryClient.setQueryData(['clients', user?.id], context.previousClients);
+        setAllLoadedClients(context.previousClients);
       }
       toast.error(error.message);
     },
@@ -1498,19 +1566,13 @@ export default function Clients() {
       return id;
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['clients'] });
-      const previousClients = queryClient.getQueryData<Client[]>(['clients', user?.id]);
-      
-      if (previousClients) {
-        queryClient.setQueryData<Client[]>(['clients', user?.id], (old) => 
-          old?.map(client => 
-            client.id === id 
-              ? { ...client, is_archived: false, archived_at: null }
-              : client
-          ) || []
-        );
-      }
-      
+      // Optimistically update in local state
+      const previousClients = allLoadedClients;
+      setAllLoadedClients(prev => prev.map(client => 
+        client.id === id 
+          ? { ...client, is_archived: false, archived_at: null }
+          : client
+      ));
       return { previousClients };
     },
     onSuccess: () => {
@@ -1520,7 +1582,7 @@ export default function Clients() {
     },
     onError: (error: Error, _id, context) => {
       if (context?.previousClients) {
-        queryClient.setQueryData(['clients', user?.id], context.previousClients);
+        setAllLoadedClients(context.previousClients);
       }
       toast.error(error.message);
     },
@@ -4065,8 +4127,42 @@ export default function Clients() {
           startIndex={startIndex}
           endIndex={endIndex}
           onPageChange={goToPage}
-          isLoading={isLoading}
+          isLoading={isLoading || isFetching}
         />
+        
+        {/* Load More Button - Database Level Pagination */}
+        {hasMoreClients && clients.length < totalClientCount && (
+          <div className="flex flex-col items-center gap-2 py-4">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {clients.length} de {totalClientCount} clientes
+            </p>
+            <Button
+              variant="outline"
+              onClick={loadMoreClients}
+              disabled={isFetching}
+              className="gap-2"
+            >
+              {isFetching ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  Carregar mais {Math.min(CLIENTS_PER_PAGE, totalClientCount - clients.length)} clientes
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+        
+        {/* All clients loaded indicator */}
+        {!hasMoreClients && clients.length > CLIENTS_PER_PAGE && (
+          <div className="text-center py-3 text-sm text-muted-foreground">
+            ✓ Todos os {clients.length} clientes carregados
+          </div>
+        )}
         </>
       )}
 
