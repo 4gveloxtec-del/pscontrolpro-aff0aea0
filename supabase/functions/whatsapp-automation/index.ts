@@ -200,9 +200,11 @@ function daysSince(dateStr: string): number {
 function getNotificationLabel(notificationType: string): { title: string; emoji: string } {
   const labels: Record<string, { title: string; emoji: string }> = {
     'app_vencimento': { title: 'App Vencido', emoji: '🔴' },
+    'app_1_dia': { title: 'App Vence Amanhã', emoji: '🟠' },
     'app_3_dias': { title: 'App Vence em 3 dias', emoji: '🟡' },
     'app_30_dias': { title: 'App Vence em 30 dias', emoji: '🔵' },
     'iptv_vencimento': { title: 'Plano Vencido', emoji: '🔴' },
+    'iptv_1_dia': { title: 'Plano Vence Amanhã', emoji: '🟠' },
     'iptv_3_dias': { title: 'Plano Vence em 3 dias', emoji: '🟡' },
     'renovacao': { title: 'Renovação', emoji: '✅' },
     'cobranca': { title: 'Cobrança', emoji: '💰' },
@@ -550,6 +552,10 @@ Deno.serve(async (req: Request) => {
         } else if (daysLeft === 0) {
           notificationType = isPaidApp ? 'app_vencimento' : 'iptv_vencimento';
           templateType = 'expired';
+        } else if (daysLeft === 1) {
+          // 1 day before expiration - useful for short tests (7 days)
+          notificationType = isPaidApp ? 'app_1_dia' : 'iptv_1_dia';
+          templateType = 'expiring_1day';
         } else if (daysLeft === 3) {
           notificationType = isPaidApp ? 'app_3_dias' : 'iptv_3_dias';
           templateType = 'expiring_3days';
