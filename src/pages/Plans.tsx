@@ -85,7 +85,7 @@ export default function Plans() {
     screens: '1',
   });
 
-  const { data: plans = [], isLoading } = useQuery({
+  const { data: plans = [], isLoading, isError } = useQuery({
     queryKey: ['plans', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -102,7 +102,7 @@ export default function Plans() {
   });
 
   // Fetch custom products
-  const { data: customProducts = [] } = useQuery({
+  const { data: customProducts = [], isError: productsError } = useQuery({
     queryKey: ['custom-products', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -115,6 +115,9 @@ export default function Plans() {
     },
     enabled: !!user?.id,
   });
+
+  // Combined error state for main queries
+  const hasQueryError = isError || productsError;
 
   // Get all unique categories (default + custom products)
   const allCategories = [...new Set([
@@ -576,6 +579,18 @@ export default function Plans() {
 
   // Common emoji options for products
   const emojiOptions = ['📦', '🎬', '🎵', '🎮', '📺', '🎥', '📱', '💎', '⭐', '🔥', '✨', '🎯'];
+
+  // Error state guard
+  if (hasQueryError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar planos</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

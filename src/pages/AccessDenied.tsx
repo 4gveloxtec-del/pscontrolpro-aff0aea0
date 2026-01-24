@@ -13,8 +13,8 @@ export default function AccessDenied() {
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Fetch dynamic trial days from settings
-  const { data: trialDays } = useQuery({
+  // Fetch dynamic trial days from settings (with safe defaults)
+  const { data: trialDays = '5' } = useQuery({
     queryKey: ['seller_trial_days'],
     queryFn: async () => {
       const { data } = await supabase

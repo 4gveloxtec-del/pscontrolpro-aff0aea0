@@ -191,7 +191,7 @@ export default function Servers() {
     return () => clearTimeout(timeout);
   }, [formData.name, applyTemplateIfAvailable, editingServer]);
 
-  const { data: servers = [], isLoading } = useQuery({
+  const { data: servers = [], isLoading, isError } = useQuery({
     queryKey: ['servers', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -388,6 +388,18 @@ export default function Servers() {
   const usedCredits = servers
     .filter(s => s.is_active && s.is_credit_based)
     .reduce((sum, s) => sum + (s.used_credits || 0), 0);
+
+  // Error state guard
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar servidores</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

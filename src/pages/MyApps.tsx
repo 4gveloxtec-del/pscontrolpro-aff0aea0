@@ -117,7 +117,7 @@ export default function MyApps() {
   const [activeTab, setActiveTab] = useState<'all' | 'gerencia'>('all');
 
   // Fetch apps
-  const { data: apps = [], isLoading } = useQuery({
+  const { data: apps = [], isLoading, isError } = useQuery({
     queryKey: ['reseller-device-apps', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -135,7 +135,7 @@ export default function MyApps() {
   });
 
   // Fetch servers for association
-  const { data: servers = [] } = useQuery({
+  const { data: servers = [], isError: serversError } = useQuery({
     queryKey: ['servers-for-apps', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -149,6 +149,9 @@ export default function MyApps() {
     },
     enabled: !!user?.id,
   });
+
+  // Combined error state
+  const hasQueryError = isError || serversError;
 
   // Create mutation
   const createMutation = useMutation({
@@ -297,6 +300,18 @@ export default function MyApps() {
     const sourceType = APP_SOURCES.find(s => s.value === source);
     return sourceType ? sourceType.icon : Download;
   };
+
+  // Error state guard
+  if (hasQueryError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar aplicativos</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-6">

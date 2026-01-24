@@ -61,7 +61,7 @@ export default function Coupons() {
     is_active: true,
   });
 
-  const { data: coupons = [], isLoading } = useQuery({
+  const { data: coupons = [], isLoading, isError } = useQuery({
     queryKey: ['coupons', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -182,6 +182,18 @@ export default function Coupons() {
     navigator.clipboard.writeText(code);
     toast.success('Código copiado!');
   };
+
+  // Error state guard
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar cupons</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

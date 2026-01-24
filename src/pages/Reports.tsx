@@ -19,7 +19,7 @@ export default function Reports() {
   const today = startOfToday();
   const monthStart = startOfMonth(today);
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['admin-reports'],
     queryFn: async () => {
       const [profilesRes, clientsRes, serversRes] = await Promise.all([
@@ -85,6 +85,28 @@ export default function Reports() {
     }
     return `R$ ${value.toFixed(2).replace('.', ',')}`;
   };
+
+  if (statsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Carregando relatórios...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (statsError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar relatórios</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

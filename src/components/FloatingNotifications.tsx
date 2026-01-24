@@ -88,7 +88,7 @@ export function FloatingNotifications() {
 
   // OPTIMIZED: Single consolidated query for all notification data
   // This reduces CPU overhead on mobile devices by combining 3 queries into 1
-  const { data: notificationData } = useQuery({
+  const { data: notificationData, isError: notificationError } = useQuery({
     queryKey: ['consolidated-notifications', user?.id],
     queryFn: async () => {
       if (!user?.id || !isSeller) return { clients: [], externalApps: [], pendingPayments: [] };
@@ -299,7 +299,8 @@ export function FloatingNotifications() {
     }
   }, [totalUrgent]);
 
-  if (!isSeller || totalUrgent === 0 || isDismissed) {
+  // Don't show on error or if no notifications
+  if (!isSeller || totalUrgent === 0 || isDismissed || notificationError) {
     return null;
   }
 
