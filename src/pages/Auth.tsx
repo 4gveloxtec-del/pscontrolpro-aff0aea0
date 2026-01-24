@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBruteForce } from '@/hooks/useBruteForce';
 import { validatePasswordStrength } from '@/hooks/usePasswordValidation';
@@ -17,6 +17,7 @@ import { Eye, EyeOff, Users, AlertTriangle, Phone, Check, X, Info } from 'lucide
 function Auth() {
   const { user, loading, signIn, signUp, authState } = useAuth();
   const { checkLoginAttempt, recordLoginAttempt } = useBruteForce();
+  const queryClient = useQueryClient();
 
   // Fetch dynamic trial days from settings
   const { data: trialDays } = useQuery({
@@ -134,6 +135,11 @@ function Auth() {
     } else {
       // Record successful attempt in background (non-blocking)
       recordLoginAttempt(email, true).catch(() => {});
+      
+      // CRITICAL: Invalidate all React Query caches to ensure fresh data after login
+      // This prevents stale/empty data from previous sessions
+      queryClient.invalidateQueries();
+      
       toast.success('Login realizado com sucesso!');
       // Keep isLoading true - redirect will happen via authState change
     }
