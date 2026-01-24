@@ -252,14 +252,9 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
 
   const getAppDetails = (appId: string) => availableApps.find(a => a.id === appId);
 
-  if (availableApps.length === 0) {
-    return (
-      <div className="text-center py-3 text-xs text-muted-foreground border border-dashed rounded-lg">
-        <AppWindow className="h-6 w-6 mx-auto mb-1 opacity-50" />
-        <p>Nenhum app disponível</p>
-      </div>
-    );
-  }
+  // FIXED_EXTERNAL_APPS always has 24 apps, so this should never be empty
+  // But keep a fallback just in case
+  const hasApps = availableApps.length > 0;
 
   return (
     <div className="space-y-2">
@@ -288,14 +283,19 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
             className="h-7 text-xs gap-1"
           >
             <Plus className="h-3 w-3" />
-            Vincular
+            Vincular App
           </Button>
         </div>
       </div>
 
       {localApps.length === 0 ? (
-        <div className="text-center py-3 text-xs text-muted-foreground border border-dashed rounded-lg">
-          Nenhum app vinculado
+        <div 
+          className="text-center py-4 text-xs text-muted-foreground border border-dashed rounded-lg cursor-pointer hover:bg-muted/30 hover:border-primary/50 transition-colors"
+          onClick={addApp}
+        >
+          <Plus className="h-5 w-5 mx-auto mb-1 opacity-50" />
+          <p>Clique para vincular um app ao cliente</p>
+          <p className="text-[10px] mt-1 opacity-70">{availableApps.length} apps disponíveis</p>
         </div>
       ) : (
         <div className="space-y-2">
