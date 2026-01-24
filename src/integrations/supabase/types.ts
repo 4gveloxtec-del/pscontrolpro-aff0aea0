@@ -1069,6 +1069,125 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_circuit_breaker: {
+        Row: {
+          created_at: string
+          failure_count: number
+          failure_threshold: number
+          id: string
+          last_error: string | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          opened_at: string | null
+          reset_timeout_ms: number
+          seller_id: string
+          state: string
+          success_count: number
+          success_threshold: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          failure_count?: number
+          failure_threshold?: number
+          id?: string
+          last_error?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          opened_at?: string | null
+          reset_timeout_ms?: number
+          seller_id: string
+          state?: string
+          success_count?: number
+          success_threshold?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          failure_count?: number
+          failure_threshold?: number
+          id?: string
+          last_error?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          opened_at?: string | null
+          reset_timeout_ms?: number
+          seller_id?: string
+          state?: string
+          success_count?: number
+          success_threshold?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      evolution_message_queue: {
+        Row: {
+          client_id: string | null
+          config: Json
+          created_at: string
+          error_message: string | null
+          expires_at: string
+          id: string
+          max_retries: number
+          message: string
+          message_type: string
+          next_retry_at: string | null
+          phone: string
+          priority: number
+          retry_count: number
+          seller_id: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          config: Json
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          id?: string
+          max_retries?: number
+          message: string
+          message_type?: string
+          next_retry_at?: string | null
+          phone: string
+          priority?: number
+          retry_count?: number
+          seller_id: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          config?: Json
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          id?: string
+          max_retries?: number
+          message?: string
+          message_type?: string
+          next_retry_at?: string | null
+          phone?: string
+          priority?: number
+          retry_count?: number
+          seller_id?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evolution_message_queue_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_apps: {
         Row: {
           auth_type: string
@@ -2984,6 +3103,7 @@ export type Database = {
           seller_id: string
         }[]
       }
+      cleanup_expired_evolution_queue: { Args: never; Returns: number }
       cleanup_old_connection_logs: { Args: never; Returns: number }
       cleanup_old_login_attempts: { Args: never; Returns: undefined }
       create_admin_templates: {
