@@ -580,6 +580,73 @@ export type Database = {
         }
         Relationships: []
       }
+      client_server_app_credentials: {
+        Row: {
+          auth_code: string | null
+          client_id: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          password: string | null
+          provider: string | null
+          seller_id: string
+          server_app_id: string
+          server_id: string
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          auth_code?: string | null
+          client_id: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          password?: string | null
+          provider?: string | null
+          seller_id: string
+          server_app_id: string
+          server_id: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          auth_code?: string | null
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          password?: string | null
+          provider?: string | null
+          seller_id?: string
+          server_app_id?: string
+          server_id?: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_server_app_credentials_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_server_app_credentials_server_app_id_fkey"
+            columns: ["server_app_id"]
+            isOneToOne: false
+            referencedRelation: "server_apps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_server_app_credentials_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           additional_servers: Json | null
@@ -1906,6 +1973,8 @@ export type Database = {
       server_apps: {
         Row: {
           app_type: string
+          auth_type: string | null
+          compatible_devices: Json | null
           created_at: string | null
           download_url: string | null
           downloader_code: string | null
@@ -1914,6 +1983,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           notes: string | null
+          provider_name: string | null
           seller_id: string
           server_id: string
           updated_at: string | null
@@ -1921,6 +1991,8 @@ export type Database = {
         }
         Insert: {
           app_type?: string
+          auth_type?: string | null
+          compatible_devices?: Json | null
           created_at?: string | null
           download_url?: string | null
           downloader_code?: string | null
@@ -1929,6 +2001,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           notes?: string | null
+          provider_name?: string | null
           seller_id: string
           server_id: string
           updated_at?: string | null
@@ -1936,6 +2009,8 @@ export type Database = {
         }
         Update: {
           app_type?: string
+          auth_type?: string | null
+          compatible_devices?: Json | null
           created_at?: string | null
           download_url?: string | null
           downloader_code?: string | null
@@ -1944,6 +2019,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           notes?: string | null
+          provider_name?: string | null
           seller_id?: string
           server_id?: string
           updated_at?: string | null
