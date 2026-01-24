@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Server, Store, Package, Handshake, Eye, EyeOff, AppWindow, Plus, ExternalLink } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Server, Store, Package, Handshake, AppWindow, Plus, ExternalLink } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { ClientExternalApps } from '@/components/ClientExternalApps';
 import { InlineServerAppCreator } from '@/components/InlineAppCreator';
 import { useNavigate } from 'react-router-dom';
@@ -62,23 +58,17 @@ interface AppsSectionProps {
   sellerId: string;
   externalApps: ExternalAppAssignment[];
   onExternalAppsChange: (apps: ExternalAppAssignment[]) => void;
-  // Legacy paid apps
+  // Legacy paid apps (keeping for backwards compatibility but hidden)
   hasPaidApps: boolean;
   paidAppsData: PaidAppsData;
   onPaidAppsChange: (hasPaidApps: boolean, data: PaidAppsData) => void;
 }
-
-type ViewMode = 'server' | 'reseller' | 'both';
-
-const STORAGE_KEY_VIEW = 'apps-section-view-mode';
-const STORAGE_KEY_RESELLER_VISIBLE = 'reseller-apps-visible';
 
 export function AppsSection({
   category,
   serverId,
   serverName,
   serverApps,
-  resellerApps,
   appType,
   appName,
   onAppChange,
@@ -86,35 +76,11 @@ export function AppsSection({
   sellerId,
   externalApps,
   onExternalAppsChange,
-  hasPaidApps,
-  paidAppsData,
-  onPaidAppsChange,
 }: AppsSectionProps) {
   const navigate = useNavigate();
   
-  // View mode state
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_VIEW);
-    return (saved as ViewMode) || 'server';
-  });
-
-  // Reseller apps visibility
-  const [isResellerVisible, setIsResellerVisible] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_RESELLER_VISIBLE);
-    return saved === 'true';
-  });
-
   // Server app selection (own or partnership)
   const [serverAppFilter, setServerAppFilter] = useState<'all' | 'own' | 'partnership'>('all');
-
-  // Save preferences
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_VIEW, viewMode);
-  }, [viewMode]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_RESELLER_VISIBLE, String(isResellerVisible));
-  }, [isResellerVisible]);
 
   // Filter server apps
   const ownApps = serverApps.filter(a => a.app_type === 'own' && a.is_active);
@@ -124,80 +90,43 @@ export function AppsSection({
     ? serverApps.filter(a => a.is_active)
     : serverApps.filter(a => a.app_type === serverAppFilter && a.is_active);
 
-  // Only show for IPTV/P2P categories
+  // Only show server apps for IPTV/P2P categories
   const showServerApps = (category === 'IPTV' || category === 'P2P') && serverId;
 
   return (
-    <div className="space-y-3">
-      {/* View Mode Control */}
-      <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-        <div className="flex items-center gap-2">
-          <AppWindow className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Exibição de Apps</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant={viewMode === 'server' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('server')}
-            className="h-7 text-xs px-2"
-          >
-            <Server className="h-3 w-3 mr-1" />
-            Servidor
-          </Button>
-          <Button
-            type="button"
-            variant={viewMode === 'reseller' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('reseller')}
-            className="h-7 text-xs px-2"
-          >
-            <Store className="h-3 w-3 mr-1" />
-            Revendedor
-          </Button>
-          <Button
-            type="button"
-            variant={viewMode === 'both' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('both')}
-            className="h-7 text-xs px-2"
-          >
-            Ambos
-          </Button>
-        </div>
-      </div>
-
-      {/* Server Apps Section */}
-      {(viewMode === 'server' || viewMode === 'both') && showServerApps && (
-        <div className="space-y-3 p-4 rounded-lg bg-card border border-border">
-          <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      {/* Server Apps Section - Only for IPTV/P2P */}
+      {showServerApps && (
+        <div className="space-y-3 p-3 rounded-lg bg-card border border-border">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-md bg-primary/10">
                 <Server className="h-4 w-4 text-primary" />
               </div>
-              <span className="font-medium text-sm">Apps do Servidor</span>
+              <span className="font-medium text-sm">App do Servidor</span>
               {serverName && (
                 <Badge variant="secondary" className="text-xs font-normal">
                   {serverName}
                 </Badge>
               )}
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/servers')}
-              className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Ir para Servidores
-            </Button>
-            <InlineServerAppCreator
-              sellerId={sellerId}
-              serverId={serverId || ''}
-              serverName={serverName}
-            />
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/servers')}
+                className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Servidores
+              </Button>
+              <InlineServerAppCreator
+                sellerId={sellerId}
+                serverId={serverId || ''}
+                serverName={serverName}
+              />
+            </div>
           </div>
 
           {serverApps.length === 0 ? (
@@ -213,42 +142,45 @@ export function AppsSection({
                 className="h-7 text-xs gap-1"
               >
                 <Plus className="h-3 w-3" />
-                Cadastrar Apps do Servidor
+                Cadastrar Apps
               </Button>
             </div>
           ) : (
-            <>
-              {/* Filter by app type */}
-              <div className="flex items-center gap-2">
-                <RadioGroup
-                  value={serverAppFilter}
-                  onValueChange={(v) => setServerAppFilter(v as 'all' | 'own' | 'partnership')}
-                  className="flex gap-3"
-                >
-                  <div className="flex items-center space-x-1">
-                    <RadioGroupItem value="all" id="filter-all" />
-                    <Label htmlFor="filter-all" className="text-xs cursor-pointer">Todos</Label>
-                  </div>
-                  {ownApps.length > 0 && (
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="own" id="filter-own" />
-                      <Label htmlFor="filter-own" className="text-xs cursor-pointer flex items-center gap-1">
-                        <Package className="h-3 w-3" />
-                        Próprios ({ownApps.length})
-                      </Label>
-                    </div>
-                  )}
-                  {partnershipApps.length > 0 && (
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="partnership" id="filter-partnership" />
-                      <Label htmlFor="filter-partnership" className="text-xs cursor-pointer flex items-center gap-1">
-                        <Handshake className="h-3 w-3" />
-                        Parceria ({partnershipApps.length})
-                      </Label>
-                    </div>
-                  )}
-                </RadioGroup>
-              </div>
+            <div className="space-y-2">
+              {/* Quick filter chips */}
+              {(ownApps.length > 0 && partnershipApps.length > 0) && (
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    type="button"
+                    variant={serverAppFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setServerAppFilter('all')}
+                    className="h-6 text-xs px-2"
+                  >
+                    Todos ({ownApps.length + partnershipApps.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={serverAppFilter === 'own' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setServerAppFilter('own')}
+                    className="h-6 text-xs px-2 gap-1"
+                  >
+                    <Package className="h-3 w-3" />
+                    Próprios ({ownApps.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={serverAppFilter === 'partnership' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setServerAppFilter('partnership')}
+                    className="h-6 text-xs px-2 gap-1"
+                  >
+                    <Handshake className="h-3 w-3" />
+                    Parceria ({partnershipApps.length})
+                  </Button>
+                </div>
+              )}
 
               {/* App Selection */}
               <Select
@@ -266,7 +198,7 @@ export function AppsSection({
                   }
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecione o app do servidor" />
                 </SelectTrigger>
                 <SelectContent>
@@ -284,126 +216,49 @@ export function AppsSection({
                   ))}
                 </SelectContent>
               </Select>
-            </>
+            </div>
           )}
         </div>
       )}
 
-      {/* Reseller Apps Section */}
-      {(viewMode === 'reseller' || viewMode === 'both') && (
-        <Collapsible open={isResellerVisible} onOpenChange={setIsResellerVisible}>
-          <div className="space-y-3 p-4 rounded-lg bg-card border border-border">
-            <div className="flex items-center justify-between">
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-                  <div className="p-1.5 rounded-md bg-accent/10">
-                    <Store className="h-4 w-4 text-accent-foreground" />
-                  </div>
-                  <span className="font-medium text-sm">Apps do Revendedor</span>
-                  <Badge variant="secondary" className="text-xs font-normal">
-                    {externalApps.length + (hasPaidApps ? 1 : 0)} app(s)
-                  </Badge>
-                  <Button type="button" variant="ghost" size="sm" className="gap-1 h-6 px-2 text-xs text-muted-foreground hover:text-foreground">
-                    {isResellerVisible ? (
-                      <>
-                        <EyeOff className="h-3 w-3" />
-                        Ocultar
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="h-3 w-3" />
-                        Mostrar
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CollapsibleTrigger>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate('/external-apps');
-                }}
-                className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
-              >
-                <Plus className="h-3 w-3" />
-                Gerenciar Apps
-                <ExternalLink className="h-3 w-3" />
-              </Button>
+      {/* Apps Pagos / Externos - Unified Section */}
+      <div className="space-y-3 p-3 rounded-lg bg-card border border-border">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md bg-accent/10">
+              <AppWindow className="h-4 w-4 text-accent-foreground" />
             </div>
-
-            <CollapsibleContent className="space-y-4 pt-2">
-              {/* External Apps */}
-              <ClientExternalApps
-                clientId={clientId}
-                sellerId={sellerId}
-                onChange={onExternalAppsChange}
-                initialApps={externalApps}
-              />
-
-              {/* Legacy Paid Apps */}
-              <div className="space-y-3 pt-3 border-t border-border/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AppWindow className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="has_paid_apps" className="cursor-pointer text-sm text-muted-foreground">
-                      Apps Pagos (Legado)
-                    </Label>
-                  </div>
-                  <Switch
-                    id="has_paid_apps"
-                    checked={hasPaidApps}
-                    onCheckedChange={(checked) => 
-                      onPaidAppsChange(checked, { email: '', password: '', duration: '', expiration: '' })
-                    }
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground/70">
-                  Para novos cadastros, use "Apps Externos" acima.
-                </p>
-
-                {hasPaidApps && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">E-mail ou MAC</Label>
-                      <Input
-                        value={paidAppsData.email}
-                        onChange={(e) => onPaidAppsChange(true, { ...paidAppsData, email: e.target.value })}
-                        placeholder="email@exemplo.com"
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Senha</Label>
-                      <Input
-                        value={paidAppsData.password}
-                        onChange={(e) => onPaidAppsChange(true, { ...paidAppsData, password: e.target.value })}
-                        placeholder="Senha do app"
-                        className="h-9"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CollapsibleContent>
+            <span className="font-medium text-sm">Apps Pagos</span>
+            {externalApps.length > 0 && (
+              <Badge variant="secondary" className="text-xs font-normal">
+                {externalApps.length} app(s)
+              </Badge>
+            )}
           </div>
-        </Collapsible>
-      )}
-
-      {/* Custom App Name (when not using server/reseller app) */}
-      {appType === 'own' && !resellerApps.some(a => a.name === appName) && !serverApps.some(a => a.name === appName) && (
-        <div className="space-y-2">
-          <Label className="text-xs">Nome do Aplicativo Personalizado</Label>
-          <Input
-            value={appName}
-            onChange={(e) => onAppChange('own', e.target.value)}
-            placeholder="Ex: IPTV Smarters, Sparkle TV..."
-            className="h-9"
-          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/external-apps')}
+            className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
+          >
+            <Store className="h-3 w-3" />
+            Gerenciar Apps
+          </Button>
         </div>
-      )}
+
+        <p className="text-xs text-muted-foreground">
+          Vincule apps pagos ao cliente (CLOUDDY, IBO PRO, etc.)
+        </p>
+
+        {/* External Apps Manager - Now unified */}
+        <ClientExternalApps
+          clientId={clientId}
+          sellerId={sellerId}
+          onChange={onExternalAppsChange}
+          initialApps={externalApps}
+        />
+      </div>
     </div>
   );
 }
