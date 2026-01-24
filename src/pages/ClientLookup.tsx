@@ -187,10 +187,12 @@ function ClientLookup() {
         .select('id, name, phone, email, login, expiration_date, plan_name, is_archived')
         .eq('seller_id', user.id)
         .or(`name.ilike.%${normalizedQuery}%,phone.ilike.%${normalizedQuery}%,email.ilike.%${normalizedQuery}%,login.ilike.%${normalizedQuery}%`)
-        .order('name')
-        .limit(20);
+        .order('expiration_date', { ascending: false })
+        .limit(50);
         
       if (error) throw error;
+      // Retorna todos os clientes encontrados sem deduplicação
+      // O banco pode ter múltiplos registros com o mesmo telefone e datas diferentes
       return data || [];
     },
     enabled: !!user?.id && searchQuery.length >= 2,
