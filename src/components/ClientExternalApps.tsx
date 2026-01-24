@@ -130,6 +130,15 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
     enabled: !!sellerId,
   });
 
+  // Group apps by source for better organization
+  const groupedApps = useMemo(() => {
+    return {
+      system: FIXED_EXTERNAL_APPS,
+      custom: customApps,
+      reseller: resellerApps,
+    };
+  }, [customApps, resellerApps]);
+
   const availableApps = useMemo(() => {
     return [...FIXED_EXTERNAL_APPS, ...customApps, ...resellerApps];
   }, [customApps, resellerApps]);
@@ -318,19 +327,74 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                       <SelectTrigger className="h-8 text-sm" onClick={(e) => e.stopPropagation()}>
                         <SelectValue placeholder="Selecione um app" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {availableApps.map((availableApp) => (
-                          <SelectItem key={availableApp.id} value={availableApp.id}>
-                            <div className="flex items-center gap-1.5">
-                              {availableApp.auth_type === 'mac_key' ? (
-                                <Monitor className="h-3 w-3 text-muted-foreground" />
-                              ) : (
-                                <Mail className="h-3 w-3 text-muted-foreground" />
-                              )}
-                              <span className="truncate">{availableApp.name}</span>
+                      <SelectContent className="max-h-72">
+                        {/* System Apps */}
+                        {groupedApps.system.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                              📦 Apps do Sistema
                             </div>
-                          </SelectItem>
-                        ))}
+                            {groupedApps.system.map((availableApp) => (
+                              <SelectItem key={availableApp.id} value={availableApp.id}>
+                                <div className="flex items-center gap-1.5">
+                                  {availableApp.auth_type === 'mac_key' ? (
+                                    <Monitor className="h-3 w-3 text-muted-foreground" />
+                                  ) : (
+                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                  <span className="truncate">{availableApp.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Custom Apps (from External Apps page) */}
+                        {groupedApps.custom.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
+                              ⭐ Meus Apps Personalizados
+                            </div>
+                            {groupedApps.custom.map((availableApp) => (
+                              <SelectItem key={availableApp.id} value={availableApp.id}>
+                                <div className="flex items-center gap-1.5">
+                                  {availableApp.auth_type === 'mac_key' ? (
+                                    <Monitor className="h-3 w-3 text-muted-foreground" />
+                                  ) : (
+                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                  <span className="truncate">{availableApp.name}</span>
+                                  {(availableApp.price || 0) > 0 && (
+                                    <Badge variant="outline" className="text-[9px] h-4 px-1 ml-1">
+                                      R$ {availableApp.price}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Reseller Apps (from custom_products) */}
+                        {groupedApps.reseller.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
+                              🏪 Apps do Revendedor
+                            </div>
+                            {groupedApps.reseller.map((availableApp) => (
+                              <SelectItem key={availableApp.id} value={availableApp.id}>
+                                <div className="flex items-center gap-1.5">
+                                  {availableApp.auth_type === 'mac_key' ? (
+                                    <Monitor className="h-3 w-3 text-muted-foreground" />
+                                  ) : (
+                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                  <span className="truncate">{availableApp.name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
