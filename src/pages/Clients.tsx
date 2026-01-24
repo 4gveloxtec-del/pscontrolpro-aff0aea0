@@ -316,16 +316,46 @@ export default function Clients() {
 
       // Etapa 4 (UI): evitar duplicidade visual por telefone dentro do mesmo seller
       // Regra: manter 1 registro por phone (normalizado) quando existir; fallback por id quando phone for null.
-      const seen = new Set<string>();
-      const deduped: Client[] = [];
+      // IMPORTANTE: Priorizar clientes ATIVOS sobre arquivados quando houver duplicatas
+      const phoneMap = new Map<string, Client>();
+      const noPhoneClients: Client[] = [];
+      
       for (const c of hydrated) {
-        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(c);
+        if (!c.phone) {
+          // Clientes sem telefone não passam por deduplicação
+          noPhoneClients.push(c);
+          continue;
+        }
+        
+        const key = String(c.phone).trim();
+        const existing = phoneMap.get(key);
+        
+        if (!existing) {
+          phoneMap.set(key, c);
+        } else {
+          // Se já existe, priorizar cliente ATIVO sobre arquivado
+          // Se ambos têm mesmo status, manter o com data de vencimento mais recente
+          const existingIsArchived = existing.is_archived;
+          const currentIsArchived = c.is_archived;
+          
+          if (existingIsArchived && !currentIsArchived) {
+            // O atual é ativo e o existente arquivado - substituir
+            phoneMap.set(key, c);
+          } else if (!existingIsArchived && currentIsArchived) {
+            // O existente é ativo e o atual arquivado - manter existente
+            // Não faz nada
+          } else {
+            // Ambos têm mesmo status de arquivamento - manter o mais recente (maior data de vencimento)
+            const existingDate = new Date(existing.expiration_date);
+            const currentDate = new Date(c.expiration_date);
+            if (currentDate > existingDate) {
+              phoneMap.set(key, c);
+            }
+          }
+        }
       }
-
-      return deduped;
+      
+      return [...phoneMap.values(), ...noPhoneClients];
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 2, // 2 minutes - reduce refetches
