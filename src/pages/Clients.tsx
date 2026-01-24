@@ -303,10 +303,11 @@ export default function Clients() {
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients', user?.id],
     queryFn: async () => {
+      if (!user?.id) return [];
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('seller_id', user!.id)
+        .eq('seller_id', user.id)
         .order('expiration_date', { ascending: true });
       if (error) throw error;
       // Cast gerencia_app_devices from JSON to MacDevice[]
@@ -323,6 +324,7 @@ export default function Clients() {
     staleTime: 1000 * 60 * 2, // 2 minutes - reduce refetches
     gcTime: 1000 * 60 * 10, // 10 minutes cache
     refetchOnWindowFocus: false, // Don't refetch on tab focus for performance
+    refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data after login
   });
 
   // Fetch client IDs that have external apps (paid apps)
