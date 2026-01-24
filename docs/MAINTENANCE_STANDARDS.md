@@ -141,7 +141,34 @@ const toInsert = clients.filter(c => !existing.has(c.phone));
 const toUpdate = clients.filter(c => existing.has(c.phone));
 ```
 
-### 3.2 Funções de Deduplicação
+### 3.2 Upsert Atômico de Clientes
+
+Para criar/editar clientes com dados relacionados (apps, contas premium, credenciais), use o hook atômico:
+
+```typescript
+import { useAtomicClientCreate, useAtomicClientUpdate } from '@/hooks/useAtomicClientOperations';
+
+// Criar cliente com todos os dados relacionados em transação atômica
+const createMutation = useAtomicClientCreate();
+createMutation.mutate({
+  clientData: { name, phone, category, expiration_date, ... },
+  sellerId: user.id,
+  externalApps: [...],
+  premiumAccounts: [...],
+  serverAppsConfig: [...],
+  panelEntries: [...],
+});
+
+// Se qualquer parte falhar, TODAS são desfeitas (rollback automático)
+```
+
+**Benefícios:**
+- ✅ Todos os campos salvos juntos ou nenhum
+- ✅ Rollback automático se conexão cair
+- ✅ Dados relacionados (apps, contas) incluídos na transação
+- ✅ Validação Zod no servidor
+
+### 3.3 Funções de Deduplicação
 
 ```typescript
 // Usar sempre os helpers de src/lib/idempotency.ts
@@ -153,7 +180,7 @@ import {
 } from '@/lib/idempotency';
 ```
 
-### 3.3 Fluxo de Importação em Massa
+### 3.4 Fluxo de Importação em Massa
 
 ```
 1. PARSE: Converter texto/arquivo para objetos
@@ -171,7 +198,7 @@ import {
 7. LOG: Registrar resultado (inserted, updated, skipped, errors)
 ```
 
-### 3.4 Chaves de Deduplicação por Tabela
+### 3.5 Chaves de Deduplicação por Tabela
 
 | Tabela | Chave Lógica | Helper |
 |--------|--------------|--------|
