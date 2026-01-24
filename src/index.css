@@ -748,6 +748,145 @@ main, [role="main"] {
   }
 }
 
+/* =============================================================================
+   Mobile-Optimized Client Form Styles (PWA)
+   ============================================================================= */
+@media (max-width: 639px) {
+  /* Compact spacing for client creation form on mobile */
+  .client-form-mobile > .space-y-3 > *,
+  .client-form-mobile > .space-y-4 > * {
+    margin-top: 0.5rem;
+  }
+  
+  .client-form-mobile > .space-y-3 > *:first-child,
+  .client-form-mobile > .space-y-4 > *:first-child {
+    margin-top: 0;
+  }
+  
+  .client-form-mobile .space-y-2 > * + * {
+    margin-top: 0.25rem;
+  }
+  
+  .client-form-mobile .gap-4,
+  .client-form-mobile .gap-3 {
+    gap: 0.5rem;
+  }
+  
+  .client-form-mobile .gap-2 {
+    gap: 0.25rem;
+  }
+  
+  /* Compact inputs on mobile - prevent zoom on iOS */
+  .client-form-mobile input,
+  .client-form-mobile textarea,
+  .client-form-mobile select,
+  .client-form-mobile [role="combobox"] {
+    height: 2.25rem;
+    font-size: 16px !important; /* Prevent iOS zoom */
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
+  
+  .client-form-mobile textarea {
+    height: auto;
+    min-height: 4rem;
+  }
+  
+  /* Compact SelectTrigger buttons */
+  .client-form-mobile button[role="combobox"] {
+    height: 2.25rem;
+    font-size: 0.8125rem;
+    padding-left: 0.625rem;
+    padding-right: 0.5rem;
+  }
+  
+  /* Compact labels */
+  .client-form-mobile label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-bottom: 0.125rem;
+  }
+  
+  /* Hide non-essential helper text on mobile */
+  .client-form-mobile .text-xs.text-muted-foreground {
+    font-size: 0.625rem;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  /* Reduce padding on bordered sections */
+  .client-form-mobile .p-4 {
+    padding: 0.5rem;
+  }
+  
+  .client-form-mobile .p-3 {
+    padding: 0.375rem;
+  }
+  
+  /* Compact date adjustment buttons - single row */
+  .client-form-mobile .flex-wrap.gap-2 {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.25rem;
+  }
+  
+  .client-form-mobile .flex-wrap.gap-2 button {
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+    font-size: 0.6875rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+  }
+  
+  /* Reduce grid gaps in nested grids */
+  .client-form-mobile .grid-cols-2 {
+    gap: 0.375rem;
+  }
+  
+  /* Compact bordered sections (Gerencia App, Screens, etc.) */
+  .client-form-mobile .border {
+    padding: 0.5rem;
+  }
+  
+  .client-form-mobile .border-dashed {
+    padding: 0.5rem;
+  }
+  
+  /* Compact premium/special sections */
+  .client-form-mobile .bg-gradient-to-r,
+  .client-form-mobile .bg-gradient-to-br {
+    padding: 0.5rem !important;
+  }
+  
+  /* Smaller icons in labels */
+  .client-form-mobile label svg {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+  
+  /* Compact badges */
+  .client-form-mobile .rounded-lg.bg-primary\/10 {
+    padding: 0.375rem 0.5rem;
+  }
+  
+  /* Reduce min-height for textarea */
+  .client-form-mobile .min-h-\[100px\] {
+    min-height: 3.5rem;
+  }
+  
+  /* Compact lock info section */
+  .client-form-mobile .bg-muted\/50.p-3 {
+    padding: 0.375rem 0.5rem;
+  }
+  
+  .client-form-mobile .bg-muted\/50 span {
+    font-size: 0.625rem;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

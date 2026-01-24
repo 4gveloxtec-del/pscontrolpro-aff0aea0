@@ -47,6 +47,7 @@ import { PlanSelector } from '@/components/PlanSelector';
 import type { SharedCreditSelection } from '@/components/SharedCreditPicker';
 import { DnsFieldsSection, SharedCreditsSection, AppsSection, AdditionalServersSection } from '@/components/client-form';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ClientExternalAppsDisplay } from '@/components/ClientExternalApps';
 import { ClientPremiumAccounts, PremiumAccount } from '@/components/ClientPremiumAccounts';
 import { LazyPremiumAccounts } from '@/components/LazyPremiumAccounts';
@@ -2219,15 +2220,16 @@ export default function Clients() {
               </Button>
             </DialogTrigger>
           </div>
-          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] overflow-y-auto p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle>{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[90vh] sm:max-h-[85vh] overflow-hidden p-0 flex flex-col">
+            <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0">
+              <DialogTitle className="text-base sm:text-lg">{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
                 {editingClient ? 'Atualize os dados do cliente' : 'Preencha os dados do novo cliente'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ScrollArea className="flex-1 px-4 sm:px-6">
+              <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* Category Select with Add Button */}
                 <div className="space-y-2 md:col-span-2">
                   <Label>Categoria *</Label>
@@ -3000,15 +3002,28 @@ export default function Clients() {
                 <Lock className="w-4 h-4 flex-shrink-0" />
                 <span>Login e senha são criptografados antes de serem salvos.</span>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {editingClient ? 'Salvar' : 'Criar Cliente'}
-                </Button>
-              </DialogFooter>
-            </form>
+              </form>
+            </ScrollArea>
+            <div className="flex-shrink-0 border-t px-4 py-3 sm:px-6 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" className="sm:size-default" onClick={() => setIsDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                size="sm"
+                className="sm:size-default"
+                disabled={createMutation.isPending || updateMutation.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const form = document.querySelector('.client-form-mobile') as HTMLFormElement;
+                  if (form) {
+                    form.requestSubmit();
+                  }
+                }}
+              >
+                {editingClient ? 'Salvar' : 'Criar Cliente'}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
