@@ -35,7 +35,7 @@ interface UseRealtimeConnectionSyncOptions {
  */
 export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOptions = {}) {
   const {
-    heartbeatInterval = 30, // 30 seconds default
+    heartbeatInterval = 60, // 60 seconds default (optimized for mobile battery)
     enableAutoHealing = true,
     onStatusChange,
   } = options;
