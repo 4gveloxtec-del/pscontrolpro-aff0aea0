@@ -267,26 +267,39 @@ Deno.serve(async (req) => {
     const encryptedLogin = username ? await encryptData(supabaseUrl, serviceRoleKey, username) : null;
     const encryptedPassword = password ? await encryptData(supabaseUrl, serviceRoleKey, password) : null;
 
-    // Parsear data de expiração
+    // Parsear data de expiração da API
     const expirationDate = parseExpirationDate(expirationStr);
     
-    // Se não houver data de expiração, usar uma data padrão (7 dias a partir de agora para testes)
-    const defaultExpiration = new Date();
-    defaultExpiration.setDate(defaultExpiration.getDate() + 7);
-    const finalExpirationDate = expirationDate || defaultExpiration;
+    // Calcular expiração final:
+    // 1. Se a API retornou uma data válida, usar ela
+    // 2. Senão, usar a duração padrão configurada (em horas)
+    let finalExpirationDatetime: Date;
+    let isShortTest = false;
+    
+    if (expirationDate) {
+      finalExpirationDatetime = expirationDate;
+    } else {
+      // Usar duração configurável (padrão: 2 horas para testes IPTV)
+      const durationHours = Number(config.default_duration_hours) || 2;
+      finalExpirationDatetime = new Date();
+      finalExpirationDatetime.setHours(finalExpirationDatetime.getHours() + durationHours);
+      isShortTest = durationHours <= 24; // Testes de até 24h são considerados "curtos"
+      console.log(`[create-test-client] Using configured duration: ${durationHours} hours (short test: ${isShortTest})`);
+    }
 
     console.log('[create-test-client] Creating client with data:', {
       name: clientName,
       phone: normalizedPhone,
       category: config.category || 'IPTV',
       server_id: config.server_id,
-      expiration_date: finalExpirationDate.toISOString().split('T')[0],
+      expiration_datetime: finalExpirationDatetime.toISOString(),
+      is_short_test: isShortTest,
       has_login: !!encryptedLogin,
       has_password: !!encryptedPassword,
       has_dns: !!dns,
     });
 
-    // Criar o cliente - note: is_test column doesn't exist in schema, using notes to mark test clients
+    // Criar o cliente com suporte a testes curtos (horas)
     const clientData: Record<string, unknown> = {
       seller_id,
       name: clientName,
@@ -301,11 +314,17 @@ Deno.serve(async (req) => {
       // Servidor (se configurado)
       server_id: config.server_id || null,
       
-      // Data de expiração (obrigatória - usa padrão se não vier da API)
-      expiration_date: finalExpirationDate.toISOString().split('T')[0],
+      // Data de expiração (formato date para compatibilidade)
+      expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
       
-      // Marcadores - use notes to identify test clients since is_test column doesn't exist
-      notes: `[TESTE] Gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Telefone: ${normalizedPhone}`,
+      // Timestamp preciso para testes curtos (horas)
+      expiration_datetime: finalExpirationDatetime.toISOString(),
+      
+      // Marcar como cliente de teste
+      is_test: true,
+      
+      // Notas com informações do teste
+      notes: `[TESTE] Gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Expira: ${finalExpirationDatetime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
     };
 
     const { data: newClient, error: insertError } = await supabase

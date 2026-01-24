@@ -596,6 +596,7 @@ export type Database = {
           email: string | null
           expected_payment_date: string | null
           expiration_date: string
+          expiration_datetime: string | null
           gerencia_app_devices: Json | null
           gerencia_app_mac: string | null
           has_adult_content: boolean | null
@@ -603,6 +604,7 @@ export type Database = {
           id: string
           is_archived: boolean | null
           is_paid: boolean | null
+          is_test: boolean | null
           login: string | null
           login_2: string | null
           name: string
@@ -646,6 +648,7 @@ export type Database = {
           email?: string | null
           expected_payment_date?: string | null
           expiration_date: string
+          expiration_datetime?: string | null
           gerencia_app_devices?: Json | null
           gerencia_app_mac?: string | null
           has_adult_content?: boolean | null
@@ -653,6 +656,7 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           is_paid?: boolean | null
+          is_test?: boolean | null
           login?: string | null
           login_2?: string | null
           name: string
@@ -696,6 +700,7 @@ export type Database = {
           email?: string | null
           expected_payment_date?: string | null
           expiration_date?: string
+          expiration_datetime?: string | null
           gerencia_app_devices?: Json | null
           gerencia_app_mac?: string | null
           has_adult_content?: boolean | null
@@ -703,6 +708,7 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           is_paid?: boolean | null
+          is_test?: boolean | null
           login?: string | null
           login_2?: string | null
           name?: string
@@ -2451,6 +2457,7 @@ export type Database = {
           category: string | null
           client_name_prefix: string | null
           created_at: string | null
+          default_duration_hours: number | null
           detect_renewal_enabled: boolean | null
           detect_renewal_keywords: string[] | null
           id: string
@@ -2476,6 +2483,7 @@ export type Database = {
           category?: string | null
           client_name_prefix?: string | null
           created_at?: string | null
+          default_duration_hours?: number | null
           detect_renewal_enabled?: boolean | null
           detect_renewal_keywords?: string[] | null
           id?: string
@@ -2501,6 +2509,7 @@ export type Database = {
           category?: string | null
           client_name_prefix?: string | null
           created_at?: string | null
+          default_duration_hours?: number | null
           detect_renewal_enabled?: boolean | null
           detect_renewal_keywords?: string[] | null
           id?: string
