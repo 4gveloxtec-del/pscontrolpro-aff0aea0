@@ -77,8 +77,8 @@ export function useSystemHealth() {
     console.log('[useSystemHealth] Inicialização única executada');
     fetchData();
     
-    // Atualizar a cada 30 segundos
-    const interval = setInterval(fetchData, 30000);
+    // Atualizar a cada 60 segundos (otimizado para mobile)
+    const interval = setInterval(fetchData, 60000);
     return () => {
       console.log('[useSystemHealth] Cleanup executado');
       clearInterval(interval);
