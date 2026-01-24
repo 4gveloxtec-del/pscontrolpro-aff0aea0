@@ -60,8 +60,8 @@ Deno.serve(async (req) => {
         seller_id,
         expiration_datetime,
         category,
-        servers(name),
-        plans(name)
+        server_id,
+        plan_name
       `)
       .eq('is_test', true)
       .not('expiration_datetime', 'is', null)
