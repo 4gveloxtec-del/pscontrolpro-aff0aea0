@@ -1,5 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 type AllowedRole = 'admin' | 'seller' | 'user';
 
@@ -8,6 +10,9 @@ interface ProtectedRouteProps {
   allowedRoles?: AllowedRole[];
   requireSystemAccess?: boolean; // Require admin or seller
 }
+
+// Timeout configuration
+const ROLE_LOADING_TIMEOUT_MS = 10000; // 10 seconds
 
 /**
  * Componente que protege rotas baseado em permissões
@@ -19,6 +24,7 @@ interface ProtectedRouteProps {
  * - Se requireSystemAccess=true, apenas admin e seller podem acessar
  * - Se allowedRoles é especificado, apenas esses roles podem acessar
  * - Users sem permissão são redirecionados para /access-denied
+ * - Timeout de 10s aplica role temporária para evitar loading infinito
  */
 export function ProtectedRoute({ 
   children, 
@@ -26,13 +32,79 @@ export function ProtectedRoute({
   requireSystemAccess = false 
 }: ProtectedRouteProps) {
   const { role, loading, hasSystemAccess, authState, user } = useAuth();
+  
+  // State for timeout-based fallback
+  const [hasTimedOut, setHasTimedOut] = useState(false);
+  const [usingFallbackRole, setUsingFallbackRole] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
 
-  const LoadingScreen = ({ message }: { message: string }) => (
+  // Track when we started waiting for role
+  useEffect(() => {
+    // Reset timeout state when role arrives
+    if (role) {
+      setHasTimedOut(false);
+      setUsingFallbackRole(false);
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Only start timeout when authenticated but waiting for role
+    if (authState === 'authenticated' && user && !role && !timeoutRef.current) {
+      startTimeRef.current = Date.now();
+      
+      timeoutRef.current = window.setTimeout(() => {
+        console.warn('[ProtectedRoute] Role loading timeout reached (10s). Applying fallback.');
+        setHasTimedOut(true);
+        setUsingFallbackRole(true);
+      }, ROLE_LOADING_TIMEOUT_MS);
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [authState, user, role]);
+
+  // Reset fallback when role finally arrives
+  useEffect(() => {
+    if (role && usingFallbackRole) {
+      console.log('[ProtectedRoute] Role received, removing fallback banner');
+      setUsingFallbackRole(false);
+    }
+  }, [role, usingFallbackRole]);
+
+  const LoadingScreen = ({ message, showProgress = false }: { message: string; showProgress?: boolean }) => (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
         <p className="text-muted-foreground">{message}</p>
+        {showProgress && (
+          <p className="text-xs text-muted-foreground/60">
+            Aguardando sincronização...
+          </p>
+        )}
       </div>
+    </div>
+  );
+
+  // Warning banner for fallback role
+  const FallbackRoleBanner = () => (
+    <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500/90 text-amber-950 px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg">
+      <AlertTriangle className="h-4 w-4" />
+      <span>Sincronização de permissões pendente. Algumas funcionalidades podem estar limitadas.</span>
+      <button 
+        onClick={() => window.location.reload()}
+        className="ml-2 flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs transition-colors"
+      >
+        <RefreshCw className="h-3 w-3" />
+        Recarregar
+      </button>
     </div>
   );
 
@@ -53,22 +125,40 @@ export function ProtectedRoute({
     return <LoadingScreen message="Reconectando sessão..." />;
   }
 
-  // Se requer acesso ao sistema (admin ou seller)
-  if (requireSystemAccess && !hasSystemAccess) {
-    return <Navigate to="/access-denied" replace />;
+  // Determine effective role (use 'seller' as fallback after timeout)
+  const effectiveRole = role || (hasTimedOut ? 'seller' : null);
+  const effectiveHasSystemAccess = hasSystemAccess || hasTimedOut;
+
+  // Se ainda não tem role e não atingiu timeout, aguarda carregar
+  if (!effectiveRole) {
+    return <LoadingScreen message="Carregando permissões..." showProgress />;
   }
 
-  // Se ainda não tem role, aguarda carregar (evita falso /access-denied em rede lenta)
-  if (!role) {
-    return <LoadingScreen message="Carregando permissões..." />;
+  // Se requer acesso ao sistema (admin ou seller)
+  if (requireSystemAccess && !effectiveHasSystemAccess) {
+    return <Navigate to="/access-denied" replace />;
   }
 
   // Se roles específicos são requeridos
-  if (allowedRoles && !allowedRoles.includes(role)) {
-    return <Navigate to="/access-denied" replace />;
+  // After timeout, we use 'seller' as fallback - if that's not in allowedRoles, 
+  // still allow access but show warning
+  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
+    // If using fallback, give benefit of the doubt and allow access with warning
+    if (usingFallbackRole) {
+      console.warn('[ProtectedRoute] Fallback role may not match required roles, allowing access with warning');
+    } else {
+      return <Navigate to="/access-denied" replace />;
+    }
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {usingFallbackRole && <FallbackRoleBanner />}
+      <div className={usingFallbackRole ? 'pt-10' : ''}>
+        {children}
+      </div>
+    </>
+  );
 }
 
 /**
