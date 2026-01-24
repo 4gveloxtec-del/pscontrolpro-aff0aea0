@@ -221,14 +221,14 @@ export function AppsSection({
         </div>
       )}
 
-      {/* Apps Pagos / Externos - Unified Section */}
+      {/* Apps do Cliente (Pagos + Revendedor) - Unified Section */}
       <div className="space-y-3 p-3 rounded-lg bg-card border border-border">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-md bg-accent/10">
               <AppWindow className="h-4 w-4 text-accent-foreground" />
             </div>
-            <span className="font-medium text-sm">Apps Pagos</span>
+            <span className="font-medium text-sm">Apps do Cliente</span>
             {externalApps.length > 0 && (
               <Badge variant="secondary" className="text-xs font-normal">
                 {externalApps.length} app(s)
@@ -248,7 +248,7 @@ export function AppsSection({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Vincule apps pagos ao cliente (CLOUDDY, IBO PRO, etc.)
+          Vincule apps ao cliente (Apps do Sistema, Apps do Revendedor e seus Apps Personalizados)
         </p>
 
         {/* External Apps Manager - Now unified */}
