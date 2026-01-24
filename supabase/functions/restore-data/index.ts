@@ -6,17 +6,98 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================
+// TRANSACTION TRACKER - For manual rollback
+// ============================================
+interface TransactionTracker {
+  insertedIds: Map<string, string[]>; // table -> [ids]
+  phase: string;
+  startTime: number;
+  committed: boolean;
+}
+
+function createTransactionTracker(): TransactionTracker {
+  return {
+    insertedIds: new Map(),
+    phase: 'init',
+    startTime: Date.now(),
+    committed: false,
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Transaction tracker for manual rollback
+  const tx = createTransactionTracker();
+
+  // ============================================
+  // ROLLBACK FUNCTION
+  // ============================================
+  async function rollback(reason: string): Promise<void> {
+    console.error(`[restore-data] ROLLBACK triggered: ${reason}`);
+    console.log(`[restore-data] Rolling back ${tx.insertedIds.size} tables...`);
+
+    // Rollback in reverse order (respect FK constraints)
+    const rollbackOrder = [
+      'client_premium_accounts',
+      'client_external_apps',
+      'message_history',
+      'referrals',
+      'panel_clients',
+      'server_apps',
+      'clients',
+      'external_apps',
+      'client_categories',
+      'shared_panels',
+      'bills_to_pay',
+      'whatsapp_templates',
+      'coupons',
+      'servers',
+      'plans',
+    ];
+
+    for (const table of rollbackOrder) {
+      const ids = tx.insertedIds.get(table);
+      if (ids && ids.length > 0) {
+        try {
+          console.log(`[rollback] Deleting ${ids.length} records from ${table}...`);
+          const { error } = await supabase
+            .from(table)
+            .delete()
+            .in('id', ids);
+          
+          if (error) {
+            console.error(`[rollback] Failed to rollback ${table}: ${error.message}`);
+          } else {
+            console.log(`[rollback] Successfully rolled back ${table}`);
+          }
+        } catch (e) {
+          console.error(`[rollback] Exception rolling back ${table}:`, e);
+        }
+      }
+    }
+
+    console.log(`[restore-data] Rollback completed in ${Date.now() - tx.startTime}ms`);
+  }
+
+  // ============================================
+  // TRACK INSERT HELPER
+  // ============================================
+  function trackInsert(table: string, id: string): void {
+    if (!tx.insertedIds.has(table)) {
+      tx.insertedIds.set(table, []);
+    }
+    tx.insertedIds.get(table)!.push(id);
+  }
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -55,7 +136,8 @@ serve(async (req) => {
       success: true,
       restored: {} as Record<string, number>,
       errors: [] as string[],
-      skipped: {} as Record<string, number>
+      skipped: {} as Record<string, number>,
+      rolledBack: false,
     };
 
     // Detect if this is a deploy backup (from another project)
@@ -82,7 +164,6 @@ serve(async (req) => {
         if (item.plan_id && idMapping.has(item.plan_id)) {
           newItem.plan_id = idMapping.get(item.plan_id);
         } else if (item.plan_id) {
-          // Plan doesn't exist in new project, set to null
           newItem.plan_id = null;
         }
         if (item.server_id && idMapping.has(item.server_id)) {
@@ -101,12 +182,12 @@ serve(async (req) => {
         if (item.panel_id && idMapping.has(item.panel_id)) {
           newItem.panel_id = idMapping.get(item.panel_id);
         } else {
-          return null; // Skip if panel doesn't exist
+          return null;
         }
         if (item.client_id && idMapping.has(item.client_id)) {
           newItem.client_id = idMapping.get(item.client_id);
         } else {
-          return null; // Skip if client doesn't exist
+          return null;
         }
       }
       
@@ -168,12 +249,20 @@ serve(async (req) => {
       return { oldId, newItem };
     }
 
-    // Helper to restore a table
-    async function restoreTable(tableName: string, data: any[], idMapping: Map<string, string>) {
-      if (!data || data.length === 0) return 0;
+    // ============================================
+    // TRANSACTIONAL RESTORE TABLE
+    // ============================================
+    async function restoreTableTransactional(
+      tableName: string, 
+      data: any[], 
+      idMapping: Map<string, string>
+    ): Promise<{ count: number; error?: string }> {
+      if (!data || data.length === 0) return { count: 0 };
       
+      tx.phase = tableName;
       let count = 0;
       let skipped = 0;
+      let criticalError: string | undefined;
       
       for (const item of data) {
         const prepared = prepareItem(item, tableName, idMapping);
@@ -185,18 +274,34 @@ serve(async (req) => {
         
         const { oldId, newItem } = prepared;
 
-        const { data: inserted, error } = await supabase
-          .from(tableName)
-          .insert(newItem)
-          .select('id')
-          .single();
-        
-        if (error) {
-          console.error(`Error restoring ${tableName}:`, error.message);
-          results.errors.push(`${tableName}: ${error.message}`);
-        } else {
-          idMapping.set(oldId, inserted.id);
-          count++;
+        try {
+          const { data: inserted, error } = await supabase
+            .from(tableName)
+            .insert(newItem)
+            .select('id')
+            .single();
+          
+          if (error) {
+            // Check if it's a critical error that should trigger rollback
+            if (error.code === '23503' || error.code === '23505') {
+              // FK violation or unique constraint - log but continue
+              console.warn(`[${tableName}] Constraint violation: ${error.message}`);
+              results.errors.push(`${tableName}: ${error.message}`);
+            } else if (error.code?.startsWith('42') || error.code?.startsWith('53')) {
+              // Schema error or resource limit - critical, trigger rollback
+              criticalError = `Critical error in ${tableName}: ${error.message}`;
+              break;
+            } else {
+              results.errors.push(`${tableName}: ${error.message}`);
+            }
+          } else if (inserted) {
+            idMapping.set(oldId, inserted.id);
+            trackInsert(tableName, inserted.id);
+            count++;
+          }
+        } catch (e) {
+          criticalError = `Exception in ${tableName}: ${e instanceof Error ? e.message : 'Unknown'}`;
+          break;
         }
       }
       
@@ -204,8 +309,14 @@ serve(async (req) => {
         results.skipped[tableName] = skipped;
       }
       
-      return count;
+      return { count, error: criticalError };
     }
+
+    // ============================================
+    // BEGIN TRANSACTION (conceptual)
+    // ============================================
+    console.log('[restore-data] BEGIN TRANSACTION');
+    tx.phase = 'cleanup';
 
     // If mode is 'replace', delete existing data first
     if (mode === 'replace') {
@@ -237,33 +348,91 @@ serve(async (req) => {
 
     const idMapping = new Map<string, string>();
 
-    // Restore in order to handle foreign keys correctly
+    // ============================================
+    // RESTORE IN ORDER (with transaction tracking)
+    // ============================================
+    
     // Level 1: No dependencies
     console.log('Restoring level 1 (no dependencies)...');
-    results.restored.plans = await restoreTable('plans', backup.data.plans, idMapping);
-    results.restored.servers = await restoreTable('servers', backup.data.servers, idMapping);
-    results.restored.shared_panels = await restoreTable('shared_panels', backup.data.shared_panels, idMapping);
-    results.restored.whatsapp_templates = await restoreTable('whatsapp_templates', backup.data.whatsapp_templates, idMapping);
-    results.restored.client_categories = await restoreTable('client_categories', backup.data.client_categories, idMapping);
-    results.restored.external_apps = await restoreTable('external_apps', backup.data.external_apps, idMapping);
-    results.restored.coupons = await restoreTable('coupons', backup.data.coupons, idMapping);
-    results.restored.bills_to_pay = await restoreTable('bills_to_pay', backup.data.bills_to_pay, idMapping);
+    tx.phase = 'level1';
+    
+    let result = await restoreTableTransactional('plans', backup.data.plans, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.plans = result.count;
+
+    result = await restoreTableTransactional('servers', backup.data.servers, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.servers = result.count;
+
+    result = await restoreTableTransactional('shared_panels', backup.data.shared_panels, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.shared_panels = result.count;
+
+    result = await restoreTableTransactional('whatsapp_templates', backup.data.whatsapp_templates, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.whatsapp_templates = result.count;
+
+    result = await restoreTableTransactional('client_categories', backup.data.client_categories, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.client_categories = result.count;
+
+    result = await restoreTableTransactional('external_apps', backup.data.external_apps, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.external_apps = result.count;
+
+    result = await restoreTableTransactional('coupons', backup.data.coupons, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.coupons = result.count;
+
+    result = await restoreTableTransactional('bills_to_pay', backup.data.bills_to_pay, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.bills_to_pay = result.count;
     
     // Level 2: Depends on servers
     console.log('Restoring level 2 (depends on servers)...');
-    results.restored.server_apps = await restoreTable('server_apps', backup.data.server_apps, idMapping);
+    tx.phase = 'level2';
+    
+    result = await restoreTableTransactional('server_apps', backup.data.server_apps, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.server_apps = result.count;
     
     // Level 3: Clients (depends on plans/servers)
     console.log('Restoring level 3 (clients)...');
-    results.restored.clients = await restoreTable('clients', backup.data.clients, idMapping);
+    tx.phase = 'level3';
+    
+    result = await restoreTableTransactional('clients', backup.data.clients, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.clients = result.count;
     
     // Level 4: Tables that depend on clients
     console.log('Restoring level 4 (depends on clients)...');
-    results.restored.panel_clients = await restoreTable('panel_clients', backup.data.panel_clients, idMapping);
-    results.restored.referrals = await restoreTable('referrals', backup.data.referrals, idMapping);
-    results.restored.message_history = await restoreTable('message_history', backup.data.message_history, idMapping);
-    results.restored.client_external_apps = await restoreTable('client_external_apps', backup.data.client_external_apps, idMapping);
-    results.restored.client_premium_accounts = await restoreTable('client_premium_accounts', backup.data.client_premium_accounts, idMapping);
+    tx.phase = 'level4';
+    
+    result = await restoreTableTransactional('panel_clients', backup.data.panel_clients, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.panel_clients = result.count;
+
+    result = await restoreTableTransactional('referrals', backup.data.referrals, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.referrals = result.count;
+
+    result = await restoreTableTransactional('message_history', backup.data.message_history, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.message_history = result.count;
+
+    result = await restoreTableTransactional('client_external_apps', backup.data.client_external_apps, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.client_external_apps = result.count;
+
+    result = await restoreTableTransactional('client_premium_accounts', backup.data.client_premium_accounts, idMapping);
+    if (result.error) { await rollback(result.error); results.rolledBack = true; throw new Error(result.error); }
+    results.restored.client_premium_accounts = result.count;
+
+    // ============================================
+    // COMMIT TRANSACTION (conceptual)
+    // ============================================
+    tx.committed = true;
+    console.log('[restore-data] COMMIT TRANSACTION');
 
     // Clean up zero counts
     for (const key of Object.keys(results.restored)) {
@@ -272,7 +441,8 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[restore-data] timestamp=${new Date().toISOString()} seller_id=${user.id} action=restore_complete status=success details=${JSON.stringify(results.restored)}`);
+    const totalTime = Date.now() - tx.startTime;
+    console.log(`[restore-data] timestamp=${new Date().toISOString()} seller_id=${user.id} action=restore_complete status=success duration=${totalTime}ms details=${JSON.stringify(results.restored)}`);
     if (Object.keys(results.skipped).length > 0) {
       console.log(`[restore-data] skipped_items=${JSON.stringify(results.skipped)}`);
     }
@@ -281,10 +451,24 @@ serve(async (req) => {
       JSON.stringify(results),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
-    console.error(`[restore-data] timestamp=${new Date().toISOString()} action=restore_error status=failed error=${error instanceof Error ? error.message : 'Unknown'}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // If transaction wasn't committed, ensure rollback
+    if (!tx.committed && tx.insertedIds.size > 0) {
+      console.log('[restore-data] Transaction not committed, performing rollback...');
+      await rollback(errorMessage);
+    }
+
+    console.error(`[restore-data] timestamp=${new Date().toISOString()} action=restore_error status=failed phase=${tx.phase} error=${errorMessage}`);
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        phase: tx.phase,
+        rolledBack: !tx.committed && tx.insertedIds.size > 0,
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

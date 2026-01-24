@@ -64,6 +64,7 @@ interface ImportReport {
     plans: number;
     clients: number;
   };
+  rolledBack?: boolean;
 }
 
 interface IndexMaps {
@@ -74,6 +75,23 @@ interface IndexMaps {
   templateKeyToId: Map<string, string>;
   panelKeyToId: Map<string, string>;
   extAppKeyToId: Map<string, string>;
+}
+
+// ============================================
+// TRANSACTION TRACKER - For manual rollback
+// ============================================
+interface TransactionTracker {
+  insertedIds: Map<string, string[]>; // table -> [ids]
+  phase: string;
+  committed: boolean;
+}
+
+function createTransactionTracker(): TransactionTracker {
+  return {
+    insertedIds: new Map(),
+    phase: 'init',
+    committed: false,
+  };
 }
 
 // ============================================
@@ -88,6 +106,9 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Transaction tracker for manual rollback
+  const tx = createTransactionTracker();
+
   let jobId: string | null = null;
   const report: ImportReport = {
     status: 'failed',
@@ -98,6 +119,80 @@ serve(async (req) => {
     warnings: [],
     mappings: { profiles: 0, servers: 0, plans: 0, clients: 0 },
   };
+
+  // ============================================
+  // ROLLBACK FUNCTION
+  // ============================================
+  async function rollbackTransaction(reason: string): Promise<void> {
+    console.error(`[complete-backup-import] ROLLBACK triggered: ${reason}`);
+    console.log(`[complete-backup-import] Rolling back ${tx.insertedIds.size} tables...`);
+
+    // Rollback in reverse order (respect FK constraints)
+    const rollbackOrder = [
+      'server_apps',
+      'client_premium_accounts',
+      'client_external_apps',
+      'message_history',
+      'referrals',
+      'panel_clients',
+      'clients',
+      'external_apps',
+      'client_categories',
+      'shared_panels',
+      'bills_to_pay',
+      'monthly_profits',
+      'custom_products',
+      'whatsapp_templates',
+      'coupons',
+      'servers',
+      'plans',
+    ];
+
+    for (const table of rollbackOrder) {
+      const ids = tx.insertedIds.get(table);
+      if (ids && ids.length > 0) {
+        try {
+          console.log(`[rollback] Deleting ${ids.length} records from ${table}...`);
+          // Delete in chunks to avoid query size limits
+          const chunkSize = 100;
+          for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+            const { error } = await supabase
+              .from(table)
+              .delete()
+              .in('id', chunk);
+            
+            if (error) {
+              console.error(`[rollback] Failed to rollback chunk in ${table}: ${error.message}`);
+            }
+          }
+          console.log(`[rollback] Successfully rolled back ${table}`);
+        } catch (e) {
+          console.error(`[rollback] Exception rolling back ${table}:`, e);
+        }
+      }
+    }
+
+    report.rolledBack = true;
+    console.log(`[complete-backup-import] Rollback completed`);
+  }
+
+  // ============================================
+  // TRACK INSERT HELPER
+  // ============================================
+  function trackInsert(table: string, id: string): void {
+    if (!tx.insertedIds.has(table)) {
+      tx.insertedIds.set(table, []);
+    }
+    tx.insertedIds.get(table)!.push(id);
+  }
+
+  function trackInsertBatch(table: string, ids: string[]): void {
+    if (!tx.insertedIds.has(table)) {
+      tx.insertedIds.set(table, []);
+    }
+    tx.insertedIds.get(table)!.push(...ids);
+  }
 
   // ============================================
   // HELPERS
@@ -601,6 +696,7 @@ serve(async (req) => {
 
                 if (!singleErr && single) {
                   maps.serverKeyToId.set(`${_temp_email}|${_temp_name}`, single.id);
+                  trackInsert('servers', single.id);
                   imported++;
                 } else {
                   logError('servers', j, singleErr?.message || 'Erro inserção');
@@ -612,6 +708,7 @@ serve(async (req) => {
                 const email = rows[j]._temp_email;
                 const name = rows[j]._temp_name;
                 maps.serverKeyToId.set(`${email}|${name}`, inserted[j].id);
+                trackInsert('servers', inserted[j].id);
                 imported++;
               }
             }
@@ -687,6 +784,7 @@ serve(async (req) => {
 
                 if (!singleErr && single) {
                   maps.planKeyToId.set(`${_temp_email}|${_temp_name}`, single.id);
+                  trackInsert('plans', single.id);
                   imported++;
                 } else {
                   skipped++;
@@ -695,6 +793,7 @@ serve(async (req) => {
             } else if (inserted) {
               for (let j = 0; j < inserted.length; j++) {
                 maps.planKeyToId.set(`${rows[j]._temp_email}|${rows[j]._temp_name}`, inserted[j].id);
+                trackInsert('plans', inserted[j].id);
                 imported++;
               }
             }
@@ -818,6 +917,7 @@ serve(async (req) => {
 
                 if (!singleErr && single) {
                   maps.clientKeyToId.set(`${_temp_email}|${_temp_identifier}`, single.id);
+                  trackInsert('clients', single.id);
                   imported++;
                 } else {
                   logError('clients', j, singleErr?.message || 'Erro');
@@ -827,6 +927,7 @@ serve(async (req) => {
             } else if (inserted) {
               for (let j = 0; j < inserted.length; j++) {
                 maps.clientKeyToId.set(`${rows[j]._temp_email}|${rows[j]._temp_identifier}`, inserted[j].id);
+                trackInsert('clients', inserted[j].id);
                 imported++;
               }
             }
@@ -909,6 +1010,8 @@ serve(async (req) => {
 
           if (!error && inserted) {
             imported += inserted.length;
+            // Track all inserted IDs for potential rollback
+            trackInsertBatch(tableConfig.name, inserted.map((i: any) => i.id));
             
             if (tableConfig.needsMapping && tableConfig.mapTo) {
               for (let j = 0; j < inserted.length; j++) {
@@ -928,6 +1031,7 @@ serve(async (req) => {
               
               if (!sErr && single) {
                 imported++;
+                trackInsert(tableConfig.name, single.id);
                 if (tableConfig.needsMapping && tableConfig.mapTo) {
                   (maps as any)[tableConfig.mapTo].set(`${_temp_email}|${_temp_name}`, single.id);
                 }
@@ -989,11 +1093,17 @@ serve(async (req) => {
             const { data, error } = await supabase.from('referrals').insert(rows).select('id');
             if (!error && data) {
               imported += data.length;
+              trackInsertBatch('referrals', data.map((d: any) => d.id));
             } else {
               // Fallback: row-by-row
               for (const row of rows) {
-                const { error: sErr } = await supabase.from('referrals').insert(row);
-                if (!sErr) imported++; else skipped++;
+                const { data: single, error: sErr } = await supabase.from('referrals').insert(row).select('id').single();
+                if (!sErr && single) {
+                  imported++;
+                  trackInsert('referrals', single.id);
+                } else {
+                  skipped++;
+                }
               }
             }
           }
@@ -1053,11 +1163,17 @@ serve(async (req) => {
             const { data, error } = await supabase.from('panel_clients').insert(rows).select('id');
             if (!error && data) {
               imported += data.length;
+              trackInsertBatch('panel_clients', data.map((d: any) => d.id));
             } else {
               // Fallback: row-by-row
               for (const row of rows) {
-                const { error: sErr } = await supabase.from('panel_clients').insert(row);
-                if (!sErr) imported++; else skipped++;
+                const { data: single, error: sErr } = await supabase.from('panel_clients').insert(row).select('id').single();
+                if (!sErr && single) {
+                  imported++;
+                  trackInsert('panel_clients', single.id);
+                } else {
+                  skipped++;
+                }
               }
             }
           }
@@ -1117,10 +1233,16 @@ serve(async (req) => {
             const { data, error } = await supabase.from('message_history').insert(rows).select('id');
             if (!error && data) {
               imported += data.length;
+              trackInsertBatch('message_history', data.map((d: any) => d.id));
             } else {
               for (const row of rows) {
-                const { error: sErr } = await supabase.from('message_history').insert(row);
-                if (!sErr) imported++; else skipped++;
+                const { data: single, error: sErr } = await supabase.from('message_history').insert(row).select('id').single();
+                if (!sErr && single) {
+                  imported++;
+                  trackInsert('message_history', single.id);
+                } else {
+                  skipped++;
+                }
               }
             }
           }
@@ -1172,11 +1294,17 @@ serve(async (req) => {
             const { data, error } = await supabase.from('client_external_apps').insert(rows).select('id');
             if (!error && data) {
               imported += data.length;
+              trackInsertBatch('client_external_apps', data.map((d: any) => d.id));
             } else {
               // Fallback: row-by-row
               for (const row of rows) {
-                const { error: sErr } = await supabase.from('client_external_apps').insert(row);
-                if (!sErr) imported++; else skipped++;
+                const { data: single, error: sErr } = await supabase.from('client_external_apps').insert(row).select('id').single();
+                if (!sErr && single) {
+                  imported++;
+                  trackInsert('client_external_apps', single.id);
+                } else {
+                  skipped++;
+                }
               }
             }
           }
@@ -1236,11 +1364,17 @@ serve(async (req) => {
             const { data, error } = await supabase.from('client_premium_accounts').insert(rows).select('id');
             if (!error && data) {
               imported += data.length;
+              trackInsertBatch('client_premium_accounts', data.map((d: any) => d.id));
             } else {
               // Fallback: row-by-row
               for (const row of rows) {
-                const { error: sErr } = await supabase.from('client_premium_accounts').insert(row);
-                if (!sErr) imported++; else skipped++;
+                const { data: single, error: sErr } = await supabase.from('client_premium_accounts').insert(row).select('id').single();
+                if (!sErr && single) {
+                  imported++;
+                  trackInsert('client_premium_accounts', single.id);
+                } else {
+                  skipped++;
+                }
               }
             }
           }
@@ -1302,11 +1436,17 @@ serve(async (req) => {
             const { data, error } = await supabase.from('server_apps').insert(rows).select('id');
             if (!error && data) {
               imported += data.length;
+              trackInsertBatch('server_apps', data.map((d: any) => d.id));
             } else {
               // Fallback: row-by-row
               for (const row of rows) {
-                const { error: sErr } = await supabase.from('server_apps').insert(row);
-                if (!sErr) imported++; else skipped++;
+                const { data: single, error: sErr } = await supabase.from('server_apps').insert(row).select('id').single();
+                if (!sErr && single) {
+                  imported++;
+                  trackInsert('server_apps', single.id);
+                } else {
+                  skipped++;
+                }
               }
             }
           }
@@ -1380,8 +1520,11 @@ serve(async (req) => {
     }
 
     // ============================================
-    // FASE 4: FINALIZAÇÃO E RELATÓRIO
+    // FASE 4: COMMIT TRANSACTION & FINALIZAÇÃO
     // ============================================
+    tx.committed = true;
+    console.log('[complete-backup-import] COMMIT TRANSACTION');
+    
     report.phase = 'complete';
     report.endTime = Date.now();
     report.totalTimeMs = report.endTime - report.startTime;
@@ -1406,6 +1549,8 @@ serve(async (req) => {
     console.log(`Skipped:`, report.stats.skipped);
     console.log(`Errors: ${totalErrors}`);
     console.log(`Mappings:`, report.mappings);
+    console.log(`Transaction committed: ${tx.committed}`);
+    console.log(`Tracked inserts: ${Array.from(tx.insertedIds.entries()).map(([k, v]) => `${k}:${v.length}`).join(', ')}`);
 
     // Atualizar job final
     await updateJob({
@@ -1444,6 +1589,12 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('=== FATAL ERROR ===', errorMessage);
+    
+    // ROLLBACK if transaction wasn't committed
+    if (!tx.committed && tx.insertedIds.size > 0) {
+      console.log('[complete-backup-import] Transaction not committed, performing rollback...');
+      await rollbackTransaction(errorMessage);
+    }
 
     report.endTime = Date.now();
     report.totalTimeMs = report.endTime - report.startTime;
@@ -1451,7 +1602,7 @@ serve(async (req) => {
 
     await updateJob({
       status: 'failed',
-      errors: [errorMessage],
+      errors: [errorMessage, ...(report.rolledBack ? ['Rollback executado'] : [])],
     });
 
     return new Response(
@@ -1463,6 +1614,7 @@ serve(async (req) => {
           totalTimeMs: report.totalTimeMs,
           imported: report.stats.imported,
           errors: report.errorDetails.length,
+          rolledBack: report.rolledBack || false,
         },
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
