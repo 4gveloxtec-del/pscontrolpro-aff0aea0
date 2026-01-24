@@ -20,6 +20,27 @@ function normalizePhoneDigits(input: unknown): string {
   return digits;
 }
 
+// Formato que alguns servidores (ex: STARPLAY) exigem: "55 11 99999 3333"
+function formatBrazilPhoneWithSpaces(inputDigits: string): string {
+  const digits = normalizePhoneDigits(inputDigits);
+  if (!digits) return '';
+
+  // Normaliza para começar com 55 quando for um número BR (10-11 dígitos)
+  const brDigits = digits.startsWith('55') ? digits : (digits.length === 10 || digits.length === 11 ? `55${digits}` : digits);
+
+  // 55 + DDD(2) + celular(9) => 13 dígitos
+  if (brDigits.startsWith('55') && brDigits.length === 13) {
+    return `${brDigits.slice(0, 2)} ${brDigits.slice(2, 4)} ${brDigits.slice(4, 9)} ${brDigits.slice(9)}`;
+  }
+
+  // 55 + DDD(2) + fixo(8) => 12 dígitos
+  if (brDigits.startsWith('55') && brDigits.length === 12) {
+    return `${brDigits.slice(0, 2)} ${brDigits.slice(2, 4)} ${brDigits.slice(4, 8)} ${brDigits.slice(8)}`;
+  }
+
+  return brDigits;
+}
+
 function parseTestCommandArgs(commandText: string): { clientPhone: string; clientName: string } {
   const tokens = String(commandText || '').trim().split(/\s+/).filter(Boolean);
   const args = tokens.slice(1);
@@ -450,13 +471,21 @@ Deno.serve(async (req) => {
         // Use name provided in the command. If user didn't provide it, fall back to a safe default.
         const finalClientName = (clientName || '').trim() || `Cliente ${clientPhone.slice(-4)}`;
 
+        // Alguns servidores exigem telefone com espaços (ex: STARPLAY)
+        const isStarplay = String(api.name || '').toLowerCase().includes('starplay') ||
+          String(api.api_url || '').toLowerCase().includes('starplay');
+        const clientPhoneDigits = clientPhone;
+        const clientPhoneForApi = isStarplay
+          ? formatBrazilPhoneWithSpaces(clientPhoneDigits)
+          : clientPhoneDigits;
+
         const base = (api.api_body_template && typeof api.api_body_template === 'object')
           ? api.api_body_template
           : {};
 
         const payload = buildTestCommandPayload({
           base,
-          clientPhone,
+          clientPhone: clientPhoneForApi,
           clientName: finalClientName,
           testPlan,
           serverId: testConfig!.server_id!,
@@ -465,12 +494,21 @@ Deno.serve(async (req) => {
           instanceName: instance_name || null,
         });
 
+        // Sempre enviar também a versão "só dígitos" como fallback (não quebra APIs que ignorem campos extras)
+        payload.phone_digits = clientPhoneDigits;
+        if (isBlank(payload.client_phone_digits)) payload.client_phone_digits = clientPhoneDigits;
+        if (isBlank(payload.number_digits)) payload.number_digits = clientPhoneDigits;
+
+        if (isStarplay) {
+          console.log(`[process-command] STARPLAY phone format: digits=${clientPhoneDigits} api="${clientPhoneForApi}"`);
+        }
+
         if (api.api_method === 'POST') {
           fetchOptions.body = JSON.stringify(payload);
           apiRequest.body = payload;
         } else if (api.api_method === 'GET') {
           const url = new URL(finalUrl);
-          url.searchParams.set('phone', clientPhone);
+          url.searchParams.set('phone', clientPhoneForApi);
           url.searchParams.set('name', String(payload.name || ''));
           url.searchParams.set('plan', String(payload.plan || ''));
           url.searchParams.set('server', String(payload.server || ''));
