@@ -86,6 +86,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
   const [localApps, setLocalApps] = useState<{ appId: string; devices: MacDevice[]; email: string; password: string; expirationDate: string }[]>(initialApps);
   const [expandedApps, setExpandedApps] = useState<Set<number>>(new Set());
 
+  // Fetch custom external apps from external_apps table
   const { data: customApps = [] } = useQuery({
     queryKey: ['external-apps', sellerId],
     queryFn: async () => {
@@ -101,9 +102,37 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
     enabled: !!sellerId,
   });
 
+  // Fetch reseller apps from custom_products table (apps created in ResellerAppsManager)
+  const { data: resellerApps = [] } = useQuery({
+    queryKey: ['reseller-apps-for-external', sellerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('custom_products')
+        .select('*')
+        .eq('seller_id', sellerId)
+        .like('name', 'APP_REVENDEDOR:%')
+        .eq('is_active', true)
+        .order('created_at');
+      if (error) throw error;
+      // Map to ExternalApp format
+      return (data || []).map(item => ({
+        id: item.id,
+        name: item.name.replace('APP_REVENDEDOR:', ''),
+        website_url: null,
+        download_url: item.download_url,
+        auth_type: 'mac_key' as const,
+        is_active: true,
+        seller_id: item.seller_id,
+        price: 0,
+        cost: 0,
+      })) as ExternalApp[];
+    },
+    enabled: !!sellerId,
+  });
+
   const availableApps = useMemo(() => {
-    return [...FIXED_EXTERNAL_APPS, ...customApps];
-  }, [customApps]);
+    return [...FIXED_EXTERNAL_APPS, ...customApps, ...resellerApps];
+  }, [customApps, resellerApps]);
 
   const { data: linkedApps = [] } = useQuery({
     queryKey: ['client-external-apps', clientId],
