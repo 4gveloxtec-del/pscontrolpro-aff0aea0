@@ -43,7 +43,20 @@ interface ServerApp {
   notes: string | null;
   is_active: boolean;
   created_at: string;
+  // New fields for partner apps
+  auth_type: 'code' | 'user_password' | 'provider_user_password';
+  provider_name: string | null;
+  compatible_devices: string[];
 }
+
+const DEVICE_TYPE_OPTIONS = [
+  { value: 'smart_tv', label: 'Smart TV' },
+  { value: 'tv_box', label: 'TV Box / Android TV' },
+  { value: 'celular', label: 'Celular' },
+  { value: 'pc', label: 'PC / Notebook' },
+  { value: 'fire_stick', label: 'Fire Stick' },
+  { value: 'projetor', label: 'Projetor' },
+];
 
 interface ServerAppsManagerProps {
   serverId: string;
@@ -69,6 +82,9 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
     downloader_code: '',
     notes: '',
     is_active: true,
+    auth_type: 'code' as 'code' | 'user_password' | 'provider_user_password',
+    provider_name: '',
+    compatible_devices: ['smart_tv', 'tv_box', 'celular', 'pc', 'fire_stick', 'projetor'] as string[],
   });
 
   // Fetch server apps
@@ -146,6 +162,9 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
       downloader_code: '',
       notes: '',
       is_active: true,
+      auth_type: 'code',
+      provider_name: '',
+      compatible_devices: ['smart_tv', 'tv_box', 'celular', 'pc', 'fire_stick', 'projetor'],
     });
   };
 
@@ -161,6 +180,9 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
       downloader_code: formData.downloader_code || null,
       notes: formData.notes || null,
       is_active: formData.is_active,
+      auth_type: formData.auth_type,
+      provider_name: formData.provider_name || null,
+      compatible_devices: formData.compatible_devices,
     };
 
     if (editingApp) {
@@ -181,6 +203,9 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
       downloader_code: app.downloader_code || '',
       notes: app.notes || '',
       is_active: app.is_active,
+      auth_type: app.auth_type || 'code',
+      provider_name: app.provider_name || '',
+      compatible_devices: app.compatible_devices || ['smart_tv', 'tv_box', 'celular', 'pc', 'fire_stick', 'projetor'],
     });
     setIsFormOpen(true);
   };
@@ -261,6 +286,89 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Auth Type - Only for Partnership Apps */}
+                  {formData.app_type === 'partnership' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="auth_type">Tipo de Autenticação *</Label>
+                        <Select
+                          value={formData.auth_type}
+                          onValueChange={(v) => setFormData({ ...formData, auth_type: v as 'code' | 'user_password' | 'provider_user_password' })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="code">
+                              <div className="flex items-center gap-2">
+                                <Hash className="h-4 w-4" />
+                                Código (Ex: code: tes41)
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="user_password">
+                              <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4" />
+                                Usuário + Senha
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="provider_user_password">
+                              <div className="flex items-center gap-2">
+                                <Handshake className="h-4 w-4" />
+                                Provedor + Usuário + Senha
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {formData.auth_type === 'provider_user_password' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="provider_name">Nome do Provedor</Label>
+                          <Input
+                            id="provider_name"
+                            value={formData.provider_name}
+                            onChange={(e) => setFormData({ ...formData, provider_name: e.target.value })}
+                            placeholder="Ex: suquita34"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Nome do provedor padrão para este app (pode ser alterado por cliente)
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label>Aparelhos Compatíveis</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {DEVICE_TYPE_OPTIONS.map((device) => {
+                            const isSelected = formData.compatible_devices.includes(device.value);
+                            return (
+                              <label
+                                key={device.value}
+                                className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const newDevices = e.target.checked
+                                      ? [...formData.compatible_devices, device.value]
+                                      : formData.compatible_devices.filter(d => d !== device.value);
+                                    setFormData({ ...formData, compatible_devices: newDevices });
+                                  }}
+                                  className="rounded border-muted"
+                                />
+                                <span className="text-sm">{device.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Selecione os tipos de aparelho compatíveis com este app
+                        </p>
+                      </div>
+                    </>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Ícone</Label>

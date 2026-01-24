@@ -45,7 +45,7 @@ import { cn } from '@/lib/utils';
 import { SendMessageDialog } from '@/components/SendMessageDialog';
 import { PlanSelector } from '@/components/PlanSelector';
 import type { SharedCreditSelection } from '@/components/SharedCreditPicker';
-import { DnsFieldsSection, SharedCreditsSection, AppsSection, AdditionalServersSection } from '@/components/client-form';
+import { DnsFieldsSection, SharedCreditsSection, AppsSection, AdditionalServersSection, ServerPartnerAppsSection } from '@/components/client-form';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ClientExternalAppsDisplay } from '@/components/ClientExternalApps';
