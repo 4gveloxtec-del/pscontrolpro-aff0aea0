@@ -13,6 +13,18 @@
  */
 
 // =============================================================================
+// ⚠️ TEMPORARY FALLBACKS - REMOVE AFTER VERCEL CONFIG ⚠️
+// Created: 2026-01-24
+// Remove by: 2026-01-24 (2 hours from creation)
+// =============================================================================
+const TEMP_FALLBACKS = {
+  SUPABASE_URL: 'https://kgtqnjhmwsvswhrczqaf.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndHFuamhtd3N2c3docmN6cWFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA0OTAsImV4cCI6MjA4NDE3NjQ5MH0.douqXINkw8kUqyWksIIgxEUKBb4YuTw933mLwzSiwvk',
+  SUPABASE_PROJECT_ID: 'kgtqnjhmwsvswhrczqaf',
+};
+// =============================================================================
+
+// =============================================================================
 // TYPE DEFINITIONS
 // =============================================================================
 
@@ -66,12 +78,21 @@ const VARIABLES_WITH_FALLBACKS = {
 
 /**
  * Get a required environment variable
- * Throws in development, returns empty string in production for graceful degradation
+ * Uses TEMP_FALLBACKS if env var is missing (TEMPORARY - REMOVE AFTER VERCEL CONFIG)
  */
 function getRequiredEnvVar(key: string): string {
   const value = import.meta.env[key];
   
   if (!value || value === 'undefined' || value.trim() === '') {
+    // ⚠️ TEMPORARY: Use fallback values for Vercel deploy
+    const fallbackKey = key.replace('VITE_', '').replace('_PUBLISHABLE_KEY', '_ANON_KEY');
+    const fallback = TEMP_FALLBACKS[fallbackKey as keyof typeof TEMP_FALLBACKS];
+    
+    if (fallback) {
+      console.warn(`[ENV] Using temporary fallback for ${key}`);
+      return fallback;
+    }
+    
     const errorMessage = `
 [ENV ERROR] Missing required environment variable: ${key}
 
@@ -99,7 +120,6 @@ If running locally:
     }
     
     // In production, return empty string to allow graceful degradation
-    // The EnvErrorBoundary will catch this and show a friendly error
     return '';
   }
   
