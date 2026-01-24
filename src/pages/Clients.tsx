@@ -64,6 +64,14 @@ interface MacDevice {
   mac: string;
 }
 
+// Interface for additional servers
+interface AdditionalServer {
+  server_id: string;
+  server_name: string;
+  login?: string | null;
+  password?: string | null;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -104,6 +112,8 @@ interface Client {
   app_name: string | null;
   app_type: string | null;
   device_model: string | null;
+  // Additional servers
+  additional_servers?: AdditionalServer[] | null;
 }
 
 interface ClientCategory {
@@ -310,10 +320,11 @@ export default function Clients() {
         .eq('seller_id', user.id)
         .order('expiration_date', { ascending: true });
       if (error) throw error;
-      // Cast gerencia_app_devices from JSON to MacDevice[]
+      // Cast JSON fields to proper types
       const hydrated = (data || []).map(client => ({
         ...client,
-        gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || []
+        gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || [],
+        additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
       })) as Client[];
 
       // Retornar todos os clientes sem deduplicação - o banco pode ter múltiplos registros

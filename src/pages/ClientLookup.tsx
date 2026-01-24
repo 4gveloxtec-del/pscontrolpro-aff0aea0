@@ -713,6 +713,21 @@ function ClientLookup() {
                               </div>
                             </div>
                           )}
+                          
+                          {/* Additional Servers */}
+                          {clientFullData.additional_servers && Array.isArray(clientFullData.additional_servers) && clientFullData.additional_servers.length > 0 && (
+                            clientFullData.additional_servers.map((server: { server_id: string; server_name: string; login?: string; password?: string }, index: number) => (
+                              <div key={server.server_id || index} className="p-3 rounded-lg border bg-card flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                                  <Server className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <p className="font-medium">{server.server_name}</p>
+                                  <p className="text-xs text-muted-foreground">Servidor Adicional #{index + 1}</p>
+                                </div>
+                              </div>
+                            ))
+                          )}
                           {clientFullData.panel_clients && clientFullData.panel_clients.length > 0 && (
                             <div className="mt-3">
                               <p className="text-sm font-medium mb-2">Painéis Compartilhados:</p>

@@ -13,6 +13,13 @@ import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+interface AdditionalServer {
+  server_id: string;
+  server_name: string;
+  login?: string;
+  password?: string;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -37,6 +44,7 @@ interface Client {
   notes: string | null;
   created_at: string | null;
   is_archived: boolean | null;
+  additional_servers?: AdditionalServer[] | null;
 }
 
 interface DecryptedCredentials {
@@ -299,6 +307,20 @@ export const ClientCard = memo(function ClientCard({
               <Server className="h-3 w-3" />
               {client.server_name_2}
             </Badge>
+          )}
+
+          {/* Additional Servers */}
+          {client.additional_servers && Array.isArray(client.additional_servers) && client.additional_servers.length > 0 && (
+            client.additional_servers.map((server: AdditionalServer, index: number) => (
+              <Badge 
+                key={server.server_id || index} 
+                variant="outline" 
+                className="text-[10px] gap-1 font-normal bg-accent/50"
+              >
+                <Server className="h-3 w-3" />
+                {server.server_name}
+              </Badge>
+            ))
           )}
 
           {client.device_model && (
