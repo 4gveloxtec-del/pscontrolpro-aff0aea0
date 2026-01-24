@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOnce } from '@/hooks/useOnce';
@@ -45,14 +45,21 @@ export function useSystemHealth() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRunningCheck, setIsRunningCheck] = useState(false);
   const { toast } = useToast();
+  
+  const isMountedRef = useRef(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       const [configResult, statusResult, logsResult] = await Promise.all([
         supabase.from('system_health_config').select('*').single(),
         supabase.from('system_health_status').select('*').order('component_name'),
         supabase.from('system_health_logs').select('*').order('created_at', { ascending: false }).limit(100),
       ]);
+
+      if (!isMountedRef.current) return;
 
       if (configResult.data) {
         setConfig(configResult.data as HealthConfig);
@@ -68,20 +75,36 @@ export function useSystemHealth() {
     } catch (error) {
       console.error('Error fetching health data:', error);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   // Initial fetch - runs only once per session
   useOnce(() => {
     console.log('[useSystemHealth] Inicialização única executada');
+    isMountedRef.current = true;
     fetchData();
     
     // Atualizar a cada 60 segundos (otimizado para mobile)
-    const interval = setInterval(fetchData, 60000);
+    const intervalId = setInterval(() => {
+      if (!isMountedRef.current) {
+        clearInterval(intervalId);
+        return;
+      }
+      fetchData();
+    }, 60000);
+    
+    intervalRef.current = intervalId;
+    
     return () => {
-      console.log('[useSystemHealth] Cleanup executado');
-      clearInterval(interval);
+      console.log('[useSystemHealth] Cleanup completo executado');
+      isMountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   });
 

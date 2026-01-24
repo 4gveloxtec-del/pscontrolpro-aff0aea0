@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, startOfToday } from 'date-fns';
@@ -124,22 +124,45 @@ export function useExpirationNotifications() {
 
   // Check on mount - runs only once per session
   const initRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useOnce(() => {
     if (!user?.id || !isSeller) return;
     
     console.log('[useExpirationNotifications] Inicialização única executada');
+    isMountedRef.current = true;
     initRef.current = true;
 
     // Initial check after 3 seconds
-    const initialTimeout = setTimeout(checkExpirations, 3000);
+    timeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        checkExpirations();
+      }
+    }, 3000);
 
-    // Check every hour
-    const interval = setInterval(checkExpirations, 60 * 60 * 1000);
+    // Check every hour with unmount check
+    intervalRef.current = setInterval(() => {
+      if (!isMountedRef.current) {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        return;
+      }
+      checkExpirations();
+    }, 60 * 60 * 1000);
 
     return () => {
-      console.log('[useExpirationNotifications] Cleanup executado');
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
+      console.log('[useExpirationNotifications] Cleanup completo executado');
+      isMountedRef.current = false;
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   });
 

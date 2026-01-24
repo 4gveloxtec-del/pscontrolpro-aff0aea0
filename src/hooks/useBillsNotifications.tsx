@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, startOfToday } from 'date-fns';
@@ -19,10 +19,13 @@ interface Bill {
 export function useBillsNotifications() {
   const { user, isSeller } = useAuth();
   const [notificationDays, setNotificationDays] = useState(3);
+  const isMountedRef = useRef(true);
 
-  // Load notification days preference
-  useEffect(() => {
+  // Load notification days preference - runs only once
+  useOnce(() => {
     const loadDays = async () => {
+      if (!isMountedRef.current) return;
+      
       // First check localStorage for quick access
       const cachedDays = localStorage.getItem(NOTIFICATION_DAYS_KEY);
       if (cachedDays) {
@@ -30,13 +33,15 @@ export function useBillsNotifications() {
       }
 
       // Then load from database
-      if (user?.id) {
+      if (user?.id && isMountedRef.current) {
         try {
           const { data } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', user.id)
             .single();
+          
+          if (!isMountedRef.current) return;
           
           const profile = data as any;
           if (profile?.notification_days_before !== null && profile?.notification_days_before !== undefined) {
@@ -50,7 +55,7 @@ export function useBillsNotifications() {
     };
 
     loadDays();
-  }, [user?.id]);
+  });
 
   const isNotificationsEnabled = useCallback(() => {
     if (!('Notification' in window)) return false;
@@ -190,22 +195,44 @@ export function useBillsNotifications() {
 
   // Verificar ao montar - executa apenas uma vez por sessão
   const initRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useOnce(() => {
     if (!user?.id || !isSeller) return;
 
     console.log('[useBillsNotifications] Inicialização única executada');
+    isMountedRef.current = true;
     initRef.current = true;
 
     // Verificação inicial após 7 segundos (depois das outras notificações)
-    const initialTimeout = setTimeout(checkBills, 7000);
+    timeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        checkBills();
+      }
+    }, 7000);
 
-    // Verificar a cada hora
-    const interval = setInterval(checkBills, 60 * 60 * 1000);
+    // Verificar a cada hora com checagem de unmount
+    intervalRef.current = setInterval(() => {
+      if (!isMountedRef.current) {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        return;
+      }
+      checkBills();
+    }, 60 * 60 * 1000);
 
     return () => {
-      console.log('[useBillsNotifications] Cleanup executado');
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
+      console.log('[useBillsNotifications] Cleanup completo executado');
+      isMountedRef.current = false;
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   });
 

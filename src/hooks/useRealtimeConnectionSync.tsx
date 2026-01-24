@@ -32,6 +32,7 @@ interface UseRealtimeConnectionSyncOptions {
  * - Detecção de reconexão após queda
  * - Auto-healing quando a conexão volta
  * - Realtime updates via Supabase
+ * - Cleanup robusto para evitar memory leaks
  */
 export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOptions = {}) {
   const {
@@ -50,10 +51,11 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
   const [isLoading, setIsLoading] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previousConnectedRef = useRef<boolean | null>(null);
   const isMountedRef = useRef(true);
   const retryCountRef = useRef(0);
+  const cleanupFunctionsRef = useRef<(() => void)[]>([]);
 
   // Sync status from backend (source of truth)
   const syncStatusFromBackend = useCallback(async (silent = false) => {
@@ -177,15 +179,21 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
   // Start heartbeat loop
   const startHeartbeat = useCallback(() => {
     if (intervalRef.current) return;
+    if (!isMountedRef.current) return;
 
     // Initial sync
     syncStatusFromBackend();
 
-    // Set up interval
-    intervalRef.current = setInterval(() => {
+    // Set up interval with cleanup tracking
+    const intervalId = setInterval(() => {
+      if (!isMountedRef.current) {
+        clearInterval(intervalId);
+        return;
+      }
       syncStatusFromBackend(true); // Silent checks
     }, heartbeatInterval * 1000);
-
+    
+    intervalRef.current = intervalId;
     console.log(`[Connection] Heartbeat started (${heartbeatInterval}s interval)`);
   }, [syncStatusFromBackend, heartbeatInterval]);
 
@@ -255,7 +263,10 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
 
   // Handle visibility change (re-sync when tab becomes visible)
   useEffect(() => {
+    if (!user?.id) return;
+
     const handleVisibilityChange = () => {
+      if (!isMountedRef.current) return;
       if (document.visibilityState === 'visible' && user?.id) {
         console.log('[Connection] Tab visible, syncing...');
         syncStatusFromBackend(true);
@@ -263,12 +274,22 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Track cleanup function
+    const cleanup = () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    cleanupFunctionsRef.current.push(cleanup);
+    
+    return cleanup;
   }, [user?.id, syncStatusFromBackend]);
 
   // Handle online/offline events
   useEffect(() => {
+    if (!user?.id) return;
+
     const handleOnline = () => {
+      if (!isMountedRef.current) return;
       if (user?.id) {
         console.log('[Connection] Browser online, syncing...');
         toast.info('Conexão restaurada. Verificando WhatsApp...');
@@ -277,6 +298,7 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     };
 
     const handleOffline = () => {
+      if (!isMountedRef.current) return;
       console.log('[Connection] Browser offline');
       setConnectionState(prev => ({
         ...prev,
@@ -287,25 +309,41 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     
-    return () => {
+    const cleanup = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+    cleanupFunctionsRef.current.push(cleanup);
+    
+    return cleanup;
   }, [user?.id, syncStatusFromBackend]);
 
   // Initialize and cleanup - runs only once
   useOnce(() => {
     console.log('[useRealtimeConnectionSync] Inicialização única executada');
     isMountedRef.current = true;
+    cleanupFunctionsRef.current = [];
 
     if (user?.id) {
       startHeartbeat();
     }
 
     return () => {
-      console.log('[useRealtimeConnectionSync] Cleanup executado');
+      console.log('[useRealtimeConnectionSync] Cleanup completo executado');
       isMountedRef.current = false;
+      
+      // Stop heartbeat
       stopHeartbeat();
+      
+      // Execute all tracked cleanup functions
+      cleanupFunctionsRef.current.forEach(fn => {
+        try {
+          fn();
+        } catch (e) {
+          console.warn('[useRealtimeConnectionSync] Cleanup error:', e);
+        }
+      });
+      cleanupFunctionsRef.current = [];
     };
   });
 

@@ -47,9 +47,10 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previousConnectedRef = useRef<boolean | null>(null);
   const isMountedRef = useRef(true);
+  const cleanupFunctionsRef = useRef<(() => void)[]>([]);
 
   // Check connection status via heartbeat
   const checkConnection = useCallback(async (silent = false) => {
@@ -174,16 +175,22 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
   // Start heartbeat monitoring
   const startMonitoring = useCallback(() => {
     if (intervalRef.current) return;
+    if (!isMountedRef.current) return;
 
     // Initial check
     checkConnection();
     fetchAlerts();
 
-    // Set up interval
-    intervalRef.current = setInterval(() => {
+    // Set up interval with unmount check
+    const intervalId = setInterval(() => {
+      if (!isMountedRef.current) {
+        clearInterval(intervalId);
+        return;
+      }
       checkConnection(true); // silent check
     }, heartbeatInterval);
-
+    
+    intervalRef.current = intervalId;
     console.log(`Connection monitoring started (interval: ${heartbeatInterval}ms)`);
   }, [checkConnection, fetchAlerts, heartbeatInterval]);
 
@@ -229,36 +236,59 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     };
   }, [user?.id, onAlert]);
 
-  // Auto-start monitoring
+  // Auto-start monitoring with proper cleanup
   useEffect(() => {
     isMountedRef.current = true;
+    cleanupFunctionsRef.current = [];
     
     if (autoStart && user?.id) {
       startMonitoring();
     }
 
     return () => {
+      console.log('[useConnectionMonitor] Cleanup completo executado');
       isMountedRef.current = false;
       stopMonitoring();
+      
+      // Execute all tracked cleanup functions
+      cleanupFunctionsRef.current.forEach(fn => {
+        try {
+          fn();
+        } catch (e) {
+          console.warn('[useConnectionMonitor] Cleanup error:', e);
+        }
+      });
+      cleanupFunctionsRef.current = [];
     };
   }, [autoStart, user?.id, startMonitoring, stopMonitoring]);
 
   // Re-sync when tab becomes visible
   useEffect(() => {
+    if (!user?.id) return;
+
     const handleVisibilityChange = () => {
+      if (!isMountedRef.current) return;
       if (document.visibilityState === 'visible' && user?.id) {
-        // Re-check connection when user returns to tab
         checkConnection(true);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    
+    const cleanup = () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    cleanupFunctionsRef.current.push(cleanup);
+    
+    return cleanup;
   }, [user?.id, checkConnection]);
 
   // Re-sync when coming back online
   useEffect(() => {
+    if (!user?.id) return;
+
     const handleOnline = () => {
+      if (!isMountedRef.current) return;
       if (user?.id) {
         toast.info('Conexão restaurada. Verificando WhatsApp...');
         checkConnection();
@@ -266,7 +296,13 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     };
 
     window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
+    
+    const cleanup = () => {
+      window.removeEventListener('online', handleOnline);
+    };
+    cleanupFunctionsRef.current.push(cleanup);
+    
+    return cleanup;
   }, [user?.id, checkConnection]);
 
   return {
