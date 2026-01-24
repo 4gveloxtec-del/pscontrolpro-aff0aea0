@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabaseExternal as supabase } from '@/lib/supabase-external';
+import { supabase } from '@/integrations/supabase/client';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit, Smartphone, Save, Download, ExternalLink, Hash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -188,9 +189,9 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                 Adicionar
               </Button>
             </DialogTrigger>
-            <DialogContent>
-              <form onSubmit={handleSubmit}>
-                <DialogHeader>
+            <DialogContent className="w-[95vw] max-w-md max-h-[85vh] p-0">
+              <form onSubmit={handleSubmit} className="flex flex-col h-full">
+                <DialogHeader className="p-4 pb-2 border-b">
                   <DialogTitle>
                     {editingApp ? 'Editar App' : 'Novo App do Revendedor'}
                   </DialogTitle>
@@ -199,73 +200,76 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                   </DialogDescription>
                 </DialogHeader>
                 
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Ícone</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {EMOJI_OPTIONS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, icon: emoji })}
-                          className={`w-10 h-10 text-xl rounded-lg border-2 transition-all ${
-                            formData.icon === emoji 
-                              ? 'border-primary bg-primary/10' 
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
+                <ScrollArea className="flex-1 p-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Ícone</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {EMOJI_OPTIONS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, icon: emoji })}
+                            className={`w-9 h-9 text-lg rounded-lg border-2 transition-all ${
+                              formData.icon === emoji 
+                                ? 'border-primary bg-primary/10' 
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="app-name">Nome do App *</Label>
+                      <Input
+                        id="app-name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Ex: IPTV Premium, StreamFlix..."
+                        maxLength={50}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="download_url">Link de Download</Label>
+                      <Input
+                        id="download_url"
+                        type="url"
+                        value={formData.download_url}
+                        onChange={(e) => setFormData({ ...formData, download_url: e.target.value })}
+                        placeholder="https://exemplo.com/app.apk"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        📱 Funciona para: Android TV Box, Android TV e Celular Android
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="downloader_code">Código Downloader</Label>
+                      <Input
+                        id="downloader_code"
+                        value={formData.downloader_code}
+                        onChange={(e) => setFormData({ ...formData, downloader_code: e.target.value })}
+                        placeholder="Ex: 12345"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        🔢 Código para baixar via app Downloader
+                      </p>
                     </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="app-name">Nome do App *</Label>
-                    <Input
-                      id="app-name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Ex: IPTV Premium, StreamFlix..."
-                      maxLength={50}
-                    />
-                  </div>
+                </ScrollArea>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="download_url">Link de Download</Label>
-                    <Input
-                      id="download_url"
-                      type="url"
-                      value={formData.download_url}
-                      onChange={(e) => setFormData({ ...formData, download_url: e.target.value })}
-                      placeholder="https://exemplo.com/app.apk"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      📱 Funciona para: Android TV Box, Android TV e Celular Android
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="downloader_code">Código Downloader</Label>
-                    <Input
-                      id="downloader_code"
-                      value={formData.downloader_code}
-                      onChange={(e) => setFormData({ ...formData, downloader_code: e.target.value })}
-                      placeholder="Ex: 12345"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      🔢 Código para baixar via app Downloader
-                    </p>
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <DialogFooter className="p-4 pt-2 border-t flex-row gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
                     Cancelar
                   </Button>
                   <Button 
                     type="submit" 
                     disabled={createMutation.isPending || updateMutation.isPending}
+                    className="flex-1"
                   >
                     <Save className="h-4 w-4 mr-1" />
                     {editingApp ? 'Salvar' : 'Criar'}
@@ -387,6 +391,8 @@ export function useResellerApps(sellerId: string | undefined) {
         id: item.id,
         name: item.name.replace('APP_REVENDEDOR:', ''),
         icon: item.icon || '📱',
+        download_url: item.download_url,
+        downloader_code: item.downloader_code,
         seller_id: item.seller_id
       }));
     },
