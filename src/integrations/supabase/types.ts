@@ -1404,14 +1404,7 @@ export type Database = {
             foreignKeyName: "panel_clients_panel_id_fkey"
             columns: ["panel_id"]
             isOneToOne: false
-            referencedRelation: "shared_panels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "panel_clients_panel_id_fkey"
-            columns: ["panel_id"]
-            isOneToOne: false
-            referencedRelation: "shared_panels_safe"
+            referencedRelation: "servers"
             referencedColumns: ["id"]
           },
         ]

@@ -89,8 +89,24 @@ export function useNovaFeature() {
 | `setup-first-admin` | Bootstrap do sistema | Acesso perdido |
 | `check-login-attempt` | Anti brute-force | Segurança comprometida |
 | `generate-fingerprint` | Device tracking | Sessões inválidas |
+| `atomic-client-upsert` | Transações atômicas | Dados inconsistentes |
 
-### 2.2 RLS Policies Base
+### 2.2 Foreign Keys - ON DELETE Behavior
+
+| Tabela | Coluna FK | Referencia | ON DELETE |
+|--------|-----------|------------|-----------|
+| clients | server_id | servers.id | SET NULL |
+| server_apps | server_id | servers.id | CASCADE |
+| client_server_app_credentials | server_id | servers.id | CASCADE |
+| panel_clients | panel_id | servers.id | CASCADE |
+| reseller_device_apps | server_id | servers.id | SET NULL |
+| test_integration_config | server_id | servers.id | SET NULL |
+
+**Regra Geral:**
+- `SET NULL`: Mantém o registro, apenas remove o vínculo (clientes, configs)
+- `CASCADE`: Remove registros dependentes junto (apps, credenciais, slots)
+
+### 2.3 RLS Policies Base
 
 ```sql
 -- NUNCA ALTERAR estas políticas sem revisão completa:
