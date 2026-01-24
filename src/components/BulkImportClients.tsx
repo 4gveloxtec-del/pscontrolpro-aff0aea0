@@ -542,6 +542,7 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
     },
     onSuccess: ({ clientCount, serverCount }) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['servers'] });
       const serverMsg = serverCount > 0 ? ` e ${serverCount} servidor(es) criado(s)` : '';
       toast.success(`${clientCount} cliente(s) importado(s)${serverMsg}!`);

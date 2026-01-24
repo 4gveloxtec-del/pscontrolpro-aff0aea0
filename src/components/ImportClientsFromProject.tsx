@@ -713,6 +713,7 @@ export function ImportClientsFromProject() {
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       toast.success(`${count} cliente(s) importado(s) com sucesso!`);
       handleClose();
     },
