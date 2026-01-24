@@ -10,6 +10,15 @@ const DEFAULT_TRIAL_DAYS = 5;
 // Authentication states - explicit for better control
 type AuthState = 'loading' | 'authenticated' | 'unauthenticated';
 
+// State machine phases to prevent race conditions
+type AuthPhase = 
+  | 'idle'           // No operation in progress
+  | 'initializing'   // Initial session check
+  | 'signing_in'     // SignIn in progress
+  | 'signing_out'    // SignOut in progress
+  | 'fetching_data'  // Fetching profile/role
+  | 'recovering';    // Self-heal recovery
+
 const AUTH_DEBUG_PREFIX = '[useAuth]';
 
 interface Profile {
@@ -171,15 +180,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isVerifyingRole, setIsVerifyingRole] = useState(false);
   const [trialDays, setTrialDays] = useState<number>(DEFAULT_TRIAL_DAYS);
   
-  // Refs to prevent race conditions
-  const initializationComplete = useRef(false);
-  const fetchingUserData = useRef(false);
+  // ============= STATE MACHINE FOR RACE CONDITION PREVENTION =============
+  // Single source of truth for current operation phase
+  const phaseRef = useRef<AuthPhase>('idle');
+  const phaseLockRef = useRef<Promise<void>>(Promise.resolve());
+  
+  // Helper to acquire exclusive lock for a phase
+  const acquireLock = useCallback(async (newPhase: AuthPhase): Promise<boolean> => {
+    // Wait for any pending operation to complete
+    await phaseLockRef.current;
+    
+    // Check if we can transition to the new phase
+    const currentPhase = phaseRef.current;
+    
+    // Define valid transitions
+    const validTransitions: Record<AuthPhase, AuthPhase[]> = {
+      'idle': ['initializing', 'signing_in', 'signing_out', 'fetching_data', 'recovering'],
+      'initializing': [], // Must complete before any other operation
+      'signing_in': [], // Exclusive - no parallel operations allowed
+      'signing_out': [], // Exclusive
+      'fetching_data': [], // Can be interrupted by sign_out
+      'recovering': [], // Can be interrupted by sign_in/sign_out
+    };
+    
+    // signing_out can always interrupt
+    if (newPhase === 'signing_out') {
+      console.log(`${AUTH_DEBUG_PREFIX} [StateMachine] Force transition: ${currentPhase} -> ${newPhase}`);
+      phaseRef.current = newPhase;
+      return true;
+    }
+    
+    // Check if transition is valid
+    if (currentPhase !== 'idle' && !validTransitions[currentPhase].includes(newPhase)) {
+      console.log(`${AUTH_DEBUG_PREFIX} [StateMachine] Blocked: ${currentPhase} -> ${newPhase}`);
+      return false;
+    }
+    
+    console.log(`${AUTH_DEBUG_PREFIX} [StateMachine] Transition: ${currentPhase} -> ${newPhase}`);
+    phaseRef.current = newPhase;
+    return true;
+  }, []);
+  
+  // Helper to release lock
+  const releaseLock = useCallback(() => {
+    console.log(`${AUTH_DEBUG_PREFIX} [StateMachine] Release: ${phaseRef.current} -> idle`);
+    phaseRef.current = 'idle';
+  }, []);
+  
+  // Refs to track component lifecycle
   const authStateRef = useRef<AuthState>('loading');
   const sessionRef = useRef<Session | null>(null);
-  const recoveringMissingSession = useRef(false);
-  const missingUserRecoveryAttempts = useRef(0);
-  const signInInProgress = useRef(false); // Prevents self-heal from running during signIn
   const isProviderMounted = useRef(true);
+  const initializationComplete = useRef(false);
 
   // Prevent setState after unmount in delayed fallbacks
   useEffect(() => {
@@ -196,6 +248,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (authStateRef.current !== 'loading') return;
         if (sessionRef.current?.user) return;
         if (!hasSessionMarker()) return;
+        
+        // Don't interrupt active operations
+        if (phaseRef.current !== 'idle' && phaseRef.current !== 'initializing') {
+          console.log(`${AUTH_DEBUG_PREFIX} Stale marker fallback skipped - operation in progress: ${phaseRef.current}`);
+          return;
+        }
 
         console.warn(`${AUTH_DEBUG_PREFIX} Stale session marker detected (${reason}). Forcing unauthenticated.`);
         clearCachedData();
@@ -204,6 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setRole(null);
         setAuthState('unauthenticated');
+        phaseRef.current = 'idle';
       }, delayMs);
     },
     []
@@ -222,34 +281,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * CRITICAL SELF-HEAL:
    * We should never stay in a state where authState='authenticated' but user is null.
-   * This can happen when we temporarily rely on cached profile/role while the session
-   * restore is slow/fails, and it can lead to infinite "tela branca"/"trava" states.
-   *
-   * Strategy:
-   * - Attempt to recover the session once via getSession()
-   * - If still missing, fall back to unauthenticated and clear cache markers
+   * Now protected by state machine - only runs when no other operation is in progress.
    */
   useEffect(() => {
     if (authState !== 'authenticated') return;
     if (user) return;
-    if (recoveringMissingSession.current) return;
-    // CRITICAL: Skip self-heal during signIn - user will be set in the same React update batch
-    if (signInInProgress.current) return;
-    if (missingUserRecoveryAttempts.current >= 1) {
-      // Avoid infinite loops on slow/unstable networks where getSession() can hang.
-      console.warn('[useAuth] Skipping repeated recovery attempt (authenticated without user)');
+    
+    // STATE MACHINE: Only attempt recovery if no operation is in progress
+    if (phaseRef.current !== 'idle') {
+      console.log(`${AUTH_DEBUG_PREFIX} Self-heal skipped - operation in progress: ${phaseRef.current}`);
       return;
     }
 
-    missingUserRecoveryAttempts.current += 1;
-
-    recoveringMissingSession.current = true;
-    console.warn(`${AUTH_DEBUG_PREFIX} Inconsistent state: authenticated without user. Attempting recovery...`);
-
-    // Keep UI stable while we attempt session recovery.
-    setAuthState('loading');
-
     const recover = async () => {
+      // Try to acquire lock for recovery
+      const hasLock = await acquireLock('recovering');
+      if (!hasLock) {
+        console.log(`${AUTH_DEBUG_PREFIX} Self-heal aborted - could not acquire lock`);
+        return;
+      }
+
+      console.warn(`${AUTH_DEBUG_PREFIX} Inconsistent state: authenticated without user. Attempting recovery...`);
+      setAuthState('loading');
+
       try {
         const { data, error } = await withTimeout(
           supabase.auth.getSession(),
@@ -257,20 +311,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'getSession(recover)'
         );
 
+        if (!isProviderMounted.current) {
+          releaseLock();
+          return;
+        }
+
         if (!error && data?.session?.user) {
           console.log(`${AUTH_DEBUG_PREFIX} Session recovered successfully`);
           setSession(data.session);
           setUser(data.session.user);
           setAuthState('authenticated');
+          releaseLock();
           return;
         }
 
-        // IMPORTANT: Never mark as authenticated without a real session user.
-        // If we have a session marker, stay in "loading" so ProtectedRoute can show
-        // a stable "Reconectando" UI instead of bouncing to /auth.
-        console.warn(`${AUTH_DEBUG_PREFIX} Session recovery failed; staying in reconnecting mode`, error);
+        // Recovery failed
+        console.warn(`${AUTH_DEBUG_PREFIX} Session recovery failed`, error);
         if (hasSessionMarker()) {
           scheduleStaleSessionMarkerFallback('recover-failed', 4000);
+          releaseLock();
           return;
         }
 
@@ -282,9 +341,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setAuthState('unauthenticated');
       } catch (e) {
-        console.error(`${AUTH_DEBUG_PREFIX} Session recovery exception; staying in reconnecting mode`, e);
+        console.error(`${AUTH_DEBUG_PREFIX} Session recovery exception`, e);
         if (hasSessionMarker()) {
           scheduleStaleSessionMarkerFallback('recover-exception', 4000);
+          releaseLock();
           return;
         }
 
@@ -295,12 +355,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setAuthState('unauthenticated');
       } finally {
-        recoveringMissingSession.current = false;
+        releaseLock();
       }
     };
 
     recover();
-  }, [authState, user]);
+  }, [authState, user, acquireLock, releaseLock, scheduleStaleSessionMarkerFallback]);
 
   // Fetch trial days from app_settings
   useEffect(() => {
@@ -326,13 +386,147 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchTrialDays();
   }, []);
 
+  // Fetch user data with state machine protection
+  const fetchUserData = useCallback(async (userId: string, isMounted: boolean, accessToken?: string | null) => {
+    // STATE MACHINE: Check if we can fetch data
+    const currentPhase = phaseRef.current;
+    if (currentPhase === 'signing_out' as AuthPhase) {
+      console.log(`${AUTH_DEBUG_PREFIX} fetchUserData skipped - signing out`);
+      return;
+    }
+    
+    // If already fetching, skip
+    if (phaseRef.current === 'fetching_data') {
+      console.log(`${AUTH_DEBUG_PREFIX} fetchUserData skipped - already fetching`);
+      return;
+    }
+    
+    const hasLock = await acquireLock('fetching_data');
+    if (!hasLock) {
+      console.log(`${AUTH_DEBUG_PREFIX} fetchUserData aborted - could not acquire lock`);
+      return;
+    }
+    
+    setIsVerifyingRole(true);
+    try {
+      const [profileResult, roleResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', userId)
+      ]);
+
+      if (!isMounted || !isProviderMounted.current) {
+        releaseLock();
+        return;
+      }
+      
+      // Check if we were interrupted by signOut
+      if ((phaseRef.current as AuthPhase) === 'signing_out') {
+        console.log(`${AUTH_DEBUG_PREFIX} fetchUserData interrupted by signOut`);
+        releaseLock();
+        return;
+      }
+
+      if (profileResult.error) {
+        console.warn('[useAuth] Profile fetch error:', profileResult.error);
+      }
+      if (roleResult.error) {
+        console.warn('[useAuth] Role fetch error:', roleResult.error);
+      }
+
+      let nextProfile = (profileResult.data as Profile | null) ?? null;
+
+      const roleRows = (roleResult.data as any[]) || [];
+      let nextRole = (roleRows.find((r: any) => r?.role === 'admin')?.role || roleRows?.[0]?.role || null) as AppRole | null;
+
+      // Se o usuário não tem role, tentar corrigir em background (NON-BLOCKING)
+      if (!nextRole && accessToken) {
+        console.log('[useAuth] User has no role, fixing in background...');
+        
+        // Fire-and-forget with retry logic
+        const fixRoleWithRetry = async (attempt = 1): Promise<void> => {
+          try {
+            const { data: fixData, error: fixError } = await supabase.functions.invoke('fix-user-roles', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            
+            if (!fixError && fixData?.role) {
+              console.log('[useAuth] Role fixed in background:', fixData.role);
+              
+              // Only update if we haven't signed out
+              if ((phaseRef.current as AuthPhase) !== 'signing_out' && isProviderMounted.current) {
+                setRole(fixData.role as AppRole);
+                
+                // Re-fetch profile in case it was also created
+                const { data: newProfile } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', userId)
+                  .maybeSingle();
+                
+                if (newProfile && (phaseRef.current as AuthPhase) !== 'signing_out') {
+                  setProfile(newProfile as Profile);
+                  setCachedData(userId, newProfile as Profile, fixData.role as AppRole);
+                } else {
+                  setCachedData(userId, nextProfile, fixData.role as AppRole);
+                }
+              }
+            } else if (attempt < 3) {
+              // Retry with exponential backoff
+              const delay = Math.pow(2, attempt) * 1000;
+              console.log(`[useAuth] Role fix failed, retrying in ${delay}ms (attempt ${attempt + 1}/3)`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              return fixRoleWithRetry(attempt + 1);
+            } else {
+              console.error('[useAuth] Role fix failed after 3 attempts');
+            }
+          } catch (e) {
+            if (attempt < 3) {
+              const delay = Math.pow(2, attempt) * 1000;
+              console.log(`[useAuth] Role fix error, retrying in ${delay}ms (attempt ${attempt + 1}/3)`, e);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              return fixRoleWithRetry(attempt + 1);
+            }
+            console.error('[useAuth] Failed to fix role after 3 attempts:', e);
+          }
+        };
+        
+        // Start retry in background
+        fixRoleWithRetry();
+        
+        // Use a temporary 'seller' role to unblock UI immediately
+        nextRole = 'seller' as AppRole;
+      }
+
+      // Always overwrite state with fresh data
+      setProfile(nextProfile);
+      setRole(nextRole);
+
+      // Update cache with fresh data
+      setCachedData(userId, nextProfile, nextRole);
+      
+      // Now we can confirm authentication
+      if (isMounted && isProviderMounted.current) {
+        setAuthState('authenticated');
+      }
+    } catch (error) {
+      console.error('[useAuth] Error fetching user data:', error);
+    } finally {
+      releaseLock();
+      if (isMounted && isProviderMounted.current) {
+        setIsVerifyingRole(false);
+      }
+    }
+  }, [acquireLock, releaseLock]);
+
   // Main authentication initialization
   useEffect(() => {
     let isMounted = true;
 
+    // Acquire lock for initialization
+    phaseRef.current = 'initializing';
+
     // Safety timeout - 8 seconds is enough for slow networks
     const loadingTimeout = setTimeout(() => {
-      // IMPORTANT: use refs here (effect runs once; state values would be stale)
       if (isMounted && authStateRef.current === 'loading') {
         console.log('[useAuth] Safety timeout reached, checking cache...');
 
@@ -341,26 +535,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sessionRef.current?.user) {
           console.log('[useAuth] Session exists; keeping user authenticated after timeout');
           setAuthState('authenticated');
+          phaseRef.current = 'idle';
           return;
         }
 
         // Check if we have cached data to use
         const sessionMarker = hasSessionMarker();
         if (sessionMarker) {
-          // Try to use cached data for UI hints, but DO NOT mark authenticated without a real user.
           const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
           if (cachedUserId) {
             const cached = getCachedData(cachedUserId);
             if (cached.profile) setProfile(cached.profile);
             if (cached.role) setRole(cached.role);
           }
-          console.warn(`${AUTH_DEBUG_PREFIX} Safety timeout: session marker present but session not restored yet; staying in loading`);
-          // Avoid infinite "Verificando sessão..." if the SDK never recovers.
+          console.warn(`${AUTH_DEBUG_PREFIX} Safety timeout: session marker present but session not restored yet`);
           scheduleStaleSessionMarkerFallback('init-safety-timeout', 6000);
           return;
         }
         // No valid cache - set unauthenticated
         setAuthState('unauthenticated');
+        phaseRef.current = 'idle';
       }
     }, 8000);
 
@@ -369,11 +563,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         (event: AuthChangeEvent, currentSession: Session | null) => {
           // CRITICAL FIX: Use setTimeout(0) to avoid blocking the auth event handler
-          // This prevents deadlocks during login by deferring async operations
           setTimeout(() => {
             if (!isMounted) return;
             
-            console.log(`${AUTH_DEBUG_PREFIX} Auth event:`, event);
+            console.log(`${AUTH_DEBUG_PREFIX} Auth event:`, event, `(phase: ${phaseRef.current})`);
+            
+            // STATE MACHINE: Skip events during certain phases
+            if (phaseRef.current === 'signing_in' && event !== 'SIGNED_IN') {
+              console.log(`${AUTH_DEBUG_PREFIX} Ignoring event during signIn: ${event}`);
+              return;
+            }
             
             switch (event) {
               case 'SIGNED_OUT':
@@ -383,17 +582,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setRole(null);
                 clearCachedData();
                 setAuthState('unauthenticated');
+                phaseRef.current = 'idle';
                 break;
                 
               case 'SIGNED_IN':
               case 'TOKEN_REFRESHED':
               case 'USER_UPDATED':
                 if (currentSession?.user) {
+                  // Skip if signIn is handling this
+                  if (phaseRef.current === 'signing_in') {
+                    console.log(`${AUTH_DEBUG_PREFIX} Event handled by signIn flow, skipping duplicate processing`);
+                    return;
+                  }
+                  
                   setSession(currentSession);
                   setUser(currentSession.user);
                   localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
 
-                  // Session exists: consider authenticated immediately (data can load in background)
+                  // Session exists: consider authenticated immediately
                   setAuthState('authenticated');
                   
                   // Load cached data for instant display
@@ -416,13 +622,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   if (cached.profile) setProfile(cached.profile);
                   if (cached.role) setRole(cached.role);
 
-                  // CRITICAL: Never block UI on profile/role fetch.
-                  // If a session exists, treat as authenticated immediately and fetch data in background.
                   setAuthState('authenticated');
+                  phaseRef.current = 'idle'; // Release init lock
                   fetchUserData(currentSession.user.id, isMounted, currentSession.access_token);
                 } else {
                   // No session - unauthenticated
-                  if (isMounted) setAuthState('unauthenticated');
+                  if (isMounted) {
+                    setAuthState('unauthenticated');
+                    phaseRef.current = 'idle';
+                  }
                 }
                 break;
                 
@@ -446,7 +654,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error('[useAuth] Session error:', error);
-          // Cache is allowed to avoid blank UI, but DO NOT mark authenticated without a real user.
           if (hasSessionMarker()) {
             const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
             if (cachedUserId) {
@@ -454,24 +661,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (cached.profile) setProfile(cached.profile);
               if (cached.role) setRole(cached.role);
             }
-            // Stay loading and let auth events resolve.
             scheduleStaleSessionMarkerFallback('getSession(init)-error', 6000);
             return;
           }
         }
         
         // INITIAL_SESSION event handles the rest.
-        // If getSession() returns null but we *expect* a session (marker), keep loading
-        // and let the safety timeout / auth events resolve it.
         if (!initialSession && isMounted && authStateRef.current === 'loading' && !hasSessionMarker()) {
           setAuthState('unauthenticated');
+          phaseRef.current = 'idle';
         }
         
       } catch (error) {
         console.error('[useAuth] Exception:', error);
         if (!isMounted) return;
 
-        // Timeout/hang case: try cache before giving up.
         if (hasSessionMarker()) {
           const cachedUserId = localStorage.getItem(CACHE_KEYS.USER_ID);
           if (cachedUserId) {
@@ -479,12 +683,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (cached.profile) setProfile(cached.profile);
             if (cached.role) setRole(cached.role);
           }
-          // Keep loading (reconnecting). Do NOT mark authenticated without a real user.
           scheduleStaleSessionMarkerFallback('getSession(init)-exception', 6000);
           return;
         }
 
         setAuthState('unauthenticated');
+        phaseRef.current = 'idle';
       }
 
       return () => {
@@ -499,138 +703,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(loadingTimeout);
       cleanupPromise.then(cleanup => cleanup?.());
     };
-  }, []);
-
-  const fetchUserData = useCallback(async (userId: string, isMounted: boolean, accessToken?: string | null) => {
-    // Prevent concurrent fetches
-    if (fetchingUserData.current) return;
-    fetchingUserData.current = true;
-    
-    setIsVerifyingRole(true);
-    try {
-      const [profileResult, roleResult] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        // Robust: do not use maybeSingle/single because duplicates can happen and would break admin detection
-        supabase.from('user_roles').select('role').eq('user_id', userId)
-      ]);
-
-      if (!isMounted) return;
-
-      if (profileResult.error) {
-        console.warn('[useAuth] Profile fetch error:', profileResult.error);
-      }
-      if (roleResult.error) {
-        console.warn('[useAuth] Role fetch error:', roleResult.error);
-      }
-
-      let nextProfile = (profileResult.data as Profile | null) ?? null;
-
-      const roleRows = (roleResult.data as any[]) || [];
-      let nextRole = (roleRows.find((r: any) => r?.role === 'admin')?.role || roleRows?.[0]?.role || null) as AppRole | null;
-
-      // Se o usuário não tem role, tentar corrigir em background (NON-BLOCKING)
-      // IMPORTANT: Fire-and-forget to not delay login
-      if (!nextRole && accessToken) {
-        console.log('[useAuth] User has no role, fixing in background...');
-        
-        // Fire-and-forget: don't await, let login proceed immediately
-        supabase.functions.invoke('fix-user-roles', {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }).then(async ({ data: fixData, error: fixError }) => {
-          if (!fixError && fixData?.role) {
-            console.log('[useAuth] Role fixed in background:', fixData.role);
-            
-            // Update state with fixed role
-            setRole(fixData.role as AppRole);
-            
-            // Re-fetch profile in case it was also created
-            const { data: newProfile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (newProfile) {
-              setProfile(newProfile as Profile);
-              setCachedData(userId, newProfile as Profile, fixData.role as AppRole);
-            } else {
-              setCachedData(userId, nextProfile, fixData.role as AppRole);
-            }
-          }
-        }).catch((e) => {
-          console.error('[useAuth] Failed to fix role in background:', e);
-        });
-        
-        // Use a temporary 'seller' role to unblock UI immediately
-        // This will be replaced when the background fix completes
-        nextRole = 'seller' as AppRole;
-      }
-
-      // Always overwrite state with fresh data
-      setProfile(nextProfile);
-      setRole(nextRole);
-
-      // Update cache with fresh data
-      setCachedData(userId, nextProfile, nextRole);
-      
-      // Now we can confirm authentication
-      if (isMounted) {
-        setAuthState('authenticated');
-      }
-    } catch (error) {
-      console.error('[useAuth] Error fetching user data:', error);
-    } finally {
-      fetchingUserData.current = false;
-      if (isMounted) {
-        setIsVerifyingRole(false);
-      }
-    }
-  }, []);
+  }, [fetchUserData, scheduleStaleSessionMarkerFallback]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    // Mark that signIn is in progress so self-heal effect doesn't interfere
-    signInInProgress.current = true;
+    // STATE MACHINE: Acquire exclusive lock for signIn
+    const hasLock = await acquireLock('signing_in');
+    if (!hasLock) {
+      console.warn(`${AUTH_DEBUG_PREFIX} SignIn blocked - operation in progress: ${phaseRef.current}`);
+      return { error: new Error('Operação em andamento. Aguarde.') };
+    }
     
     // Prevent showing stale cached role/profile during a new login
     clearCachedData();
     setAuthState('loading');
     
     const normalizedEmail = email.trim().toLowerCase();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
     
-    if (error) {
-      signInInProgress.current = false;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      
+      if (error) {
+        releaseLock();
+        setAuthState('unauthenticated');
+        return { error: error as Error | null };
+      }
+
+      // CRITICAL: Set state directly without waiting for onAuthStateChange
+      if (data?.session?.user) {
+        setSession(data.session);
+        setUser(data.session.user);
+        localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
+
+        const cached = getCachedData(data.session.user.id);
+        if (cached.profile) setProfile(cached.profile);
+        if (cached.role) setRole(cached.role);
+
+        setAuthState('authenticated');
+        
+        // Release lock before starting background fetch
+        releaseLock();
+        
+        // Fetch profile/role in background
+        fetchUserData(data.session.user.id, true, data.session.access_token);
+      } else {
+        // Unexpected: no user in response
+        releaseLock();
+        setAuthState('unauthenticated');
+      }
+      
+      return { error: null };
+    } catch (e) {
+      releaseLock();
       setAuthState('unauthenticated');
-      return { error: error as Error | null };
+      return { error: e as Error };
     }
-
-    // CRITICAL: do not depend solely on onAuthStateChange.
-    // If the auth event is delayed/missed, we would be stuck on "Verificando sessão...".
-    if (data?.session?.user) {
-      setSession(data.session);
-      setUser(data.session.user);
-      localStorage.setItem(CACHE_KEYS.SESSION_MARKER, 'true');
-
-      const cached = getCachedData(data.session.user.id);
-      if (cached.profile) setProfile(cached.profile);
-      if (cached.role) setRole(cached.role);
-
-      setAuthState('authenticated');
-      // Fetch profile/role in background
-      fetchUserData(data.session.user.id, true, data.session.access_token);
-    } else {
-      // Unexpected: no user in response; treat as unauthenticated to unblock UI
-      setAuthState('unauthenticated');
-    }
-    
-    // Clear flag after a micro-task to ensure React has processed the state updates
-    setTimeout(() => { signInInProgress.current = false; }, 0);
-    
-    return { error: error as Error | null };
-  }, []);
+  }, [acquireLock, releaseLock, fetchUserData]);
 
   const signUp = useCallback(async (email: string, password: string, fullName: string, whatsapp?: string) => {
     const redirectUrl = `${window.location.origin}/`;
@@ -654,6 +784,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     console.log('[useAuth] Signing out...');
     
+    // STATE MACHINE: Force acquire lock (signOut always wins)
+    await acquireLock('signing_out');
+    
     // Clear all cached data FIRST
     clearCachedData();
     
@@ -671,8 +804,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[useAuth] Error during signOut:', error);
     }
     
+    releaseLock();
     console.log('[useAuth] Signed out successfully');
-  }, []);
+  }, [acquireLock, releaseLock]);
 
   const updatePassword = useCallback(async (newPassword: string) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -725,8 +859,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const daysRemaining = Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
-    // Para sellers, mostra como "assinatura" não "trial"
-    // Para users, mostra como "trial"
     return {
       isInTrial: daysRemaining > 0,
       daysRemaining: Math.max(0, daysRemaining),
@@ -736,7 +868,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })();
   
   // hasSystemAccess: admin, seller, ou user em período de teste
-  // Enquanto verifica role, considera que tem acesso para evitar flash de erro
   const hasSystemAccess = isVerifyingRole || isAdmin || isSeller || trialInfo.isInTrial;
 
   // loading is true when authState is 'loading'
