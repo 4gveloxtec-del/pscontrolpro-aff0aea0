@@ -1,73 +1,110 @@
-# Welcome to your Lovable project
+# PSControl Pro - Sistema de Gestão de Clientes IPTV
 
-## Project info
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/seu-usuario/pscontrol)
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Sistema profissional para revendedores IPTV gerenciarem clientes, renovações, automações WhatsApp e muito mais.
 
-## How can I edit this code?
+## 🚀 Tecnologias
 
-There are several ways of editing your application.
+- **Frontend:** React 18 + TypeScript + Vite
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Backend:** Supabase (Database + Auth + Edge Functions)
+- **State:** TanStack Query
+- **Deploy:** Vercel
 
-**Use Lovable**
+## 📦 Instalação
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+```bash
+# Clone o repositório
+git clone https://github.com/seu-usuario/pscontrol.git
+cd pscontrol
 
-Changes made via Lovable will be committed automatically to this repo.
+# Instale dependências
+npm install
 
-**Use your preferred IDE**
+# Configure variáveis de ambiente
+cp .env.example .env
+# Edite .env com suas credenciais Supabase
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Execute em desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 🔧 Scripts Disponíveis
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Comando | Descrição |
+|---------|-----------|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run preview` | Preview do build |
+| `npm run lint` | Verificar linting |
 
-**Use GitHub Codespaces**
+## 📁 Estrutura do Projeto
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+src/
+├── components/     # 150+ componentes React
+├── hooks/          # 40+ custom hooks
+├── pages/          # 35+ páginas
+├── lib/            # Utilitários
+├── config/         # Configurações
+└── integrations/   # Supabase client
 
-## What technologies are used for this project?
+supabase/
+├── functions/      # 49 Edge Functions
+├── migrations/     # Migrações SQL
+└── config.toml     # Configuração
 
-This project is built with:
+docs/
+├── DEPLOY_GUIDE.md           # Guia de deploy
+└── MAINTENANCE_STANDARDS.md  # Padrões de desenvolvimento
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## ✨ Funcionalidades
 
-## How can I deploy this project?
+- ✅ Gestão completa de clientes
+- ✅ Automação WhatsApp (Evolution API)
+- ✅ Geração de testes automatizada
+- ✅ Notificações de vencimento
+- ✅ Dashboard com métricas
+- ✅ Multi-servidor IPTV
+- ✅ Backup e restauração
+- ✅ PWA (instalável)
+- ✅ Tema claro/escuro
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## 🔐 Variáveis de Ambiente
 
-## Can I connect a custom domain to my Lovable project?
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sua-anon-key
+VITE_SUPABASE_PROJECT_ID=seu-project-id
+```
 
-Yes, you can!
+## 📖 Documentação
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- [Guia de Deploy](docs/DEPLOY_GUIDE.md)
+- [Padrões de Manutenção](docs/MAINTENANCE_STANDARDS.md)
+- [Blueprint do Projeto](/project-docs) (na aplicação)
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 🚀 Deploy
+
+### Vercel (Recomendado)
+
+1. Conecte seu repositório GitHub à Vercel
+2. Configure as variáveis de ambiente
+3. Deploy automático em cada push
+
+### Manual
+
+```bash
+npm run build
+# Upload da pasta dist/ para seu servidor
+```
+
+## 📄 Licença
+
+Projeto privado - Todos os direitos reservados.
+
+---
+
+Desenvolvido com ❤️ usando [Lovable](https://lovable.dev)
