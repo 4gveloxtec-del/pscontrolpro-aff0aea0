@@ -528,18 +528,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const roleRows = (roleResult.data as any[]) || [];
       let nextRole = (roleRows.find((r: any) => r?.role === 'admin')?.role || roleRows?.[0]?.role || null) as AppRole | null;
 
-      // Se o usuário não tem role, tentar corrigir automaticamente
-      // IMPORTANT: do not depend on React state timing for the access token
+      // Se o usuário não tem role, tentar corrigir em background (NON-BLOCKING)
+      // IMPORTANT: Fire-and-forget to not delay login
       if (!nextRole && accessToken) {
-        console.log('[useAuth] User has no role, attempting to fix...');
-        try {
-          const { data: fixData, error: fixError } = await supabase.functions.invoke('fix-user-roles', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-          });
-          
+        console.log('[useAuth] User has no role, fixing in background...');
+        
+        // Fire-and-forget: don't await, let login proceed immediately
+        supabase.functions.invoke('fix-user-roles', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }).then(async ({ data: fixData, error: fixError }) => {
           if (!fixError && fixData?.role) {
-            console.log('[useAuth] Role fixed:', fixData.role);
-            nextRole = fixData.role as AppRole;
+            console.log('[useAuth] Role fixed in background:', fixData.role);
+            
+            // Update state with fixed role
+            setRole(fixData.role as AppRole);
             
             // Re-fetch profile in case it was also created
             const { data: newProfile } = await supabase
@@ -549,12 +551,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .maybeSingle();
             
             if (newProfile) {
-              nextProfile = newProfile as Profile;
+              setProfile(newProfile as Profile);
+              setCachedData(userId, newProfile as Profile, fixData.role as AppRole);
+            } else {
+              setCachedData(userId, nextProfile, fixData.role as AppRole);
             }
           }
-        } catch (e) {
-          console.error('[useAuth] Failed to fix role:', e);
-        }
+        }).catch((e) => {
+          console.error('[useAuth] Failed to fix role in background:', e);
+        });
+        
+        // Use a temporary 'seller' role to unblock UI immediately
+        // This will be replaced when the background fix completes
+        nextRole = 'seller' as AppRole;
       }
 
       // Always overwrite state with fresh data
