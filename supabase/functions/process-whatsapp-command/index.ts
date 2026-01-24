@@ -596,7 +596,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               seller_id,
-              sender_phone,
+              sender_phone: clientPhone || sender_phone, // Use parsed phone from command args, fallback to sender
               api_response: apiResponse,
               api_id: api?.id,
               command_id: commandData.id,
