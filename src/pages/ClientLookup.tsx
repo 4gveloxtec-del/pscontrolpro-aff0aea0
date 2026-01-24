@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useCrypto } from '@/hooks/useCrypto';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -140,11 +141,27 @@ interface ClientFullData {
   }>;
 }
 
+interface DecryptedCredentials {
+  login?: string;
+  password?: string;
+  login_2?: string;
+  password_2?: string;
+}
+
 function ClientLookup() {
   const { user } = useAuth();
+  const { decrypt } = useCrypto();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showPasswords, setShowPasswords] = useState(false);
+  const [decryptedCredentials, setDecryptedCredentials] = useState<DecryptedCredentials | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  
+  // Reset decrypted credentials when client changes
+  const handleClientSelect = useCallback((clientId: string) => {
+    setSelectedClientId(clientId);
+    setDecryptedCredentials(null);
+  }, []);
   
   // Search clients
   const { data: searchResults, isLoading: isSearching } = useQuery({
@@ -232,6 +249,35 @@ function ClientLookup() {
     enabled: !!user?.id && !!selectedClientId,
     staleTime: 60000,
   });
+  
+  // Decrypt credentials function - defined after clientFullData query
+  const handleDecryptCredentials = useCallback(async () => {
+    if (!clientFullData || isDecrypting) return;
+    
+    setIsDecrypting(true);
+    try {
+      const [login, password, login_2, password_2] = await Promise.all([
+        clientFullData.login ? decrypt(clientFullData.login) : Promise.resolve(''),
+        clientFullData.password ? decrypt(clientFullData.password) : Promise.resolve(''),
+        clientFullData.login_2 ? decrypt(clientFullData.login_2) : Promise.resolve(''),
+        clientFullData.password_2 ? decrypt(clientFullData.password_2) : Promise.resolve(''),
+      ]);
+      
+      setDecryptedCredentials({ login, password, login_2, password_2 });
+    } catch (error) {
+      console.error('Failed to decrypt credentials:', error);
+      // If decryption fails, show original values (might not be encrypted)
+      setDecryptedCredentials({
+        login: clientFullData.login || '',
+        password: clientFullData.password || '',
+        login_2: clientFullData.login_2 || '',
+        password_2: clientFullData.password_2 || '',
+      });
+    } finally {
+      setIsDecrypting(false);
+    }
+  }, [clientFullData, decrypt, isDecrypting]);
+
   
   const getStatusBadge = (expirationDate: string) => {
     const expDate = parseISO(expirationDate);
@@ -342,7 +388,7 @@ function ClientLookup() {
                   {searchResults.map((client) => (
                     <button
                       key={client.id}
-                      onClick={() => setSelectedClientId(client.id)}
+                      onClick={() => handleClientSelect(client.id)}
                       className={cn(
                         "w-full text-left p-3 hover:bg-muted/50 transition-colors border-b last:border-b-0",
                         selectedClientId === client.id && "bg-primary/5"
@@ -624,17 +670,69 @@ function ClientLookup() {
                     
                     {/* Credentials */}
                     <div className="space-y-3">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Lock className="h-4 w-4" />
-                        Credenciais de Acesso
-                      </h3>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <CredentialField label="Login" value={clientFullData.login} icon={User} />
-                        <CredentialField label="Senha" value={clientFullData.password} icon={Lock} />
-                        <CredentialField label="Login 2" value={clientFullData.login_2} icon={User} />
-                        <CredentialField label="Senha 2" value={clientFullData.password_2} icon={Lock} />
-                        <CredentialField label="DNS" value={clientFullData.dns} icon={Globe} />
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold flex items-center gap-2">
+                          <Lock className="h-4 w-4" />
+                          Credenciais de Acesso
+                        </h3>
+                        {!decryptedCredentials ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleDecryptCredentials}
+                            disabled={isDecrypting}
+                            className="gap-1"
+                          >
+                            {isDecrypting ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Descriptografando...
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3.5 w-3.5" />
+                                Ver Credenciais
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowPasswords(!showPasswords)}
+                            className="gap-1"
+                          >
+                            {showPasswords ? (
+                              <>
+                                <EyeOff className="h-3.5 w-3.5" />
+                                Ocultar Senhas
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3.5 w-3.5" />
+                                Mostrar Senhas
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
+                      
+                      {decryptedCredentials ? (
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <CredentialField label="Login" value={decryptedCredentials.login || null} icon={User} />
+                          <CredentialField label="Senha" value={decryptedCredentials.password || null} icon={Lock} />
+                          <CredentialField label="Login 2" value={decryptedCredentials.login_2 || null} icon={User} />
+                          <CredentialField label="Senha 2" value={decryptedCredentials.password_2 || null} icon={Lock} />
+                          <CredentialField label="DNS" value={clientFullData.dns} icon={Globe} />
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 text-center">
+                          <Lock className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            Clique em "Ver Credenciais" para descriptografar
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                   
