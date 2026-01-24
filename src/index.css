@@ -788,3 +788,17 @@ main, [role="main"] {
   }
 }
 
+/* =============================================================================
+   Hide Lovable Edit Badge
+   ============================================================================= */
+#lovable-badge,
+[data-lovable-badge],
+.lovable-badge,
+a[href*="lovable.dev"][target="_blank"],
+div[style*="fixed"][style*="bottom"][style*="right"] > a[href*="lovable"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
