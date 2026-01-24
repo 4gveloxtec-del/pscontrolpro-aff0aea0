@@ -385,48 +385,78 @@ async function checkEvolutionConnection(
   return { connected: false, error: 'Max retries exceeded', state: 'error' };
 }
 
-// Attempt to reconnect without QR code (restart instance)
+// Attempt to reconnect without QR code (restart instance) - with timeout
 async function attemptReconnect(
   apiUrl: string,
   apiToken: string,
   instanceName: string
 ): Promise<{ success: boolean; needsQR: boolean; error?: string }> {
+  const RECONNECT_TIMEOUT_MS = 15000;
+  
   try {
     const baseUrl = normalizeApiUrl(apiUrl);
     
-    // First, try to restart the instance
+    // First, try to restart the instance with timeout
     const restartUrl = `${baseUrl}/instance/restart/${instanceName}`;
     
-    const restartResponse = await fetch(restartUrl, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'apikey': apiToken 
-      },
-    });
-
-    if (restartResponse.ok) {
-      // Wait a bit and check connection
-      await new Promise(resolve => setTimeout(resolve, 3000));
+    const restartController = new AbortController();
+    const restartTimeoutId = setTimeout(() => restartController.abort(), RECONNECT_TIMEOUT_MS);
+    
+    try {
+      const restartResponse = await fetch(restartUrl, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'apikey': apiToken 
+        },
+        signal: restartController.signal,
+      });
       
-      const checkResult = await checkEvolutionConnection(apiUrl, apiToken, instanceName);
-      if (checkResult.connected) {
-        return { success: true, needsQR: false };
+      clearTimeout(restartTimeoutId);
+
+      if (restartResponse.ok) {
+        // Wait a bit and check connection
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const checkResult = await checkEvolutionConnection(apiUrl, apiToken, instanceName);
+        if (checkResult.connected) {
+          return { success: true, needsQR: false };
+        }
       }
+    } catch (restartError: any) {
+      clearTimeout(restartTimeoutId);
+      if (restartError.name === 'AbortError') {
+        console.log('[attemptReconnect] Restart request timed out');
+      }
+      // Continue to try connect endpoint
     }
 
-    // If restart didn't work, check if we need a new QR
+    // If restart didn't work, check if we need a new QR - with timeout
     const connectUrl = `${baseUrl}/instance/connect/${instanceName}`;
-    const connectResponse = await fetch(connectUrl, {
-      method: 'GET',
-      headers: { 'apikey': apiToken },
-    });
+    
+    const connectController = new AbortController();
+    const connectTimeoutId = setTimeout(() => connectController.abort(), RECONNECT_TIMEOUT_MS);
+    
+    try {
+      const connectResponse = await fetch(connectUrl, {
+        method: 'GET',
+        headers: { 'apikey': apiToken },
+        signal: connectController.signal,
+      });
+      
+      clearTimeout(connectTimeoutId);
 
-    if (connectResponse.ok) {
-      const result = await connectResponse.json();
-      // If we got a QR code back, session is invalid
-      if (result.base64 || result.code || result.qrcode) {
-        return { success: false, needsQR: true };
+      if (connectResponse.ok) {
+        const result = await connectResponse.json();
+        // If we got a QR code back, session is invalid
+        if (result.base64 || result.code || result.qrcode) {
+          return { success: false, needsQR: true };
+        }
+      }
+    } catch (connectError: any) {
+      clearTimeout(connectTimeoutId);
+      if (connectError.name === 'AbortError') {
+        return { success: false, needsQR: false, error: 'Connection check timed out' };
       }
     }
 
