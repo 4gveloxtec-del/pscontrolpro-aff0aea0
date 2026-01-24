@@ -121,14 +121,39 @@ export function useNovaFeature() {
 -- 3. Validar com admin
 ```
 
-### 2.3 Hooks Globais
+### 2.4 Hooks Globais
 
 | Hook | Função | Dependentes |
 |------|--------|-------------|
 | `useAuth` | Autenticação central | Todos os componentes |
 | `useClientValidation` | Normalização de dados | Clients, Import, Bulk |
 | `useWhatsAppConfig` | Config WhatsApp | Automação, Templates |
+| `useCircuitBreaker` | Resiliência API WhatsApp | SendMessage, Queue |
 | `useConnectionMonitor` | Status de conexão | Realtime, Sync |
+
+### 2.5 Circuit Breaker Pattern (Evolution API)
+
+O sistema implementa circuit breaker para proteção contra falhas da API WhatsApp:
+
+```typescript
+// Estados do circuit
+'closed' → Normal, envios diretos
+'open'   → API instável, mensagens enfileiradas
+'half_open' → Testando recuperação
+
+// Thresholds padrão
+- 5 falhas consecutivas → abre o circuit
+- 3 sucessos consecutivos → fecha o circuit
+- 30s timeout → tenta half_open
+
+// Uso
+import { useCircuitBreaker } from '@/hooks/useCircuitBreaker';
+const { sendWithCircuitBreaker, queueLength, isOpen } = useCircuitBreaker();
+```
+
+Tabelas relacionadas:
+- `evolution_circuit_breaker`: Estado do circuit por seller
+- `evolution_message_queue`: Fila de mensagens pendentes
 
 ### 2.4 Arquivos Intocáveis
 
