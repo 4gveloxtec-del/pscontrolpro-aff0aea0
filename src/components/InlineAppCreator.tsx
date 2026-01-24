@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Loader2, Monitor, Mail, Package, Handshake } from 'lucide-react';
+import { Plus, Loader2, Monitor, Mail, Package, Handshake, Smartphone, Hash, Download } from 'lucide-react';
 
 interface InlineExternalAppCreatorProps {
   sellerId: string;
@@ -266,6 +266,149 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
               <Plus className="h-3 w-3 mr-1" />
             )}
             Criar App
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface InlineResellerAppCreatorProps {
+  sellerId: string;
+  onCreated?: (appId: string) => void;
+}
+
+export function InlineResellerAppCreator({ sellerId, onCreated }: InlineResellerAppCreatorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('📱');
+  const [downloadUrl, setDownloadUrl] = useState('');
+  const [downloaderCode, setDownloaderCode] = useState('');
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase
+        .from('custom_products')
+        .insert([
+          {
+            name: `APP_REVENDEDOR:${name.trim()}`,
+            icon: icon || '📱',
+            download_url: downloadUrl.trim() ? downloadUrl.trim() : null,
+            downloader_code: downloaderCode.trim() ? downloaderCode.trim() : null,
+            seller_id: sellerId,
+            is_active: true,
+          },
+        ])
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-apps', sellerId] });
+      queryClient.invalidateQueries({ queryKey: ['reseller-apps-for-external', sellerId] });
+      toast.success('App do revendedor criado!');
+      onCreated?.(data.id);
+      setName('');
+      setIcon('📱');
+      setDownloadUrl('');
+      setDownloaderCode('');
+      setIsOpen(false);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao criar app do revendedor');
+    },
+  });
+
+  const emojis = ['📱', '📺', '🎬', '🎮', '📡', '🌐', '⚡', '🔥', '💎', '🎯'];
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs gap-1 px-2"
+          title="Criar app do revendedor"
+        >
+          <Plus className="h-3 w-3" />
+          <Smartphone className="h-3 w-3" />
+          Novo (Revendedor)
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-3" align="end">
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Novo App do Revendedor</Label>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Ícone</Label>
+            <div className="flex gap-1 flex-wrap">
+              {emojis.map((emoji) => (
+                <Button
+                  key={emoji}
+                  type="button"
+                  variant={icon === emoji ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 w-8 p-0 text-base"
+                  onClick={() => setIcon(emoji)}
+                >
+                  {emoji}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Nome *</Label>
+            <Input
+              placeholder="Ex: Sandel"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              <Download className="h-3 w-3" />
+              Link de Download (opcional)
+            </Label>
+            <Input
+              placeholder="https://..."
+              value={downloadUrl}
+              onChange={(e) => setDownloadUrl(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              <Hash className="h-3 w-3" />
+              Código Downloader (opcional)
+            </Label>
+            <Input
+              placeholder="Ex: 12345"
+              value={downloaderCode}
+              onChange={(e) => setDownloaderCode(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            className="w-full h-8"
+            onClick={() => createMutation.mutate()}
+            disabled={!name.trim() || createMutation.isPending}
+          >
+            {createMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+            ) : (
+              <Plus className="h-3 w-3 mr-1" />
+            )}
+            Criar App do Revendedor
           </Button>
         </div>
       </PopoverContent>
