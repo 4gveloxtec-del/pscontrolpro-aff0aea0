@@ -5,7 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GLOBAL_WEBHOOK_URL = "https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat";
+// Build webhook URL dynamically from environment
+function getWebhookUrl(): string {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!supabaseUrl) {
+    throw new Error("SUPABASE_URL environment variable is required");
+  }
+  return `${supabaseUrl}/functions/v1/connection-heartbeat`;
+}
 
 function normalizeApiUrl(url: string): string {
   let cleanUrl = url.trim();
@@ -45,10 +52,11 @@ Deno.serve(async (req) => {
     const baseUrl = normalizeApiUrl(globalConfig.api_url);
     const apiToken = globalConfig.api_token;
 
+    const webhookTargetUrl = getWebhookUrl();
     const results: any = {
       base_url: baseUrl,
       instance_name: instanceName,
-      target_webhook: GLOBAL_WEBHOOK_URL,
+      target_webhook: webhookTargetUrl,
       tests: []
     };
 
@@ -94,7 +102,7 @@ Deno.serve(async (req) => {
         url: `${baseUrl}/webhook/set/${instanceName}`,
         body: {
           webhook: {
-            url: GLOBAL_WEBHOOK_URL,
+            url: webhookTargetUrl,
             enabled: true,
             webhookByEvents: false,
             webhookBase64: false,
@@ -108,7 +116,7 @@ Deno.serve(async (req) => {
         url: `${baseUrl}/webhook/set/${instanceName}`,
         body: {
           webhook: {
-            url: GLOBAL_WEBHOOK_URL,
+            url: webhookTargetUrl,
             enabled: true
           }
         }

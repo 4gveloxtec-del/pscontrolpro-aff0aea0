@@ -5,8 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Fixed global webhook URL - points to connection-heartbeat which handles all webhook events
-const GLOBAL_WEBHOOK_URL = "https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat";
+// Build webhook URL dynamically from environment
+function getWebhookUrl(): string {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!supabaseUrl) {
+    throw new Error("SUPABASE_URL environment variable is required");
+  }
+  return `${supabaseUrl}/functions/v1/connection-heartbeat`;
+}
 
 // Clean and normalize API URL
 function normalizeApiUrl(url: string): string {
@@ -135,8 +141,9 @@ async function configureWebhook(
     const baseUrl = normalizeApiUrl(apiUrl);
     const webhookUrl = `${baseUrl}/webhook/set/${instanceName}`;
     
+    const webhookTargetUrl = getWebhookUrl();
     console.log(`Configuring webhook at: ${webhookUrl}`);
-    console.log(`Webhook target: ${GLOBAL_WEBHOOK_URL}`);
+    console.log(`Webhook target: ${webhookTargetUrl}`);
 
     // Use the correct nested webhook format for Evolution API
     const response = await fetch(webhookUrl, {
@@ -147,7 +154,7 @@ async function configureWebhook(
       },
       body: JSON.stringify({
         webhook: {
-          url: GLOBAL_WEBHOOK_URL,
+          url: webhookTargetUrl,
           enabled: true,
           webhookByEvents: false,
           webhookBase64: false,
