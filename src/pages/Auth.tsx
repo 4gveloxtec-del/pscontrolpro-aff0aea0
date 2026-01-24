@@ -112,7 +112,9 @@ function Auth() {
 
     setRemainingAttempts(remaining);
 
+    console.log('[Auth] Attempting signIn with email:', email);
     const { error } = await signIn(email, loginPassword);
+    console.log('[Auth] signIn result - error:', error, 'authState:', authState, 'user:', user?.id);
 
     if (error) {
       // Record failed attempt in background (non-blocking)
