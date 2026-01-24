@@ -67,11 +67,13 @@ export default function Dashboard() {
       if (!user?.id || !isSeller) return [];
       const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        // PERF: avoid loading unnecessary columns on initial dashboard load
+        // (large payload here is one of the main causes of slow access on mobile/PWA)
+        .select('id, name, phone, email, expiration_date, plan_id, plan_name, plan_price, premium_price, is_paid, pending_amount, category, login, password, premium_password, server_name, server_id, telegram, is_archived, renewed_at')
         .eq('seller_id', user.id)
         .eq('is_archived', false);
       if (error) throw error;
-      const list = (data as Client[] | null) || [];
+      const list = ((data || []) as unknown) as Client[];
 
       // Etapa 4 (UI): evitar duplicidade visual por telefone dentro do seller
       const seen = new Set<string>();
@@ -86,6 +88,9 @@ export default function Dashboard() {
       return deduped;
     },
     enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch servers for profit calculation
