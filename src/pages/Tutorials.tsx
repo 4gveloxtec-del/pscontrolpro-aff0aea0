@@ -129,8 +129,9 @@ export default function Tutorials() {
       toast.success('Tutorial atualizado com sucesso!');
       resetForm();
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Erro ao atualizar tutorial');
+    onError: (error: Error) => {
+      console.error('[updateMutation]', error);
+      toast.error('Erro ao atualizar: ' + error.message);
     }
   });
 
@@ -147,8 +148,9 @@ export default function Tutorials() {
       queryClient.invalidateQueries({ queryKey: ['tutorials'] });
       toast.success('Tutorial removido com sucesso!');
     },
-    onError: () => {
-      toast.error('Erro ao remover tutorial');
+    onError: (error: Error) => {
+      console.error('[deleteMutation]', error);
+      toast.error('Erro ao remover tutorial: ' + error.message);
     }
   });
 

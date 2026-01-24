@@ -131,8 +131,9 @@ export function SharedServersModal({
       queryClient.invalidateQueries({ queryKey: ['shared-servers'] });
       toast.success('Servidor removido!');
     },
-    onError: () => {
-      toast.error('Erro ao remover servidor');
+    onError: (error: Error) => {
+      console.error('[deleteServerMutation]', error);
+      toast.error('Erro ao remover servidor: ' + error.message);
     },
   });
 

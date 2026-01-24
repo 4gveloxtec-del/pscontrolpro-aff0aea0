@@ -537,6 +537,10 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['message-history'] });
     },
+    onError: (error: Error) => {
+      console.error('[saveHistoryMutation]', error);
+      toast.error('Erro ao salvar histórico: ' + error.message);
+    },
   });
 
   const replaceVariables = (text: string): string => {
