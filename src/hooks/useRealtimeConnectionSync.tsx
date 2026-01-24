@@ -3,6 +3,7 @@ import { useOnce } from '@/hooks/useOnce';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { createBackoffManager, type BackoffState } from '@/lib/exponentialBackoff';
 
 interface ConnectionState {
   configured: boolean;
@@ -23,16 +24,27 @@ interface UseRealtimeConnectionSyncOptions {
   onStatusChange?: (state: ConnectionState) => void;
 }
 
+// Backoff configuration optimized for mobile
+const MOBILE_BACKOFF_CONFIG = {
+  baseDelayMs: 2000,      // Start with 2s
+  maxDelayMs: 120000,     // Max 2 minutes
+  maxAttempts: 8,         // Up to 8 retries
+  jitterFactor: 0.4,      // 40% jitter for better distribution
+  backoffFactor: 1.8,     // Slightly less aggressive than 2x
+};
+
 /**
  * Hook para sincronização em tempo real do status de conexão.
  * 
  * Características:
  * - Fonte única da verdade: sempre consulta o backend
  * - Heartbeat automático configurável
+ * - Exponential backoff com jitter para falhas de rede
  * - Detecção de reconexão após queda
  * - Auto-healing quando a conexão volta
  * - Realtime updates via Supabase
  * - Cleanup robusto para evitar memory leaks
+ * - Otimizado para bateria mobile
  */
 export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOptions = {}) {
   const {
@@ -50,18 +62,28 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
   });
   const [isLoading, setIsLoading] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [backoffState, setBackoffState] = useState<BackoffState | null>(null);
   
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previousConnectedRef = useRef<boolean | null>(null);
   const isMountedRef = useRef(true);
   const retryCountRef = useRef(0);
   const cleanupFunctionsRef = useRef<(() => void)[]>([]);
+  const backoffManagerRef = useRef(createBackoffManager(MOBILE_BACKOFF_CONFIG));
+  const isRequestInFlightRef = useRef(false);
 
-  // Sync status from backend (source of truth)
+  // Sync status from backend (source of truth) with backoff protection
   const syncStatusFromBackend = useCallback(async (silent = false) => {
     if (!user?.id) return null;
 
+    // Prevent concurrent requests
+    if (isRequestInFlightRef.current) {
+      console.log('[Connection] Request already in flight, skipping');
+      return null;
+    }
+
     if (!silent) setIsLoading(true);
+    isRequestInFlightRef.current = true;
 
     try {
       const { data, error } = await supabase.functions.invoke('connection-heartbeat', {
@@ -87,6 +109,10 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
       setConnectionState(newState);
       setLastSyncTime(new Date());
       retryCountRef.current = 0;
+      
+      // Success - reset backoff
+      backoffManagerRef.current.recordSuccess();
+      setBackoffState(backoffManagerRef.current.getState());
 
       // Notify about connection changes
       if (previousConnectedRef.current !== null && previousConnectedRef.current !== newState.connected) {
@@ -103,21 +129,47 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
       previousConnectedRef.current = newState.connected;
       return newState;
     } catch (err: any) {
-      console.error('Sync error:', err);
-      retryCountRef.current++;
-
+      console.error('[Connection] Sync error:', err);
+      
       if (!isMountedRef.current) return null;
 
+      // Record failure and update backoff state
+      backoffManagerRef.current.recordFailure();
+      const currentBackoffState = backoffManagerRef.current.getState();
+      setBackoffState(currentBackoffState);
+
+      // Schedule retry with exponential backoff if we should retry
+      if (backoffManagerRef.current.shouldRetry()) {
+        const delay = backoffManagerRef.current.scheduleRetry(() => {
+          if (isMountedRef.current && user?.id) {
+            console.log('[Connection] Executing backoff retry...');
+            syncStatusFromBackend(true);
+          }
+        });
+        
+        if (delay) {
+          console.log(`[Connection] Backoff: next retry in ${delay}ms (attempt ${currentBackoffState.attempt}/${MOBILE_BACKOFF_CONFIG.maxAttempts})`);
+        }
+      } else {
+        console.log('[Connection] Max backoff attempts reached, waiting for next interval');
+      }
+
       // Don't mark as disconnected on temporary frontend failures
-      if (retryCountRef.current < 3) {
+      if (currentBackoffState.consecutiveFailures < 3) {
         setConnectionState(prev => ({
           ...prev,
           state: 'checking',
+        }));
+      } else {
+        setConnectionState(prev => ({
+          ...prev,
+          state: 'reconnecting',
         }));
       }
 
       return null;
     } finally {
+      isRequestInFlightRef.current = false;
       if (isMountedRef.current && !silent) {
         setIsLoading(false);
       }
@@ -335,6 +387,10 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
       // Stop heartbeat
       stopHeartbeat();
       
+      // Cancel any pending backoff retries
+      backoffManagerRef.current.cancelRetry();
+      backoffManagerRef.current.reset();
+      
       // Execute all tracked cleanup functions
       cleanupFunctionsRef.current.forEach(fn => {
         try {
@@ -369,6 +425,7 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     ...connectionState,
     isLoading,
     lastSyncTime,
+    backoffState,
     
     // Computed
     isConnected: connectionState.connected,
@@ -377,11 +434,17 @@ export function useRealtimeConnectionSync(options: UseRealtimeConnectionSyncOpti
     isReconnecting: connectionState.state === 'reconnecting',
     isChecking: connectionState.state === 'checking',
     offlineDuration: getOfflineDuration(),
+    isInBackoff: backoffState?.isRetrying ?? false,
+    backoffAttempt: backoffState?.attempt ?? 0,
     
     // Actions
     syncStatus: forceSync,
     attemptReconnect,
     startHeartbeat,
     stopHeartbeat,
+    resetBackoff: () => {
+      backoffManagerRef.current.reset();
+      setBackoffState(backoffManagerRef.current.getState());
+    },
   };
 }

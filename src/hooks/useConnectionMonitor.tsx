@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { createBackoffManager, type BackoffState } from '@/lib/exponentialBackoff';
 
 interface ConnectionStatus {
   configured: boolean;
@@ -31,6 +32,15 @@ interface UseConnectionMonitorOptions {
   onAlert?: (alert: ConnectionAlert) => void;
 }
 
+// Backoff configuration optimized for mobile battery
+const MOBILE_BACKOFF_CONFIG = {
+  baseDelayMs: 2000,      // Start with 2s
+  maxDelayMs: 120000,     // Max 2 minutes
+  maxAttempts: 8,         // Up to 8 retries
+  jitterFactor: 0.4,      // 40% jitter for better distribution
+  backoffFactor: 1.8,     // Slightly less aggressive than 2x
+};
+
 export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) {
   const { 
     autoStart = true, 
@@ -46,18 +56,28 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [backoffState, setBackoffState] = useState<BackoffState | null>(null);
   
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previousConnectedRef = useRef<boolean | null>(null);
   const isMountedRef = useRef(true);
   const cleanupFunctionsRef = useRef<(() => void)[]>([]);
+  const backoffManagerRef = useRef(createBackoffManager(MOBILE_BACKOFF_CONFIG));
+  const isRequestInFlightRef = useRef(false);
 
-  // Check connection status via heartbeat
+  // Check connection status via heartbeat with backoff protection
   const checkConnection = useCallback(async (silent = false) => {
     if (!user?.id) return null;
     
+    // Prevent concurrent requests
+    if (isRequestInFlightRef.current) {
+      console.log('[ConnectionMonitor] Request already in flight, skipping');
+      return null;
+    }
+    
     if (!silent) setIsChecking(true);
     setError(null);
+    isRequestInFlightRef.current = true;
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('connection-heartbeat', {
@@ -70,6 +90,10 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
 
       setStatus(data);
       setLastCheck(new Date());
+      
+      // Success - reset backoff
+      backoffManagerRef.current.recordSuccess();
+      setBackoffState(backoffManagerRef.current.getState());
 
       // Trigger callback if connection state changed
       if (previousConnectedRef.current !== null && 
@@ -89,10 +113,33 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     } catch (err: any) {
       if (!isMountedRef.current) return null;
       
-      console.error('Connection check error:', err);
+      console.error('[ConnectionMonitor] Check error:', err);
       setError(err.message);
+      
+      // Record failure and schedule retry with exponential backoff
+      backoffManagerRef.current.recordFailure();
+      const currentBackoffState = backoffManagerRef.current.getState();
+      setBackoffState(currentBackoffState);
+
+      // Schedule retry with exponential backoff if we should retry
+      if (backoffManagerRef.current.shouldRetry()) {
+        const delay = backoffManagerRef.current.scheduleRetry(() => {
+          if (isMountedRef.current && user?.id) {
+            console.log('[ConnectionMonitor] Executing backoff retry...');
+            checkConnection(true);
+          }
+        });
+        
+        if (delay) {
+          console.log(`[ConnectionMonitor] Backoff: next retry in ${delay}ms (attempt ${currentBackoffState.attempt}/${MOBILE_BACKOFF_CONFIG.maxAttempts})`);
+        }
+      } else {
+        console.log('[ConnectionMonitor] Max backoff attempts reached, waiting for next interval');
+      }
+      
       return null;
     } finally {
+      isRequestInFlightRef.current = false;
       if (isMountedRef.current && !silent) {
         setIsChecking(false);
       }
@@ -250,6 +297,10 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
       isMountedRef.current = false;
       stopMonitoring();
       
+      // Cancel any pending backoff retries
+      backoffManagerRef.current.cancelRetry();
+      backoffManagerRef.current.reset();
+      
       // Execute all tracked cleanup functions
       cleanupFunctionsRef.current.forEach(fn => {
         try {
@@ -313,6 +364,7 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     isReconnecting,
     lastCheck,
     error,
+    backoffState,
     
     // Computed
     isConnected: status?.connected ?? false,
@@ -320,6 +372,8 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     needsQR: status?.needsQR ?? false,
     sessionValid: status?.session_valid ?? true,
     offlineSince: status?.offline_since,
+    isInBackoff: backoffState?.isRetrying ?? false,
+    backoffAttempt: backoffState?.attempt ?? 0,
     
     // Actions
     checkConnection,
@@ -327,6 +381,10 @@ export function useConnectionMonitor(options: UseConnectionMonitorOptions = {}) 
     fetchAlerts,
     startMonitoring,
     stopMonitoring,
+    resetBackoff: () => {
+      backoffManagerRef.current.reset();
+      setBackoffState(backoffManagerRef.current.getState());
+    },
     
     // Helpers
     getOfflineDuration: () => {
