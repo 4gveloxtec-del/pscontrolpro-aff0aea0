@@ -148,6 +148,10 @@ interface DecryptedCredentials {
   password_2?: string;
 }
 
+interface DecryptedAppCredentials {
+  [appId: string]: { email?: string; password?: string };
+}
+
 function ClientLookup() {
   const { user } = useAuth();
   const { decrypt } = useCrypto();
@@ -155,12 +159,19 @@ function ClientLookup() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showPasswords, setShowPasswords] = useState(false);
   const [decryptedCredentials, setDecryptedCredentials] = useState<DecryptedCredentials | null>(null);
+  const [decryptedApps, setDecryptedApps] = useState<DecryptedAppCredentials>({});
+  const [decryptedPremium, setDecryptedPremium] = useState<DecryptedAppCredentials>({});
+  const [decryptedLegacy, setDecryptedLegacy] = useState<{ email?: string; password?: string } | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
+  const [isDecryptingApps, setIsDecryptingApps] = useState(false);
   
   // Reset decrypted credentials when client changes
   const handleClientSelect = useCallback((clientId: string) => {
     setSelectedClientId(clientId);
     setDecryptedCredentials(null);
+    setDecryptedApps({});
+    setDecryptedPremium({});
+    setDecryptedLegacy(null);
   }, []);
   
   // Search clients
@@ -278,7 +289,53 @@ function ClientLookup() {
     }
   }, [clientFullData, decrypt, isDecrypting]);
 
-  
+  // Decrypt all apps credentials function
+  const handleDecryptAllApps = useCallback(async () => {
+    if (!clientFullData || isDecryptingApps) return;
+    
+    setIsDecryptingApps(true);
+    try {
+      // Decrypt external apps
+      const externalAppsDecrypted: DecryptedAppCredentials = {};
+      if (clientFullData.external_apps) {
+        for (const app of clientFullData.external_apps) {
+          const [email, password] = await Promise.all([
+            app.email ? decrypt(app.email) : Promise.resolve(''),
+            app.password ? decrypt(app.password) : Promise.resolve(''),
+          ]);
+          externalAppsDecrypted[app.id] = { email, password };
+        }
+      }
+      setDecryptedApps(externalAppsDecrypted);
+      
+      // Decrypt premium accounts
+      const premiumDecrypted: DecryptedAppCredentials = {};
+      if (clientFullData.premium_accounts) {
+        for (const acc of clientFullData.premium_accounts) {
+          const [email, password] = await Promise.all([
+            acc.email ? decrypt(acc.email) : Promise.resolve(''),
+            acc.password ? decrypt(acc.password) : Promise.resolve(''),
+          ]);
+          premiumDecrypted[acc.id] = { email, password };
+        }
+      }
+      setDecryptedPremium(premiumDecrypted);
+      
+      // Decrypt legacy paid apps
+      if (clientFullData.has_paid_apps) {
+        const [email, password] = await Promise.all([
+          clientFullData.paid_apps_email ? decrypt(clientFullData.paid_apps_email) : Promise.resolve(''),
+          clientFullData.paid_apps_password ? decrypt(clientFullData.paid_apps_password) : Promise.resolve(''),
+        ]);
+        setDecryptedLegacy({ email, password });
+      }
+    } catch (error) {
+      console.error('Failed to decrypt apps credentials:', error);
+    } finally {
+      setIsDecryptingApps(false);
+    }
+  }, [clientFullData, decrypt, isDecryptingApps]);
+
   const getStatusBadge = (expirationDate: string) => {
     const expDate = parseISO(expirationDate);
     const daysUntil = differenceInDays(expDate, new Date());
@@ -827,6 +884,57 @@ function ClientLookup() {
                   
                   {/* Apps Tab */}
                   <TabsContent value="apps" className="space-y-4">
+                    {/* Decrypt All Apps Button */}
+                    {(clientFullData.external_apps?.length > 0 || clientFullData.premium_accounts?.length > 0 || clientFullData.has_paid_apps) && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                        <span className="text-sm text-muted-foreground">
+                          {Object.keys(decryptedApps).length > 0 || Object.keys(decryptedPremium).length > 0 || decryptedLegacy
+                            ? 'Credenciais descriptografadas'
+                            : 'Credenciais criptografadas'}
+                        </span>
+                        {Object.keys(decryptedApps).length === 0 && Object.keys(decryptedPremium).length === 0 && !decryptedLegacy ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleDecryptAllApps}
+                            disabled={isDecryptingApps}
+                            className="gap-1"
+                          >
+                            {isDecryptingApps ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Descriptografando...
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3.5 w-3.5" />
+                                Ver Todas Credenciais
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowPasswords(!showPasswords)}
+                            className="gap-1"
+                          >
+                            {showPasswords ? (
+                              <>
+                                <EyeOff className="h-3.5 w-3.5" />
+                                Ocultar Senhas
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3.5 w-3.5" />
+                                Mostrar Senhas
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    
                     {/* External/Paid Apps */}
                     <div className="space-y-3">
                       <h3 className="font-semibold flex items-center gap-2">
@@ -835,33 +943,44 @@ function ClientLookup() {
                       </h3>
                       {clientFullData.external_apps && clientFullData.external_apps.length > 0 ? (
                         <div className="space-y-3">
-                          {clientFullData.external_apps.map((app: any) => (
-                            <div key={app.id} className="p-4 rounded-lg border bg-card">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="font-semibold">
-                                  {app.external_app?.name || app.fixed_app_name || 'App'}
-                                </span>
-                                {app.expiration_date && getStatusBadge(app.expiration_date)}
+                          {clientFullData.external_apps.map((app: any) => {
+                            const decrypted = decryptedApps[app.id];
+                            return (
+                              <div key={app.id} className="p-4 rounded-lg border bg-card">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="font-semibold">
+                                    {app.external_app?.name || app.fixed_app_name || 'App'}
+                                  </span>
+                                  {app.expiration_date && getStatusBadge(app.expiration_date)}
+                                </div>
+                                <div className="grid gap-2">
+                                  <CredentialField 
+                                    label="Email" 
+                                    value={decrypted?.email || (Object.keys(decryptedApps).length > 0 ? null : '••••••••')} 
+                                    icon={Mail} 
+                                  />
+                                  <CredentialField 
+                                    label="Senha" 
+                                    value={decrypted?.password || (Object.keys(decryptedApps).length > 0 ? null : '••••••••')} 
+                                    icon={Lock} 
+                                  />
+                                </div>
+                                {app.expiration_date && (
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Vencimento: {formatDate(app.expiration_date)}
+                                  </p>
+                                )}
+                                {app.external_app?.download_url && (
+                                  <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
+                                    <a href={app.external_app.download_url} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      Link de Renovação
+                                    </a>
+                                  </Button>
+                                )}
                               </div>
-                              <div className="grid gap-2">
-                                <CredentialField label="Email" value={app.email} icon={Mail} />
-                                <CredentialField label="Senha" value={app.password} icon={Lock} />
-                              </div>
-                              {app.expiration_date && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  Vencimento: {formatDate(app.expiration_date)}
-                                </p>
-                              )}
-                              {app.external_app?.download_url && (
-                                <Button variant="link" size="sm" className="p-0 h-auto mt-2" asChild>
-                                  <a href={app.external_app.download_url} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="h-3 w-3 mr-1" />
-                                    Link de Renovação
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="p-4 text-center text-muted-foreground border rounded-lg">
@@ -878,26 +997,37 @@ function ClientLookup() {
                       </h3>
                       {clientFullData.premium_accounts && clientFullData.premium_accounts.length > 0 ? (
                         <div className="space-y-3">
-                          {clientFullData.premium_accounts.map((acc: any) => (
-                            <div key={acc.id} className="p-4 rounded-lg border bg-card">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="font-semibold">{acc.plan_name}</span>
-                                <span className="text-primary font-bold">
-                                  R$ {acc.price?.toFixed(2) || '0.00'}
-                                </span>
-                              </div>
-                              <div className="grid gap-2">
-                                <CredentialField label="Email" value={acc.email} icon={Mail} />
-                                <CredentialField label="Senha" value={acc.password} icon={Lock} />
-                              </div>
-                              {acc.expiration_date && (
-                                <div className="flex items-center justify-between mt-2 text-sm">
-                                  <span className="text-muted-foreground">Vencimento:</span>
-                                  {getStatusBadge(acc.expiration_date)}
+                          {clientFullData.premium_accounts.map((acc: any) => {
+                            const decrypted = decryptedPremium[acc.id];
+                            return (
+                              <div key={acc.id} className="p-4 rounded-lg border bg-card">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="font-semibold">{acc.plan_name}</span>
+                                  <span className="text-primary font-bold">
+                                    R$ {acc.price?.toFixed(2) || '0.00'}
+                                  </span>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                <div className="grid gap-2">
+                                  <CredentialField 
+                                    label="Email" 
+                                    value={decrypted?.email || (Object.keys(decryptedPremium).length > 0 ? null : '••••••••')} 
+                                    icon={Mail} 
+                                  />
+                                  <CredentialField 
+                                    label="Senha" 
+                                    value={decrypted?.password || (Object.keys(decryptedPremium).length > 0 ? null : '••••••••')} 
+                                    icon={Lock} 
+                                  />
+                                </div>
+                                {acc.expiration_date && (
+                                  <div className="flex items-center justify-between mt-2 text-sm">
+                                    <span className="text-muted-foreground">Vencimento:</span>
+                                    {getStatusBadge(acc.expiration_date)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="p-4 text-center text-muted-foreground border rounded-lg">
@@ -912,8 +1042,16 @@ function ClientLookup() {
                         <h3 className="font-semibold">Apps Pagos (Legado)</h3>
                         <div className="p-4 rounded-lg border bg-card">
                           <div className="grid gap-2">
-                            <CredentialField label="Email" value={clientFullData.paid_apps_email} icon={Mail} />
-                            <CredentialField label="Senha" value={clientFullData.paid_apps_password} icon={Lock} />
+                            <CredentialField 
+                              label="Email" 
+                              value={decryptedLegacy?.email || (decryptedLegacy ? null : '••••••••')} 
+                              icon={Mail} 
+                            />
+                            <CredentialField 
+                              label="Senha" 
+                              value={decryptedLegacy?.password || (decryptedLegacy ? null : '••••••••')} 
+                              icon={Lock} 
+                            />
                           </div>
                           <div className="flex justify-between text-sm mt-2">
                             <span className="text-muted-foreground">Vencimento:</span>
