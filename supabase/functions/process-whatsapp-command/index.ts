@@ -14,19 +14,43 @@ interface CommandResult {
   user_message?: string;
 }
 
+/**
+ * Normaliza telefone para apenas dígitos
+ */
 function normalizePhoneDigits(input: unknown): string {
   const digits = String(input || '').replace(/\D/g, '');
   if (digits.length < 10 || digits.length > 15) return '';
   return digits;
 }
 
-// Formato que alguns servidores (ex: STARPLAY) exigem: "55 11 99999 3333"
-function formatBrazilPhoneWithSpaces(inputDigits: string): string {
-  const digits = normalizePhoneDigits(inputDigits);
+/**
+ * Normaliza telefone para padrão brasileiro com DDI 55
+ * Esta é a versão canônica usada para salvar no banco de dados
+ */
+function normalizePhoneWithDDI55(input: unknown): string {
+  const digits = normalizePhoneDigits(input);
   if (!digits) return '';
+  
+  // Se já começa com 55 e tem 12-13 dígitos, está correto
+  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
+    return digits;
+  }
+  
+  // Se tem 10-11 dígitos (DDD + número brasileiro), adiciona 55
+  if (digits.length >= 10 && digits.length <= 11) {
+    return '55' + digits;
+  }
+  
+  // Outros formatos: retorna como está
+  return digits;
+}
 
-  // Normaliza para começar com 55 quando for um número BR (10-11 dígitos)
-  const brDigits = digits.startsWith('55') ? digits : (digits.length === 10 || digits.length === 11 ? `55${digits}` : digits);
+/**
+ * Formato que alguns servidores (ex: STARPLAY) exigem: "55 11 99999 3333"
+ */
+function formatBrazilPhoneWithSpaces(inputDigits: string): string {
+  const brDigits = normalizePhoneWithDDI55(inputDigits);
+  if (!brDigits) return '';
 
   // 55 + DDD(2) + celular(9) => 13 dígitos
   if (brDigits.startsWith('55') && brDigits.length === 13) {
@@ -454,6 +478,58 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
         );
       }
+
+      // =====================================================================
+      // REGRA DE NEGÓCIO: LIMITE DE 1 TESTE POR TELEFONE
+      // Verificar ANTES de chamar a API externa para não desperdiçar créditos
+      // =====================================================================
+      const normalizedPhoneForDB = normalizePhoneWithDDI55(clientPhone);
+      
+      if (!normalizedPhoneForDB) {
+        console.error(`[process-command] Failed to normalize phone: ${clientPhone}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'invalid_phone_format',
+            user_message: '❌ Número de telefone inválido. Verifique e tente novamente.',
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+      
+      console.log(`[process-command] Checking for existing test with phone: ${normalizedPhoneForDB}`);
+      
+      // Verificar se já existe um cliente de TESTE com este telefone para este revendedor
+      const { data: existingTestClient, error: checkError } = await supabase
+        .from('clients')
+        .select('id, name, phone, is_test, created_at')
+        .eq('seller_id', seller_id)
+        .eq('phone', normalizedPhoneForDB)
+        .eq('is_test', true)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error('[process-command] Error checking existing test:', checkError);
+      }
+      
+      if (existingTestClient) {
+        const createdAt = new Date(existingTestClient.created_at).toLocaleDateString('pt-BR');
+        console.log(`[process-command] BLOCKED: Phone ${normalizedPhoneForDB} already has test from ${createdAt}`);
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'test_already_used',
+            user_message: `❌ Este número já utilizou o teste gratuito em ${createdAt}.\n\n💡 Entre em contato com o revendedor para ativar seu plano!`,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+      
+      console.log(`[process-command] ✅ Phone ${normalizedPhoneForDB} is eligible for test`);
+      
+      // Atualizar clientPhone para usar a versão normalizada com DDI
+      clientPhone = normalizedPhoneForDB;
     }
 
     try {
@@ -622,9 +698,13 @@ Deno.serve(async (req) => {
         .eq('id', commandData.id);
 
       // Criar cliente automaticamente se API retornou dados válidos
-      if (apiResponse && typeof apiResponse === 'object') {
+      // IMPORTANTE: isTestCommand garante que clientPhone já foi normalizado com DDI55
+      if (isTestCommand && apiResponse && typeof apiResponse === 'object') {
         try {
-          console.log('[process-command] Triggering auto-create client...');
+          // clientPhone já está normalizado com DDI55 (feito antes da chamada à API)
+          const phoneForClient = clientPhone || normalizePhoneWithDDI55(sender_phone);
+          
+          console.log(`[process-command] Triggering auto-create client with phone: ${phoneForClient}`);
           
           const createClientResponse = await fetch(`${supabaseUrl}/functions/v1/create-test-client`, {
             method: 'POST',
@@ -634,7 +714,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               seller_id,
-              sender_phone: clientPhone || sender_phone, // Use parsed phone from command args, fallback to sender
+              sender_phone: phoneForClient, // Telefone normalizado com DDI55
               api_response: apiResponse,
               api_id: api?.id,
               command_id: commandData.id,
