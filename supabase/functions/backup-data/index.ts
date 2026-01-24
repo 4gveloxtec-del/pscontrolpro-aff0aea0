@@ -5,6 +5,75 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const BATCH_SIZE = 500;
+
+// Helper to fetch all records from a table with pagination
+async function fetchAllPaginated(
+  supabase: any,
+  table: string,
+  filter: { column: string; value: string }
+): Promise<{ data: any[]; error: any }> {
+  const allData: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq(filter.column, filter.value)
+      .range(offset, offset + BATCH_SIZE - 1)
+      .order('created_at', { ascending: true, nullsFirst: true });
+
+    if (error) {
+      return { data: [], error };
+    }
+
+    if (data && data.length > 0) {
+      allData.push(...data);
+      offset += BATCH_SIZE;
+      hasMore = data.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { data: allData, error: null };
+}
+
+// Helper for tables that might not have created_at
+async function fetchAllPaginatedSimple(
+  supabase: any,
+  table: string,
+  filter: { column: string; value: string }
+): Promise<{ data: any[]; error: any }> {
+  const allData: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq(filter.column, filter.value)
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) {
+      return { data: [], error };
+    }
+
+    if (data && data.length > 0) {
+      allData.push(...data);
+      offset += BATCH_SIZE;
+      hasMore = data.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { data: allData, error: null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -38,9 +107,14 @@ Deno.serve(async (req) => {
 
     // Standardized logging
     const timestamp = new Date().toISOString();
-    console.log(`[backup-data] timestamp=${timestamp} seller_id=${user.id} action=export_start status=processing`);
+    console.log(`[backup-data] timestamp=${timestamp} seller_id=${user.id} action=export_start status=processing batch_size=${BATCH_SIZE}`);
 
-    // Fetch all user data including profiles and client_categories
+    const sellerId = user.id;
+    const sellerFilter = { column: 'seller_id', value: sellerId };
+    const idFilter = { column: 'id', value: sellerId };
+
+    // Fetch all data in parallel with pagination
+    // Group 1: Tables with seller_id and created_at
     const [
       clientsResult,
       plansResult,
@@ -50,24 +124,59 @@ Deno.serve(async (req) => {
       templatesResult,
       billsResult,
       panelsResult,
-      panelClientsResult,
       messageHistoryResult,
-      profilesResult,
-      clientCategoriesResult
     ] = await Promise.all([
-      supabase.from('clients').select('*').eq('seller_id', user.id),
-      supabase.from('plans').select('*').eq('seller_id', user.id),
-      supabase.from('servers').select('*').eq('seller_id', user.id),
-      supabase.from('coupons').select('*').eq('seller_id', user.id),
-      supabase.from('referrals').select('*').eq('seller_id', user.id),
-      supabase.from('whatsapp_templates').select('*').eq('seller_id', user.id),
-      supabase.from('bills_to_pay').select('*').eq('seller_id', user.id),
-      supabase.from('shared_panels').select('*').eq('seller_id', user.id),
-      supabase.from('panel_clients').select('*').eq('seller_id', user.id),
-      supabase.from('message_history').select('*').eq('seller_id', user.id),
-      supabase.from('profiles').select('*').eq('id', user.id),
-      supabase.from('client_categories').select('*').eq('seller_id', user.id)
+      fetchAllPaginated(supabase, 'clients', sellerFilter),
+      fetchAllPaginated(supabase, 'plans', sellerFilter),
+      fetchAllPaginated(supabase, 'servers', sellerFilter),
+      fetchAllPaginated(supabase, 'coupons', sellerFilter),
+      fetchAllPaginated(supabase, 'referrals', sellerFilter),
+      fetchAllPaginated(supabase, 'whatsapp_templates', sellerFilter),
+      fetchAllPaginated(supabase, 'bills_to_pay', sellerFilter),
+      fetchAllPaginated(supabase, 'shared_panels', sellerFilter),
+      fetchAllPaginated(supabase, 'message_history', sellerFilter),
     ]);
+
+    // Group 2: Tables that may not have created_at or have different structure
+    const [
+      panelClientsResult,
+      profilesResult,
+      clientCategoriesResult,
+      externalAppsResult,
+      clientExternalAppsResult,
+      serverAppsResult,
+      clientPremiumAccountsResult,
+    ] = await Promise.all([
+      fetchAllPaginatedSimple(supabase, 'panel_clients', sellerFilter),
+      supabase.from('profiles').select('*').eq('id', sellerId),
+      fetchAllPaginatedSimple(supabase, 'client_categories', sellerFilter),
+      fetchAllPaginatedSimple(supabase, 'external_apps', sellerFilter),
+      fetchAllPaginatedSimple(supabase, 'client_external_apps', sellerFilter),
+      fetchAllPaginatedSimple(supabase, 'server_apps', sellerFilter),
+      fetchAllPaginatedSimple(supabase, 'client_premium_accounts', sellerFilter),
+    ]);
+
+    // Check for any errors
+    const errors: string[] = [];
+    if (clientsResult.error) errors.push(`clients: ${clientsResult.error.message}`);
+    if (plansResult.error) errors.push(`plans: ${plansResult.error.message}`);
+    if (serversResult.error) errors.push(`servers: ${serversResult.error.message}`);
+    if (couponsResult.error) errors.push(`coupons: ${couponsResult.error.message}`);
+    if (referralsResult.error) errors.push(`referrals: ${referralsResult.error.message}`);
+    if (templatesResult.error) errors.push(`templates: ${templatesResult.error.message}`);
+    if (billsResult.error) errors.push(`bills: ${billsResult.error.message}`);
+    if (panelsResult.error) errors.push(`panels: ${panelsResult.error.message}`);
+    if (messageHistoryResult.error) errors.push(`message_history: ${messageHistoryResult.error.message}`);
+    if (panelClientsResult.error) errors.push(`panel_clients: ${panelClientsResult.error.message}`);
+    if (clientCategoriesResult.error) errors.push(`client_categories: ${clientCategoriesResult.error.message}`);
+    if (externalAppsResult.error) errors.push(`external_apps: ${externalAppsResult.error.message}`);
+    if (clientExternalAppsResult.error) errors.push(`client_external_apps: ${clientExternalAppsResult.error.message}`);
+    if (serverAppsResult.error) errors.push(`server_apps: ${serverAppsResult.error.message}`);
+    if (clientPremiumAccountsResult.error) errors.push(`client_premium_accounts: ${clientPremiumAccountsResult.error.message}`);
+
+    if (errors.length > 0) {
+      console.error(`[backup-data] fetch_errors=${JSON.stringify(errors)}`);
+    }
 
     const nowIso = new Date().toISOString();
 
@@ -96,7 +205,11 @@ Deno.serve(async (req) => {
         panel_clients: panelClientsResult.data || [],
         message_history: messageHistoryResult.data || [],
         profiles: profilesResult.data || [],
-        client_categories: clientCategoriesResult.data || []
+        client_categories: clientCategoriesResult.data || [],
+        external_apps: externalAppsResult.data || [],
+        client_external_apps: clientExternalAppsResult.data || [],
+        server_apps: serverAppsResult.data || [],
+        client_premium_accounts: clientPremiumAccountsResult.data || [],
       },
       stats: {
         clients_count: (clientsResult.data || []).length,
@@ -109,7 +222,11 @@ Deno.serve(async (req) => {
         bills_count: (billsResult.data || []).length,
         message_history_count: (messageHistoryResult.data || []).length,
         profiles_count: (profilesResult.data || []).length,
-        categories_count: (clientCategoriesResult.data || []).length
+        categories_count: (clientCategoriesResult.data || []).length,
+        external_apps_count: (externalAppsResult.data || []).length,
+        client_external_apps_count: (clientExternalAppsResult.data || []).length,
+        server_apps_count: (serverAppsResult.data || []).length,
+        client_premium_accounts_count: (clientPremiumAccountsResult.data || []).length,
       }
     };
 

@@ -1,12 +1,45 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+const BATCH_SIZE = 1000;
+
+// Helper to fetch all records from a table with pagination (no filter)
+async function fetchAllPaginated(
+  supabase: any,
+  table: string
+): Promise<{ data: any[]; error: any }> {
+  const allData: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) {
+      console.error(`[complete-backup-export] Error fetching ${table} at offset ${offset}:`, error.message);
+      return { data: allData, error }; // Return partial data
+    }
+
+    if (data && data.length > 0) {
+      allData.push(...data);
+      offset += BATCH_SIZE;
+      hasMore = data.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { data: allData, error: null };
+}
+
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -65,52 +98,72 @@ serve(async (req) => {
       );
     }
 
-    console.log('Creating complete clean backup by admin');
+    console.log(`[complete-backup-export] Starting complete backup export by admin ${userEmail}`);
+    const startTime = Date.now();
 
-    // Fetch ALL data from all tables
+    // Fetch ALL data from all tables in parallel with pagination
+    // Group 1: Core tables (high priority, fetch first)
     const [
       profilesRes,
       userRolesRes,
       clientsRes,
       serversRes,
       plansRes,
+    ] = await Promise.all([
+      fetchAllPaginated(supabase, 'profiles'),
+      fetchAllPaginated(supabase, 'user_roles'),
+      fetchAllPaginated(supabase, 'clients'),
+      fetchAllPaginated(supabase, 'servers'),
+      fetchAllPaginated(supabase, 'plans'),
+    ]);
+
+    // Group 2: Secondary tables
+    const [
       externalAppsRes,
       clientExternalAppsRes,
       templatesRes,
       sharedPanelsRes,
       panelClientsRes,
+    ] = await Promise.all([
+      fetchAllPaginated(supabase, 'external_apps'),
+      fetchAllPaginated(supabase, 'client_external_apps'),
+      fetchAllPaginated(supabase, 'whatsapp_templates'),
+      fetchAllPaginated(supabase, 'shared_panels'),
+      fetchAllPaginated(supabase, 'panel_clients'),
+    ]);
+
+    // Group 3: Auxiliary tables
+    const [
       billsRes,
       couponsRes,
       categoriesRes,
       customProductsRes,
       referralsRes,
+    ] = await Promise.all([
+      fetchAllPaginated(supabase, 'bills_to_pay'),
+      fetchAllPaginated(supabase, 'coupons'),
+      fetchAllPaginated(supabase, 'client_categories'),
+      fetchAllPaginated(supabase, 'custom_products'),
+      fetchAllPaginated(supabase, 'referrals'),
+    ]);
+
+    // Group 4: History and settings
+    const [
       messageHistoryRes,
       monthlyProfitsRes,
       appSettingsRes,
       serverAppsRes,
       clientPremiumAccountsRes,
     ] = await Promise.all([
-      supabase.from('profiles').select('*'),
-      supabase.from('user_roles').select('*'),
-      supabase.from('clients').select('*'),
-      supabase.from('servers').select('*'),
-      supabase.from('plans').select('*'),
-      supabase.from('external_apps').select('*'),
-      supabase.from('client_external_apps').select('*'),
-      supabase.from('whatsapp_templates').select('*'),
-      supabase.from('shared_panels').select('*'),
-      supabase.from('panel_clients').select('*'),
-      supabase.from('bills_to_pay').select('*'),
-      supabase.from('coupons').select('*'),
-      supabase.from('client_categories').select('*'),
-      supabase.from('custom_products').select('*'),
-      supabase.from('referrals').select('*'),
-      supabase.from('message_history').select('*'),
-      supabase.from('monthly_profits').select('*'),
-      supabase.from('app_settings').select('*'),
-      supabase.from('server_apps').select('*'),
-      supabase.from('client_premium_accounts').select('*'),
+      fetchAllPaginated(supabase, 'message_history'),
+      fetchAllPaginated(supabase, 'monthly_profits'),
+      fetchAllPaginated(supabase, 'app_settings'),
+      fetchAllPaginated(supabase, 'server_apps'),
+      fetchAllPaginated(supabase, 'client_premium_accounts'),
     ]);
+
+    const fetchDuration = Date.now() - startTime;
+    console.log(`[complete-backup-export] Data fetch completed in ${fetchDuration}ms`);
 
     // Create ID to email/name mapping for profiles
     const profileMap = new Map<string, string>();
@@ -506,17 +559,18 @@ serve(async (req) => {
         server_apps: transformedServerApps.length,
         client_premium_accounts: transformedClientPremiumAccounts.length,
         app_settings: transformedAppSettings.length,
-      }
+      },
     };
 
-    console.log(`Backup created with stats:`, backup.stats);
+    const totalDuration = Date.now() - startTime;
+    console.log(`[complete-backup-export] Backup completed in ${totalDuration}ms. Stats:`, JSON.stringify(backup.stats));
 
     return new Response(
       JSON.stringify(backup),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Backup export error:', error);
+    console.error('[complete-backup-export] Fatal error:', error instanceof Error ? error.message : 'Unknown');
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
