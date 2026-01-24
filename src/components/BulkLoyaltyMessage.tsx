@@ -38,6 +38,7 @@ interface BulkLoyaltyMessageProps {
   templates: Template[];
   onSendMessage: (client: ClientBase) => void;
   isDialogOpen: boolean;
+  onOpen?: () => void; // PERF: Callback to trigger lazy loading
 }
 
 const DAILY_LIMIT_KEY = 'bulk_loyalty_daily_limit';
@@ -53,7 +54,8 @@ export function BulkLoyaltyMessage({
   clients, 
   templates, 
   onSendMessage,
-  isDialogOpen 
+  isDialogOpen,
+  onOpen 
 }: BulkLoyaltyMessageProps) {
   const [open, setOpen] = useState(false);
   const [selectedTemplateType, setSelectedTemplateType] = useState<'loyalty' | 'referral'>('loyalty');
@@ -237,9 +239,12 @@ export function BulkLoyaltyMessage({
   const progress = queue.length > 0 ? ((currentIndex) / queue.length) * 100 : 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (isOpen && onOpen) onOpen(); // PERF: Trigger lazy load
+      setOpen(isOpen);
+    }}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => onOpen?.()}>
           <Gift className="h-4 w-4" />
           Campanha de Fidelização
         </Button>
