@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useOnce } from '@/hooks/useOnce';
 
 const VAPID_PUBLIC_KEY_STORAGE = 'vapid_public_key';
 const PUSH_SUBSCRIPTION_STORAGE = 'push_subscription_active';
@@ -97,10 +98,16 @@ export function usePushNotifications() {
   const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
   const [browserCheck, setBrowserCheck] = useState<BrowserCheck | null>(null);
   const [lastError, setLastError] = useState<PushError | null>(null);
+  const isMountedRef = useRef(true);
 
-  // Check support and current state
-  useEffect(() => {
+  // Check support and current state - runs only once
+  useOnce(() => {
+    console.log('[usePushNotifications] Inicialização única executada');
+    isMountedRef.current = true;
+    
     const checkSupport = async () => {
+      if (!isMountedRef.current) return;
+      
       const check = getBrowserInfo();
       setBrowserCheck(check);
       
@@ -115,22 +122,27 @@ export function usePushNotifications() {
       // iOS specific check
       if (check.isIOS && !check.isIOSVersionSupported) {
         console.log('[Push] iOS version not supported (requires 16.4+)');
-        setLastError({
-          code: 'IOS_VERSION',
-          message: 'iOS 16.4+ necessário',
-          details: 'Atualize seu iOS para versão 16.4 ou superior para usar notificações push.'
-        });
+        if (isMountedRef.current) {
+          setLastError({
+            code: 'IOS_VERSION',
+            message: 'iOS 16.4+ necessário',
+            details: 'Atualize seu iOS para versão 16.4 ou superior para usar notificações push.'
+          });
+        }
       }
       
       if (!check.isSecureContext) {
         console.log('[Push] Not in secure context (HTTPS required)');
-        setLastError({
-          code: 'INSECURE_CONTEXT',
-          message: 'HTTPS necessário',
-          details: 'Notificações push só funcionam em conexões seguras (HTTPS).'
-        });
+        if (isMountedRef.current) {
+          setLastError({
+            code: 'INSECURE_CONTEXT',
+            message: 'HTTPS necessário',
+            details: 'Notificações push só funcionam em conexões seguras (HTTPS).'
+          });
+        }
       }
       
+      if (!isMountedRef.current) return;
       setIsSupported(supported);
       
       if (supported) {
@@ -141,8 +153,11 @@ export function usePushNotifications() {
         if (storedActive === 'true' && Notification.permission === 'granted') {
           try {
             const registration = await navigator.serviceWorker.ready;
+            if (!isMountedRef.current) return;
             const subscription = await registration.pushManager.getSubscription();
-            setIsSubscribed(!!subscription);
+            if (isMountedRef.current) {
+              setIsSubscribed(!!subscription);
+            }
           } catch (error) {
             console.error('[Push] Error checking subscription:', error);
           }
@@ -150,14 +165,19 @@ export function usePushNotifications() {
 
         // Get stored VAPID key
         const storedKey = localStorage.getItem(VAPID_PUBLIC_KEY_STORAGE);
-        if (storedKey) {
+        if (storedKey && isMountedRef.current) {
           setVapidPublicKey(storedKey);
         }
       }
     };
 
     checkSupport();
-  }, []);
+    
+    return () => {
+      console.log('[usePushNotifications] Cleanup executado');
+      isMountedRef.current = false;
+    };
+  });
 
   // Fetch VAPID public key from backend (always fetch fresh)
   const getVapidPublicKey = useCallback(async (): Promise<string | null> => {

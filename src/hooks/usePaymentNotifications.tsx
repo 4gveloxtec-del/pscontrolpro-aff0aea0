@@ -163,22 +163,45 @@ export function usePaymentNotifications() {
 
   // Check on mount - runs only once per session
   const initRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
   useOnce(() => {
     if (!user?.id || !isSeller) return;
 
     console.log('[usePaymentNotifications] Inicialização única executada');
+    isMountedRef.current = true;
     initRef.current = true;
 
     // Initial check after 5 seconds (after expiration notifications)
-    const initialTimeout = setTimeout(checkPayments, 5000);
+    timeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        checkPayments();
+      }
+    }, 5000);
 
-    // Check every hour
-    const interval = setInterval(checkPayments, 60 * 60 * 1000);
+    // Check every hour with unmount check
+    intervalRef.current = setInterval(() => {
+      if (!isMountedRef.current) {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        return;
+      }
+      checkPayments();
+    }, 60 * 60 * 1000);
 
     return () => {
-      console.log('[usePaymentNotifications] Cleanup executado');
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
+      console.log('[usePaymentNotifications] Cleanup completo executado');
+      isMountedRef.current = false;
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   });
 
