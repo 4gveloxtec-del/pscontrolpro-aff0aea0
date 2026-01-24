@@ -425,7 +425,70 @@ const mutation = useMutation({
 
 | Data | Versão | Mudança |
 |------|--------|---------|
+| 2026-01-24 | 1.3.0 | Exponential backoff com jitter no heartbeat mobile |
+| 2026-01-24 | 1.2.0 | Circuit breaker para Evolution API |
+| 2026-01-24 | 1.1.0 | ON DELETE CASCADE/SET NULL padronizado |
 | 2026-01-21 | 1.0.0 | Documento inicial criado |
+
+---
+
+## 9. EXPONENTIAL BACKOFF - PADRÃO DE RETRY
+
+### 9.1 Configuração Mobile
+
+```typescript
+const MOBILE_BACKOFF_CONFIG = {
+  baseDelayMs: 2000,      // Delay inicial: 2s
+  maxDelayMs: 120000,     // Delay máximo: 2 min
+  maxAttempts: 8,         // Até 8 tentativas
+  jitterFactor: 0.4,      // 40% variação aleatória
+  backoffFactor: 1.8,     // Fator exponencial
+};
+```
+
+### 9.2 Cálculo do Delay
+
+```
+delay = min(baseDelay * (factor ^ attempt), maxDelay) ± jitter
+```
+
+Exemplo de progressão:
+- Tentativa 1: ~2s
+- Tentativa 2: ~3.6s
+- Tentativa 3: ~6.5s
+- Tentativa 4: ~11.7s
+- Tentativa 5: ~21s
+- Tentativa 6: ~38s
+- Tentativa 7: ~68s
+- Tentativa 8: ~120s (cap)
+
+### 9.3 Uso
+
+```typescript
+import { createBackoffManager } from '@/lib/exponentialBackoff';
+
+const backoff = createBackoffManager(MOBILE_BACKOFF_CONFIG);
+
+// Em caso de sucesso:
+backoff.recordSuccess();
+
+// Em caso de falha:
+backoff.recordFailure();
+if (backoff.shouldRetry()) {
+  backoff.scheduleRetry(() => tentarNovamente());
+}
+
+// Cleanup:
+backoff.cancelRetry();
+backoff.reset();
+```
+
+### 9.4 Benefícios Mobile
+
+- **Jitter**: Evita "thundering herd" quando muitos dispositivos reconectam
+- **Prevenção de requests simultâneos**: Flag `isRequestInFlight` bloqueia duplicatas
+- **Progressão suave**: Fator 1.8x menos agressivo que 2x tradicional
+- **Cap em 2 min**: Evita delays excessivos que pareçam travamento
 
 ---
 
