@@ -101,7 +101,7 @@ export function ImportClientsFromProject() {
   const [markAllAsPaid, setMarkAllAsPaid] = useState(true);
 
   // Fetch sellers for admin to assign clients
-  const { data: sellers = [] } = useQuery({
+  const { data: sellers = [], isLoading: sellersLoading, isError: sellersError } = useQuery({
     queryKey: ['sellers-for-import'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -113,6 +113,9 @@ export function ImportClientsFromProject() {
     },
     enabled: isAdmin && isOpen,
   });
+
+  // Sellers query status for UI feedback
+  const sellersReady = !sellersLoading && !sellersError;
 
   if (!isAdmin) return null;
 

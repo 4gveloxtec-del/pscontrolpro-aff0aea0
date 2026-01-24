@@ -87,7 +87,7 @@ export function ExternalAppsManager() {
     cost: 0,
   });
 
-  const { data: customApps = [], isLoading } = useQuery({
+  const { data: customApps = [], isLoading, isError } = useQuery({
     queryKey: ['external-apps', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -193,6 +193,16 @@ export function ExternalAppsManager() {
       createMutation.mutate(formData);
     }
   };
+
+  // Error state guard
+  if (isError) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-destructive font-medium">Erro ao carregar apps</p>
+        <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -75,7 +75,7 @@ export function ServerPartnerAppsSection({
   }, [selectedDevices]);
 
   // Fetch all server apps for the servers
-  const { data: allServerApps = {} } = useQuery({
+  const { data: allServerApps = {}, isLoading: appsLoading, isError: appsError } = useQuery({
     queryKey: ['server-partner-apps', servers.map(s => s.id).join(',')],
     queryFn: async () => {
       if (!servers.length) return {};
@@ -99,6 +99,9 @@ export function ServerPartnerAppsSection({
     },
     enabled: servers.length > 0,
   });
+
+  // Handle loading and error states
+  const appsReady = !appsLoading && !appsError;
 
   // Filter apps by device compatibility
   const getCompatibleApps = (serverId: string): ServerApp[] => {

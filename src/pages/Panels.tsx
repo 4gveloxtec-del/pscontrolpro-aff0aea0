@@ -26,7 +26,7 @@ const Panels = () => {
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { data: servers = [], isLoading } = useQuery({
+  const { data: servers = [], isLoading, isError } = useQuery({
     queryKey: ['server-panels', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -45,7 +45,7 @@ const Panels = () => {
   });
 
   // Fetch GerenciaApp settings
-  const { data: gerenciaAppSettings } = useQuery({
+  const { data: gerenciaAppSettings, isError: settingsError } = useQuery({
     queryKey: ['gerencia-app-settings'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,6 +88,17 @@ const Panels = () => {
     return (
       <div className="p-4 md:p-6 flex items-center justify-center min-h-[50vh]">
         <div className="animate-pulse text-primary">Carregando painéis...</div>
+      </div>
+    );
+  }
+
+  if (isError || settingsError) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[50vh]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar painéis</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
       </div>
     );
   }

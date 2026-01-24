@@ -347,7 +347,7 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
   const [generateTemplates, setGenerateTemplates] = useState(true);
 
   // Fetch profile data to get pix_key and company_name
-  const { data: profileData } = useQuery({
+  const { data: profileData, isLoading: profileLoading, isError: profileError } = useQuery({
     queryKey: ['profile-for-templates', userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -360,6 +360,9 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
     },
     enabled: !!userId,
   });
+
+  // Handle loading and error states for profile fetch
+  const isProfileReady = !profileLoading && !profileError;
 
   const effectiveCompanyName = profileData?.company_name || companyName || profileData?.full_name || 'Minha Empresa';
   const effectivePixKey = profileData?.pix_key || '';

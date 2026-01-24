@@ -198,7 +198,7 @@ export default function Sellers() {
   }
 
   // Fetch all users with their roles
-  const { data: allUsersData = { sellers: [], pendingUsers: [] }, isLoading } = useQuery({
+  const { data: allUsersData = { sellers: [], pendingUsers: [] }, isLoading, isError: sellersError } = useQuery({
     queryKey: ['sellers', 'pending-users'],
     queryFn: async () => {
       const { data: profiles, error } = await supabase
@@ -680,6 +680,29 @@ export default function Sellers() {
     permanent: 'Permanente',
     inactive: 'Inativo',
   };
+
+  // Handle loading and error states
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Carregando vendedores...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sellersError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar vendedores</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

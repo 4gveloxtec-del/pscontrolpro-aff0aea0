@@ -57,7 +57,7 @@ export default function Bills() {
     notes: '',
   });
 
-  const { data: bills = [], isLoading } = useQuery({
+  const { data: bills = [], isLoading, isError } = useQuery({
     queryKey: ['bills', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -220,6 +220,18 @@ export default function Bills() {
     paid: 'border-l-success',
     overdue: 'border-l-destructive',
   };
+
+  // Error state guard
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar contas</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

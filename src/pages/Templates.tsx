@@ -137,7 +137,7 @@ export default function Templates() {
     category: 'IPTV',
   });
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError } = useQuery({
     queryKey: ['templates', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -163,7 +163,7 @@ export default function Templates() {
     enabled: !!user?.id,
   });
 
-  const { data: customCategories = [] } = useQuery({
+  const { data: customCategories = [], isError: categoriesError } = useQuery({
     queryKey: ['template-categories', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -176,6 +176,9 @@ export default function Templates() {
     },
     enabled: !!user?.id,
   });
+
+  // Combined error state
+  const hasQueryError = isError || categoriesError;
   // Build categories list based on user role - includes default + custom categories
   const allCategories = [
     ...DEFAULT_CATEGORIES, 
@@ -377,6 +380,18 @@ const getCategoryIcon = (name: string) => {
     
     return true;
   });
+
+  // Error state guard
+  if (hasQueryError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar templates</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

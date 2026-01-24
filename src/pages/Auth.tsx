@@ -19,8 +19,8 @@ function Auth() {
   const { checkLoginAttempt, recordLoginAttempt } = useBruteForce();
   const queryClient = useQueryClient();
 
-  // Fetch dynamic trial days from settings
-  const { data: trialDays } = useQuery({
+  // Fetch dynamic trial days from settings (with safe default)
+  const { data: trialDays = '5' } = useQuery({
     queryKey: ['seller_trial_days'],
     queryFn: async () => {
       const { data } = await supabase
