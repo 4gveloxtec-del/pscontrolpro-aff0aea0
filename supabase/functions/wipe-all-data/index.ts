@@ -1,9 +1,21 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Zod schema for wipe confirmation validation
+const wipeDataSchema = z.object({
+  confirmationCode: z.string()
+    .min(1, "Confirmation code is required")
+    .max(50, "Confirmation code too long")
+    .refine(
+      (val) => val === 'APAGAR-TUDO',
+      "Invalid confirmation code. Type APAGAR-TUDO to confirm."
+    ),
+});
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -51,12 +63,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { confirmationCode } = await req.json();
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = wipeDataSchema.safeParse(rawBody);
     
-    // Require confirmation code for safety
-    if (confirmationCode !== 'APAGAR-TUDO') {
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.log('[wipe-all-data] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ error: 'Invalid confirmation code. Type APAGAR-TUDO to confirm.' }),
+        JSON.stringify({ error: 'Validation failed', details: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

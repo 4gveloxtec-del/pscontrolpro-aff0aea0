@@ -1,9 +1,30 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Zod schema for push notification validation
+const sendPushSchema = z.object({
+  userId: z.string()
+    .uuid("Invalid user ID format"),
+  title: z.string()
+    .min(1, "Title is required")
+    .max(100, "Title too long"),
+  body: z.string()
+    .max(500, "Body too long")
+    .optional(),
+  data: z.record(z.unknown())
+    .optional(),
+  icon: z.string()
+    .max(500, "Icon URL too long")
+    .optional(),
+  tag: z.string()
+    .max(100, "Tag too long")
+    .optional(),
+});
 
 // Base64url encode/decode helpers
 function base64UrlEncode(data: Uint8Array): string {
@@ -249,13 +270,22 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { userId, title, body, data, icon, tag } = await req.json();
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = sendPushSchema.safeParse(rawBody);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.error('[send-push] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', details: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { userId, title, body, data, icon, tag } = validationResult.data;
     
     console.log('[send-push] Request for userId:', userId);
-    
-    if (!userId || !title) {
-      throw new Error('userId and title are required');
-    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -291,7 +321,7 @@ Deno.serve(async (req) => {
 
     const payload = JSON.stringify({
       title,
-      body,
+      body: body || '',
       icon: icon || '/icon-192.png',
       badge: '/icon-192.png',
       tag: tag || 'default',
