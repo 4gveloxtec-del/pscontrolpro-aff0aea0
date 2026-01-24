@@ -949,75 +949,135 @@ serve(async (req) => {
     await updateJob({ progress: 75, restored: report.stats.imported });
 
     // ----------------------------------------
-    // 6. RELATIONAL TABLES (com FKs)
+    // 6. RELATIONAL TABLES (com FKs) - BATCH PROCESSING
     // ----------------------------------------
     
-    // REFERRALS
+    // REFERRALS (batch processing with progress)
     if (shouldImport('referrals')) {
-      const tableData = backup.data.referrals || [];
+      const tableData: any[] = backup.data.referrals || [];
       if (tableData.length > 0) {
-        console.log(`\n[REFERRALS] Importing ${tableData.length} records...`);
+        console.log(`\n[REFERRALS] Importing ${tableData.length} records in batches of ${BATCH_SIZE}...`);
         let imported = 0, skipped = 0;
+        let batchNumber = 0;
 
-        for (const ref of tableData) {
-          const sellerEmail = getSellerEmail(ref);
-          const sellerId = getSellerId(ref);
-          if (!sellerId) { skipped++; continue; }
+        for (const chunk of chunkArray(tableData, BATCH_SIZE)) {
+          batchNumber++;
+          const rows: any[] = [];
 
-          const referrerId = ref._referrer_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${ref._referrer_identifier}`) : null;
-          const referredId = ref._referred_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${ref._referred_identifier}`) : null;
+          for (const refItem of chunk) {
+            const ref = refItem as any;
+            const sellerEmail = getSellerEmail(ref);
+            const sellerId = getSellerId(ref);
+            if (!sellerId) { skipped++; continue; }
 
-          if (!referrerId || !referredId) { skipped++; continue; }
+            const referrerId = ref._referrer_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${ref._referrer_identifier}`) : null;
+            const referredId = ref._referred_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${ref._referred_identifier}`) : null;
 
-          const { error } = await supabase.from('referrals').insert({
-            seller_id: sellerId,
-            referrer_client_id: referrerId,
-            referred_client_id: referredId,
-            discount_percentage: ref.discount_percentage || 0,
-            status: ref.status || 'pending',
-            completed_at: ref.completed_at,
+            if (!referrerId || !referredId) { skipped++; continue; }
+
+            rows.push({
+              seller_id: sellerId,
+              referrer_client_id: referrerId,
+              referred_client_id: referredId,
+              discount_percentage: ref.discount_percentage || 0,
+              status: ref.status || 'active',
+              completed_at: ref.completed_at,
+            });
+          }
+
+          if (rows.length > 0) {
+            const { data, error } = await supabase.from('referrals').insert(rows).select('id');
+            if (!error && data) {
+              imported += data.length;
+            } else {
+              // Fallback: row-by-row
+              for (const row of rows) {
+                const { error: sErr } = await supabase.from('referrals').insert(row);
+                if (!sErr) imported++; else skipped++;
+              }
+            }
+          }
+
+          processedItems += chunk.length;
+          
+          // Progress update every batch
+          const progressPercent = 75 + Math.round((processedItems / totalItems) * 10);
+          await updateJob({ 
+            progress: progressPercent, 
+            processed_items: processedItems,
+            restored: report.stats.imported 
           });
-
-          if (!error) imported++; else skipped++;
-          processedItems++;
+          
+          console.log(`[REFERRALS] Batch ${batchNumber}: ${rows.length} processed, progress ${progressPercent}%`);
         }
 
         report.stats.imported.referrals = imported;
         report.stats.skipped.referrals = skipped;
+        console.log(`[REFERRALS] Done: ${imported} imported, ${skipped} skipped`);
       }
     }
 
-    // PANEL_CLIENTS
+    // PANEL_CLIENTS (batch processing with progress)
     if (shouldImport('panel_clients')) {
-      const tableData = backup.data.panel_clients || [];
+      const tableData: any[] = backup.data.panel_clients || [];
       if (tableData.length > 0) {
-        console.log(`\n[PANEL_CLIENTS] Importing ${tableData.length} records...`);
+        console.log(`\n[PANEL_CLIENTS] Importing ${tableData.length} records in batches of ${BATCH_SIZE}...`);
         let imported = 0, skipped = 0;
+        let batchNumber = 0;
 
-        for (const pc of tableData) {
-          const sellerEmail = getSellerEmail(pc);
-          const sellerId = getSellerId(pc);
-          if (!sellerId) { skipped++; continue; }
+        for (const chunk of chunkArray(tableData, BATCH_SIZE)) {
+          batchNumber++;
+          const rows: any[] = [];
 
-          const clientId = pc._client_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${pc._client_identifier}`) : null;
-          const panelId = pc._panel_name ? maps.panelKeyToId.get(`${sellerEmail}|${pc._panel_name}`) : null;
+          for (const pcItem of chunk) {
+            const pc = pcItem as any;
+            const sellerEmail = getSellerEmail(pc);
+            const sellerId = getSellerId(pc);
+            if (!sellerId) { skipped++; continue; }
 
-          if (!clientId || !panelId) { skipped++; continue; }
+            const clientId = pc._client_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${pc._client_identifier}`) : null;
+            const panelId = pc._panel_name ? maps.panelKeyToId.get(`${sellerEmail}|${pc._panel_name}`) : null;
 
-          const { error } = await supabase.from('panel_clients').insert({
-            seller_id: sellerId,
-            client_id: clientId,
-            panel_id: panelId,
-            slot_type: pc.slot_type || 'iptv',
-            assigned_at: pc.assigned_at,
+            if (!clientId || !panelId) { skipped++; continue; }
+
+            rows.push({
+              seller_id: sellerId,
+              client_id: clientId,
+              panel_id: panelId,
+              slot_type: pc.slot_type || 'iptv',
+              assigned_at: pc.assigned_at,
+            });
+          }
+
+          if (rows.length > 0) {
+            const { data, error } = await supabase.from('panel_clients').insert(rows).select('id');
+            if (!error && data) {
+              imported += data.length;
+            } else {
+              // Fallback: row-by-row
+              for (const row of rows) {
+                const { error: sErr } = await supabase.from('panel_clients').insert(row);
+                if (!sErr) imported++; else skipped++;
+              }
+            }
+          }
+
+          processedItems += chunk.length;
+          
+          // Progress update every batch
+          const progressPercent = 75 + Math.round((processedItems / totalItems) * 10);
+          await updateJob({ 
+            progress: progressPercent, 
+            processed_items: processedItems,
+            restored: report.stats.imported 
           });
-
-          if (!error) imported++; else skipped++;
-          processedItems++;
+          
+          console.log(`[PANEL_CLIENTS] Batch ${batchNumber}: ${rows.length} processed, progress ${progressPercent}%`);
         }
 
         report.stats.imported.panel_clients = imported;
         report.stats.skipped.panel_clients = skipped;
+        console.log(`[PANEL_CLIENTS] Done: ${imported} imported, ${skipped} skipped`);
       }
     }
 
@@ -1073,112 +1133,199 @@ serve(async (req) => {
       }
     }
 
-    // CLIENT_EXTERNAL_APPS
+    // CLIENT_EXTERNAL_APPS (batch processing with progress)
     if (shouldImport('client_external_apps')) {
-      const tableData = backup.data.client_external_apps || [];
+      const tableData: any[] = backup.data.client_external_apps || [];
       if (tableData.length > 0) {
-        console.log(`\n[CLIENT_EXTERNAL_APPS] Importing ${tableData.length} records...`);
+        console.log(`\n[CLIENT_EXTERNAL_APPS] Importing ${tableData.length} records in batches of ${BATCH_SIZE}...`);
         let imported = 0, skipped = 0;
+        let batchNumber = 0;
 
-        for (const app of tableData) {
-          const sellerEmail = getSellerEmail(app);
-          const sellerId = getSellerId(app);
-          if (!sellerId) { skipped++; continue; }
+        for (const chunk of chunkArray(tableData, BATCH_SIZE)) {
+          batchNumber++;
+          const rows: any[] = [];
 
-          const clientId = app._client_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${app._client_identifier}`) : null;
-          const extAppId = app._app_name ? maps.extAppKeyToId.get(`${sellerEmail}|${app._app_name}`) : null;
+          for (const appItem of chunk) {
+            const app = appItem as any;
+            const sellerEmail = getSellerEmail(app);
+            const sellerId = getSellerId(app);
+            if (!sellerId) { skipped++; continue; }
 
-          if (!clientId || !extAppId) { skipped++; continue; }
+            const clientId = app._client_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${app._client_identifier}`) : null;
+            const extAppId = app._app_name ? maps.extAppKeyToId.get(`${sellerEmail}|${app._app_name}`) : null;
 
-          const { error } = await supabase.from('client_external_apps').insert({
-            seller_id: sellerId,
-            client_id: clientId,
-            external_app_id: extAppId,
-            email: app.email,
-            password: app.password,
-            expiration_date: app.expiration_date,
-            devices: app.devices,
-            notes: app.notes,
+            if (!clientId || !extAppId) { skipped++; continue; }
+
+            rows.push({
+              seller_id: sellerId,
+              client_id: clientId,
+              external_app_id: extAppId,
+              email: app.email,
+              password: app.password,
+              expiration_date: app.expiration_date,
+              devices: app.devices,
+              notes: app.notes,
+            });
+          }
+
+          if (rows.length > 0) {
+            const { data, error } = await supabase.from('client_external_apps').insert(rows).select('id');
+            if (!error && data) {
+              imported += data.length;
+            } else {
+              // Fallback: row-by-row
+              for (const row of rows) {
+                const { error: sErr } = await supabase.from('client_external_apps').insert(row);
+                if (!sErr) imported++; else skipped++;
+              }
+            }
+          }
+
+          processedItems += chunk.length;
+          
+          const progressPercent = 85 + Math.round((processedItems / totalItems) * 5);
+          await updateJob({ 
+            progress: progressPercent, 
+            processed_items: processedItems,
+            restored: report.stats.imported 
           });
-
-          if (!error) imported++; else skipped++;
-          processedItems++;
+          
+          console.log(`[CLIENT_EXTERNAL_APPS] Batch ${batchNumber}: ${rows.length} processed, progress ${progressPercent}%`);
         }
 
         report.stats.imported.client_external_apps = imported;
         report.stats.skipped.client_external_apps = skipped;
+        console.log(`[CLIENT_EXTERNAL_APPS] Done: ${imported} imported, ${skipped} skipped`);
       }
     }
 
-    // CLIENT_PREMIUM_ACCOUNTS
+    // CLIENT_PREMIUM_ACCOUNTS (batch processing with progress)
     if (shouldImport('client_premium_accounts')) {
-      const tableData = backup.data.client_premium_accounts || [];
+      const tableData: any[] = backup.data.client_premium_accounts || [];
       if (tableData.length > 0) {
-        console.log(`\n[CLIENT_PREMIUM_ACCOUNTS] Importing ${tableData.length} records...`);
+        console.log(`\n[CLIENT_PREMIUM_ACCOUNTS] Importing ${tableData.length} records in batches of ${BATCH_SIZE}...`);
         let imported = 0, skipped = 0;
+        let batchNumber = 0;
 
-        for (const acc of tableData) {
-          const sellerEmail = getSellerEmail(acc);
-          const sellerId = getSellerId(acc);
-          if (!sellerId) { skipped++; continue; }
+        for (const chunk of chunkArray(tableData, BATCH_SIZE)) {
+          batchNumber++;
+          const rows: any[] = [];
 
-          const clientId = acc._client_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${acc._client_identifier}`) : null;
-          if (!clientId) { skipped++; continue; }
+          for (const accItem of chunk) {
+            const acc = accItem as any;
+            const sellerEmail = getSellerEmail(acc);
+            const sellerId = getSellerId(acc);
+            if (!sellerId) { skipped++; continue; }
 
-          const { error } = await supabase.from('client_premium_accounts').insert({
-            seller_id: sellerId,
-            client_id: clientId,
-            plan_name: acc.plan_name,
-            email: acc.email,
-            password: acc.password,
-            price: acc.price || 0,
-            expiration_date: acc.expiration_date,
-            notes: acc.notes,
+            const clientId = acc._client_identifier ? maps.clientKeyToId.get(`${sellerEmail}|${acc._client_identifier}`) : null;
+            if (!clientId) { skipped++; continue; }
+
+            rows.push({
+              seller_id: sellerId,
+              client_id: clientId,
+              plan_name: acc.plan_name,
+              email: acc.email,
+              password: acc.password,
+              price: acc.price || 0,
+              expiration_date: acc.expiration_date,
+              notes: acc.notes,
+            });
+          }
+
+          if (rows.length > 0) {
+            const { data, error } = await supabase.from('client_premium_accounts').insert(rows).select('id');
+            if (!error && data) {
+              imported += data.length;
+            } else {
+              // Fallback: row-by-row
+              for (const row of rows) {
+                const { error: sErr } = await supabase.from('client_premium_accounts').insert(row);
+                if (!sErr) imported++; else skipped++;
+              }
+            }
+          }
+
+          processedItems += chunk.length;
+          
+          const progressPercent = 85 + Math.round((processedItems / totalItems) * 5);
+          await updateJob({ 
+            progress: progressPercent, 
+            processed_items: processedItems,
+            restored: report.stats.imported 
           });
-
-          if (!error) imported++; else skipped++;
-          processedItems++;
+          
+          console.log(`[CLIENT_PREMIUM_ACCOUNTS] Batch ${batchNumber}: ${rows.length} processed, progress ${progressPercent}%`);
         }
 
         report.stats.imported.client_premium_accounts = imported;
         report.stats.skipped.client_premium_accounts = skipped;
+        console.log(`[CLIENT_PREMIUM_ACCOUNTS] Done: ${imported} imported, ${skipped} skipped`);
       }
     }
 
-    // SERVER_APPS
+    // SERVER_APPS (batch processing with progress)
     if (shouldImport('server_apps')) {
-      const tableData = backup.data.server_apps || [];
+      const tableData: any[] = backup.data.server_apps || [];
       if (tableData.length > 0) {
-        console.log(`\n[SERVER_APPS] Importing ${tableData.length} records...`);
+        console.log(`\n[SERVER_APPS] Importing ${tableData.length} records in batches of ${BATCH_SIZE}...`);
         let imported = 0, skipped = 0;
+        let batchNumber = 0;
 
-        for (const app of tableData) {
-          const sellerEmail = getSellerEmail(app);
-          const sellerId = getSellerId(app);
-          if (!sellerId) { skipped++; continue; }
+        for (const chunk of chunkArray(tableData, BATCH_SIZE)) {
+          batchNumber++;
+          const rows: any[] = [];
 
-          const serverId = app._server_name ? maps.serverKeyToId.get(`${sellerEmail}|${app._server_name}`) : null;
-          if (!serverId) { skipped++; continue; }
+          for (const appItem of chunk) {
+            const app = appItem as any;
+            const sellerEmail = getSellerEmail(app);
+            const sellerId = getSellerId(app);
+            if (!sellerId) { skipped++; continue; }
 
-          const { error } = await supabase.from('server_apps').insert({
-            seller_id: sellerId,
-            server_id: serverId,
-            name: app.name,
-            app_type: app.app_type || 'iptv',
-            download_url: app.download_url,
-            downloader_code: app.downloader_code,
-            website_url: app.website_url,
-            icon: app.icon,
-            notes: app.notes,
-            is_active: app.is_active !== false,
+            const serverId = app._server_name ? maps.serverKeyToId.get(`${sellerEmail}|${app._server_name}`) : null;
+            if (!serverId) { skipped++; continue; }
+
+            rows.push({
+              seller_id: sellerId,
+              server_id: serverId,
+              name: app.name,
+              app_type: app.app_type || 'iptv',
+              download_url: app.download_url,
+              downloader_code: app.downloader_code,
+              website_url: app.website_url,
+              icon: app.icon,
+              notes: app.notes,
+              is_active: app.is_active !== false,
+            });
+          }
+
+          if (rows.length > 0) {
+            const { data, error } = await supabase.from('server_apps').insert(rows).select('id');
+            if (!error && data) {
+              imported += data.length;
+            } else {
+              // Fallback: row-by-row
+              for (const row of rows) {
+                const { error: sErr } = await supabase.from('server_apps').insert(row);
+                if (!sErr) imported++; else skipped++;
+              }
+            }
+          }
+
+          processedItems += chunk.length;
+          
+          const progressPercent = 85 + Math.round((processedItems / totalItems) * 5);
+          await updateJob({ 
+            progress: progressPercent, 
+            processed_items: processedItems,
+            restored: report.stats.imported 
           });
-
-          if (!error) imported++; else skipped++;
-          processedItems++;
+          
+          console.log(`[SERVER_APPS] Batch ${batchNumber}: ${rows.length} processed, progress ${progressPercent}%`);
         }
 
         report.stats.imported.server_apps = imported;
         report.stats.skipped.server_apps = skipped;
+        console.log(`[SERVER_APPS] Done: ${imported} imported, ${skipped} skipped`);
       }
     }
 
