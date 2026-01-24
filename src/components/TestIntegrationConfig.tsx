@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity } from 'lucide-react';
+import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity, Clock } from 'lucide-react';
 
 interface TestApi {
   id: string;
@@ -45,6 +45,7 @@ interface TestIntegrationConfigData {
   detect_renewal_keywords: string[] | null;
   logs_enabled: boolean;
   is_active: boolean;
+  default_duration_hours: number;
 }
 
 // Constants moved outside component to prevent re-allocation on every render
@@ -61,6 +62,7 @@ const DEFAULT_FORM_DATA = {
   detect_renewal_enabled: true,
   detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
   logs_enabled: true,
+  default_duration_hours: 2,
 };
 
 export function TestIntegrationConfig() {
@@ -133,6 +135,7 @@ export function TestIntegrationConfig() {
     detect_renewal_enabled: true,
     detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
     logs_enabled: true,
+    default_duration_hours: 2,
   });
 
   // Unified effect: Reset to defaults when no API selected, load config when available
@@ -161,6 +164,7 @@ export function TestIntegrationConfig() {
         detect_renewal_enabled: config.detect_renewal_enabled ?? true,
         detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
         logs_enabled: config.logs_enabled ?? true,
+        default_duration_hours: config.default_duration_hours ?? 2,
       });
     } else {
       // New API without existing config - use defaults
@@ -197,6 +201,7 @@ export function TestIntegrationConfig() {
         detect_renewal_enabled: formData.detect_renewal_enabled,
         detect_renewal_keywords: keywordsArray,
         logs_enabled: formData.logs_enabled,
+        default_duration_hours: formData.default_duration_hours,
         is_active: true,
       };
 
@@ -388,6 +393,35 @@ export function TestIntegrationConfig() {
                       />
                       <p className="text-xs text-muted-foreground">
                         Clientes serão nomeados: {formData.client_name_prefix}1, {formData.client_name_prefix}2...
+                      </p>
+                    </div>
+
+                    {/* Default Duration (Hours) */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Duração Padrão do Teste
+                      </Label>
+                      <Select
+                        value={String(formData.default_duration_hours || 2)}
+                        onValueChange={(value) => setFormData({ ...formData, default_duration_hours: Number(value) })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 hora</SelectItem>
+                          <SelectItem value="2">2 horas</SelectItem>
+                          <SelectItem value="4">4 horas</SelectItem>
+                          <SelectItem value="6">6 horas</SelectItem>
+                          <SelectItem value="12">12 horas</SelectItem>
+                          <SelectItem value="24">24 horas (1 dia)</SelectItem>
+                          <SelectItem value="48">48 horas (2 dias)</SelectItem>
+                          <SelectItem value="168">168 horas (7 dias)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        ⏱️ Usado quando a API não retorna data de expiração. Lembrete 30min antes.
                       </p>
                     </div>
 
