@@ -5,6 +5,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Timeout constant for API calls
+const API_TIMEOUT_MS = 15000;
+
+// Fetch with timeout wrapper to prevent hanging requests
+async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit, 
+  timeoutMs = API_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 interface ExpiringClient {
   id: string;
   name: string;
@@ -248,7 +271,7 @@ Deno.serve(async (req: Request) => {
         const { title, body, urgency } = formatSellerExpirationMessage(seller, today);
 
         try {
-          const response = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/send-push-notification`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -274,8 +297,12 @@ Deno.serve(async (req: Request) => {
             sellerNotificationsSent++;
             console.log(`[check-expirations] ✓ Notified seller: ${seller.email} (${urgency})`);
           }
-        } catch (error) {
-          console.error(`[check-expirations] Error notifying seller ${seller.email}:`, error);
+        } catch (error: any) {
+          if (error.name === 'AbortError') {
+            console.error(`[check-expirations] Timeout notifying seller ${seller.email}`);
+          } else {
+            console.error(`[check-expirations] Error notifying seller ${seller.email}:`, error);
+          }
         }
 
         // Small delay between notifications
@@ -372,7 +399,7 @@ Deno.serve(async (req: Request) => {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
 
-          const response = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/send-push-notification`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -400,8 +427,12 @@ Deno.serve(async (req: Request) => {
             notificationsSent++;
             console.log(`[check-expirations] ✓ Notified: ${client.name} (${urgency})`);
           }
-        } catch (error) {
-          console.error(`[check-expirations] Error notifying about ${client.name}:`, error);
+        } catch (error: any) {
+          if (error.name === 'AbortError') {
+            console.error(`[check-expirations] Timeout notifying about ${client.name}`);
+          } else {
+            console.error(`[check-expirations] Error notifying about ${client.name}:`, error);
+          }
         }
       }
 
@@ -473,7 +504,7 @@ Deno.serve(async (req: Request) => {
               await new Promise(resolve => setTimeout(resolve, 100));
             }
 
-            const response = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+            const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/send-push-notification`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -501,8 +532,12 @@ Deno.serve(async (req: Request) => {
               billsNotificationsSent++;
               console.log(`[check-expirations] ✓ Bill notified: ${bill.description} (${urgency})`);
             }
-          } catch (error) {
-            console.error(`[check-expirations] Error notifying about bill ${bill.description}:`, error);
+          } catch (error: any) {
+            if (error.name === 'AbortError') {
+              console.error(`[check-expirations] Timeout notifying about bill ${bill.description}`);
+            } else {
+              console.error(`[check-expirations] Error notifying about bill ${bill.description}:`, error);
+            }
           }
         }
       }

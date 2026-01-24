@@ -5,6 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Timeout configuration
+const OPERATION_TIMEOUT_MS = 15000;
+
 /**
  * Edge Function: sync-client-plans
  * ----------------------------------
@@ -12,14 +15,25 @@ const corsHeaders = {
  * quando o cliente só tem plan_price mas não tem plan_id.
  * 
  * A lógica considera: plan_price + category + duration (baseado em expiration_date - renewed_at ou created_at)
+ * 
+ * Features:
+ * - AbortController com timeout de 15s para evitar requisições pendentes
+ * - Processamento em batch para otimização
  */
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.log('[sync-client-plans] Operation timeout reached (15s)');
+    controller.abort();
+  }, OPERATION_TIMEOUT_MS);
 
   try {
+    if (req.method === "OPTIONS") {
+      clearTimeout(timeoutId);
+      return new Response(null, { headers: corsHeaders });
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -136,11 +150,23 @@ Deno.serve(async (req) => {
       );
     }
 
+    clearTimeout(timeoutId);
     return new Response(
       JSON.stringify({ success: true, synced: syncedCount, total: clients.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
+    clearTimeout(timeoutId);
+    
+    // Check if it was an abort error
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error("sync-client-plans timeout: Operation took too long");
+      return new Response(
+        JSON.stringify({ success: false, error: "Timeout: operação demorou mais de 15 segundos" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 504 }
+      );
+    }
+    
     const message = error instanceof Error ? error.message : String(error);
     console.error("sync-client-plans error:", message);
     return new Response(

@@ -706,26 +706,42 @@ Deno.serve(async (req) => {
           
           console.log(`[process-command] Triggering auto-create client with phone: ${phoneForClient}`);
           
-          const createClientResponse = await fetch(`${supabaseUrl}/functions/v1/create-test-client`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${serviceRoleKey}`,
-            },
-            body: JSON.stringify({
-              seller_id,
-              sender_phone: phoneForClient, // Telefone normalizado com DDI55
-              api_response: apiResponse,
-              api_id: api?.id,
-              command_id: commandData.id,
-            }),
-          });
+          // Timeout para chamada interna - evita bloqueio indefinido
+          const createController = new AbortController();
+          const createTimeoutId = setTimeout(() => createController.abort(), 15000);
+          
+          try {
+            const createClientResponse = await fetch(`${supabaseUrl}/functions/v1/create-test-client`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${serviceRoleKey}`,
+              },
+              body: JSON.stringify({
+                seller_id,
+                sender_phone: phoneForClient, // Telefone normalizado com DDI55
+                api_response: apiResponse,
+                api_id: api?.id,
+                command_id: commandData.id,
+              }),
+              signal: createController.signal,
+            });
+            
+            clearTimeout(createTimeoutId);
 
-          if (createClientResponse.ok) {
-            const createResult = await createClientResponse.json();
-            console.log('[process-command] Auto-create client result:', createResult);
-          } else {
-            console.error('[process-command] Auto-create client failed:', await createClientResponse.text());
+            if (createClientResponse.ok) {
+              const createResult = await createClientResponse.json();
+              console.log('[process-command] Auto-create client result:', createResult);
+            } else {
+              console.error('[process-command] Auto-create client failed:', await createClientResponse.text());
+            }
+          } catch (fetchError: any) {
+            clearTimeout(createTimeoutId);
+            if (fetchError.name === 'AbortError') {
+              console.warn('[process-command] Auto-create client timed out after 15s');
+            } else {
+              throw fetchError;
+            }
           }
         } catch (createError) {
           // Não falhar o comando principal se a criação do cliente falhar
