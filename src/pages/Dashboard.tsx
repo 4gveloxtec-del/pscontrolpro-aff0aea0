@@ -93,7 +93,7 @@ export default function Dashboard() {
     refetchOnWindowFocus: false,
   });
 
-  // Fetch servers for profit calculation
+  // Fetch servers for profit calculation (with cache optimization)
   const { data: serversData = [] } = useQuery({
     queryKey: ['servers-dashboard', user?.id],
     queryFn: async () => {
@@ -107,9 +107,12 @@ export default function Dashboard() {
       return data as ServerData[] || [];
     },
     enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes cache
+    refetchOnWindowFocus: false,
   });
 
-  // Fetch archived clients count
+  // Fetch archived clients count (with cache optimization)
   const { data: archivedCount = 0 } = useQuery({
     queryKey: ['archived-clients-count', user?.id],
     queryFn: async () => {
@@ -123,9 +126,12 @@ export default function Dashboard() {
       return count || 0;
     },
     enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes cache
+    refetchOnWindowFocus: false,
   });
 
-  // Fetch bills to pay for total costs
+  // Fetch bills to pay for total costs (with cache optimization)
   const { data: billsData = [] } = useQuery({
     queryKey: ['bills-dashboard', user?.id],
     queryFn: async () => {
@@ -139,6 +145,9 @@ export default function Dashboard() {
       return data || [];
     },
     enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes cache
+    refetchOnWindowFocus: false,
   });
 
   const { data: sellers = [] } = useQuery({
@@ -178,7 +187,7 @@ export default function Dashboard() {
     enabled: !!user?.id && isAdmin,
   });
 
-  // Fetch app settings (price)
+  // Fetch app settings (price) - with long cache since rarely changes
   const { data: appSettings } = useQuery({
     queryKey: ['app-settings'],
     queryFn: async () => {
@@ -188,6 +197,9 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 1000 * 60 * 30, // 30 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour cache
+    refetchOnWindowFocus: false,
   });
 
   const appMonthlyPrice = appSettings?.find(s => s.key === 'app_monthly_price')?.value || '25';

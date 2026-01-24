@@ -428,7 +428,7 @@ export default function Clients() {
   // Use accumulated clients for the rest of the component
   const clients = allLoadedClients;
 
-  // Fetch client IDs that have external apps (paid apps)
+  // Fetch client IDs that have external apps (paid apps) - with cache optimization
   const { data: clientsWithExternalApps = [] } = useQuery({
     queryKey: ['clients-with-external-apps', user?.id],
     queryFn: async () => {
@@ -441,25 +441,33 @@ export default function Clients() {
       return [...new Set(data?.map(item => item.client_id) || [])];
     },
     enabled: !!user?.id,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes cache
+    refetchOnWindowFocus: false,
   });
 
   const clientsWithPaidAppsSet = new Set(clientsWithExternalApps);
 
+  // PERF: Lazy load plans - only fetch when dialog opens
+  const [plansEnabled, setPlansEnabled] = useState(false);
   const { data: plans = [] } = useQuery({
     queryKey: ['plans', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('plans')
-        .select('*')
+        .select('id, name, price, duration_days, is_active, category')
         .eq('seller_id', user!.id)
         .eq('is_active', true)
         .order('price');
       if (error) throw error;
       return data as Plan[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && plansEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
+  // PERF: Lazy load servers - only fetch when dialog opens
+  const [serversEnabled, setServersEnabled] = useState(false);
   const { data: servers = [] } = useQuery({
     queryKey: ['servers-all', user?.id],
     queryFn: async () => {
@@ -471,7 +479,8 @@ export default function Clients() {
       if (error) throw error;
       return data as ServerData[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && serversEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
   // Active servers for the form select
@@ -484,21 +493,24 @@ export default function Clients() {
   // Check if WPLAY for special screen options
   const isWplayServer = selectedServer?.name?.toUpperCase() === 'WPLAY';
 
+  // PERF: Lazy load categories - only fetch when dialog opens
+  const [categoriesEnabled, setCategoriesEnabled] = useState(false);
   const { data: customCategories = [] } = useQuery({
     queryKey: ['client-categories', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('client_categories')
-        .select('*')
+        .select('id, name, seller_id')
         .eq('seller_id', user!.id)
         .order('name');
       if (error) throw error;
       return data as ClientCategory[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && categoriesEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
-  // Fetch custom products (like Netflix, Spotify, etc.)
+  // PERF: Lazy load custom products - only fetch when dialog opens
   const { data: customProducts = [] } = useQuery({
     queryKey: ['custom-products', user?.id],
     queryFn: async () => {
@@ -511,7 +523,8 @@ export default function Clients() {
       if (error) throw error;
       return data as { name: string; icon: string }[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && categoriesEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
   const allCategories = [...DEFAULT_CATEGORIES, ...customProducts.map(p => p.name), ...customCategories.map(c => c.name)];
@@ -536,7 +549,8 @@ export default function Clients() {
     enabled: !!formData.server_id,
   });
 
-  // Fetch templates for bulk loyalty messages
+  // PERF: Lazy load templates - only fetch when bulk loyalty dialog is used
+  const [templatesEnabled, setTemplatesEnabled] = useState(false);
   const { data: templates = [] } = useQuery({
     queryKey: ['templates-loyalty', user?.id],
     queryFn: async () => {
@@ -549,7 +563,8 @@ export default function Clients() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && templatesEnabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
   // ============= Consulta 360° Queries =============
@@ -1970,10 +1985,16 @@ export default function Clients() {
     } else {
       setAdditionalServers([]);
     }
+    // PERF: Enable lazy queries when dialog opens
+    setPlansEnabled(true);
+    setServersEnabled(true);
+    setCategoriesEnabled(true);
     setIsDialogOpen(true);
   };
 
   const handleRenew = (client: Client) => {
+    // PERF: Enable plans lazy load for renewal dialog
+    setPlansEnabled(true);
     setRenewClient(client);
     setRenewPlanId(client.plan_id || '');
   };
@@ -2412,7 +2433,12 @@ export default function Clients() {
             )}
             <BulkImportClients plans={plans} />
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={() => {
+                // PERF: Enable lazy queries when dialog opens
+                setPlansEnabled(true);
+                setServersEnabled(true);
+                setCategoriesEnabled(true);
+              }}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Novo Cliente</span>
                 <span className="sm:hidden">Novo</span>
@@ -3462,6 +3488,7 @@ export default function Clients() {
               }
             }}
             isDialogOpen={!!messageClient}
+            onOpen={() => setTemplatesEnabled(true)} // PERF: Trigger lazy load
           />
           
           {/* Bulk messaging progress indicator */}
