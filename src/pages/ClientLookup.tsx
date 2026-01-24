@@ -137,7 +137,7 @@ interface ClientFullData {
   panel_clients?: Array<{
     id: string;
     slot_type: string;
-    panel: { name: string };
+    server: { name: string } | null;
   }>;
 }
 
@@ -245,7 +245,7 @@ function ClientLookup() {
           .limit(10),
         supabase
           .from('panel_clients')
-          .select('id, slot_type, panel:shared_panels(name)')
+          .select('id, slot_type, server:servers(name)')
           .eq('client_id', selectedClientId)
           .eq('seller_id', user.id),
       ]);

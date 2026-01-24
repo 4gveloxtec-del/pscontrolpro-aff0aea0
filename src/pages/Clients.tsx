@@ -632,7 +632,7 @@ export default function Clients() {
           .limit(10),
         supabase
           .from('panel_clients')
-          .select('id, slot_type, panel:shared_panels(name)')
+          .select('id, slot_type, server:servers(name)')
           .eq('client_id', selectedLookupClientId)
           .eq('seller_id', user.id),
       ]);
