@@ -1112,7 +1112,7 @@ export default function Sellers() {
                 variant="default" 
                 className="w-full sm:w-auto gap-2"
                 onClick={() => {
-                  const appLink = 'https://stream-manager-hub.lovable.app';
+                  const appLink = window.location.origin;
                   const message = `🚀 *Atualização do Aplicativo de Gerenciamento*
 
 Olá, ${tempPasswordDialog.name}! 

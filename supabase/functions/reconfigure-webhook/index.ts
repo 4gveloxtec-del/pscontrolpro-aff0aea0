@@ -5,8 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Correct webhook URL - must match connection-heartbeat endpoint
-const GLOBAL_WEBHOOK_URL = "https://kgtqnjhmwsvswhrczqaf.supabase.co/functions/v1/connection-heartbeat";
+// Build webhook URL dynamically from environment
+function getWebhookUrl(): string {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!supabaseUrl) {
+    throw new Error("SUPABASE_URL environment variable is required");
+  }
+  return `${supabaseUrl}/functions/v1/connection-heartbeat`;
+}
 
 function normalizeApiUrl(url: string): string {
   let cleanUrl = url.trim();
@@ -21,6 +27,7 @@ async function configureWebhook(
   instanceName: string
 ): Promise<{ success: boolean; error?: string; method?: string; details?: string }> {
   const baseUrl = normalizeApiUrl(apiUrl);
+  const webhookTargetUrl = getWebhookUrl();
   
   // Multiple payload formats to ensure compatibility with different Evolution API versions
   const attempts = [
@@ -30,7 +37,7 @@ async function configureWebhook(
       url: `${baseUrl}/webhook/set/${instanceName}`,
       body: {
         webhook: {
-          url: GLOBAL_WEBHOOK_URL,
+          url: webhookTargetUrl,
           enabled: true,
           webhookByEvents: false,
           webhookBase64: false,
@@ -43,7 +50,7 @@ async function configureWebhook(
       method: 'POST', 
       url: `${baseUrl}/webhook/set/${instanceName}`,
       body: {
-        url: GLOBAL_WEBHOOK_URL,
+        url: webhookTargetUrl,
         enabled: true,
         webhook_by_events: false,
         webhook_base64: false,
@@ -56,7 +63,7 @@ async function configureWebhook(
       url: `${baseUrl}/webhook/set/${instanceName}`,
       body: {
         webhook: {
-          url: GLOBAL_WEBHOOK_URL,
+          url: webhookTargetUrl,
           enabled: true
         }
       }
@@ -67,7 +74,7 @@ async function configureWebhook(
       url: `${baseUrl}/webhook/set/${instanceName}`,
       body: {
         webhook: {
-          url: GLOBAL_WEBHOOK_URL,
+          url: webhookTargetUrl,
           enabled: true,
           webhookByEvents: false,
           events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
@@ -79,7 +86,7 @@ async function configureWebhook(
       method: 'POST', 
       url: `${baseUrl}/instance/setWebhook/${instanceName}`,
       body: {
-        url: GLOBAL_WEBHOOK_URL,
+        url: webhookTargetUrl,
         enabled: true,
         events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
       }
@@ -90,7 +97,7 @@ async function configureWebhook(
       url: `${baseUrl}/settings/set/${instanceName}`,
       body: {
         webhook: {
-          url: GLOBAL_WEBHOOK_URL,
+          url: webhookTargetUrl,
           enabled: true,
           events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
         }
@@ -250,7 +257,7 @@ Deno.serve(async (req) => {
         seller_id: instance.seller_id,
         instance_name: instance.instance_name,
         is_connected: instance.is_connected,
-        webhook_url: GLOBAL_WEBHOOK_URL,
+        webhook_url: getWebhookUrl(),
         ...result,
       });
     }
@@ -260,7 +267,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      webhook_url: GLOBAL_WEBHOOK_URL,
+      webhook_url: getWebhookUrl(),
       api_url: globalConfig.api_url,
       total: instances.length,
       reconfigured: successCount,
