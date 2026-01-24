@@ -2,6 +2,8 @@ import { useState, useEffect, createContext, useContext, ReactNode, useCallback,
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 // Usa o Lovable Cloud para autenticação e dados principais
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
+
 type AppRole = 'admin' | 'seller' | 'user';
 
 // Default trial days (can be overridden by app_settings)
@@ -440,17 +442,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Se o usuário não tem role, tentar corrigir em background (NON-BLOCKING)
       if (!nextRole && accessToken) {
-        console.log('[useAuth] User has no role, fixing in background...');
+        console.log('[useAuth] User has no role, fixing in background with retry...');
         
-        // Fire-and-forget with retry logic
+        // Track if role was successfully fixed
+        let roleFixed = false;
+        
+        // Fire-and-forget with retry logic and exponential backoff
         const fixRoleWithRetry = async (attempt = 1): Promise<void> => {
+          const MAX_ATTEMPTS = 3;
+          const baseDelay = 1000; // 1 second base
+          
           try {
+            console.log(`[useAuth] fix-user-roles attempt ${attempt}/${MAX_ATTEMPTS}`);
+            
             const { data: fixData, error: fixError } = await supabase.functions.invoke('fix-user-roles', {
               headers: { Authorization: `Bearer ${accessToken}` }
             });
             
             if (!fixError && fixData?.role) {
-              console.log('[useAuth] Role fixed in background:', fixData.role);
+              console.log('[useAuth] Role fixed successfully:', fixData.role);
+              roleFixed = true;
               
               // Only update if we haven't signed out
               if ((phaseRef.current as AuthPhase) !== 'signing_out' && isProviderMounted.current) {
@@ -469,24 +480,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 } else {
                   setCachedData(userId, nextProfile, fixData.role as AppRole);
                 }
+                
+                // Show success toast if we had to retry
+                if (attempt > 1) {
+                  toast({
+                    title: "Perfil sincronizado",
+                    description: "Suas permissões foram atualizadas com sucesso.",
+                  });
+                }
               }
-            } else if (attempt < 3) {
-              // Retry with exponential backoff
-              const delay = Math.pow(2, attempt) * 1000;
-              console.log(`[useAuth] Role fix failed, retrying in ${delay}ms (attempt ${attempt + 1}/3)`);
+              return;
+            }
+            
+            // Handle error or missing role
+            const errorMsg = fixError?.message || 'Role não retornado';
+            console.warn(`[useAuth] fix-user-roles attempt ${attempt} failed:`, errorMsg);
+            
+            if (attempt < MAX_ATTEMPTS) {
+              // Exponential backoff: 2s, 4s, 8s...
+              const delay = Math.pow(2, attempt) * baseDelay;
+              console.log(`[useAuth] Retrying fix-user-roles in ${delay}ms (attempt ${attempt + 1}/${MAX_ATTEMPTS})`);
               await new Promise(resolve => setTimeout(resolve, delay));
               return fixRoleWithRetry(attempt + 1);
-            } else {
-              console.error('[useAuth] Role fix failed after 3 attempts');
             }
+            
+            // All attempts failed
+            handleAllAttemptsFailed();
+            
           } catch (e) {
-            if (attempt < 3) {
-              const delay = Math.pow(2, attempt) * 1000;
-              console.log(`[useAuth] Role fix error, retrying in ${delay}ms (attempt ${attempt + 1}/3)`, e);
+            console.error(`[useAuth] fix-user-roles attempt ${attempt} exception:`, e);
+            
+            if (attempt < MAX_ATTEMPTS) {
+              const delay = Math.pow(2, attempt) * baseDelay;
+              console.log(`[useAuth] Retrying fix-user-roles in ${delay}ms after error (attempt ${attempt + 1}/${MAX_ATTEMPTS})`);
               await new Promise(resolve => setTimeout(resolve, delay));
               return fixRoleWithRetry(attempt + 1);
             }
-            console.error('[useAuth] Failed to fix role after 3 attempts:', e);
+            
+            // All attempts failed
+            handleAllAttemptsFailed();
+          }
+        };
+        
+        // Handler when all retry attempts fail
+        const handleAllAttemptsFailed = () => {
+          console.error('[useAuth] fix-user-roles failed after 3 attempts - user stuck with temporary role');
+          
+          // Show error toast to user
+          if (isProviderMounted.current) {
+            toast({
+              variant: "destructive",
+              title: "Erro ao sincronizar perfil",
+              description: "Não foi possível verificar suas permissões. Tente fazer logout e login novamente.",
+            });
           }
         };
         
@@ -494,7 +540,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fixRoleWithRetry();
         
         // Use a temporary 'seller' role to unblock UI immediately
+        // This will be replaced when background fix completes
         nextRole = 'seller' as AppRole;
+        console.log('[useAuth] Using temporary seller role while fix runs in background');
       }
 
       // Always overwrite state with fresh data
