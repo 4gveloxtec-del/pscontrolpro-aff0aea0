@@ -72,10 +72,19 @@ function TrialBanner({ daysRemaining, isSeller }: { daysRemaining: number; isSel
 }
 
 function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { profile, isAdmin, isSeller, signOut } = useAuth();
+  const { user, profile, role, authState, isAdmin, isSeller, signOut } = useAuth();
   const { isPrivacyMode, togglePrivacyMode } = usePrivacyMode();
   const { menuStyle } = useMenuStyle();
   const location = useLocation();
+
+  const identityLabel = profile?.full_name || profile?.email || user?.email || '';
+  const roleLabel = authState === 'authenticated' && !role
+    ? 'Carregando...'
+    : isAdmin
+      ? 'Administrador'
+      : isSeller
+        ? 'Vendedor'
+        : 'Usuário';
 
   const filteredNavItems = filterNavItems(navItems, isAdmin, isSeller);
 
@@ -166,13 +175,13 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
 
         <div className="mb-1 px-2">
           <p className="text-xs text-sidebar-foreground/60 truncate">
-            {profile?.full_name || profile?.email}
+            {identityLabel}
           </p>
           <p className={cn(
             "text-xs font-medium",
             isAdmin ? "text-primary" : isSeller ? "text-success" : "text-warning"
           )}>
-            {isAdmin ? 'Administrador' : isSeller ? 'Vendedor' : 'Usuário'}
+            {roleLabel}
           </p>
         </div>
         <Button
