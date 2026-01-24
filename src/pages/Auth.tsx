@@ -85,8 +85,22 @@ function Auth() {
 
     const email = normalizeEmail(loginEmail);
 
-    // Check if user is blocked
-    const { isBlocked: blocked, remainingAttempts: remaining } = await checkLoginAttempt(email);
+    // Check brute-force with a timeout to not block login on slow network
+    let blocked = false;
+    let remaining = 10;
+    
+    try {
+      const bruteForceCheck = await Promise.race([
+        checkLoginAttempt(email),
+        new Promise<{ isBlocked: boolean; remainingAttempts: number }>((resolve) => 
+          setTimeout(() => resolve({ isBlocked: false, remainingAttempts: 10 }), 2000)
+        )
+      ]);
+      blocked = bruteForceCheck.isBlocked;
+      remaining = bruteForceCheck.remainingAttempts;
+    } catch {
+      // On error, allow login (fail-open)
+    }
 
     if (blocked) {
       setIsBlocked(true);
@@ -100,8 +114,8 @@ function Auth() {
     const { error } = await signIn(email, loginPassword);
 
     if (error) {
-      // Record failed attempt
-      await recordLoginAttempt(email, false);
+      // Record failed attempt in background (non-blocking)
+      recordLoginAttempt(email, false).catch(() => {});
 
       const newRemaining = remaining - 1;
       setRemainingAttempts(newRemaining);
@@ -116,13 +130,13 @@ function Auth() {
       } else {
         toast.error(error.message);
       }
+      setIsLoading(false);
     } else {
-      // Record successful attempt (clears failed attempts)
-      await recordLoginAttempt(email, true);
+      // Record successful attempt in background (non-blocking)
+      recordLoginAttempt(email, true).catch(() => {});
       toast.success('Login realizado com sucesso!');
+      // Keep isLoading true - redirect will happen via authState change
     }
-
-    setIsLoading(false);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
