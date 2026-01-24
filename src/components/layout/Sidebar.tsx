@@ -21,10 +21,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { navGroups, filterNavGroups } from '@/config/navigation';
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { profile, isAdmin, isSeller, signOut } = useAuth();
+  const { user, profile, role, authState, isAdmin, isSeller, signOut } = useAuth();
   const { isPrivacyMode, togglePrivacyMode } = usePrivacyMode();
   const { menuStyle } = useMenuStyle();
   const location = useLocation();
+
+  const identityLabel = profile?.full_name || profile?.email || user?.email || '';
+  const shortName = (profile?.full_name || profile?.email || user?.email || 'U').split('@')[0];
+  const avatarInitial = (profile?.full_name || profile?.email || user?.email || 'U').charAt(0).toUpperCase();
+  const roleLabel = authState === 'authenticated' && !role
+    ? 'Carregando...'
+    : isAdmin
+      ? 'Administrador'
+      : 'Vendedor';
 
   const filteredGroups = filterNavGroups(navGroups, isAdmin, isSeller);
 
@@ -244,13 +253,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 >
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center">
                     <span className="text-xs font-bold text-primary">
-                      {(profile?.full_name || profile?.email || 'U').charAt(0).toUpperCase()}
+                          {avatarInitial}
                     </span>
                   </div>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p>Sair ({profile?.full_name || profile?.email?.split('@')[0]})</p>
+                    <p>Sair ({shortName})</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -258,18 +267,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-sidebar-accent/40 border border-sidebar-border/30">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center">
               <span className="text-sm font-bold text-primary">
-                {(profile?.full_name || profile?.email || 'U').charAt(0).toUpperCase()}
+                    {avatarInitial}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {profile?.full_name || profile?.email?.split('@')[0]}
+                    {identityLabel || shortName}
               </p>
               <p className={cn(
                 'text-xs font-medium',
                 isAdmin ? 'text-primary' : 'text-success'
               )}>
-                {isAdmin ? 'Administrador' : 'Vendedor'}
+                    {roleLabel}
               </p>
             </div>
             <TooltipProvider>
