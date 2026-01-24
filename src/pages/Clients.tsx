@@ -2233,15 +2233,15 @@ export default function Clients() {
               </Button>
             </DialogTrigger>
           </div>
-          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[90vh] sm:max-h-[85vh] overflow-hidden p-0 flex flex-col">
-            <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0">
+          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] sm:max-h-[85vh] p-0 flex flex-col overflow-hidden">
+            <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0 border-b">
               <DialogTitle className="text-base sm:text-lg">{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
                 {editingClient ? 'Atualize os dados do cliente' : 'Preencha os dados do novo cliente'}
               </DialogDescription>
             </DialogHeader>
-            <ScrollArea className="flex-1 px-4 sm:px-6">
-              <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 pb-4">
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6" style={{ maxHeight: 'calc(85vh - 140px)' }}>
+              <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* Category Select with Add Button */}
                 <div className="space-y-2 md:col-span-2">
@@ -3016,7 +3016,7 @@ export default function Clients() {
                 <span>Login e senha são criptografados antes de serem salvos.</span>
               </div>
               </form>
-            </ScrollArea>
+            </div>
             <div className="flex-shrink-0 border-t px-4 py-3 sm:px-6 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <Button type="button" variant="outline" size="sm" className="sm:size-default" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
