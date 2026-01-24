@@ -1,9 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Zod schema for payload validation
+const changePasswordSchema = z.object({
+  seller_id: z.string()
+    .uuid("Invalid seller ID format"),
+});
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -60,16 +67,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { seller_id } = await req.json();
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = changePasswordSchema.safeParse(rawBody);
     
-    console.log(`Changing password for seller: ${seller_id}`);
-    
-    if (!seller_id) {
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.log('[change-seller-password] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ error: 'Seller ID is required' }),
+        JSON.stringify({ error: 'Validation failed', details: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { seller_id } = validationResult.data;
+    
+    console.log(`Changing password for seller: ${seller_id}`);
 
     // Verify seller exists and is not an admin
     // NOTE: user can have multiple roles (e.g. seller + user). Do NOT use .single() here.

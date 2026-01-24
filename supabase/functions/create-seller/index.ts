@@ -1,9 +1,34 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Zod schema for payload validation
+const createSellerSchema = z.object({
+  email: z.string()
+    .email("Invalid email format")
+    .max(255, "Email too long"),
+  full_name: z.string()
+    .max(100, "Name too long")
+    .optional()
+    .nullable(),
+  whatsapp: z.string()
+    .max(20, "WhatsApp too long")
+    .optional()
+    .nullable(),
+  subscription_days: z.number()
+    .int("Must be an integer")
+    .min(1, "Minimum 1 day")
+    .max(3650, "Maximum 10 years")
+    .optional()
+    .default(30),
+  plan_type: z.enum(['manual', 'api', 'reseller', 'premium'])
+    .optional()
+    .default('manual'),
+});
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -60,16 +85,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { email, full_name, whatsapp, subscription_days, plan_type } = await req.json();
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = createSellerSchema.safeParse(rawBody);
     
-    console.log('Creating seller with plan:', plan_type || 'manual');
-    
-    if (!email) {
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.log('[create-seller] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ error: 'Email is required' }),
+        JSON.stringify({ error: 'Validation failed', details: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { email, full_name, whatsapp, subscription_days, plan_type } = validationResult.data;
+    
+    console.log('Creating seller with plan:', plan_type);
 
     // Generate temporary password
     const tempPassword = generateTempPassword();
@@ -94,7 +125,7 @@ Deno.serve(async (req) => {
 
     // Update profile with additional info
     const subscriptionExpiresAt = new Date();
-    const days = subscription_days || 30;
+    const days = subscription_days;
     subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + days);
 
     // Determine plan period based on subscription days
@@ -113,7 +144,7 @@ Deno.serve(async (req) => {
         whatsapp: whatsapp || null,
         subscription_expires_at: subscriptionExpiresAt.toISOString(),
         needs_password_update: true,
-        plan_type: plan_type || 'manual',
+        plan_type: plan_type,
         plan_period: getPlanPeriod(days)
       })
       .eq('id', newUser.user.id);
@@ -122,7 +153,7 @@ Deno.serve(async (req) => {
       console.error('Error updating profile:', profileError);
     }
 
-    console.log(`Seller created successfully: ${email} with plan: ${plan_type || 'manual'}`);
+    console.log(`Seller created successfully: ${email} with plan: ${plan_type}`);
 
     return new Response(
       JSON.stringify({ 

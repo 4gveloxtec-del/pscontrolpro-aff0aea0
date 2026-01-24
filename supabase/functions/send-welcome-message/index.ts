@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,18 @@ const corsHeaders = {
 
 // Timeout constant for API calls
 const API_TIMEOUT_MS = 15000;
+
+// Zod schema for welcome message validation
+const sendWelcomeSchema = z.object({
+  clientId: z.string()
+    .uuid("Invalid client ID format"),
+  sellerId: z.string()
+    .uuid("Invalid seller ID format"),
+  customMessage: z.string()
+    .max(5000, "Message too long")
+    .optional()
+    .nullable(),
+});
 
 interface GlobalConfig {
   api_url: string;
@@ -172,14 +185,20 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { clientId, sellerId, customMessage } = await req.json();
-
-    if (!clientId || !sellerId) {
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = sendWelcomeSchema.safeParse(rawBody);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.error('[send-welcome-message] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing clientId or sellerId' }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: 'Validation failed', details: errors }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const { clientId, sellerId, customMessage } = validationResult.data;
 
     console.log(`[send-welcome-message] Processing welcome message for client ${clientId}`);
 

@@ -1,9 +1,20 @@
 // Crypto edge function - handles encryption/decryption with AES-256-GCM
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Zod schema for crypto request validation
+const cryptoSchema = z.object({
+  action: z.enum(['encrypt', 'decrypt'], {
+    errorMap: () => ({ message: 'Action must be "encrypt" or "decrypt"' })
+  }),
+  data: z.string()
+    .min(1, "Data cannot be empty")
+    .max(100000, "Data too large (max 100KB)"),
+});
 
 // AES-256-GCM encryption/decryption
 // SECURITY: Require encryption key from environment - no insecure fallback
@@ -106,28 +117,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { action, data } = await req.json();
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = cryptoSchema.safeParse(rawBody);
     
-    console.log(`Crypto action: ${action}`);
-    
-    if (!action || !data) {
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.log('[crypto] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ error: 'Missing action or data' }),
+        JSON.stringify({ error: 'Validation failed', details: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { action, data } = validationResult.data;
+    
+    console.log(`Crypto action: ${action}`);
 
     let result: string;
     
     if (action === 'encrypt') {
       result = await encrypt(data);
-    } else if (action === 'decrypt') {
-      result = await decrypt(data);
     } else {
-      return new Response(
-        JSON.stringify({ error: 'Invalid action. Use "encrypt" or "decrypt"' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      result = await decrypt(data);
     }
 
     return new Response(

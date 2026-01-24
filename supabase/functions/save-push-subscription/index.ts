@@ -1,9 +1,28 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Zod schema for push subscription validation
+const pushSubscriptionSchema = z.object({
+  subscription: z.object({
+    endpoint: z.string()
+      .url("Invalid endpoint URL")
+      .max(2000, "Endpoint URL too long"),
+    keys: z.object({
+      p256dh: z.string()
+        .min(1, "p256dh key is required")
+        .max(500, "p256dh key too long"),
+      auth: z.string()
+        .min(1, "auth key is required")
+        .max(200, "auth key too long"),
+    }).optional(),
+  }),
+  action: z.enum(['subscribe', 'unsubscribe']).optional().default('subscribe'),
+});
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -42,9 +61,21 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const body = await req.json();
-    const { subscription, action } = body;
-    console.log('[save-push-subscription] Action:', action, 'Subscription endpoint:', subscription?.endpoint?.substring(0, 50));
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = pushSubscriptionSchema.safeParse(rawBody);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.error('[save-push-subscription] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', details: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { subscription, action } = validationResult.data;
+    console.log('[save-push-subscription] Action:', action, 'Subscription endpoint:', subscription.endpoint?.substring(0, 50));
 
     if (action === 'unsubscribe') {
       // Remove subscription
@@ -67,11 +98,13 @@ Deno.serve(async (req) => {
 
     // Subscribe - save or update subscription
     const { endpoint, keys } = subscription;
-    console.log('[save-push-subscription] Keys present - p256dh:', !!keys?.p256dh, 'auth:', !!keys?.auth);
     
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
-      console.error('[save-push-subscription] Invalid subscription object');
-      throw new Error('Invalid subscription object');
+    if (!keys?.p256dh || !keys?.auth) {
+      console.error('[save-push-subscription] Invalid subscription object - missing keys');
+      return new Response(
+        JSON.stringify({ error: 'Invalid subscription object - missing encryption keys' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Upsert subscription (update if exists, insert if not)

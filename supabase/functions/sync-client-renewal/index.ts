@@ -1,29 +1,35 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { format, addDays } from "https://esm.sh/date-fns@3";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { format, addDays } from "npm:date-fns@3";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-/**
- * Edge function para sincronizar renovação de cliente quando detectada via mensagem da API do servidor.
- * 
- * Fluxo:
- * 1. Mensagem de renovação é enviada pelo servidor via WhatsApp
- * 2. connection-heartbeat detecta palavras-chave de renovação
- * 3. Esta função é chamada para renovar o cliente NO APP
- * 4. NÃO envia notificação (a API do servidor já enviou)
- */
-
-interface RenewalRequest {
-  seller_id: string;
-  client_phone: string;
-  message_content?: string;
-  renewal_days?: number; // dias para adicionar (default: busca do plano)
-  new_expiration_date?: string; // ou data específica
-  source?: 'message_detection' | 'webhook';
-}
+// Zod schema for renewal request validation
+const renewalRequestSchema = z.object({
+  seller_id: z.string()
+    .uuid("Invalid seller ID format"),
+  client_phone: z.string()
+    .min(8, "Phone must have at least 8 digits")
+    .max(20, "Phone too long")
+    .transform(val => val.replace(/\D/g, '')),
+  message_content: z.string()
+    .max(2000, "Message too long")
+    .optional(),
+  renewal_days: z.number()
+    .int("Must be an integer")
+    .min(1, "Minimum 1 day")
+    .max(3650, "Maximum 10 years")
+    .optional(),
+  new_expiration_date: z.string()
+    .max(50, "Date too long")
+    .optional(),
+  source: z.enum(['message_detection', 'webhook'])
+    .optional()
+    .default('message_detection'),
+});
 
 /**
  * Parseia data no formato brasileiro ou ISO
@@ -82,27 +88,29 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const body: RenewalRequest = await req.json();
-    const { seller_id, client_phone, message_content, renewal_days, new_expiration_date, source = 'message_detection' } = body;
-
-    console.log(`[sync-renewal] Processing renewal for seller ${seller_id}, phone ${client_phone}`);
-
-    if (!seller_id || !client_phone) {
+    // Parse and validate payload with Zod
+    const rawBody = await req.json();
+    const validationResult = renewalRequestSchema.safeParse(rawBody);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      console.log('[sync-renewal] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing seller_id or client_phone' }),
+        JSON.stringify({ success: false, error: 'Validation failed', details: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Normalizar telefone
-    const normalizedPhone = client_phone.replace(/\D/g, '');
+    const { seller_id, client_phone, message_content, renewal_days, new_expiration_date, source } = validationResult.data;
 
-    // Buscar cliente pelo telefone
+    console.log(`[sync-renewal] Processing renewal for seller ${seller_id}, phone ${client_phone}`);
+
+    // Buscar cliente pelo telefone (already normalized by Zod transform)
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('id, name, phone, expiration_date, plan_id, plan_name, plan_price, is_archived')
       .eq('seller_id', seller_id)
-      .eq('phone', normalizedPhone)
+      .eq('phone', client_phone)
       .eq('is_archived', false)
       .maybeSingle();
 
@@ -112,12 +120,12 @@ Deno.serve(async (req) => {
     }
 
     if (!client) {
-      console.log('[sync-renewal] Client not found with phone:', normalizedPhone);
+      console.log('[sync-renewal] Client not found with phone:', client_phone);
       
       // Registrar no log
       await supabase.from('server_sync_log').insert({
         seller_id,
-        client_phone: normalizedPhone,
+        client_phone,
         sync_type: 'renewal',
         source,
         success: false,
@@ -125,7 +133,7 @@ Deno.serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: false, error: 'Client not found', client_phone: normalizedPhone }),
+        JSON.stringify({ success: false, error: 'Client not found', client_phone }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -228,7 +236,7 @@ Deno.serve(async (req) => {
     await supabase.from('server_sync_log').insert({
       seller_id,
       client_id: client.id,
-      client_phone: normalizedPhone,
+      client_phone,
       sync_type: 'renewal',
       source,
       server_response: { 
