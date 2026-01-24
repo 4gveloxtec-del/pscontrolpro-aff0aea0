@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export type ThemeColor = 'netflix' | 'neon-blue' | 'emerald' | 'purple' | 'orange';
 
@@ -66,6 +67,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     onSuccess: (newTheme) => {
       queryClient.setQueryData(['app-theme'], newTheme);
       setLocalTheme(newTheme);
+    },
+    onError: (error: Error) => {
+      console.error('[updateThemeMutation]', error);
+      toast.error('Erro ao salvar tema: ' + error.message);
     },
   });
 

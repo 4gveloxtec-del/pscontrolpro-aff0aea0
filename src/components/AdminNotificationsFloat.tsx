@@ -9,6 +9,7 @@ import { Bell, X, ChevronDown, Info, AlertTriangle, CheckCircle, AlertOctagon } 
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 interface AdminNotification {
   id: string;
@@ -76,6 +77,10 @@ export function AdminNotificationsFloat() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-notification-reads', user?.id] });
+    },
+    onError: (error: Error) => {
+      console.error('[markAsReadMutation]', error);
+      toast.error('Erro ao marcar notificação: ' + error.message);
     },
   });
 

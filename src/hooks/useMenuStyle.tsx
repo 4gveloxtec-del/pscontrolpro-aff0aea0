@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export type MenuStyle = 'default' | 'compact' | 'icons-only';
 
@@ -89,6 +90,10 @@ export function MenuStyleProvider({ children }: { children: ReactNode }) {
       } catch {
         // localStorage not available
       }
+    },
+    onError: (error: Error) => {
+      console.error('[updateMenuStyleMutation]', error);
+      toast.error('Erro ao salvar estilo: ' + error.message);
     },
   });
 
