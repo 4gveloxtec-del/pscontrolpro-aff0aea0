@@ -9,7 +9,7 @@ import { RecentAutoMessages } from '@/components/dashboard/RecentAutoMessages';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, addDays, isBefore, isAfter, startOfToday, differenceInDays, startOfMonth } from 'date-fns';
+import { format, addDays, isBefore, isAfter, startOfToday, differenceInDays, startOfMonth, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
@@ -61,35 +61,226 @@ export default function Dashboard() {
   const [bulkCollectionOpen, setBulkCollectionOpen] = useState(false);
   const clientsListRef = useRef<HTMLDivElement>(null);
 
-  const { data: clients = [] } = useQuery({
-    queryKey: ['clients', user?.id],
+  // ============= PERF: Queries agregadas no banco =============
+  // Em vez de carregar TODOS os clientes, usamos queries separadas e otimizadas
+  
+  const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+  const nextWeekStr = format(addDays(startOfToday(), 7), 'yyyy-MM-dd');
+  const monthStartStr = format(startOfMonth(startOfToday()), 'yyyy-MM-dd');
+
+  // Query 1: Stats agregadas (COUNT)
+  const { data: clientStats } = useQuery({
+    queryKey: ['dashboard-client-stats', user?.id],
     queryFn: async () => {
-      if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('clients')
-        // PERF: avoid loading unnecessary columns on initial dashboard load
-        // (large payload here is one of the main causes of slow access on mobile/PWA)
-        .select('id, name, phone, email, expiration_date, plan_id, plan_name, plan_price, premium_price, is_paid, pending_amount, category, login, password, premium_password, server_name, server_id, telegram, is_archived, renewed_at')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false);
-      if (error) throw error;
-      const list = ((data || []) as unknown) as Client[];
-
-      // Etapa 4 (UI): evitar duplicidade visual por telefone dentro do seller
-      const seen = new Set<string>();
-      const deduped: Client[] = [];
-      for (const c of list) {
-        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(c);
-      }
-
-      return deduped;
+      if (!user?.id || !isSeller) return null;
+      
+      // Buscar contagens em paralelo
+      const [totalRes, activeRes, expiredRes, unpaidRes, expiringWeekRes] = await Promise.all([
+        // Total de clientes não arquivados
+        supabase.from('clients').select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id).eq('is_archived', false),
+        // Clientes ativos (vencimento >= hoje)
+        supabase.from('clients').select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id).eq('is_archived', false).gte('expiration_date', todayStr),
+        // Clientes vencidos (vencimento < hoje)
+        supabase.from('clients').select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id).eq('is_archived', false).lt('expiration_date', todayStr),
+        // Clientes não pagos
+        supabase.from('clients').select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id).eq('is_archived', false).eq('is_paid', false),
+        // Vencendo em 7 dias (hoje <= vencimento < hoje+7)
+        supabase.from('clients').select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id).eq('is_archived', false)
+          .gte('expiration_date', todayStr).lt('expiration_date', nextWeekStr),
+      ]);
+      
+      return {
+        total: totalRes.count || 0,
+        active: activeRes.count || 0,
+        expired: expiredRes.count || 0,
+        unpaid: unpaidRes.count || 0,
+        expiringWeek: expiringWeekRes.count || 0,
+      };
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+  });
+
+  // Query 2: Receita mensal (SUM de clientes renovados no mês)
+  const { data: monthlyRevenueData } = useQuery({
+    queryKey: ['dashboard-monthly-revenue', user?.id, monthStartStr],
+    queryFn: async () => {
+      if (!user?.id || !isSeller) return { revenue: 0, count: 0 };
+      
+      // Buscar clientes renovados neste mês com vencimento válido
+      const { data, error } = await supabase
+        .from('clients')
+        .select('plan_price, premium_price')
+        .eq('seller_id', user.id)
+        .eq('is_archived', false)
+        .eq('is_paid', true)
+        .gte('renewed_at', monthStartStr)
+        .gte('expiration_date', todayStr);
+      
+      if (error) throw error;
+      
+      const total = (data || []).reduce((sum, c) => {
+        return sum + (Number(c.plan_price) || 0) + (Number(c.premium_price) || 0);
+      }, 0);
+      
+      return { revenue: Math.round(total * 100) / 100, count: data?.length || 0 };
+    },
+    enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+  });
+
+  // Query 3: Contagem por dia de vencimento (0-7 dias) para os cards
+  const { data: expirationCounts = {} } = useQuery({
+    queryKey: ['dashboard-expiration-counts', user?.id],
+    queryFn: async () => {
+      if (!user?.id || !isSeller) return {};
+      
+      // Buscar contagens para cada dia (0-7)
+      const counts: Record<number, number> = {};
+      const promises = [];
+      
+      for (let i = 0; i <= 7; i++) {
+        const targetDate = format(addDays(startOfToday(), i), 'yyyy-MM-dd');
+        promises.push(
+          supabase.from('clients')
+            .select('id', { count: 'exact', head: true })
+            .eq('seller_id', user.id)
+            .eq('is_archived', false)
+            .eq('expiration_date', targetDate)
+            .then(res => ({ day: i, count: res.count || 0 }))
+        );
+      }
+      
+      const results = await Promise.all(promises);
+      results.forEach(r => { counts[r.day] = r.count; });
+      
+      return counts;
+    },
+    enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+  });
+
+  // Query 4: APENAS clientes urgentes (0-7 dias) para a lista e cobrança
+  const { data: urgentClients = [] } = useQuery({
+    queryKey: ['dashboard-urgent-clients', user?.id],
+    queryFn: async () => {
+      if (!user?.id || !isSeller) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name, phone, email, expiration_date, plan_id, plan_name, plan_price, premium_price, is_paid, pending_amount, category, login, password, premium_password, server_name, server_id, telegram, is_archived, renewed_at')
+        .eq('seller_id', user.id)
+        .eq('is_archived', false)
+        .gte('expiration_date', todayStr)
+        .lte('expiration_date', nextWeekStr)
+        .order('expiration_date', { ascending: true });
+      
+      if (error) throw error;
+      
+      // Adicionar daysRemaining e deduplicar por telefone
+      const seen = new Set<string>();
+      const result: (Client & { daysRemaining: number })[] = [];
+      
+      for (const c of (data || []) as Client[]) {
+        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        
+        const expDate = new Date(c.expiration_date);
+        expDate.setHours(12, 0, 0, 0);
+        const todayNoon = new Date(startOfToday());
+        todayNoon.setHours(12, 0, 0, 0);
+        const daysRemaining = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
+        
+        result.push({ ...c, daysRemaining });
+      }
+      
+      return result.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    },
+    enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+  });
+
+  // Query 5: Dados para lucro por servidor (apenas agregados)
+  const { data: serverRevenueData = [] } = useQuery({
+    queryKey: ['dashboard-server-revenue', user?.id, monthStartStr],
+    queryFn: async () => {
+      if (!user?.id || !isSeller) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('server_id, plan_price, premium_price')
+        .eq('seller_id', user.id)
+        .eq('is_archived', false)
+        .eq('is_paid', true)
+        .gte('renewed_at', monthStartStr)
+        .gte('expiration_date', todayStr)
+        .not('server_id', 'is', null);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: false,
+  });
+
+  // Query 6: Dados para receita por categoria (apenas agregados)
+  const { data: categoryRevenueData = [] } = useQuery({
+    queryKey: ['dashboard-category-revenue', user?.id, monthStartStr],
+    queryFn: async () => {
+      if (!user?.id || !isSeller) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('category, plan_price, premium_price')
+        .eq('seller_id', user.id)
+        .eq('is_archived', false)
+        .eq('is_paid', true)
+        .gte('renewed_at', monthStartStr)
+        .gte('expiration_date', todayStr);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: false,
+  });
+
+  // Query 7: Total de clientes por categoria (para exibir X de Y)
+  const { data: categoryTotalsData = [] } = useQuery({
+    queryKey: ['dashboard-category-totals', user?.id],
+    queryFn: async () => {
+      if (!user?.id || !isSeller) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('category')
+        .eq('seller_id', user.id)
+        .eq('is_archived', false);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && isSeller,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
     refetchOnWindowFocus: false,
   });
 
@@ -210,72 +401,39 @@ export default function Dashboard() {
   const nextWeek = addDays(today, 7);
   const monthStart = startOfMonth(today);
 
-  // Seller stats
-  const activeClients = clients.filter(c => 
-    isAfter(new Date(c.expiration_date), today) || 
-    format(new Date(c.expiration_date), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
-  );
-  const expiringClients = clients.filter(c => {
-    const expDate = new Date(c.expiration_date);
-    return isAfter(expDate, today) && isBefore(expDate, nextWeek);
-  });
-  const expiredClients = clients.filter(c => isBefore(new Date(c.expiration_date), today));
-  const unpaidClients = clients.filter(c => !c.is_paid);
+  // ============= PERF: Usar dados agregados em vez de processar no JS =============
+  
+  // Stats de clientes - usando query agregada
+  const totalClientsCount = clientStats?.total || 0;
+  const activeClientsCount = clientStats?.active || 0;
+  const expiredClientsCount = clientStats?.expired || 0;
+  const unpaidClientsCount = clientStats?.unpaid || 0;
+  const expiringWeekCount = clientStats?.expiringWeek || 0;
 
-  // Count clients renewed this month (for monthly revenue)
-  // AUDIT FIX: Normalize dates to noon to avoid timezone edge cases
-  const clientsRenewedThisMonth = clients.filter(c => {
-    if (!c.renewed_at || !c.is_paid) return false;
-    const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
-    const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
-    const renewedDate = new Date(renewedStr);
-    const expDate = new Date(expStr);
-    return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
-  });
-
-  // Monthly revenue: only clients renewed this month (plan_price + premium_price)
-  // AUDIT FIX: Use Number() for safe numeric coercion
-  const monthlyRevenue = clientsRenewedThisMonth.reduce((sum, c) => {
-    const planPrice = Number(c.plan_price) || 0;
-    const premiumPrice = Number(c.premium_price) || 0;
-    return sum + planPrice + premiumPrice;
-  }, 0);
-
+  // Receita mensal - da query agregada
+  const monthlyRevenue = monthlyRevenueData?.revenue || 0;
   const totalRevenue = monthlyRevenue;
 
   // Total server costs
-  // AUDIT FIX: Safe numeric coercion
   const totalServerCosts = serversData.reduce((sum, s) => {
     const cost = Number(s.monthly_cost) || 0;
     return sum + (cost > 0 ? cost : 0);
   }, 0);
   
   // Total bills costs
-  // AUDIT FIX: Safe numeric coercion with parseFloat fallback
   const totalBillsCosts = billsData.reduce((sum, b) => {
     const amount = parseFloat(String(b.amount)) || 0;
     return sum + (amount > 0 ? amount : 0);
   }, 0);
   
-  // Net profit (revenue - server costs - bills)
-  // AUDIT FIX: Round to 2 decimal places
+  // Net profit
   const netProfit = Math.round((totalRevenue - totalServerCosts - totalBillsCosts) * 100) / 100;
 
-  // Calculate profit per server (based on monthly renewals)
-  // AUDIT FIX: Normalize dates and safe numeric handling
+  // Lucro por servidor - usando dados agregados
   const serverProfits = serversData.map(server => {
-    const serverClients = clients.filter(c => {
-      if (c.server_id !== server.id || !c.is_paid || !c.renewed_at) return false;
-      const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
-      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
-      const renewedDate = new Date(renewedStr);
-      const expDate = new Date(expStr);
-      return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
-    });
+    const serverClients = serverRevenueData.filter(c => c.server_id === server.id);
     const serverRevenue = serverClients.reduce((sum, c) => {
-      const planPrice = Number(c.plan_price) || 0;
-      const premiumPrice = Number(c.premium_price) || 0;
-      return sum + planPrice + premiumPrice;
+      return sum + (Number(c.plan_price) || 0) + (Number(c.premium_price) || 0);
     }, 0);
     const serverCost = Number(server.monthly_cost) || 0;
     const serverProfit = Math.round((serverRevenue - serverCost) * 100) / 100;
@@ -289,32 +447,23 @@ export default function Dashboard() {
     };
   }).sort((a, b) => b.profit - a.profit);
 
-  // Get all unique categories from clients (handle object categories and normalize)
+  // Helper para normalizar categoria
   const getCategoryString = (cat: unknown): string => {
     if (!cat) return 'Sem categoria';
     if (typeof cat === 'object') return ((cat as { name?: string })?.name || 'Sem categoria').trim().toUpperCase();
     return String(cat).trim().toUpperCase();
   };
   
-  const allCategories = [...new Set(clients.map(c => getCategoryString(c.category)))];
+  // Categorias únicas - usando dados agregados
+  const allCategories = [...new Set(categoryTotalsData.map(c => getCategoryString(c.category)))];
 
-  // Calculate revenue per category (based on monthly renewals)
-  // AUDIT FIX: Normalize dates and safe numeric handling
+  // Receita por categoria - usando dados agregados
   const categoryProfits = allCategories.map(category => {
-    const categoryClients = clients.filter(c => {
-      if (getCategoryString(c.category) !== category || !c.is_paid || !c.renewed_at) return false;
-      const renewedStr = c.renewed_at.includes('T') ? c.renewed_at : `${c.renewed_at}T12:00:00`;
-      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
-      const renewedDate = new Date(renewedStr);
-      const expDate = new Date(expStr);
-      return !isBefore(renewedDate, monthStart) && !isBefore(expDate, today);
-    });
+    const categoryClients = categoryRevenueData.filter(c => getCategoryString(c.category) === category);
     const categoryRevenue = categoryClients.reduce((sum, c) => {
-      const planPrice = Number(c.plan_price) || 0;
-      const premiumPrice = Number(c.premium_price) || 0;
-      return sum + planPrice + premiumPrice;
+      return sum + (Number(c.plan_price) || 0) + (Number(c.premium_price) || 0);
     }, 0);
-    const totalCategoryClients = clients.filter(c => getCategoryString(c.category) === category).length;
+    const totalCategoryClients = categoryTotalsData.filter(c => getCategoryString(c.category) === category).length;
     
     return {
       category,
@@ -324,45 +473,17 @@ export default function Dashboard() {
     };
   }).sort((a, b) => b.revenue - a.revenue);
 
-  // Clients expiring in specific days (1, 2, 3, 4, 5 days)
-  // AUDIT FIX: Normalize dates to avoid timezone issues
-  const getClientsExpiringInDays = (days: number) => {
-    return clients.filter(c => {
-      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
-      const expDate = new Date(expStr);
-      expDate.setHours(12, 0, 0, 0);
-      const todayNoon = new Date(today);
-      todayNoon.setHours(12, 0, 0, 0);
-      const diff = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
-      return diff === days;
-    });
-  };
+  // Contagens por dia de vencimento - usando query agregada
+  const expiringTodayCount = expirationCounts[0] || 0;
+  const expiring1DayCount = expirationCounts[1] || 0;
+  const expiring2DaysCount = expirationCounts[2] || 0;
+  const expiring3DaysCount = expirationCounts[3] || 0;
+  const expiring4DaysCount = expirationCounts[4] || 0;
+  const expiring5DaysCount = expirationCounts[5] || 0;
+  const expiring6DaysCount = expirationCounts[6] || 0;
+  const expiring7DaysCount = expirationCounts[7] || 0;
 
-  // Clients expiring from 0 to 7 days (used for cobrança em massa), sorted by days remaining
-  // AUDIT FIX: Consistent date normalization
-  const urgentClients = clients
-    .map(c => {
-      const expStr = c.expiration_date.includes('T') ? c.expiration_date : `${c.expiration_date}T12:00:00`;
-      const expDate = new Date(expStr);
-      expDate.setHours(12, 0, 0, 0);
-      const todayNoon = new Date(today);
-      todayNoon.setHours(12, 0, 0, 0);
-      const daysRemaining = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
-      return { ...c, daysRemaining };
-    })
-    .filter(c => c.daysRemaining >= 0 && c.daysRemaining <= 7)
-    .sort((a, b) => a.daysRemaining - b.daysRemaining);
-
-  const expiringToday = getClientsExpiringInDays(0);
-  const expiring1Day = getClientsExpiringInDays(1);
-  const expiring2Days = getClientsExpiringInDays(2);
-  const expiring3Days = getClientsExpiringInDays(3);
-  const expiring4Days = getClientsExpiringInDays(4);
-  const expiring5Days = getClientsExpiringInDays(5);
-  const expiring6Days = getClientsExpiringInDays(6);
-  const expiring7Days = getClientsExpiringInDays(7);
-
-  // Filter clients based on selected expiration filter
+  // Filtrar clientes urgentes por dia selecionado
   const filteredUrgentClients = expirationFilter !== null 
     ? urgentClients.filter(c => c.daysRemaining === expirationFilter)
     : urgentClients;
@@ -546,7 +667,7 @@ export default function Dashboard() {
       {isSeller && (
         <>
           {/* Urgent Notifications - Clickable Cards */}
-           {(expiringToday.length > 0 || expiring1Day.length > 0 || expiring2Days.length > 0 || expiring3Days.length > 0 || expiring4Days.length > 0 || expiring5Days.length > 0 || expiring6Days.length > 0 || expiring7Days.length > 0) && (
+           {(expiringTodayCount > 0 || expiring1DayCount > 0 || expiring2DaysCount > 0 || expiring3DaysCount > 0 || expiring4DaysCount > 0 || expiring5DaysCount > 0 || expiring6DaysCount > 0 || expiring7DaysCount > 0) && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -566,7 +687,7 @@ export default function Dashboard() {
                 )}
               </div>
                <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8">
-                {expiringToday.length > 0 && (
+                {expiringTodayCount > 0 && (
                   <Card 
                     className={cn(
                       "border-destructive bg-destructive/10 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -580,12 +701,12 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-destructive font-medium">Hoje</p>
-                        <p className="text-xl font-bold text-destructive">{expiringToday.length}</p>
+                        <p className="text-xl font-bold text-destructive">{expiringTodayCount}</p>
                       </div>
                     </CardContent>
                   </Card>
                 )}
-                {expiring1Day.length > 0 && (
+                {expiring1DayCount > 0 && (
                   <Card 
                     className={cn(
                       "border-destructive/70 bg-destructive/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -599,12 +720,12 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-destructive/80 font-medium">Amanhã</p>
-                        <p className="text-xl font-bold text-destructive/80">{expiring1Day.length}</p>
+                        <p className="text-xl font-bold text-destructive/80">{expiring1DayCount}</p>
                       </div>
                     </CardContent>
                   </Card>
                 )}
-                {expiring2Days.length > 0 && (
+                {expiring2DaysCount > 0 && (
                   <Card 
                     className={cn(
                       "border-warning bg-warning/10 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -618,12 +739,12 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-warning font-medium">{getExpirationCardLabel(2)}</p>
-                        <p className="text-xl font-bold text-warning">{expiring2Days.length}</p>
+                        <p className="text-xl font-bold text-warning">{expiring2DaysCount}</p>
                       </div>
                     </CardContent>
                   </Card>
                 )}
-                {expiring3Days.length > 0 && (
+                {expiring3DaysCount > 0 && (
                   <Card 
                     className={cn(
                       "border-warning/60 bg-warning/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -637,12 +758,12 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-warning/70 font-medium">{getExpirationCardLabel(3)}</p>
-                        <p className="text-xl font-bold text-warning/70">{expiring3Days.length}</p>
+                        <p className="text-xl font-bold text-warning/70">{expiring3DaysCount}</p>
                       </div>
                     </CardContent>
                   </Card>
                 )}
-                {expiring4Days.length > 0 && (
+                {expiring4DaysCount > 0 && (
                   <Card 
                     className={cn(
                       "border-muted bg-muted/10 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -656,12 +777,12 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground font-medium">{getExpirationCardLabel(4)}</p>
-                        <p className="text-xl font-bold text-muted-foreground">{expiring4Days.length}</p>
+                        <p className="text-xl font-bold text-muted-foreground">{expiring4DaysCount}</p>
                       </div>
                     </CardContent>
                   </Card>
                 )}
-                {expiring5Days.length > 0 && (
+                {expiring5DaysCount > 0 && (
                   <Card 
                     className={cn(
                       "border-muted bg-muted/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -675,13 +796,13 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground/70 font-medium">{getExpirationCardLabel(5)}</p>
-                        <p className="text-xl font-bold text-muted-foreground/70">{expiring5Days.length}</p>
+                        <p className="text-xl font-bold text-muted-foreground/70">{expiring5DaysCount}</p>
                       </div>
                     </CardContent>
                   </Card>
                 )}
 
-                {expiring7Days.length > 0 && (
+                {expiring7DaysCount > 0 && (
                   <Card 
                     className={cn(
                       "border-muted bg-muted/5 cursor-pointer transition-all hover:scale-105 hover:shadow-lg",
@@ -695,7 +816,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground/70 font-medium">{getExpirationCardLabel(7)}</p>
-                        <p className="text-xl font-bold text-muted-foreground/70">{expiring7Days.length}</p>
+                        <p className="text-xl font-bold text-muted-foreground/70">{expiring7DaysCount}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -730,25 +851,25 @@ export default function Dashboard() {
           <div className="stats-grid">
             <StatCard
               title="Total de Clientes"
-              value={maskData(clients.length, 'number')}
+              value={maskData(totalClientsCount, 'number')}
               icon={Users}
               variant="primary"
             />
             <StatCard
               title="Clientes Ativos"
-              value={maskData(activeClients.length, 'number')}
+              value={maskData(activeClientsCount, 'number')}
               icon={UserCheck}
               variant="success"
             />
             <StatCard
               title="Vencendo em 7 dias"
-              value={maskData(expiringClients.length, 'number')}
+              value={maskData(expiringWeekCount, 'number')}
               icon={Clock}
               variant="warning"
             />
             <StatCard
               title="Vencidos"
-              value={maskData(expiredClients.length, 'number')}
+              value={maskData(expiredClientsCount, 'number')}
               icon={AlertTriangle}
               variant="danger"
             />
@@ -835,7 +956,7 @@ export default function Dashboard() {
               currentServerCosts={totalServerCosts}
               currentBillsCosts={totalBillsCosts}
               currentNetProfit={netProfit}
-              currentActiveClients={activeClients.length}
+              currentActiveClients={activeClientsCount}
               isPrivacyMode={isPrivacyMode}
               maskData={maskData}
             />
@@ -978,12 +1099,12 @@ export default function Dashboard() {
             <CardContent className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Clientes não pagos:</span>
-                <span className="font-medium text-destructive">{isPrivacyMode ? '●●' : unpaidClients.length}</span>
+                <span className="font-medium text-destructive">{isPrivacyMode ? '●●' : unpaidClientsCount}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Média por cliente:</span>
                 <span className="font-medium">
-                  {maskData(`R$ ${activeClients.length > 0 ? (totalRevenue / activeClients.length).toFixed(2) : '0.00'}`, 'money')}
+                  {maskData(`R$ ${activeClientsCount > 0 ? (totalRevenue / activeClientsCount).toFixed(2) : '0.00'}`, 'money')}
                 </span>
               </div>
               <div className="flex justify-between">
