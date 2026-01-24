@@ -318,7 +318,17 @@ export default function Clients() {
       if (!user?.id) return [];
       const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        .select(`
+          id, name, phone, email, device, dns, expiration_date,
+          plan_id, plan_name, plan_price, premium_price,
+          server_id, server_name, login, password,
+          server_id_2, server_name_2, login_2, password_2,
+          premium_password, category, is_paid, pending_amount, notes,
+          has_paid_apps, paid_apps_duration, paid_apps_expiration,
+          telegram, is_archived, archived_at, created_at, renewed_at,
+          gerencia_app_mac, gerencia_app_devices,
+          app_name, app_type, device_model, additional_servers
+        `)
         .eq('seller_id', user.id)
         .order('expiration_date', { ascending: true });
       if (error) throw error;
