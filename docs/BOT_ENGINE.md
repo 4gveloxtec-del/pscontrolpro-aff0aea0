@@ -114,8 +114,114 @@ WITH CHECK (auth.uid() = seller_id);
 | Conexões | `bot_engine_edges` | Via flow_id + seller_id |
 | Menus Dinâmicos | `bot_engine_menus` | UNIQUE(seller_id, menu_key) |
 | Sessões Ativas | `bot_engine_sessions` | Por contato + seller |
-| Estado de Navegação | `bot_sessions` | user_id + seller_id |
+| Estado de Navegação | `bot_sessions` | UNIQUE(user_id, seller_id) |
 | Log de Mensagens | `bot_logs` | seller_id obrigatório |
+
+---
+
+## 🔐 Sessões Isoladas por Revendedor
+
+### Estrutura Obrigatória da Sessão
+
+Toda sessão do bot DEVE conter:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `user_id` | TEXT | Telefone do contato (normalizado) |
+| `seller_id` | UUID | ID do revendedor (OBRIGATÓRIO) |
+| `state` | TEXT | Estado atual da sessão |
+| `previous_state` | TEXT | Estado anterior (automático via trigger) |
+| `context` | JSONB | Variáveis e dados da sessão |
+| `locked` | BOOLEAN | Trava anti-duplicação |
+| `stack` | JSONB | Histórico de navegação |
+
+### Regra Crítica: Chave Composta
+
+```
+⚠️ NUNCA buscar sessões apenas pelo telefone!
+
+❌ PROIBIDO:
+.eq('user_id', phone)
+
+✅ OBRIGATÓRIO:
+.eq('user_id', phone)
+.eq('seller_id', sellerId)
+```
+
+### Implementação no Código
+
+Todas as operações de sessão utilizam a chave composta `(user_id, seller_id)`:
+
+```typescript
+// ✅ getState - Busca estado com isolamento
+export async function getState(userId: string, sellerId: string) {
+  const { data } = await supabase
+    .from('bot_sessions')
+    .select('state')
+    .eq('user_id', userId)
+    .eq('seller_id', sellerId)  // ← OBRIGATÓRIO
+    .maybeSingle();
+  return data?.state;
+}
+
+// ✅ setState - Upsert com conflito correto
+export async function setState(userId: string, sellerId: string, state: string) {
+  await supabase
+    .from('bot_sessions')
+    .upsert({
+      user_id: userId,
+      seller_id: sellerId,  // ← OBRIGATÓRIO
+      state,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: 'user_id,seller_id'  // ← Chave composta
+    });
+}
+
+// ✅ lockSession - Lock atômico isolado
+const { data: locked } = await supabase
+  .from('bot_sessions')
+  .update({ locked: true })
+  .eq('user_id', userId)
+  .eq('seller_id', sellerId)  // ← OBRIGATÓRIO
+  .or('locked.eq.false,updated_at.lt.TIMEOUT')
+  .select('id')
+  .maybeSingle();
+```
+
+### Cenário: Mesmo Telefone em Revendedores Diferentes
+
+```
+Telefone: 5511999999999
+
+┌─────────────────────────────────┐
+│ Revendedor A (seller_id: abc)   │
+├─────────────────────────────────┤
+│ user_id: 5511999999999          │
+│ state: MENU_PRINCIPAL           │
+│ context: { plano: "Mensal" }    │
+└─────────────────────────────────┘
+
+┌─────────────────────────────────┐
+│ Revendedor B (seller_id: xyz)   │
+├─────────────────────────────────┤
+│ user_id: 5511999999999          │  ← Mesmo telefone
+│ state: AGUARDANDO_PAGAMENTO     │  ← Estado diferente
+│ context: { valor: 50 }          │  ← Contexto diferente
+└─────────────────────────────────┘
+
+→ São sessões COMPLETAMENTE INDEPENDENTES!
+```
+
+### Garantias de Isolamento
+
+| Garantia | Implementação |
+|----------|---------------|
+| **Banco de Dados** | UNIQUE(user_id, seller_id) |
+| **RLS** | `seller_id = auth.uid()` |
+| **Edge Functions** | Parâmetro seller_id obrigatório |
+| **Frontend** | Hooks filtram por user.id |
+| **Upsert** | onConflict: 'user_id,seller_id' |
 
 ---
 
