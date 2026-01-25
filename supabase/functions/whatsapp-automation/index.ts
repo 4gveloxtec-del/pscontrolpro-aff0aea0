@@ -327,19 +327,19 @@ Deno.serve(async (req: Request) => {
         console.log(`[ADMIN][${adminInstance?.instance_name}] Ignored WhatsApp path: instance mismatch (expected ${adminInstanceName})`);
       }
 
-      // Get admin profile for template variables
+      // Get admin profile for template variables with maybeSingle to prevent PGRST116
       const { data: adminProfile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', adminId)
-        .single();
+        .maybeSingle();
 
-      // Get app price
+      // Get app price with maybeSingle to prevent PGRST116
       const { data: appPriceSetting } = await supabase
         .from('app_settings')
         .select('value')
         .eq('key', 'app_monthly_price')
-        .single();
+        .maybeSingle();
 
       const appPrice = appPriceSetting?.value || '25';
 

@@ -314,6 +314,9 @@ export function useCircuitBreaker() {
         throw err;
       }
     },
+    onError: (error: Error) => {
+      toast.error(`Erro ao enviar mensagem: ${error.message}`);
+    },
   });
 
   // Process queued messages

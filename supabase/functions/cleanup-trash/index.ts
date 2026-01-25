@@ -37,14 +37,15 @@ serve(async (req) => {
       );
     }
 
-    // Check if requesting user is admin
+    // Check if requesting user is admin - use maybeSingle to prevent PGRST116
     const { data: roleData, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', requestingUser.id)
       .eq('role', 'admin')
-      .single();
+      .maybeSingle();
 
+    // Use maybeSingle result - if null, user is not admin
     if (roleError || !roleData) {
       return new Response(
         JSON.stringify({ error: 'Only admins can run cleanup' }),

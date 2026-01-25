@@ -291,13 +291,33 @@ export default function TestCommands() {
 
   const updateApiMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof apiForm }) => {
+      // Safe JSON.parse with try-catch to prevent crashes
+      let parsedHeaders: Record<string, string> = {};
+      let parsedBody: Record<string, unknown> | null = null;
+      
+      try {
+        parsedHeaders = JSON.parse(data.api_headers || '{}');
+      } catch (e) {
+        console.error('[updateApiMutation] Invalid JSON in headers:', e);
+        throw new Error('Headers JSON inválido');
+      }
+      
+      if (data.api_body_template) {
+        try {
+          parsedBody = JSON.parse(data.api_body_template);
+        } catch (e) {
+          console.error('[updateApiMutation] Invalid JSON in body:', e);
+          throw new Error('Body JSON inválido');
+        }
+      }
+      
       const { error } = await supabase.from('test_apis').update({
         name: data.name,
         description: data.description || null,
         api_url: data.api_url,
         api_method: data.api_method,
-        api_headers: JSON.parse(data.api_headers || '{}'),
-        api_body_template: data.api_body_template ? JSON.parse(data.api_body_template) : null,
+        api_headers: parsedHeaders,
+        api_body_template: parsedBody,
         response_path: data.response_path || null,
         custom_response_template: data.custom_response_template || null,
         use_custom_response: data.use_custom_response,
@@ -488,11 +508,23 @@ export default function TestCommands() {
     const timeoutId = setTimeout(() => controller.abort(), API_TEST_TIMEOUT_MS);
     
     try {
+      // Safe JSON.parse with try-catch for headers
+      let parsedHeaders: Record<string, string> = {};
+      try {
+        parsedHeaders = JSON.parse(apiForm.api_headers || '{}');
+      } catch (e) {
+        console.error('[handleTestApi] Invalid JSON in headers:', e);
+        toast.error('Headers JSON inválido');
+        setTestingApi(false);
+        clearTimeout(timeoutId);
+        return;
+      }
+      
       const fetchOptions: RequestInit = {
         method: apiForm.api_method,
         headers: {
           'Content-Type': 'application/json',
-          ...JSON.parse(apiForm.api_headers || '{}'),
+          ...parsedHeaders,
         },
         signal: controller.signal,
       };

@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const API_TIMEOUT_MS = 15000;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -85,7 +87,7 @@ Deno.serve(async (req) => {
 
     const testMessage = message || `✅ *TESTE DO SISTEMA*\n\nEste é um teste direto da integração WhatsApp.\n\n📅 Horário: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n🔗 Instância: ${instance.instance_name}`;
 
-    // Enviar mensagem via Evolution API
+    // Enviar mensagem via Evolution API with AbortController timeout
     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
     const sendUrl = `${apiUrl}/message/sendText/${instance.instance_name}`;
 
@@ -95,94 +97,130 @@ Deno.serve(async (req) => {
       message_preview: testMessage.substring(0, 50) + '...'
     });
 
-    const evolutionResponse = await fetch(sendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': globalConfig.api_token
-      },
-      body: JSON.stringify({
-        number: cleanPhone,
-        text: testMessage
-      })
-    });
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-    const responseText = await evolutionResponse.text();
-    console.log('[send-test-message] Evolution API response:', {
-      status: evolutionResponse.status,
-      body: responseText.substring(0, 500)
-    });
-
-    let responseData;
     try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = { raw: responseText };
-    }
+      const evolutionResponse = await fetch(sendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': globalConfig.api_token
+        },
+        body: JSON.stringify({
+          number: cleanPhone,
+          text: testMessage
+        }),
+        signal: controller.signal
+      });
 
-    if (!evolutionResponse.ok) {
-      // Tentar formatos alternativos de telefone
-      const alternativeFormats = [
-        cleanPhone,
-        `55${cleanPhone.replace(/^55/, '')}`,
-        cleanPhone.replace(/^55/, ''),
-        cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone,
-        cleanPhone.length === 10 ? `55${cleanPhone.substring(0, 2)}9${cleanPhone.substring(2)}` : cleanPhone
-      ];
+      clearTimeout(timeoutId);
 
-      for (const altPhone of alternativeFormats.slice(1)) {
-        console.log('[send-test-message] Retrying with:', altPhone);
-        
-        const retryResponse = await fetch(sendUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': globalConfig.api_token
-          },
-          body: JSON.stringify({
-            number: altPhone,
-            text: testMessage
-          })
-        });
+      const responseText = await evolutionResponse.text();
+      console.log('[send-test-message] Evolution API response:', {
+        status: evolutionResponse.status,
+        body: responseText.substring(0, 500)
+      });
 
-        const retryText = await retryResponse.text();
-        console.log('[send-test-message] Retry response:', {
-          phone: altPhone,
-          status: retryResponse.status,
-          body: retryText.substring(0, 200)
-        });
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { raw: responseText };
+      }
 
-        if (retryResponse.ok) {
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              phone_used: altPhone,
-              response: JSON.parse(retryText) 
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+      if (!evolutionResponse.ok) {
+        // Tentar formatos alternativos de telefone
+        const alternativeFormats = [
+          cleanPhone,
+          `55${cleanPhone.replace(/^55/, '')}`,
+          cleanPhone.replace(/^55/, ''),
+          cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone,
+          cleanPhone.length === 10 ? `55${cleanPhone.substring(0, 2)}9${cleanPhone.substring(2)}` : cleanPhone
+        ];
+
+        for (const altPhone of alternativeFormats.slice(1)) {
+          console.log('[send-test-message] Retrying with:', altPhone);
+          
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => retryController.abort(), API_TIMEOUT_MS);
+          
+          try {
+            const retryResponse = await fetch(sendUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': globalConfig.api_token
+              },
+              body: JSON.stringify({
+                number: altPhone,
+                text: testMessage
+              }),
+              signal: retryController.signal
+            });
+
+            clearTimeout(retryTimeoutId);
+
+            const retryText = await retryResponse.text();
+            console.log('[send-test-message] Retry response:', {
+              phone: altPhone,
+              status: retryResponse.status,
+              body: retryText.substring(0, 200)
+            });
+
+            if (retryResponse.ok) {
+              return new Response(
+                JSON.stringify({ 
+                  success: true, 
+                  phone_used: altPhone,
+                  response: JSON.parse(retryText) 
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          } catch (retryErr) {
+            clearTimeout(retryTimeoutId);
+            if (retryErr instanceof Error && retryErr.name === 'AbortError') {
+              console.log('[send-test-message] Retry timed out for:', altPhone);
+            }
+          }
         }
+
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'All phone formats failed',
+            last_status: evolutionResponse.status,
+            last_response: responseData
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       return new Response(
         JSON.stringify({ 
-          success: false, 
-          error: 'All phone formats failed',
-          last_status: evolutionResponse.status,
-          last_response: responseData
+          success: true, 
+          phone_used: cleanPhone,
+          response: responseData 
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[send-test-message] Request timed out');
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Request timed out after 15 seconds' 
+          }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw fetchError;
     }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        phone_used: cleanPhone,
-        response: responseData 
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     console.error('[send-test-message] Error:', error);
