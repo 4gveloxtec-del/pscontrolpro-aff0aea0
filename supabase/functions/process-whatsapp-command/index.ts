@@ -92,6 +92,21 @@ function isBlank(v: unknown): boolean {
   return v === null || v === undefined || (typeof v === 'string' && !v.trim());
 }
 
+function shouldOverwriteTemplateValue(current: unknown): boolean {
+  if (isBlank(current)) return true;
+  if (typeof current !== 'string') return false;
+
+  // Common template syntaxes used in custom payload builders
+  // Examples: "{phone}", "{{phone}}", "${phone}", "<phone>"
+  const s = current.trim();
+  return (
+    /\{\{[^}]+\}\}/.test(s) ||
+    /\{[^}]+\}/.test(s) ||
+    /\$\{[^}]+\}/.test(s) ||
+    /<[^>]+>/.test(s)
+  );
+}
+
 function buildTestCommandPayload(params: {
   base: Record<string, unknown>;
   clientPhone: string;
@@ -169,25 +184,26 @@ function buildTestCommandPayload(params: {
   const maybeData = payload.data;
   if (maybeData && typeof maybeData === 'object' && !Array.isArray(maybeData)) {
     const dataObj = maybeData as Record<string, unknown>;
-    if (isBlank(dataObj.phone)) dataObj.phone = params.clientPhone;
-    if (isBlank(dataObj.name)) dataObj.name = params.clientName;
-    if (isBlank(dataObj.plan)) dataObj.plan = params.testPlan;
-    if (isBlank(dataObj.server)) dataObj.server = params.serverName || params.serverId;
-    if (isBlank(dataObj.seller_id)) dataObj.seller_id = params.sellerId;
-    if (isBlank(dataObj.server_id)) dataObj.server_id = params.serverId;
+    // Overwrite placeholders to prevent sending literal "{phone}" etc.
+    if (shouldOverwriteTemplateValue(dataObj.phone)) dataObj.phone = params.clientPhone;
+    if (shouldOverwriteTemplateValue(dataObj.name)) dataObj.name = params.clientName;
+    if (shouldOverwriteTemplateValue(dataObj.plan)) dataObj.plan = params.testPlan;
+    if (shouldOverwriteTemplateValue(dataObj.server)) dataObj.server = params.serverName || params.serverId;
+    if (shouldOverwriteTemplateValue(dataObj.seller_id)) dataObj.seller_id = params.sellerId;
+    if (shouldOverwriteTemplateValue(dataObj.server_id)) dataObj.server_id = params.serverId;
     // WhatsApp no objeto data
-    if (isBlank(dataObj.whatsapp)) dataObj.whatsapp = params.whatsappNumber;
-    if (isBlank(dataObj.whatsapp_number)) dataObj.whatsapp_number = params.whatsappNumber;
+    if (shouldOverwriteTemplateValue(dataObj.whatsapp)) dataObj.whatsapp = params.whatsappNumber;
+    if (shouldOverwriteTemplateValue(dataObj.whatsapp_number)) dataObj.whatsapp_number = params.whatsappNumber;
   }
 
   const maybeClient = payload.client;
   if (maybeClient && typeof maybeClient === 'object' && !Array.isArray(maybeClient)) {
     const clientObj = maybeClient as Record<string, unknown>;
-    if (isBlank(clientObj.phone)) clientObj.phone = params.clientPhone;
-    if (isBlank(clientObj.name)) clientObj.name = params.clientName;
+    if (shouldOverwriteTemplateValue(clientObj.phone)) clientObj.phone = params.clientPhone;
+    if (shouldOverwriteTemplateValue(clientObj.name)) clientObj.name = params.clientName;
     // WhatsApp no objeto client
-    if (isBlank(clientObj.whatsapp)) clientObj.whatsapp = params.whatsappNumber;
-    if (isBlank(clientObj.whatsapp_number)) clientObj.whatsapp_number = params.whatsappNumber;
+    if (shouldOverwriteTemplateValue(clientObj.whatsapp)) clientObj.whatsapp = params.whatsappNumber;
+    if (shouldOverwriteTemplateValue(clientObj.whatsapp_number)) clientObj.whatsapp_number = params.whatsappNumber;
   }
 
   return payload;
@@ -591,7 +607,10 @@ Deno.serve(async (req) => {
 
         const payload = buildTestCommandPayload({
           base,
-          clientPhone: clientPhoneFormatted, // Formato com espaços para compatibilidade com todas as APIs
+          // IMPORTANTE: aqui usamos a versão em dígitos como "fonte" do payload
+          // e adicionamos a versão com espaços como campos extras.
+          // Isso evita que APIs que só leem "data.phone" (ou "client.phone") recebam "55 31 ..." e falhem.
+          clientPhone: clientPhoneDigits,
           clientName: finalClientName,
           testPlan,
           serverId: testConfig!.server_id!,
@@ -616,6 +635,8 @@ Deno.serve(async (req) => {
         // Versão formatada com espaços (alguns painéis exigem)
         payload.phone = clientPhoneFormatted;
         payload.number = clientPhoneFormatted;
+        payload.phone_formatted = clientPhoneFormatted;
+        payload.number_formatted = clientPhoneFormatted;
 
         if (api.api_method === 'POST') {
           fetchOptions.body = JSON.stringify(payload);
@@ -624,6 +645,7 @@ Deno.serve(async (req) => {
           const url = new URL(finalUrl);
           url.searchParams.set('phone', clientPhoneFormatted); // Formato com espaços
           url.searchParams.set('phone_digits', clientPhoneDigits); // Apenas dígitos
+          url.searchParams.set('phone_formatted', clientPhoneFormatted);
           url.searchParams.set('whatsapp', clientPhoneDigits); // WhatsApp normalizado com DDI
           url.searchParams.set('whatsapp_number', clientPhoneDigits);
           url.searchParams.set('name', String(payload.name || ''));
