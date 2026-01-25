@@ -39,3 +39,6 @@ export * from './core';
 
 // Comandos Globais
 export * from './commands';
+
+// Configuração por Revendedor
+export * from './config';

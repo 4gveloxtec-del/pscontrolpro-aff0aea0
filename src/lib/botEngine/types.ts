@@ -51,13 +51,50 @@ export type BotActionType =
 // CONFIGURAÇÃO DO MOTOR
 // =====================================================================
 
+export type BotMediaType = 'none' | 'image' | 'video' | 'audio' | 'document';
+
 export interface BotEngineConfig {
   id: string;
   seller_id: string;
   is_enabled: boolean;
-  default_timeout_minutes: number;
+  
+  // Mensagens personalizadas
+  welcome_message: string;
+  welcome_media_url?: string;
+  welcome_media_type: BotMediaType;
   fallback_message: string;
+  inactivity_message: string;
+  outside_hours_message: string;
+  human_takeover_message: string;
+  
+  // Menu principal
+  main_menu_key: string;
+  
+  // Timeouts e delays
+  default_timeout_minutes: number;
   session_expire_minutes: number;
+  max_inactivity_minutes: number;
+  auto_reply_delay_ms: number;
+  
+  // Horário de funcionamento
+  business_hours_enabled: boolean;
+  business_hours_start: string; // TIME format "HH:MM"
+  business_hours_end: string;   // TIME format "HH:MM"
+  business_days: number[];      // 1=Seg, 2=Ter, ..., 7=Dom
+  timezone: string;
+  
+  // Comportamento
+  typing_simulation: boolean;
+  human_takeover_enabled: boolean;
+  
+  // Fluxos e comandos
+  enabled_flows: string[];      // IDs de fluxos habilitados (vazio = todos)
+  disabled_commands: string[];  // Comandos globais desabilitados
+  
+  // Variáveis personalizadas
+  custom_variables: Record<string, string>;
+  
+  // Metadados
   created_at: string;
   updated_at: string;
 }

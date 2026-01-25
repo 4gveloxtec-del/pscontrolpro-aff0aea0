@@ -108,7 +108,7 @@ WITH CHECK (auth.uid() = seller_id);
 
 | Recurso | Tabela | Isolamento |
 |---------|--------|------------|
-| Configuração do Bot | `bot_engine_config` | 1 registro por seller |
+| **Configuração Completa** | `bot_engine_config` | 1 registro por seller |
 | Fluxos de Conversa | `bot_engine_flows` | N fluxos por seller |
 | Nós dos Fluxos | `bot_engine_nodes` | Via flow_id + seller_id |
 | Conexões | `bot_engine_edges` | Via flow_id + seller_id |
@@ -116,6 +116,84 @@ WITH CHECK (auth.uid() = seller_id);
 | Sessões Ativas | `bot_engine_sessions` | Por contato + seller |
 | Estado de Navegação | `bot_sessions` | UNIQUE(user_id, seller_id) |
 | Log de Mensagens | `bot_logs` | seller_id obrigatório |
+
+---
+
+## ⚙️ Configuração por Revendedor (bot_engine_config)
+
+Cada revendedor possui sua própria configuração completa do bot:
+
+### Mensagens Personalizadas
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `welcome_message` | TEXT | Mensagem de boas-vindas inicial |
+| `welcome_media_url` | TEXT | URL de mídia para enviar junto |
+| `welcome_media_type` | ENUM | none, image, video, audio, document |
+| `fallback_message` | TEXT | Quando não entender a mensagem |
+| `inactivity_message` | TEXT | Ao encerrar por inatividade |
+| `outside_hours_message` | TEXT | Fora do horário de atendimento |
+| `human_takeover_message` | TEXT | Ao transferir para humano |
+
+### Horário de Funcionamento
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `business_hours_enabled` | BOOLEAN | Ativar controle de horário |
+| `business_hours_start` | TIME | Hora de início (ex: "08:00") |
+| `business_hours_end` | TIME | Hora de fim (ex: "22:00") |
+| `business_days` | INT[] | Dias ativos [1=Seg, 7=Dom] |
+| `timezone` | TEXT | Fuso horário (America/Sao_Paulo) |
+
+### Comportamento
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `typing_simulation` | BOOLEAN | Simular "digitando..." |
+| `auto_reply_delay_ms` | INT | Delay antes de responder (ms) |
+| `max_inactivity_minutes` | INT | Tempo para encerrar sessão |
+| `session_expire_minutes` | INT | Expiração total da sessão |
+| `human_takeover_enabled` | BOOLEAN | Permitir transferência para humano |
+
+### Controle de Fluxos
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `main_menu_key` | TEXT | Menu principal (ref: bot_engine_menus) |
+| `enabled_flows` | TEXT[] | IDs de fluxos habilitados (vazio = todos) |
+| `disabled_commands` | TEXT[] | Comandos globais desabilitados |
+| `custom_variables` | JSONB | Variáveis personalizadas {empresa, pix...} |
+
+### Carregamento Dinâmico
+
+```typescript
+// O motor carrega configurações automaticamente pelo seller_id
+const { data: config } = await supabase
+  .from('bot_engine_config')
+  .select('*')
+  .eq('seller_id', sellerId)
+  .eq('is_enabled', true)
+  .maybeSingle();
+
+// Verificar horário de funcionamento
+function isWithinBusinessHours(config: BotEngineConfig): boolean {
+  if (!config.business_hours_enabled) return true;
+  
+  const now = new Date();
+  const currentDay = now.getDay() || 7; // 1-7 (Seg-Dom)
+  
+  if (!config.business_days.includes(currentDay)) return false;
+  
+  const [startH, startM] = config.business_hours_start.split(':');
+  const [endH, endM] = config.business_hours_end.split(':');
+  
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const startMinutes = parseInt(startH) * 60 + parseInt(startM);
+  const endMinutes = parseInt(endH) * 60 + parseInt(endM);
+  
+  return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+}
+```
 
 ---
 
