@@ -29,8 +29,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope } from 'lucide-react';
+import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope, Users } from 'lucide-react';
 import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
+import { TestLogsManager } from '@/components/TestLogsManager';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -866,17 +867,20 @@ export default function TestCommands() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="commands" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Terminal className="h-4 w-4" />
             <span className="hidden sm:inline">Comandos</span>
             <span className="sm:hidden">Cmd</span>
-            <span className="text-muted-foreground">({commands.length})</span>
           </TabsTrigger>
           <TabsTrigger value="apis" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Link2 className="h-4 w-4" />
             <span>APIs</span>
-            <span className="text-muted-foreground">({apis.length})</span>
+          </TabsTrigger>
+          <TabsTrigger value="tests" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Testes</span>
+            <span className="sm:hidden">Testes</span>
           </TabsTrigger>
           <TabsTrigger value="integration" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Settings className="h-4 w-4" />
@@ -1022,6 +1026,11 @@ export default function TestCommands() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Tests Management Tab */}
+        <TabsContent value="tests" className="space-y-4">
+          <TestLogsManager />
         </TabsContent>
 
         {/* Integration Tab */}

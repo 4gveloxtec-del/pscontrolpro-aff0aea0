@@ -623,9 +623,33 @@ Deno.serve(async (req) => {
         );
       }
       
-      // Bloqueio de duplicidade removido - deixar o servidor IPTV controlar
-      // A resposta do servidor será enviada diretamente ao cliente
-      console.log(`[process-command] ✅ Sending test request to IPTV server for phone: ${normalizedPhoneForDB}`);
+      // =====================================================================
+      // BLOQUEIO DE DUPLICIDADE LOCAL - PS CONTROL
+      // Verificar na tabela de clientes se já existe um teste para este número
+      // =====================================================================
+      const { data: existingTestClient } = await supabase
+        .from('clients')
+        .select('id, name, created_at, is_test')
+        .eq('seller_id', seller_id)
+        .eq('phone', normalizedPhoneForDB)
+        .eq('is_test', true)
+        .maybeSingle();
+      
+      if (existingTestClient) {
+        console.log(`[process-command] ⛔ Duplicate test blocked for phone: ${normalizedPhoneForDB}, existing client: ${existingTestClient.name}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'duplicate_test',
+            user_message: '❌ Este número já possui um teste gerado.\n\n🔄 Apenas 1 teste por número é permitido.\n\n💡 Entre em contato com o suporte para mais informações.',
+            existing_client_id: existingTestClient.id,
+            existing_client_name: existingTestClient.name,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+      
+      console.log(`[process-command] ✅ No duplicate found, sending test request for phone: ${normalizedPhoneForDB}`);
       
       // Atualizar clientPhone para usar a versão normalizada com DDI
       clientPhone = normalizedPhoneForDB;
