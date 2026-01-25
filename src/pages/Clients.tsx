@@ -1249,6 +1249,8 @@ export default function Clients() {
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
       queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
+      // Go to page 1 to see the new client (recent clients appear at top)
+      goToPage(1);
       toast.success(selectedSharedCredit 
         ? 'Cliente criado e vinculado ao crédito compartilhado! ✅' 
         : 'Cliente salvo com sucesso! ✅');
