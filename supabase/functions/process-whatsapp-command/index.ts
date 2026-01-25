@@ -552,36 +552,9 @@ Deno.serve(async (req) => {
         );
       }
       
-      console.log(`[process-command] Checking for existing test with phone: ${normalizedPhoneForDB}`);
-      
-      // Verificar se já existe um cliente de TESTE com este telefone para este revendedor
-      const { data: existingTestClient, error: checkError } = await supabase
-        .from('clients')
-        .select('id, name, phone, is_test, created_at')
-        .eq('seller_id', seller_id)
-        .eq('phone', normalizedPhoneForDB)
-        .eq('is_test', true)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error('[process-command] Error checking existing test:', checkError);
-      }
-      
-      if (existingTestClient) {
-        const createdAt = new Date(existingTestClient.created_at).toLocaleDateString('pt-BR');
-        console.log(`[process-command] BLOCKED: Phone ${normalizedPhoneForDB} already has test from ${createdAt}`);
-        
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'test_already_used',
-            user_message: `❌ Este número já utilizou o teste gratuito em ${createdAt}.\n\n💡 Entre em contato com o revendedor para ativar seu plano!`,
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-        );
-      }
-      
-      console.log(`[process-command] ✅ Phone ${normalizedPhoneForDB} is eligible for test`);
+      // Bloqueio de duplicidade removido - deixar o servidor IPTV controlar
+      // A resposta do servidor será enviada diretamente ao cliente
+      console.log(`[process-command] ✅ Sending test request to IPTV server for phone: ${normalizedPhoneForDB}`);
       
       // Atualizar clientPhone para usar a versão normalizada com DDI
       clientPhone = normalizedPhoneForDB;
