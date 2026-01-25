@@ -192,6 +192,16 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
           <LogOut className="w-4 h-4" />
           <span className="ml-2">Sair</span>
         </Button>
+
+        {/* Version */}
+        <div
+          className={cn(
+            'pt-2 text-center text-[10px] text-sidebar-foreground/40',
+            isIconsOnly && 'text-[8px]'
+          )}
+        >
+          v1.0
+        </div>
       </div>
     </div>
   );
