@@ -2048,6 +2048,10 @@ export type Database = {
       }
       seller_queue_settings: {
         Row: {
+          archived_reengagement_days: number | null
+          archived_reengagement_enabled: boolean | null
+          archived_reengagement_last_run: string | null
+          archived_reengagement_template_id: string | null
           catch_up_completed: boolean | null
           catch_up_mode: boolean | null
           created_at: string | null
@@ -2061,6 +2065,10 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          archived_reengagement_days?: number | null
+          archived_reengagement_enabled?: boolean | null
+          archived_reengagement_last_run?: string | null
+          archived_reengagement_template_id?: string | null
           catch_up_completed?: boolean | null
           catch_up_mode?: boolean | null
           created_at?: string | null
@@ -2074,6 +2082,10 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          archived_reengagement_days?: number | null
+          archived_reengagement_enabled?: boolean | null
+          archived_reengagement_last_run?: string | null
+          archived_reengagement_template_id?: string | null
           catch_up_completed?: boolean | null
           catch_up_mode?: boolean | null
           created_at?: string | null
@@ -2086,7 +2098,15 @@ export type Database = {
           start_hour?: number | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "seller_queue_settings_archived_reengagement_template_id_fkey"
+            columns: ["archived_reengagement_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       server_apps: {
         Row: {
