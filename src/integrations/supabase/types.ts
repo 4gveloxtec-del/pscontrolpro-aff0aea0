@@ -604,13 +604,16 @@ export type Database = {
           current_node_id: string | null
           ended_at: string | null
           error_message: string | null
+          external_context: Json | null
           flow_id: string | null
           id: string
           input_variable_name: string | null
           last_activity_at: string | null
+          navigation_history: string[] | null
           seller_id: string
           started_at: string | null
           status: string | null
+          trigger_command: string | null
           variables: Json | null
         }
         Insert: {
@@ -620,13 +623,16 @@ export type Database = {
           current_node_id?: string | null
           ended_at?: string | null
           error_message?: string | null
+          external_context?: Json | null
           flow_id?: string | null
           id?: string
           input_variable_name?: string | null
           last_activity_at?: string | null
+          navigation_history?: string[] | null
           seller_id: string
           started_at?: string | null
           status?: string | null
+          trigger_command?: string | null
           variables?: Json | null
         }
         Update: {
@@ -636,13 +642,16 @@ export type Database = {
           current_node_id?: string | null
           ended_at?: string | null
           error_message?: string | null
+          external_context?: Json | null
           flow_id?: string | null
           id?: string
           input_variable_name?: string | null
           last_activity_at?: string | null
+          navigation_history?: string[] | null
           seller_id?: string
           started_at?: string | null
           status?: string | null
+          trigger_command?: string | null
           variables?: Json | null
         }
         Relationships: [
