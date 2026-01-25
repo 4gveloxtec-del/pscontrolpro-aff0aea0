@@ -59,15 +59,28 @@ interface ActionResult {
 }
 
 // =====================================================================
-// COMANDOS GLOBAIS
+// COMANDOS GLOBAIS - REGRAS UNIVERSAIS DE NAVEGAÇÃO
 // =====================================================================
 
+/**
+ * Comandos universais que funcionam em QUALQUER estado/fluxo:
+ * 
+ * "0"  → Retorna ao previous_state (menu anterior)
+ * "#"  → Retorna ao START (menu inicial)
+ * "00" → Mesmo que "#" (alternativa)
+ * "##" → Mesmo que "#" (alternativa)
+ */
 const GLOBAL_COMMANDS = [
-  { keywords: ['menu', 'cardapio', 'opcoes', 'opções'], action: 'menu' },
-  { keywords: ['voltar', 'anterior', 'retornar', '*', '#'], action: 'voltar' },
-  { keywords: ['inicio', 'início', 'começo', 'reiniciar', '00', '##'], action: 'inicio' },
-  { keywords: ['sair', 'exit', 'encerrar', 'tchau', 'bye', 'fim'], action: 'sair' },
-  { keywords: ['humano', 'atendente', 'pessoa', 'suporte', 'falar com alguem'], action: 'humano' },
+  // NAVEGAÇÃO UNIVERSAL (prioridade máxima)
+  { keywords: ['0'], action: 'back_to_previous', priority: 100 },
+  { keywords: ['#'], action: 'back_to_start', priority: 100 },
+  
+  // Comandos por texto
+  { keywords: ['voltar', 'anterior', 'retornar', '*'], action: 'back_to_previous', priority: 90 },
+  { keywords: ['inicio', 'início', 'começo', 'reiniciar', 'start', '00', '##'], action: 'back_to_start', priority: 90 },
+  { keywords: ['menu', 'cardapio', 'opcoes', 'opções'], action: 'menu', priority: 80 },
+  { keywords: ['sair', 'exit', 'encerrar', 'tchau', 'bye', 'fim'], action: 'sair', priority: 70 },
+  { keywords: ['humano', 'atendente', 'pessoa', 'suporte', 'falar com alguem'], action: 'humano', priority: 60 },
 ];
 
 // =====================================================================
@@ -200,30 +213,45 @@ function matchGlobalCommand(parsed: ParsedInput): { action: string } | null {
  * ⚠️ NÃO retorna mensagens - apenas muda estado/stack
  * As mensagens devem vir dos fluxos configurados nas tabelas bot_engine_*
  */
-function executeAction(action: string, currentStack: string[]): ActionResult {
+function executeAction(
+  action: string, 
+  currentStack: string[], 
+  previousState: string
+): ActionResult {
   switch (action) {
+    // =========================================================
+    // "0" → Retornar ao previous_state (menu anterior)
+    // =========================================================
+    case 'back_to_previous':
+      // Usar previous_state do banco (trigger atualiza automaticamente)
+      const backState = previousState || 'START';
+      const stackAfterBack = [...currentStack];
+      if (stackAfterBack.length > 0) {
+        stackAfterBack.pop();
+      }
+      return {
+        success: true,
+        newState: backState,
+        popStack: true,
+      };
+
+    // =========================================================
+    // "#" → Retornar para o estado START (menu inicial)
+    // =========================================================
+    case 'back_to_start':
+      return {
+        success: true,
+        newState: 'START',
+        clearStack: true,
+      };
+
+    // =========================================================
+    // Comandos adicionais
+    // =========================================================
     case 'menu':
       return {
         success: true,
         newState: 'MENU',
-        clearStack: true,
-      };
-
-    case 'voltar':
-      const newStack = [...currentStack];
-      if (newStack.length > 0) {
-        newStack.pop();
-      }
-      return {
-        success: true,
-        newState: newStack[newStack.length - 1] || 'MENU',
-        popStack: true,
-      };
-
-    case 'inicio':
-      return {
-        success: true,
-        newState: 'INICIO',
         clearStack: true,
       };
 
@@ -419,9 +447,9 @@ Deno.serve(async (req) => {
       console.log(`[BotIntercept] Global command matched: ${globalCmd.action}`);
 
       // =========================================================
-      // PASSO 4: executeAction
+      // PASSO 4: executeAction (com previousState para navegação "0")
       // =========================================================
-      const actionResult = executeAction(globalCmd.action, currentStack);
+      const actionResult = executeAction(globalCmd.action, currentStack, previousState);
 
       if (!actionResult.success) {
         await unlockSession(supabase, userId, sellerId);
