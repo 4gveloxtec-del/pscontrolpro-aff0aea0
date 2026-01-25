@@ -233,12 +233,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get client data
+    // Get client data - use maybeSingle to handle not found gracefully
     const { data: client } = await supabase
       .from('clients')
       .select('*')
       .eq('id', clientId)
-      .single();
+      .maybeSingle();
 
     if (!client || !client.phone) {
       console.log('[send-welcome-message] Client not found or has no phone');
@@ -256,12 +256,12 @@ Deno.serve(async (req) => {
     ]);
     console.log('[send-welcome-message] Credentials decrypted successfully');
 
-    // Get seller profile
+    // Get seller profile - use maybeSingle for resilience
     const { data: sellerProfile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', sellerId)
-      .single();
+      .maybeSingle();
 
     // Get welcome template
     const categoryLower = (client.category || 'iptv').toLowerCase();

@@ -33,12 +33,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get seller profile
+    // Get seller profile - use maybeSingle to handle gracefully
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, is_permanent, subscription_expires_at, is_active, api_trial_started_at, created_at')
       .eq('id', seller_id)
-      .single();
+      .maybeSingle();
 
     if (profileError || !profile) {
       return new Response(

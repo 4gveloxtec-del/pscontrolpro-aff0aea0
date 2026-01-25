@@ -339,7 +339,10 @@ Deno.serve(async (req) => {
       // ============ POST-COMMIT: Welcome Message (non-critical) ============
       
       if (sendWelcomeMessage && !isUpdate && finalClientId) {
-        // Fire and forget - don't fail the transaction for welcome message
+        // Fire and forget with timeout - don't fail the transaction for welcome message
+        const welcomeController = new AbortController();
+        const welcomeTimeoutId = setTimeout(() => welcomeController.abort(), 15000);
+        
         fetch(`${supabaseUrl}/functions/v1/send-welcome-message`, {
           method: 'POST',
           headers: {
@@ -351,7 +354,10 @@ Deno.serve(async (req) => {
             sellerId,
             customMessage: customWelcomeMessage || undefined,
           }),
-        }).catch(e => console.error('Welcome message failed:', e));
+          signal: welcomeController.signal,
+        })
+          .catch(e => console.error('Welcome message failed:', e))
+          .finally(() => clearTimeout(welcomeTimeoutId));
       }
 
       console.log('[AtomicUpsert] Transaction committed successfully:', details);

@@ -108,7 +108,7 @@ export default function WhatsAppAutomation() {
     in30Days.setDate(in30Days.getDate() + 30);
 
     if (!isAdmin) {
-      // Fetch data in parallel for better performance
+      // Fetch data in parallel for better performance with error handling
       Promise.all([
         supabase.from('clients').select('id, name, category, expiration_date, phone')
           .eq('seller_id', user.id).eq('is_archived', false)
@@ -122,19 +122,31 @@ export default function WhatsAppAutomation() {
           .eq('expected_payment_date', yesterday.toISOString().split('T')[0])
           .gt('pending_amount', 0)
           .order('expected_payment_date')
-      ]).then(([expiringRes, overdueRes]) => {
-        setExpiringClients(expiringRes.data || []);
-        setOverdueClients(overdueRes.data || []);
-      });
+      ])
+        .then(([expiringRes, overdueRes]) => {
+          setExpiringClients(expiringRes.data || []);
+          setOverdueClients(overdueRes.data || []);
+        })
+        .catch((error) => {
+          console.error('[WhatsAppAutomation] Error fetching client data:', error);
+          toast.error('Erro ao carregar dados de clientes');
+        });
     } else {
       const in7Days = new Date();
       in7Days.setDate(in7Days.getDate() + 7);
       
-      supabase.from('profiles').select('id, full_name, email, whatsapp, subscription_expires_at')
-        .gte('subscription_expires_at', today.toISOString())
-        .lte('subscription_expires_at', in7Days.toISOString())
-        .eq('is_active', true)
-        .then(({ data }) => setExpiringResellers(data || []));
+      // Wrap in async IIFE to handle the PromiseLike properly
+      (async () => {
+        try {
+          const { data } = await supabase.from('profiles').select('id, full_name, email, whatsapp, subscription_expires_at')
+            .gte('subscription_expires_at', today.toISOString())
+            .lte('subscription_expires_at', in7Days.toISOString())
+            .eq('is_active', true);
+          setExpiringResellers(data || []);
+        } catch (error) {
+          console.error('[WhatsAppAutomation] Error fetching resellers:', error);
+        }
+      })();
 
       fetchSellerInstances();
     }

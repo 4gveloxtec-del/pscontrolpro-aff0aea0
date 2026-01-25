@@ -64,7 +64,7 @@ export function SentMessagesHistory() {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterVia, setFilterVia] = useState<string>('all');
 
-  const { data: notifications, isLoading, refetch, isFetching } = useQuery({
+  const { data: notifications, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['sent-notifications-history', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -91,7 +91,7 @@ export function SentMessagesHistory() {
 
       if (error) {
         console.error('Error fetching notifications:', error);
-        return [];
+        throw error;
       }
 
       return (data || []) as unknown as SentNotification[];
@@ -99,6 +99,27 @@ export function SentMessagesHistory() {
     enabled: !!user?.id,
     refetchInterval: 60000, // Refresh every minute
   });
+
+  // Error state guard
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-destructive" />
+            Mensagens Enviadas
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-center py-8">
+          <p className="text-muted-foreground mb-4">Erro ao carregar histórico de mensagens</p>
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Filter notifications
   const filteredNotifications = (notifications || []).filter(n => {

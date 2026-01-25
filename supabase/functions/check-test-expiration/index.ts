@@ -101,12 +101,12 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Buscar perfil do vendedor
+        // Buscar perfil do vendedor - use maybeSingle to avoid PGRST116
         const { data: sellerProfile } = await supabase
           .from('profiles')
           .select('full_name, company_name, pix_key')
           .eq('id', test.seller_id)
-          .single();
+          .maybeSingle();
 
         // Buscar instância WhatsApp do vendedor
         const { data: instance } = await supabase

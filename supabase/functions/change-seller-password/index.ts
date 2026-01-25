@@ -52,13 +52,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if requesting user is admin
+    // Check if requesting user is admin - use maybeSingle for graceful handling
     const { data: roleData, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', requestingUser.id)
       .eq('role', 'admin')
-      .single();
+      .maybeSingle();
 
     if (roleError || !roleData) {
       return new Response(

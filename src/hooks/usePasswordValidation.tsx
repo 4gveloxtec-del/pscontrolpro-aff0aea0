@@ -5,6 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
  * HaveIBeenPwned API with k-Anonymity (only first 5 chars of SHA-1 sent)
  */
 export async function checkPasswordPwned(password: string): Promise<{ isPwned: boolean; count: number }> {
+  // AbortController with 5s timeout to prevent form blocking
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  
   try {
     // Create SHA-1 hash of password
     const encoder = new TextEncoder();
@@ -17,11 +21,12 @@ export async function checkPasswordPwned(password: string): Promise<{ isPwned: b
     const prefix = hashHex.substring(0, 5);
     const suffix = hashHex.substring(5);
     
-    // Query HIBP API
+    // Query HIBP API with timeout
     const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
       headers: {
         'Add-Padding': 'true' // Adds padding to responses for additional privacy
-      }
+      },
+      signal: controller.signal,
     });
     
     if (!response.ok) {
@@ -41,8 +46,11 @@ export async function checkPasswordPwned(password: string): Promise<{ isPwned: b
     
     return { isPwned: false, count: 0 };
   } catch (error) {
-    console.error('Error checking password:', error);
+    // On timeout or any error, allow the password (don't block user)
+    console.error('Error checking password (possibly timeout):', error);
     return { isPwned: false, count: 0 };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

@@ -25,15 +25,23 @@ export function SharedCreditsSection({
   selectedCredit,
   onSelect,
 }: SharedCreditsSectionProps) {
-  // Load initial state from localStorage
+  // Load initial state from localStorage with try-catch for Safari Private Mode
   const [isEnabled, setIsEnabled] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved === 'true';
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved === 'true';
+    } catch {
+      return false;
+    }
   });
 
-  // Save preference to localStorage
+  // Save preference to localStorage with error handling
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(isEnabled));
+    try {
+      localStorage.setItem(STORAGE_KEY, String(isEnabled));
+    } catch (error) {
+      console.warn('Unable to save preference to localStorage:', error);
+    }
   }, [isEnabled]);
 
   // Clear selection when disabled

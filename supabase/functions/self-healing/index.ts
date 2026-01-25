@@ -419,7 +419,7 @@ async function updateComponentStatus(
     .from('system_health_status')
     .select('*')
     .eq('component_name', component)
-    .single();
+    .maybeSingle();
   
   if (!current) return undefined;
   
@@ -470,7 +470,7 @@ Deno.serve(async (req) => {
     const { data: configData } = await supabase
       .from('system_health_config')
       .select('*')
-      .single();
+      .maybeSingle();
     
     const config = configData as HealthConfig | null;
     
