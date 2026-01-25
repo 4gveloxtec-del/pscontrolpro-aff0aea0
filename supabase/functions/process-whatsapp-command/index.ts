@@ -871,9 +871,9 @@ Fico à disposição! 🚀📺`,
           
           console.log(`[process-command] Triggering auto-create client with phone: ${phoneForClient}`);
           
-          // Timeout para chamada interna - evita bloqueio indefinido
+          // [#15] CORREÇÃO: Timeout aumentado para 25s (criptografia + insert podem demorar)
           const createController = new AbortController();
-          const createTimeoutId = setTimeout(() => createController.abort(), 15000);
+          const createTimeoutId = setTimeout(() => createController.abort(), 25000);
           
           try {
             const createClientResponse = await fetch(`${supabaseUrl}/functions/v1/create-test-client`, {
@@ -903,10 +903,11 @@ Fico à disposição! 🚀📺`,
             } else {
               console.error('[process-command] Auto-create client failed:', await createClientResponse.text());
             }
-          } catch (fetchError: any) {
+          } catch (fetchError: unknown) {
             clearTimeout(createTimeoutId);
-            if (fetchError.name === 'AbortError') {
-              console.warn('[process-command] Auto-create client timed out after 15s');
+            const errorName = fetchError instanceof Error ? fetchError.name : '';
+            if (errorName === 'AbortError') {
+              console.warn('[process-command] Auto-create client timed out after 25s');
             } else {
               throw fetchError;
             }

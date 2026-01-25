@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { normalizePhoneWithDDI } from "../_shared/phone-utils.ts";
-import { parseExpirationDate, formatDateBR, toISODateString } from "../_shared/date-utils.ts";
+import { parseExpirationDate, formatDateBR, toISODateString, isValidDate, getValidDateOrDefault } from "../_shared/date-utils.ts";
 import { encryptData } from "../_shared/crypto-utils.ts";
 import { extractByPath } from "../_shared/object-utils.ts";
 
@@ -232,42 +232,75 @@ Deno.serve(async (req) => {
       console.log(`[create-test-client] Client exists, will update: ${existingClient.name}`);
     }
 
-    // Incrementar contador de testes
+    // Gerar nome do cliente ANTES de incrementar contador (para usar em logs de erro)
     const testCounter = Number((config as Record<string, unknown>).test_counter) || 0;
     const newCounter = testCounter + 1;
-    
-    const configId = (config as Record<string, unknown>).id as string;
-    await supabase
-      .from('test_integration_config')
-      .update({ test_counter: newCounter })
-      .eq('id', configId);
-
-    // Gerar nome do cliente - incluir username para facilitar busca
-    // O username não é criptografado no nome, permitindo busca textual
     const clientNamePrefix = ((config as Record<string, unknown>).client_name_prefix as string) || 'Teste';
     const clientName = username 
       ? `${clientNamePrefix}${newCounter} - ${username}`
       : `${clientNamePrefix}${newCounter}`;
 
-    // Criptografar credenciais
-    const encryptedLogin = username ? await encryptData(supabaseUrl, serviceRoleKey, username) : null;
-    const encryptedPassword = password ? await encryptData(supabaseUrl, serviceRoleKey, password) : null;
+    // [#12] CORREÇÃO: Criptografar credenciais com verificação de sucesso
+    let encryptedLogin: string | null = null;
+    let encryptedPassword: string | null = null;
+    
+    if (username) {
+      encryptedLogin = await encryptData(supabaseUrl, serviceRoleKey, username);
+      if (!encryptedLogin) {
+        console.error('[create-test-client] ❌ Failed to encrypt login - aborting to prevent plaintext storage');
+        await supabase.from('test_generation_log').insert({
+          seller_id,
+          api_id,
+          sender_phone: normalizedPhone,
+          api_response,
+          username: null, // Não salva username não criptografado
+          password: null,
+          dns,
+          expiration_date: expirationDate?.toISOString().split('T')[0] || null,
+          client_created: false,
+          error_message: 'Encryption failed - security abort',
+          test_name: clientName,
+          server_id: server_id_override || (config as Record<string, unknown>).server_id as string || null,
+        });
+        
+        return new Response(
+          JSON.stringify({ success: false, error: 'encryption_failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    
+    if (password) {
+      encryptedPassword = await encryptData(supabaseUrl, serviceRoleKey, password);
+      if (!encryptedPassword) {
+        console.error('[create-test-client] ❌ Failed to encrypt password - aborting');
+        // Continua sem senha - menos crítico que login
+        encryptedPassword = null;
+      }
+    }
 
-    // Calcular expiração final:
-    // 1. Se a API retornou uma data válida (expirationDate já calculado no início), usar ela
-    // 2. Senão, usar a duração padrão configurada (em horas)
+    // [#16] CORREÇÃO: Validar e garantir data de expiração válida
+    const durationHours = Number((config as Record<string, unknown>).default_duration_hours) || 2;
+    
+    // Usar a função getValidDateOrDefault para garantir data válida
     let finalExpirationDatetime: Date;
     let isShortTest = false;
     
-    if (expirationDate) {
-      finalExpirationDatetime = expirationDate;
+    if (isValidDate(expirationDate)) {
+      finalExpirationDatetime = expirationDate!;
     } else {
       // Usar duração configurável (padrão: 2 horas para testes IPTV)
-      const durationHours = Number((config as Record<string, unknown>).default_duration_hours) || 2;
       finalExpirationDatetime = new Date();
       finalExpirationDatetime.setHours(finalExpirationDatetime.getHours() + durationHours);
-      isShortTest = durationHours <= 24; // Testes de até 24h são considerados "curtos"
+      isShortTest = durationHours <= 24;
       console.log(`[create-test-client] Using configured duration: ${durationHours} hours (short test: ${isShortTest})`);
+    }
+
+    // Validação final - garantir que a data é válida
+    if (!isValidDate(finalExpirationDatetime)) {
+      console.error('[create-test-client] ❌ Invalid expiration date after all attempts');
+      finalExpirationDatetime = new Date();
+      finalExpirationDatetime.setHours(finalExpirationDatetime.getHours() + 2);
     }
 
     const configCategory = ((config as Record<string, unknown>).category as string) || 'IPTV';
@@ -417,23 +450,58 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Registrar no log com nome do teste, servidor e datetime preciso
-    await supabase.from('test_generation_log').insert({
-      seller_id,
-      api_id,
-      sender_phone: normalizedPhone,
-      api_response,
-      client_id: clientId,
-      username,
-      password,
-      dns,
-      expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
-      expiration_datetime: finalExpirationDatetime.toISOString(), // Precisão em horas/minutos
-      client_created: wasCreated,
-      test_name: clientName,
-      server_id: configServerId,
-      notified_20min: false,
-    });
+    // [#10] CORREÇÃO: Incrementar contador SOMENTE após sucesso
+    const configId = (config as Record<string, unknown>).id as string;
+    const { error: counterError } = await supabase
+      .from('test_integration_config')
+      .update({ test_counter: newCounter })
+      .eq('id', configId);
+    
+    if (counterError) {
+      console.error('[create-test-client] Failed to increment counter:', counterError);
+      // Não bloqueia - cliente já foi criado
+    }
+
+    // [#19] CORREÇÃO: Verificar se já existe log para este cliente antes de inserir
+    // Evita duplicidade quando cliente existente é atualizado
+    const { data: existingLog } = await supabase
+      .from('test_generation_log')
+      .select('id')
+      .eq('seller_id', seller_id)
+      .eq('client_id', clientId)
+      .maybeSingle();
+
+    if (!existingLog) {
+      // Registrar no log apenas se não existir
+      await supabase.from('test_generation_log').insert({
+        seller_id,
+        api_id,
+        sender_phone: normalizedPhone,
+        api_response,
+        client_id: clientId,
+        username,
+        password,
+        dns,
+        expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
+        expiration_datetime: finalExpirationDatetime.toISOString(),
+        client_created: wasCreated,
+        test_name: clientName,
+        server_id: configServerId,
+        notified_20min: false,
+      });
+      console.log('[create-test-client] Log registered for new client');
+    } else {
+      // Atualizar log existente com nova data de expiração
+      await supabase.from('test_generation_log')
+        .update({
+          expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
+          expiration_datetime: finalExpirationDatetime.toISOString(),
+          api_response,
+          notified_20min: false, // Resetar para permitir novo alerta
+        })
+        .eq('id', existingLog.id);
+      console.log('[create-test-client] Existing log updated');
+    }
 
     return new Response(
       JSON.stringify({ 
