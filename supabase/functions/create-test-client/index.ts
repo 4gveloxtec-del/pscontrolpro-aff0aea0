@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
     
     console.log(`[create-test-client] Normalized phone: ${normalizedPhone} (from: ${sender_phone})`);
     
-    // Verificar se já existe cliente com este telefone (evitar duplicatas)
+    // Verificar se já existe cliente com este telefone para atualizar em vez de criar
     const { data: existingClient } = await supabase
       .from('clients')
       .select('id, name, phone')
@@ -225,28 +225,10 @@ Deno.serve(async (req) => {
       .eq('phone', normalizedPhone)
       .maybeSingle();
 
-    if (existingClient) {
-      console.log(`[create-test-client] Client already exists: ${existingClient.name}`);
-      
-      await supabase.from('test_generation_log').insert({
-        seller_id,
-        api_id,
-        sender_phone: normalizedPhone,
-        api_response,
-        client_id: existingClient.id,
-        client_created: false,
-        error_message: 'Client already exists with this phone',
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          client_created: false, 
-          reason: 'client_exists',
-          client_id: existingClient.id 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Se existir, vamos atualizar as credenciais (usuário pode ter deletado no servidor e criado novamente)
+    const isUpdate = !!existingClient;
+    if (isUpdate) {
+      console.log(`[create-test-client] Client exists, will update: ${existingClient.name}`);
     }
 
     // Extrair dados da resposta da API usando os paths configurados
@@ -347,40 +329,88 @@ Deno.serve(async (req) => {
       notes: `[TESTE API] Gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Expira: ${finalExpirationDatetime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. [INTEGRADO]`,
     };
 
-    const { data: newClient, error: insertError } = await supabase
-      .from('clients')
-      .insert(clientData)
-      .select('id')
-      .single();
+    let clientId: string;
+    let wasCreated: boolean;
 
-    if (insertError) {
-      console.error('[create-test-client] Insert error:', insertError);
-      
-      await supabase.from('test_generation_log').insert({
-        seller_id,
-        api_id,
-        sender_phone: normalizedPhone,
-        api_response,
-        username,
-        password,
-        dns,
-        expiration_date: expirationDate?.toISOString().split('T')[0],
-        client_created: false,
-        error_message: insertError.message,
+    if (isUpdate && existingClient) {
+      // Atualizar cliente existente com novas credenciais
+      const { error: updateError } = await supabase
+        .from('clients')
+        .update({
+          login: encryptedLogin,
+          password: encryptedPassword,
+          dns: dns || null,
+          expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
+          expiration_datetime: finalExpirationDatetime.toISOString(),
+          notes: `[TESTE API] Atualizado via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Expira: ${finalExpirationDatetime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. [INTEGRADO]`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingClient.id);
+
+      if (updateError) {
+        console.error('[create-test-client] Update error:', updateError);
+        
+        await supabase.from('test_generation_log').insert({
+          seller_id,
+          api_id,
+          sender_phone: normalizedPhone,
+          api_response,
+          username,
+          password,
+          dns,
+          expiration_date: expirationDate?.toISOString().split('T')[0],
+          client_created: false,
+          error_message: updateError.message,
+        });
+        
+        return new Response(
+          JSON.stringify({ success: false, error: updateError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      clientId = existingClient.id;
+      wasCreated = false;
+      console.log(`[create-test-client] ✅ Client updated successfully: ${existingClient.id}`);
+    } else {
+      // Criar novo cliente
+      const { data: newClient, error: insertError } = await supabase
+        .from('clients')
+        .insert(clientData)
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('[create-test-client] Insert error:', insertError);
+        
+        await supabase.from('test_generation_log').insert({
+          seller_id,
+          api_id,
+          sender_phone: normalizedPhone,
+          api_response,
+          username,
+          password,
+          dns,
+          expiration_date: expirationDate?.toISOString().split('T')[0],
+          client_created: false,
+          error_message: insertError.message,
+        });
+        
+        return new Response(
+          JSON.stringify({ success: false, error: insertError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      clientId = newClient.id;
+      wasCreated = true;
+      console.log(`[create-test-client] ✅ Client created successfully:`, {
+        id: newClient.id,
+        name: clientName,
+        phone: normalizedPhone,
+        original_phone: sender_phone,
       });
-      
-      return new Response(
-        JSON.stringify({ success: false, error: insertError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
-
-    console.log(`[create-test-client] ✅ Client created successfully:`, {
-      id: newClient.id,
-      name: clientName,
-      phone: normalizedPhone,
-      original_phone: sender_phone,
-    });
 
     // Registrar no log
     await supabase.from('test_generation_log').insert({
@@ -388,20 +418,21 @@ Deno.serve(async (req) => {
       api_id,
       sender_phone: normalizedPhone,
       api_response,
-      client_id: newClient.id,
+      client_id: clientId,
       username,
       password,
       dns,
       expiration_date: expirationDate?.toISOString().split('T')[0],
-      client_created: true,
+      client_created: wasCreated,
     });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        client_created: true,
-        client_id: newClient.id,
-        client_name: clientName,
+        client_created: wasCreated,
+        client_updated: !wasCreated,
+        client_id: clientId,
+        client_name: wasCreated ? clientName : existingClient?.name,
         client_phone: normalizedPhone,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
