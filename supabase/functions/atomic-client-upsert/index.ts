@@ -193,12 +193,19 @@ Deno.serve(async (req) => {
 
       } else {
         // Insert new client - AUDIT FIX: Use maybeSingle() instead of single()
+        // =====================================================================
+        // CLIENTE MANUAL: is_integrated = false
+        // Clientes criados via interface NÃO participam da sincronização automática
+        // =====================================================================
         const { data: insertedClient, error: insertError } = await supabase
           .from('clients')
           .insert([{ 
             ...clientData, 
             seller_id: sellerId,
             renewed_at: new Date().toISOString(),
+            // INTEGRAÇÃO: Cliente manual - não sincroniza automaticamente
+            is_integrated: false,
+            integration_origin: 'manual',
           }])
           .select('id')
           .maybeSingle();

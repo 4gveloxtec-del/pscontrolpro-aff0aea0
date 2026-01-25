@@ -669,7 +669,9 @@ export type Database = {
           has_adult_content: boolean | null
           has_paid_apps: boolean | null
           id: string
+          integration_origin: string | null
           is_archived: boolean | null
+          is_integrated: boolean | null
           is_paid: boolean | null
           is_test: boolean | null
           login: string | null
@@ -721,7 +723,9 @@ export type Database = {
           has_adult_content?: boolean | null
           has_paid_apps?: boolean | null
           id?: string
+          integration_origin?: string | null
           is_archived?: boolean | null
+          is_integrated?: boolean | null
           is_paid?: boolean | null
           is_test?: boolean | null
           login?: string | null
@@ -773,7 +777,9 @@ export type Database = {
           has_adult_content?: boolean | null
           has_paid_apps?: boolean | null
           id?: string
+          integration_origin?: string | null
           is_archived?: boolean | null
+          is_integrated?: boolean | null
           is_paid?: boolean | null
           is_test?: boolean | null
           login?: string | null
