@@ -159,6 +159,16 @@ function buildTestCommandPayload(params: {
   payload.wpp = digits;
   payload.zap = digits;
   
+ // Campos adicionais que Azonix ou outros painéis podem usar
+ payload.num = digits;                      // Formato curto comum
+ payload.numero = digits;                   // Português
+ payload.tel = digits;                      // Abreviação
+ payload.fone = digits;                     // Variação PT-BR
+ payload.user = digits;                     // Alguns painéis usam user como phone
+ payload.username_phone = digits;           // Username baseado em phone
+ payload.customer_phone = digits;           // Cliente
+ payload.contact_number = digits;
+ 
   // Campos ESPECÍFICOS para formato com dígitos (explícito)
   payload.phone_digits = digits;
   payload.number_digits = digits;
@@ -661,24 +671,37 @@ Deno.serve(async (req) => {
           instanceName: instance_name || null,
         });
         
-        console.log(`[process-command] 📞 Phone sent to ALL APIs: digits="${clientPhoneDigits}" formatted="${clientPhoneFormatted}"`);
+       console.log(`[process-command] 📞 API: ${api.name || api.id} | Phone digits: "${clientPhoneDigits}" | Phone formatted: "${clientPhoneFormatted}"`);
 
         if (api.api_method === 'POST') {
           fetchOptions.body = JSON.stringify(payload);
           apiRequest.body = payload;
+         
+         // LOG DETALHADO: Mostrar payload completo para debug
+         console.log(`[process-command] 📤 POST Payload para ${api.name || 'API'}:`, JSON.stringify(payload, null, 2));
         } else if (api.api_method === 'GET') {
           const url = new URL(finalUrl);
-          // GET requests: enviar AMBOS os formatos em parâmetros separados
-          url.searchParams.set('phone', clientPhoneDigits);           // Dígitos (padrão)
-          url.searchParams.set('phone_digits', clientPhoneDigits);    // Dígitos (explícito)
-          url.searchParams.set('phone_formatted', clientPhoneFormatted); // Com espaços
+         // GET requests: enviar TODOS os formatos possíveis
+         url.searchParams.set('phone', clientPhoneDigits);
+         url.searchParams.set('number', clientPhoneDigits);
+         url.searchParams.set('telefone', clientPhoneDigits);
+         url.searchParams.set('celular', clientPhoneDigits);
           url.searchParams.set('whatsapp', clientPhoneDigits);
+         url.searchParams.set('num', clientPhoneDigits);
+         url.searchParams.set('tel', clientPhoneDigits);
+         
+         // Formatos explícitos
+         url.searchParams.set('phone_digits', clientPhoneDigits);
+         url.searchParams.set('phone_formatted', clientPhoneFormatted);
           url.searchParams.set('whatsapp_number', clientPhoneDigits);
+         
           url.searchParams.set('name', String(payload.name || ''));
           url.searchParams.set('plan', String(payload.plan || ''));
           url.searchParams.set('server', String(payload.server || ''));
           url.searchParams.set('seller_id', seller_id);
           finalUrl = url.toString();
+         
+         console.log(`[process-command] 📤 GET URL para ${api.name || 'API'}: ${finalUrl}`);
         }
       } else if (api.api_method === 'POST' && api.api_body_template) {
         fetchOptions.body = JSON.stringify(api.api_body_template);
