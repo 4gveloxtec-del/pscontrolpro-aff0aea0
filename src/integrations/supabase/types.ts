@@ -361,34 +361,91 @@ export type Database = {
       }
       bot_engine_config: {
         Row: {
+          auto_reply_delay_ms: number | null
+          business_days: number[] | null
+          business_hours_enabled: boolean | null
+          business_hours_end: string | null
+          business_hours_start: string | null
           created_at: string | null
+          custom_variables: Json | null
           default_timeout_minutes: number | null
+          disabled_commands: string[] | null
+          enabled_flows: string[] | null
           fallback_message: string | null
+          human_takeover_enabled: boolean | null
+          human_takeover_message: string | null
           id: string
+          inactivity_message: string | null
           is_enabled: boolean | null
+          main_menu_key: string | null
+          max_inactivity_minutes: number | null
+          outside_hours_message: string | null
           seller_id: string
           session_expire_minutes: number | null
+          timezone: string | null
+          typing_simulation: boolean | null
           updated_at: string | null
+          welcome_media_type: string | null
+          welcome_media_url: string | null
+          welcome_message: string | null
         }
         Insert: {
+          auto_reply_delay_ms?: number | null
+          business_days?: number[] | null
+          business_hours_enabled?: boolean | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
           created_at?: string | null
+          custom_variables?: Json | null
           default_timeout_minutes?: number | null
+          disabled_commands?: string[] | null
+          enabled_flows?: string[] | null
           fallback_message?: string | null
+          human_takeover_enabled?: boolean | null
+          human_takeover_message?: string | null
           id?: string
+          inactivity_message?: string | null
           is_enabled?: boolean | null
+          main_menu_key?: string | null
+          max_inactivity_minutes?: number | null
+          outside_hours_message?: string | null
           seller_id: string
           session_expire_minutes?: number | null
+          timezone?: string | null
+          typing_simulation?: boolean | null
           updated_at?: string | null
+          welcome_media_type?: string | null
+          welcome_media_url?: string | null
+          welcome_message?: string | null
         }
         Update: {
+          auto_reply_delay_ms?: number | null
+          business_days?: number[] | null
+          business_hours_enabled?: boolean | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
           created_at?: string | null
+          custom_variables?: Json | null
           default_timeout_minutes?: number | null
+          disabled_commands?: string[] | null
+          enabled_flows?: string[] | null
           fallback_message?: string | null
+          human_takeover_enabled?: boolean | null
+          human_takeover_message?: string | null
           id?: string
+          inactivity_message?: string | null
           is_enabled?: boolean | null
+          main_menu_key?: string | null
+          max_inactivity_minutes?: number | null
+          outside_hours_message?: string | null
           seller_id?: string
           session_expire_minutes?: number | null
+          timezone?: string | null
+          typing_simulation?: boolean | null
           updated_at?: string | null
+          welcome_media_type?: string | null
+          welcome_media_url?: string | null
+          welcome_message?: string | null
         }
         Relationships: []
       }
