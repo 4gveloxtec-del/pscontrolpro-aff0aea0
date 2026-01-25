@@ -235,6 +235,9 @@ export default function Clients() {
   const [lookupSearchQuery, setLookupSearchQuery] = useState('');
   const [selectedLookupClientId, setSelectedLookupClientId] = useState<string | null>(null);
   const [showLookupPasswords, setShowLookupPasswords] = useState(false);
+  const [lookupDecryptedCredentials, setLookupDecryptedCredentials] = useState<{ login: string; password: string; login_2?: string; password_2?: string } | null>(null);
+  const [lookupDecryptAttempt, setLookupDecryptAttempt] = useState(0);
+  const lookupRetryTimeoutRef = useRef<number | null>(null);
   // State for unsaved changes confirmation
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [pendingCloseDialog, setPendingCloseDialog] = useState(false);
@@ -719,6 +722,87 @@ export default function Clients() {
     enabled: !!user?.id && !!selectedLookupClientId && showLookupDialog,
     staleTime: 30000,
   });
+
+  // ============= Consulta 360° - Auto-descriptografia de credenciais =============
+  const lookupLooksEncrypted = useCallback((value: string) => {
+    const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+    return base64Regex.test(value) && value.length >= 20;
+  }, []);
+
+  const lookupClientIdForDecrypt = (lookupClientData as any)?.id as string | undefined;
+  const lookupLoginForDecrypt = (lookupClientData as any)?.login as string | null | undefined;
+  const lookupPasswordForDecrypt = (lookupClientData as any)?.password as string | null | undefined;
+  const lookupLogin2ForDecrypt = (lookupClientData as any)?.login_2 as string | null | undefined;
+  const lookupPassword2ForDecrypt = (lookupClientData as any)?.password_2 as string | null | undefined;
+
+  useEffect(() => {
+    if (!showLookupDialog || !lookupClientData) return;
+
+    // clear pending retry
+    if (lookupRetryTimeoutRef.current) {
+      window.clearTimeout(lookupRetryTimeoutRef.current);
+      lookupRetryTimeoutRef.current = null;
+    }
+
+    const run = async () => {
+      const maybeDecrypt = async (value: string | null): Promise<string> => {
+        if (!value) return '';
+        if (!lookupLooksEncrypted(value)) return value;
+        try {
+          return await decrypt(value);
+        } catch {
+          return value;
+        }
+      };
+
+      const [login, password, login_2, password_2] = await Promise.all([
+        maybeDecrypt(lookupLoginForDecrypt ?? null),
+        maybeDecrypt(lookupPasswordForDecrypt ?? null),
+        maybeDecrypt(lookupLogin2ForDecrypt ?? null),
+        maybeDecrypt(lookupPassword2ForDecrypt ?? null),
+      ]);
+
+      const unresolved = [
+        { original: lookupLoginForDecrypt ?? null, result: login },
+        { original: lookupPasswordForDecrypt ?? null, result: password },
+        { original: lookupLogin2ForDecrypt ?? null, result: login_2 },
+        { original: lookupPassword2ForDecrypt ?? null, result: password_2 },
+      ].some(({ original, result }) => {
+        if (!original) return false;
+        return lookupLooksEncrypted(original) && lookupLooksEncrypted(result);
+      });
+
+      if (unresolved && lookupDecryptAttempt < 3) {
+        setLookupDecryptedCredentials(null);
+        const delayMs = 600 * Math.pow(2, lookupDecryptAttempt);
+        lookupRetryTimeoutRef.current = window.setTimeout(() => {
+          setLookupDecryptAttempt((a) => a + 1);
+        }, delayMs);
+        return;
+      }
+
+      setLookupDecryptedCredentials({ login, password, login_2, password_2 });
+    };
+
+    run();
+
+    return () => {
+      if (lookupRetryTimeoutRef.current) {
+        window.clearTimeout(lookupRetryTimeoutRef.current);
+        lookupRetryTimeoutRef.current = null;
+      }
+    };
+  }, [
+    showLookupDialog,
+    lookupClientIdForDecrypt,
+    lookupLoginForDecrypt,
+    lookupPasswordForDecrypt,
+    lookupLogin2ForDecrypt,
+    lookupPassword2ForDecrypt,
+    decrypt,
+    lookupDecryptAttempt,
+    lookupLooksEncrypted,
+  ]);
 
   // Helper function for 360° lookup
   const getLookupStatusBadge = (expirationDate: string) => {
@@ -4457,6 +4541,12 @@ export default function Clients() {
           setLookupSearchQuery('');
           setSelectedLookupClientId(null);
           setShowLookupPasswords(false);
+          setLookupDecryptedCredentials(null);
+          setLookupDecryptAttempt(0);
+          if (lookupRetryTimeoutRef.current) {
+            window.clearTimeout(lookupRetryTimeoutRef.current);
+            lookupRetryTimeoutRef.current = null;
+          }
         }
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -4480,6 +4570,8 @@ export default function Clients() {
                 onChange={(e) => {
                   setLookupSearchQuery(e.target.value);
                   setSelectedLookupClientId(null);
+                  setLookupDecryptedCredentials(null);
+                  setLookupDecryptAttempt(0);
                 }}
                 className="pl-10"
               />
@@ -4503,7 +4595,11 @@ export default function Clients() {
                       <button
                         key={result.id}
                         className="w-full p-3 text-left hover:bg-muted/50 transition-colors flex items-center justify-between"
-                        onClick={() => setSelectedLookupClientId(result.id)}
+                         onClick={() => {
+                           setSelectedLookupClientId(result.id);
+                           setLookupDecryptedCredentials(null);
+                           setLookupDecryptAttempt(0);
+                         }}
                       >
                         <div>
                           <p className="font-medium">{result.name}</p>
@@ -4600,22 +4696,92 @@ export default function Clients() {
                           </h4>
                           {lookupClientData.login && (
                             <div className="flex items-center justify-between">
-                              <span className="text-sm">Login: {lookupClientData.login}</span>
-                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(lookupClientData.login!, 'Login')}>
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          )}
-                          {lookupClientData.password && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">Senha: {showLookupPasswords ? lookupClientData.password : '••••••'}</span>
-                              {showLookupPasswords && (
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(lookupClientData.password!, 'Senha')}>
+                              <span className="text-sm">
+                                Login:{' '}
+                                {isPrivacyMode
+                                  ? '●●●●●●●●'
+                                  : (lookupDecryptedCredentials?.login ?? 'Descriptografando...')}
+                              </span>
+                              {!isPrivacyMode && lookupDecryptedCredentials?.login && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => copyToClipboard(lookupDecryptedCredentials.login, 'Login')}
+                                >
                                   <Copy className="h-3 w-3" />
                                 </Button>
                               )}
                             </div>
                           )}
+
+                          {lookupClientData.password && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">
+                                Senha:{' '}
+                                {isPrivacyMode
+                                  ? '●●●●●●●●'
+                                  : (showLookupPasswords
+                                      ? (lookupDecryptedCredentials?.password ?? 'Descriptografando...')
+                                      : '••••••')}
+                              </span>
+                              {!isPrivacyMode && showLookupPasswords && lookupDecryptedCredentials?.password && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => copyToClipboard(lookupDecryptedCredentials.password, 'Senha')}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
+                          {lookupClientData.login_2 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">
+                                Login 2:{' '}
+                                {isPrivacyMode
+                                  ? '●●●●●●●●'
+                                  : (lookupDecryptedCredentials?.login_2 ?? 'Descriptografando...')}
+                              </span>
+                              {!isPrivacyMode && lookupDecryptedCredentials?.login_2 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => copyToClipboard(lookupDecryptedCredentials.login_2!, 'Login 2')}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
+                          {lookupClientData.password_2 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">
+                                Senha 2:{' '}
+                                {isPrivacyMode
+                                  ? '●●●●●●●●'
+                                  : (showLookupPasswords
+                                      ? (lookupDecryptedCredentials?.password_2 ?? 'Descriptografando...')
+                                      : '••••••')}
+                              </span>
+                              {!isPrivacyMode && showLookupPasswords && lookupDecryptedCredentials?.password_2 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => copyToClipboard(lookupDecryptedCredentials.password_2!, 'Senha 2')}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
                           {lookupClientData.dns && (
                             <div className="flex items-center justify-between">
                               <span className="text-sm">DNS: {lookupClientData.dns}</span>
