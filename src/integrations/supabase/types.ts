@@ -3227,6 +3227,8 @@ export type Database = {
           password: string | null
           seller_id: string
           sender_phone: string
+          server_id: string | null
+          test_name: string | null
           username: string | null
         }
         Insert: {
@@ -3242,6 +3244,8 @@ export type Database = {
           password?: string | null
           seller_id: string
           sender_phone: string
+          server_id?: string | null
+          test_name?: string | null
           username?: string | null
         }
         Update: {
@@ -3257,6 +3261,8 @@ export type Database = {
           password?: string | null
           seller_id?: string
           sender_phone?: string
+          server_id?: string | null
+          test_name?: string | null
           username?: string | null
         }
         Relationships: [
@@ -3272,6 +3278,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_generation_log_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
             referencedColumns: ["id"]
           },
         ]
