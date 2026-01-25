@@ -23,9 +23,12 @@ O BotEngine foi projetado para operar com **total isolamento** entre revendedore
 ┌─────────────────────────────────────────────────────────────────┐
 │                 WEBHOOK: connection-heartbeat                    │
 │                                                                  │
-│   1. Identifica seller_id pelo instance_name                    │
-│   2. Chama bot-engine-intercept com seller_id                   │
-│   3. Aplica isolamento via RLS                                  │
+│   1. Extrai instance_name (suporta 10+ formatos Evolution API)  │
+│   2. ❌ SEM instance_name → Rejeita com HTTP 400                │
+│   3. Busca seller_id (instance_name OU original_instance_name)  │
+│   4. ❌ SEM seller_id → Rejeita/Ignora mensagem                 │
+│   5. ✅ Chama bot-engine-intercept COM seller_id obrigatório    │
+│   6. Aplica isolamento via RLS em TODAS as queries              │
 └─────────────────────────────────────────────────────────────────┘
                               │
            ┌──────────────────┼──────────────────┐
@@ -39,6 +42,40 @@ O BotEngine foi projetado para operar com **total isolamento** entre revendedore
     │ • Sessões   │    │ • Sessões   │    │ • Sessões   │
     │   isoladas  │    │   isoladas  │    │   isoladas  │
     └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### Identificação Obrigatória do Revendedor
+
+**REGRA CRÍTICA**: Nenhuma mensagem é processada sem `seller_id` definido.
+
+| Etapa | Validação | Resultado se Falhar |
+|-------|-----------|---------------------|
+| 1. Extração | `instance_name` do payload | HTTP 400 - Rejeita |
+| 2. Lookup | `whatsapp_seller_instances.instance_name` | Ignora mensagem |
+| 3. Fallback | `whatsapp_seller_instances.original_instance_name` | Ignora mensagem |
+| 4. Passagem | `seller_id` para BotEngine | Não processa |
+
+```typescript
+// Fluxo no connection-heartbeat (simplificado)
+const instanceName = extractInstanceName(body); // 10+ formatos suportados
+
+if (!instanceName) {
+  return Response(400, "Instance name required"); // ❌ BLOQUEADO
+}
+
+const instance = await findSellerByInstance(instanceName);
+
+if (!instance?.seller_id) {
+  console.log("No seller found for instance"); // ❌ IGNORADO
+  return Response(200, "No seller mapped");
+}
+
+// ✅ Só processa com seller_id válido
+await botEngineIntercept({
+  seller_id: instance.seller_id, // OBRIGATÓRIO
+  sender_phone: senderPhone,
+  message_text: messageText,
+});
 ```
 
 ### Garantias de Isolamento por Camada
