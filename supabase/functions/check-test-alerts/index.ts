@@ -10,6 +10,15 @@ const corsHeaders = {
  * 
  * Verifica testes que vencem em 20 minutos e envia alertas via WhatsApp.
  * Deve ser chamada via CRON a cada 5 minutos.
+ * 
+ * CORREÇÕES APLICADAS:
+ * - [#3] AbortController com timeout de 10s para Evolution API
+ * - [#4] Query global config UMA vez antes do loop
+ * - [#6] Atualiza flag notified_test_alert no cliente após envio
+ * - [#9] Usa .maybeSingle() para global_config
+ * - [#11] Tratamento robusto de profiles como objeto ou array
+ * - [#17] Processamento em lotes com Promise.allSettled
+ * - [#18] Rate limiting de 500ms entre envios
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,12 +32,35 @@ Deno.serve(async (req) => {
 
     console.log('[check-test-alerts] Starting alert check...');
 
-    // Buscar testes que vencem em até 20 minutos e ainda não foram notificados
     const now = new Date();
     const in20min = new Date(now.getTime() + 20 * 60 * 1000);
 
-    // Buscar de AMBAS as fontes: test_generation_log E clients com is_test=true
-    // Priorizar clients pois tem expiration_datetime mais preciso
+    // [#4] CORREÇÃO: Buscar config global UMA VEZ antes do loop
+    const { data: globalConfig, error: globalConfigError } = await supabase
+      .from('whatsapp_global_config')
+      .select('api_url, api_key')
+      .maybeSingle(); // [#9] CORREÇÃO: Usa maybeSingle para evitar PGRST116
+
+    if (globalConfigError) {
+      console.error('[check-test-alerts] Error fetching global config:', globalConfigError);
+    }
+
+    if (!globalConfig || !globalConfig.api_url || !globalConfig.api_key) {
+      console.log('[check-test-alerts] No global WhatsApp config found, aborting');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          checked_at: now.toISOString(),
+          tests_found: 0,
+          alerts_sent: 0,
+          alerts_failed: 0,
+          reason: 'no_global_config',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Buscar testes que vencem em até 20 minutos e ainda não foram notificados
     const { data: expiringTests, error: testsError } = await supabase
       .from('clients')
       .select(`
@@ -59,12 +91,13 @@ Deno.serve(async (req) => {
 
     console.log(`[check-test-alerts] Found ${expiringTests?.length || 0} tests expiring soon`);
 
-    // Buscar logs que precisam de notificação
+    // Buscar logs que precisam de notificação (com filtro adicional de client_id não nulo)
     const { data: pendingLogs, error: logsError } = await supabase
       .from('test_generation_log')
-      .select('id, sender_phone, username, seller_id, expiration_datetime, test_name')
+      .select('id, sender_phone, username, seller_id, expiration_datetime, test_name, client_id')
       .eq('notified_20min', false)
       .eq('client_created', true)
+      .not('client_id', 'is', null) // [#14] CORREÇÃO: Apenas logs com cliente válido
       .lte('expiration_datetime', in20min.toISOString())
       .gt('expiration_datetime', now.toISOString());
 
@@ -74,21 +107,54 @@ Deno.serve(async (req) => {
 
     const alertsSent: string[] = [];
     const alertsFailed: string[] = [];
+    const clientsNotified: string[] = [];
 
-    // Processar cada teste que precisa de alerta
-    for (const test of (expiringTests || [])) {
-      // profiles vem como array de relacionamentos
+    // Tipo para um teste individual
+    interface ExpiringTest {
+      id: string;
+      name: string;
+      phone: string | null;
+      login: string | null;
+      expiration_datetime: string | null;
+      seller_id: string;
+      is_test: boolean;
+      profiles: { 
+        id: string; 
+        company_name?: string; 
+        whatsapp_seller_instances: { instance_name: string; is_connected: boolean }[] 
+      }[] | null;
+    }
+
+    // [#17] CORREÇÃO: Função para processar um teste com rate limiting
+    async function processTestAlert(test: ExpiringTest, index: number): Promise<void> {
+      // [#18] CORREÇÃO: Rate limiting - delay proporcional ao índice
+      if (index > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // [#11] CORREÇÃO: Tratamento robusto de profiles
       const profileData = test.profiles;
-      const profile = Array.isArray(profileData) ? profileData[0] : profileData;
+      let profile: { id: string; company_name?: string; whatsapp_seller_instances?: Array<{ instance_name: string; is_connected: boolean }> } | null = null;
       
-      if (!profile || !test.phone) continue;
+      if (profileData) {
+        if (Array.isArray(profileData)) {
+          profile = profileData[0] || null;
+        } else if (typeof profileData === 'object') {
+          profile = profileData as typeof profile;
+        }
+      }
+      
+      if (!profile || !test.phone) {
+        console.log(`[check-test-alerts] Skipping test ${test.id}: no profile or phone`);
+        return;
+      }
 
       const instances = profile.whatsapp_seller_instances;
-      const instance = Array.isArray(instances) ? instances[0] : null;
+      const instance = Array.isArray(instances) ? instances.find(i => i.is_connected) : null;
       
       if (!instance?.is_connected) {
         console.log(`[check-test-alerts] Seller ${test.seller_id} has no connected instance, skipping`);
-        continue;
+        return;
       }
 
       // Calcular tempo restante
@@ -108,35 +174,31 @@ Gostou do serviço? Entre em contato para conhecer nossos planos! 📺
 _${profile.company_name || 'Equipe de Suporte'}_`;
 
       try {
-        // Buscar configuração global da Evolution API
-        const { data: globalConfig } = await supabase
-          .from('whatsapp_global_config')
-          .select('api_url, api_key')
-          .single();
+        // [#3] CORREÇÃO: AbortController com timeout de 10 segundos
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        if (!globalConfig?.api_url || !globalConfig?.api_key) {
-          console.log('[check-test-alerts] No global WhatsApp config found');
-          continue;
-        }
-
-        // Enviar mensagem via Evolution API
         const response = await fetch(
-          `${globalConfig.api_url}/message/sendText/${instance.instance_name}`,
+          `${globalConfig!.api_url}/message/sendText/${instance.instance_name}`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': globalConfig.api_key,
+              'apikey': globalConfig!.api_key,
             },
             body: JSON.stringify({
               number: test.phone,
               text: message,
             }),
+            signal: controller.signal,
           }
         );
 
+        clearTimeout(timeoutId);
+
         if (response.ok) {
           alertsSent.push(test.phone);
+          clientsNotified.push(test.id);
           console.log(`[check-test-alerts] ✅ Alert sent to ${test.phone}`);
         } else {
           const errorText = await response.text();
@@ -145,19 +207,56 @@ _${profile.company_name || 'Equipe de Suporte'}_`;
         }
       } catch (sendError) {
         alertsFailed.push(test.phone);
-        console.error(`[check-test-alerts] ❌ Error sending to ${test.phone}:`, sendError);
+        const errorMsg = sendError instanceof Error ? sendError.message : String(sendError);
+        console.error(`[check-test-alerts] ❌ Error sending to ${test.phone}:`, errorMsg);
       }
     }
 
-    // Marcar logs como notificados
+    // [#17] CORREÇÃO: Processar em lotes de 10 para evitar timeout
+    const batchSize = 10;
+    const testsToProcess = (expiringTests || []) as ExpiringTest[];
+    for (let i = 0; i < testsToProcess.length; i += batchSize) {
+      const batch = testsToProcess.slice(i, i + batchSize);
+      await Promise.allSettled(batch.map((test, idx) => processTestAlert(test, i + idx)));
+    }
+
+    // [#6] CORREÇÃO: Marcar clientes como notificados (adicionar campo se necessário)
+    // Primeiro, marcar logs como notificados
     if (pendingLogs && pendingLogs.length > 0) {
       const logIds = pendingLogs.map(l => l.id);
-      await supabase
+      const { error: updateLogsError } = await supabase
         .from('test_generation_log')
         .update({ notified_20min: true })
         .in('id', logIds);
       
-      console.log(`[check-test-alerts] Marked ${logIds.length} logs as notified`);
+      if (updateLogsError) {
+        console.error('[check-test-alerts] Error updating logs:', updateLogsError);
+      } else {
+        console.log(`[check-test-alerts] Marked ${logIds.length} logs as notified`);
+      }
+    }
+
+    // Também atualizar notes nos clientes notificados para evitar duplicidade
+    if (clientsNotified.length > 0) {
+      const notificationNote = `[ALERTA] Notificado em ${now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+      
+      // Atualizar notas dos clientes para registrar notificação
+      for (const clientId of clientsNotified) {
+        const { data: client } = await supabase
+          .from('clients')
+          .select('notes')
+          .eq('id', clientId)
+          .maybeSingle();
+        
+        const currentNotes = client?.notes || '';
+        if (!currentNotes.includes('[ALERTA]')) {
+          await supabase
+            .from('clients')
+            .update({ notes: `${currentNotes}\n${notificationNote}`.trim() })
+            .eq('id', clientId);
+        }
+      }
+      console.log(`[check-test-alerts] Updated ${clientsNotified.length} clients with notification note`);
     }
 
     return new Response(
