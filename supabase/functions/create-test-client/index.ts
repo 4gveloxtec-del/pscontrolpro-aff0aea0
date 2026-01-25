@@ -267,8 +267,11 @@ Deno.serve(async (req) => {
       .update({ test_counter: newCounter })
       .eq('id', config.id);
 
-    // Gerar nome do cliente
-    const clientName = `${config.client_name_prefix || 'Teste'}${newCounter}`;
+    // Gerar nome do cliente - incluir username para facilitar busca
+    // O username não é criptografado no nome, permitindo busca textual
+    const clientName = username 
+      ? `${config.client_name_prefix || 'Teste'}${newCounter} - ${username}`
+      : `${config.client_name_prefix || 'Teste'}${newCounter}`;
 
     // Criptografar credenciais
     const encryptedLogin = username ? await encryptData(supabaseUrl, serviceRoleKey, username) : null;
