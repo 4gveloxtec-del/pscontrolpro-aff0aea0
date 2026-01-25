@@ -588,32 +588,145 @@ Deno.serve(async (req: Request) => {
           .limit(1)
           .single();
 
-        if (globalConfig) {
-          try {
-            const baseUrl = normalizeApiUrl(globalConfig.api_url);
-            // Try to logout the instance
-            const logoutUrl = `${baseUrl}/instance/logout/${instance.instance_name}`;
-            
-            await fetch(logoutUrl, {
-              method: 'DELETE',
-              headers: { 'apikey': globalConfig.api_token },
-            });
-          } catch (error) {
-            console.log('Logout error (continuing anyway):', error);
-          }
+        if (!globalConfig) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Configuração global da API não encontrada. Contate o administrador.' 
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
 
-        // Update local status
+        // Tentar logout na Evolution API com validação de resposta e timeout
+        let evolutionLogoutSuccess = false;
+        let evolutionError: string | null = null;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+        try {
+          const baseUrl = normalizeApiUrl(globalConfig.api_url);
+          const logoutUrl = `${baseUrl}/instance/logout/${instance.instance_name}`;
+          
+          console.log(`[disconnect] Attempting logout for ${instance.instance_name} at ${logoutUrl}`);
+          
+          const response = await fetch(logoutUrl, {
+            method: 'DELETE',
+            headers: { 'apikey': globalConfig.api_token },
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          // Validar resposta HTTP - Evolution API retorna 200 ou 404 (já desconectada)
+          if (response.ok || response.status === 404) {
+            evolutionLogoutSuccess = true;
+            console.log(`[disconnect] Logout successful for ${instance.instance_name} (status: ${response.status})`);
+          } else {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`Evolution API error (${response.status}): ${errorText}`);
+          }
+        } catch (error: unknown) {
+          clearTimeout(timeoutId);
+          if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+              evolutionError = 'Timeout: Evolution API não respondeu em 10 segundos';
+            } else {
+              evolutionError = error.message;
+            }
+          } else {
+            evolutionError = String(error);
+          }
+          console.error('[disconnect] Logout failed:', evolutionError);
+        }
+
+        // Atualizar banco com flag de logout manual (mesmo em caso de erro, para evitar loop)
         await supabase
           .from('whatsapp_seller_instances')
           .update({ 
             is_connected: false,
+            session_valid: false,
+            last_connection_check: new Date().toISOString(),
+            last_evolution_state: evolutionLogoutSuccess ? 'logout_manual' : 'logout_failed'
+          })
+          .eq('seller_id', user.id);
+
+        if (evolutionLogoutSuccess) {
+          return new Response(
+            JSON.stringify({ success: true, message: 'Desconectado com sucesso' }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          // Retornar erro mas informar que banco foi atualizado
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Falha ao desconectar da Evolution API',
+              details: evolutionError,
+              local_updated: true,
+              hint: 'Use "Forçar Desconexão" se o problema persistir'
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      case 'force_disconnect': {
+        // Forçar desconexão - deletar instância completamente
+        const { data: instance } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('instance_name')
+          .eq('seller_id', user.id)
+          .maybeSingle();
+
+        // Get global config
+        const { data: globalConfig } = await supabase
+          .from('whatsapp_global_config')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        // Tentar deletar instância na Evolution API (ignorar erros)
+        if (globalConfig && instance?.instance_name) {
+          try {
+            const baseUrl = normalizeApiUrl(globalConfig.api_url);
+            
+            // Primeiro tentar logout
+            await fetch(`${baseUrl}/instance/logout/${instance.instance_name}`, {
+              method: 'DELETE',
+              headers: { 'apikey': globalConfig.api_token },
+            }).catch(() => {});
+            
+            // Depois deletar a instância completamente
+            await fetch(`${baseUrl}/instance/delete/${instance.instance_name}`, {
+              method: 'DELETE',
+              headers: { 'apikey': globalConfig.api_token },
+            }).catch(() => {});
+            
+            console.log(`[force_disconnect] Instance ${instance.instance_name} deleted from Evolution API`);
+          } catch (error) {
+            console.log('[force_disconnect] Delete failed, continuing:', error);
+          }
+        }
+
+        // Limpar registro no banco completamente
+        await supabase
+          .from('whatsapp_seller_instances')
+          .update({ 
+            is_connected: false,
+            session_valid: false,
+            instance_name: null,
+            connected_phone: null,
+            last_evolution_state: 'force_deleted',
             last_connection_check: new Date().toISOString()
           })
           .eq('seller_id', user.id);
 
         return new Response(
-          JSON.stringify({ success: true, message: 'Desconectado com sucesso' }),
+          JSON.stringify({ success: true, message: 'Instância removida. Configure novamente.' }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

@@ -464,7 +464,48 @@ export function WhatsAppSellerConfig() {
             setQrCode(null);
             await refetch();
           } else {
-            toast.error(data.error || 'Erro ao desconectar');
+            // Exibir erro detalhado
+            const errorMsg = data.error || 'Erro ao desconectar';
+            const details = data.details ? `\n\nDetalhes: ${data.details}` : '';
+            toast.error(errorMsg + details, { duration: 6000 });
+            
+            // Se banco foi atualizado localmente, atualizar UI
+            if (data.local_updated) {
+              setFormData(prev => ({ ...prev, is_connected: false }));
+              await refetch();
+              toast.warning('Status local atualizado. Use "Forçar Desconexão" se o problema persistir.', { duration: 8000 });
+            }
+          }
+        } catch (err: any) {
+          toast.error('Erro: ' + err.message);
+        } finally {
+          setIsDisconnecting(false);
+        }
+      },
+    });
+  };
+  
+  // Forçar desconexão (fallback)
+  const handleForceDisconnect = () => {
+    confirm({
+      title: 'Forçar Desconexão',
+      description: 'Isso irá remover completamente a instância do WhatsApp. Você precisará configurar novamente do zero. Use apenas se a desconexão normal não funcionar.',
+      confirmText: 'Forçar Desconexão',
+      variant: 'destructive',
+      onConfirm: async () => {
+        setIsDisconnecting(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
+            body: { action: 'force_disconnect' },
+          });
+          if (error) throw error;
+          if (data.success) {
+            toast.success('Instância removida. Configure novamente.');
+            setFormData(prev => ({ ...prev, is_connected: false, instance_name: '' }));
+            setQrCode(null);
+            await refetch();
+          } else {
+            toast.error(data.error || 'Erro ao forçar desconexão');
           }
         } catch (err: any) {
           toast.error('Erro: ' + err.message);
@@ -987,6 +1028,16 @@ export function WhatsAppSellerConfig() {
                 Recriar Instância
               </Button>
             </div>
+            
+            {/* Forçar Desconexão - botão de fallback */}
+            <Button 
+              variant="ghost"
+              onClick={handleForceDisconnect} 
+              disabled={isDisconnecting}
+              className="w-full mt-2 text-xs text-muted-foreground hover:text-destructive"
+            >
+              🔧 Forçar Desconexão (usar se o botão acima não funcionar)
+            </Button>
             
             <p className="text-xs text-muted-foreground text-center mt-2">
               💡 Use "Recriar Instância" para gerar um novo nome automático para o chatbot
