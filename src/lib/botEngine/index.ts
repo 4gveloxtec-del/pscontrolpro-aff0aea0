@@ -17,3 +17,6 @@ export * from './navigation';
 
 // Integração com APIs existentes
 export * from './integration';
+
+// Funções Core (estado, parsing, ações, mensagens, lock)
+export * from './core';
