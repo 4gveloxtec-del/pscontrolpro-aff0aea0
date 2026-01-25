@@ -319,16 +319,38 @@ export default function Clients() {
   const [hasMoreClients, setHasMoreClients] = useState(true);
   const [totalClientCount, setTotalClientCount] = useState(0);
   const CLIENTS_PER_PAGE = 50;
+  const AUTOLOAD_ALL_UP_TO = 250; // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
 
   // Get total count of clients for accurate pagination info
   const { data: clientCount } = useQuery({
-    queryKey: ['clients-count', user?.id],
+    queryKey: ['clients-count', user?.id, debouncedSearch],
     queryFn: async () => {
       if (!user?.id) return 0;
-      const { count, error } = await supabase
+
+      let query = supabase
         .from('clients')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('seller_id', user.id);
+
+      const raw = debouncedSearch.trim();
+      if (raw) {
+        const safe = raw.replace(/,/g, ' ');
+        const like = `%${safe}%`;
+        const digits = safe.replace(/\D/g, '');
+        const orParts = [
+          `name.ilike.${like}`,
+          `dns.ilike.${like}`,
+          `email.ilike.${like}`,
+          `telegram.ilike.${like}`,
+          `app_name.ilike.${like}`,
+        ];
+        if (digits.length >= 4) {
+          orParts.push(`phone.ilike.%${digits}%`);
+        }
+        query = query.or(orParts.join(','));
+      }
+
+      const { count, error } = await query;
       if (error) throw error;
       return count || 0;
     },
@@ -345,13 +367,13 @@ export default function Clients() {
   }, [clientCount, allLoadedClients.length]);
 
   const { data: fetchedClients = [], isLoading, isFetching, isSuccess, dataUpdatedAt } = useQuery({
-    queryKey: ['clients', user?.id, dbPage],
+    queryKey: ['clients', user?.id, dbPage, debouncedSearch],
     queryFn: async () => {
       if (!user?.id) return [];
       const from = dbPage * CLIENTS_PER_PAGE;
       const to = from + CLIENTS_PER_PAGE - 1;
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('clients')
         .select(`
           id, name, phone, email, device, dns, expiration_date,
@@ -364,7 +386,29 @@ export default function Clients() {
           gerencia_app_mac, gerencia_app_devices,
           app_name, app_type, device_model, additional_servers
         `)
-        .eq('seller_id', user.id)
+
+      query = query.eq('seller_id', user.id);
+
+      const raw = debouncedSearch.trim();
+      if (raw) {
+        const safe = raw.replace(/,/g, ' ');
+        const like = `%${safe}%`;
+        const digits = safe.replace(/\D/g, '');
+        const orParts = [
+          `name.ilike.${like}`,
+          `dns.ilike.${like}`,
+          `email.ilike.${like}`,
+          `telegram.ilike.${like}`,
+          `app_name.ilike.${like}`,
+        ];
+        if (digits.length >= 4) {
+          orParts.push(`phone.ilike.%${digits}%`);
+        }
+        query = query.or(orParts.join(','));
+      }
+
+      // Ordenação/paginação sempre no banco
+      const { data, error } = await query
         .order('expiration_date', { ascending: true })
         .range(from, to);
       
@@ -385,6 +429,14 @@ export default function Clients() {
     refetchOnWindowFocus: true, // Re-enable refetch on focus
     refetchOnMount: 'always',
   });
+
+  // Quando a busca muda, reinicia o carregamento no banco para buscar em TODO o dataset
+  useEffect(() => {
+    if (!user?.id) return;
+    setDbPage(0);
+    setAllLoadedClients([]);
+    setHasMoreClients(true);
+  }, [debouncedSearch, user?.id]);
 
   // Accumulate loaded clients when fetching new pages - use isSuccess and dataUpdatedAt for reliable updates
   useEffect(() => {
@@ -425,6 +477,22 @@ export default function Clients() {
       setDbPage(prev => prev + 1);
     }
   }, [hasMoreClients, isFetching]);
+
+  // Auto-carregar tudo quando o total é pequeno (ex: ~150) para evitar “sumir” clientes
+  useEffect(() => {
+    if (!user?.id) return;
+    if (debouncedSearch.trim()) return; // em busca, não auto-carrega para evitar spam de queries
+    if (totalClientCount <= 0) return;
+    if (totalClientCount > AUTOLOAD_ALL_UP_TO) return;
+    if (!hasMoreClients) return;
+    if (isFetching || isLoading) return;
+    if (allLoadedClients.length >= totalClientCount) return;
+
+    const t = window.setTimeout(() => {
+      loadMoreClients();
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [user?.id, debouncedSearch, totalClientCount, AUTOLOAD_ALL_UP_TO, hasMoreClients, isFetching, isLoading, allLoadedClients.length, loadMoreClients]);
 
   // Use accumulated clients for the rest of the component
   const clients = allLoadedClients;
@@ -2275,6 +2343,11 @@ export default function Clients() {
     endIndex,
     totalItems,
   } = usePerformanceOptimization(sortedClients, { pageSize: ITEMS_PER_PAGE });
+
+  // Sempre volte para a página 1 quando mudar busca/filtros (evita parecer que “sumiu” cliente)
+  useEffect(() => {
+    goToPage(1);
+  }, [debouncedSearch, filter, categoryFilter, serverFilter, dnsFilter, dateFilter, goToPage]);
 
   const addCategoryMutation = useMutation({
     mutationFn: async (name: string) => {
