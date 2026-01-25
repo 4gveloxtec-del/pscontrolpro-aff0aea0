@@ -564,7 +564,7 @@ Deno.serve(async (req: Request) => {
       // First try instance_name - include connected_phone to avoid responding to ourselves
       const { data: inst1 } = await supabase
         .from('whatsapp_seller_instances')
-        .select('seller_id, instance_name, is_connected, connected_phone')
+        .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
         .eq('instance_name', instanceName)
         .maybeSingle();
       
@@ -574,7 +574,7 @@ Deno.serve(async (req: Request) => {
         // Try original_instance_name
         const { data: inst2 } = await supabase
           .from('whatsapp_seller_instances')
-          .select('seller_id, instance_name, is_connected, connected_phone')
+          .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
           .eq('original_instance_name', instanceName)
           .maybeSingle();
         instance = inst2;
@@ -611,10 +611,29 @@ Deno.serve(async (req: Request) => {
       let alertType: string | null = null;
       let alertMessage = '';
 
+      // Verificar se última ação foi logout manual - ignorar reconexões automáticas
+      const lastState = instance.last_evolution_state;
+      const isManualLogout = lastState === 'logout_manual' || lastState === 'logout_failed' || lastState === 'force_deleted';
+      
       switch (event) {
         case 'connection.update':
           const state = eventData.state || eventData.connection?.state;
-          newConnectionState = state === 'open';
+          const wouldReconnect = state === 'open';
+          
+          // Ignorar reconexão automática após logout manual
+          if (isManualLogout && wouldReconnect) {
+            console.log(`[Webhook] Ignoring auto-reconnect after manual logout for ${instance.instance_name}`);
+            return new Response(
+              JSON.stringify({ 
+                success: true, 
+                message: 'Ignored auto-reconnect after manual logout',
+                last_state: lastState
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          
+          newConnectionState = wouldReconnect;
           if (!newConnectionState && state === 'close') {
             alertType = 'connection_lost';
             alertMessage = 'Conexão com WhatsApp perdida';
@@ -628,6 +647,14 @@ Deno.serve(async (req: Request) => {
           break;
 
         case 'instance.ready':
+          // Ignorar se foi logout manual
+          if (isManualLogout) {
+            console.log(`[Webhook] Ignoring instance.ready after manual logout for ${instance.instance_name}`);
+            return new Response(
+              JSON.stringify({ success: true, message: 'Ignored after manual logout' }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
           newConnectionState = true;
           sessionValid = true;
           break;
