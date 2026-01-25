@@ -344,7 +344,7 @@ export default function Clients() {
     }
   }, [clientCount, allLoadedClients.length]);
 
-  const { data: fetchedClients = [], isLoading, isFetching } = useQuery({
+  const { data: fetchedClients = [], isLoading, isFetching, isSuccess, dataUpdatedAt } = useQuery({
     queryKey: ['clients', user?.id, dbPage],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -380,38 +380,39 @@ export default function Clients() {
       return hydrated;
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 2, // 2 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes cache
-    refetchOnWindowFocus: false,
+    staleTime: 1000 * 30, // 30 seconds - reduced for fresher data
+    gcTime: 1000 * 60 * 5, // 5 minutes cache
+    refetchOnWindowFocus: true, // Re-enable refetch on focus
     refetchOnMount: 'always',
   });
 
-  // Accumulate loaded clients when fetching new pages
+  // Accumulate loaded clients when fetching new pages - use isSuccess and dataUpdatedAt for reliable updates
   useEffect(() => {
+    if (!isSuccess) return;
+    
     if (dbPage === 0) {
       // Reset on first page (fresh load) - even if empty
       setAllLoadedClients(fetchedClients);
-      if (fetchedClients.length < CLIENTS_PER_PAGE) {
-        setHasMoreClients(false);
-      }
-    } else if (fetchedClients.length > 0) {
+      setHasMoreClients(fetchedClients.length >= CLIENTS_PER_PAGE);
+    } else {
       // Append new clients, avoiding duplicates by ID
       setAllLoadedClients(prev => {
         const existingIds = new Set(prev.map(c => c.id));
         const newClients = fetchedClients.filter(c => !existingIds.has(c.id));
+        if (newClients.length === 0) return prev;
         return [...prev, ...newClients];
       });
       
       // Check if we've loaded all clients
-      if (fetchedClients.length < CLIENTS_PER_PAGE) {
-        setHasMoreClients(false);
-      }
+      setHasMoreClients(fetchedClients.length >= CLIENTS_PER_PAGE);
     }
-  }, [fetchedClients, dbPage]);
+  }, [fetchedClients, dbPage, isSuccess, dataUpdatedAt]);
 
-  // Reset pagination when user changes or on fresh load
+  // Reset pagination when user changes - only reset if user actually changes
+  const prevUserIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && user.id !== prevUserIdRef.current) {
+      prevUserIdRef.current = user.id;
       setDbPage(0);
       setAllLoadedClients([]);
       setHasMoreClients(true);
