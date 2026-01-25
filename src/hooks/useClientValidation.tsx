@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { format, isValid, parseISO, isBefore, addDays } from 'date-fns';
 import { normalizeWhatsAppNumber } from '@/lib/utils';
+import { toast } from 'sonner';
 
 // Types
 interface ClientData {
@@ -380,6 +381,19 @@ export function useClientValidation() {
       blocked,
       blockReason,
     });
+
+    // AUDIT FIX: Show toast.warning for auto-corrections
+    if (corrections.length > 0 && (operation === 'create' || operation === 'update')) {
+      const importantCorrections = corrections.filter(c => 
+        c.includes('Telefone') || c.includes('Email') || c.includes('Data') || c.includes('Preço')
+      );
+      if (importantCorrections.length > 0) {
+        toast.warning('Dados ajustados automaticamente', {
+          description: importantCorrections.slice(0, 3).join('; '),
+          duration: 5000,
+        });
+      }
+    }
 
     return {
       isValid,

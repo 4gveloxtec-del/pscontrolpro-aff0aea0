@@ -354,7 +354,7 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
         .from('profiles')
         .select('company_name, pix_key, full_name')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       if (error) return null;
       return data;
     },

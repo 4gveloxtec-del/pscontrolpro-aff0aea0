@@ -215,9 +215,10 @@ function ClientLookup() {
         `)
         .eq('id', selectedClientId)
         .eq('seller_id', user.id)
-        .single();
+        .maybeSingle();
         
       if (clientError) throw clientError;
+      if (!client) throw new Error('Client not found');
       
       // Fetch related data in parallel
       const [externalAppsResult, premiumAccountsResult, deviceAppsResult, messageHistoryResult, panelClientsResult] = await Promise.all([

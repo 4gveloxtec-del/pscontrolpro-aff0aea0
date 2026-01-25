@@ -326,8 +326,8 @@ export default function Sellers() {
         .from('profiles')
         .select('pix_key, company_name')
         .eq('id', session.user.id)
-        .single();
-      if (error) throw error;
+        .maybeSingle();
+      if (error || !data) throw new Error('Profile not found');
       return data;
     },
     enabled: !!session?.user?.id,

@@ -35,7 +35,7 @@ export function BackupImportNotification({ jobId, onComplete, onClose }: BackupI
         .from('backup_import_jobs')
         .select('status, progress, processed_items, total_items, restored, errors, warnings')
         .eq('id', jobId)
-        .single();
+        .maybeSingle();
       
       if (data) {
         setJob(data as JobData);

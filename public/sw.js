@@ -30,8 +30,8 @@ try {
           })
         ))
         .then(() => console.log('[SW] All caches cleared'))
-        .catch(() => {
-          // Silently fail - don't block app
+        .catch((error) => {
+          console.error('[SW] Cache clear error:', error);
         })
     );
     
@@ -48,10 +48,10 @@ try {
         // Clear any remaining caches
         caches.keys()
           .then((names) => Promise.all(names.map((n) => caches.delete(n))))
-          .catch(() => {}),
+          .catch((error) => console.error('[SW] Activate cache clear error:', error)),
         // Take control of all clients
         self.clients.claim()
-      ]).catch(() => {})
+      ]).catch((error) => console.error('[SW] Activate error:', error))
     );
   });
 
@@ -78,7 +78,7 @@ try {
         data: payload.data || data.data
       };
     } catch (e) {
-      // Silently fail - use defaults
+      console.error('[SW] Push payload parse error:', e);
       return;
     }
 
@@ -122,10 +122,10 @@ try {
               return self.clients.openWindow(urlToOpen);
             }
           })
-          .catch(() => {})
+          .catch((error) => console.error('[SW] Notification click handler error:', error))
       );
     } catch (e) {
-      // Silently fail
+      console.error('[SW] Notification click error:', e);
     }
   });
 
@@ -150,13 +150,13 @@ try {
         case 'CLEAR_CACHES':
           caches.keys()
             .then((names) => Promise.all(names.map((n) => caches.delete(n))))
-            .catch(() => {});
+            .catch((error) => console.error('[SW] Clear caches error:', error));
           break;
           
         case 'UNREGISTER':
           self.registration.unregister()
             .then(() => console.log('[SW] Unregistered'))
-            .catch(() => {});
+            .catch((error) => console.error('[SW] Unregister error:', error));
           break;
           
         case 'GET_VERSION':
@@ -166,7 +166,7 @@ try {
           break;
       }
     } catch (e) {
-      // Silently fail
+      console.error('[SW] Message handler error:', e);
     }
   });
 
