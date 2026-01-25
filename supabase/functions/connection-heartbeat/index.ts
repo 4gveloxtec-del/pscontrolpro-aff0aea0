@@ -818,6 +818,64 @@ Deno.serve(async (req: Request) => {
             }
             
             // ===============================================================
+            // BOT ENGINE INTERCEPT - Verificar se BotEngine deve processar
+            // ===============================================================
+            try {
+              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+              const botInterceptResponse = await fetch(`${supabaseUrl}/functions/v1/bot-engine-intercept`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  seller_id: instance.seller_id,
+                  sender_phone: senderPhone,
+                  message_text: messageText,
+                  instance_name: instanceName,
+                }),
+              });
+
+              if (botInterceptResponse.ok) {
+                const botResult = await botInterceptResponse.json();
+                
+                if (botResult.intercepted && botResult.response) {
+                  console.log(`[Webhook] BotEngine intercepted message, state: ${botResult.new_state}`);
+                  
+                  // Enviar resposta do BotEngine via WhatsApp
+                  const { data: globalConfig } = await supabase
+                    .from('whatsapp_global_config')
+                    .select('api_url, api_token')
+                    .eq('is_active', true)
+                    .maybeSingle();
+
+                  if (globalConfig?.api_url && globalConfig?.api_token) {
+                    const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
+                    const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                    
+                    await fetch(sendUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': globalConfig.api_token,
+                      },
+                      body: JSON.stringify({
+                        number: senderPhone.replace(/\D/g, ''),
+                        text: botResult.response,
+                      }),
+                    });
+                    console.log(`[Webhook] BotEngine response sent to ${senderPhone}`);
+                  }
+                  
+                  continue; // Mensagem processada pelo BotEngine, não continuar
+                }
+              }
+            } catch (botErr) {
+              // Se BotEngine falhar, continuar com fluxo normal
+              console.log(`[Webhook] BotEngine intercept skipped:`, botErr instanceof Error ? botErr.message : String(botErr));
+            }
+
+            // ===============================================================
             // MENSAGENS RECEBIDAS - Verificar se é comando
             // ===============================================================
             const trimmedForCommand = String(messageText || '').trimStart();
