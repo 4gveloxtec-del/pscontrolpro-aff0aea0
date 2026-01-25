@@ -625,8 +625,11 @@ Deno.serve(async (req) => {
       
       // =====================================================================
       // BLOQUEIO DE DUPLICIDADE LOCAL - PS CONTROL
-      // Verificar na tabela de clientes se já existe um teste para este número
+      // Verificar em AMBAS as tabelas: clients E test_generation_log
+      // Isso garante bloqueio mesmo se o cliente não foi criado
       // =====================================================================
+      
+      // Verificar na tabela de clientes
       const { data: existingTestClient } = await supabase
         .from('clients')
         .select('id, name, created_at, is_test')
@@ -635,8 +638,25 @@ Deno.serve(async (req) => {
         .eq('is_test', true)
         .maybeSingle();
       
-      if (existingTestClient) {
-        console.log(`[process-command] ⛔ Duplicate test blocked for phone: ${normalizedPhoneForDB}, existing client: ${existingTestClient.name}`);
+      // Verificar também no log de testes (mais confiável)
+      const { data: existingTestLog } = await supabase
+        .from('test_generation_log')
+        .select('id, username, created_at')
+        .eq('seller_id', seller_id)
+        .eq('sender_phone', normalizedPhoneForDB)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      // Bloquear se encontrar em QUALQUER uma das tabelas
+      if (existingTestClient || existingTestLog) {
+        const blockSource = existingTestClient ? 'clients' : 'test_generation_log';
+        const blockInfo = existingTestClient 
+          ? { id: existingTestClient.id, name: existingTestClient.name }
+          : { id: existingTestLog?.id, name: existingTestLog?.username || 'Teste anterior' };
+        
+        console.log(`[process-command] ⛔ Duplicate test blocked for phone: ${normalizedPhoneForDB}, source: ${blockSource}, info:`, blockInfo);
+        
         return new Response(
           JSON.stringify({
             success: false,
@@ -650,8 +670,9 @@ Quero saber: conseguiu testar direitinho?
 Se precisar, posso liberar um novo acesso, explicar os planos ou te ajudar a escolher a melhor opção para você.
 
 Fico à disposição! 🚀📺`,
-            existing_client_id: existingTestClient.id,
-            existing_client_name: existingTestClient.name,
+            existing_client_id: blockInfo.id,
+            existing_client_name: blockInfo.name,
+            blocked_by: blockSource,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
         );
