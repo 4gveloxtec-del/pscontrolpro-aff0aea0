@@ -41,7 +41,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { format, addDays, addMonths, isBefore, isAfter, startOfToday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, normalizeWhatsAppNumber } from '@/lib/utils';
 import { SendMessageDialog } from '@/components/SendMessageDialog';
 import { PlanSelector } from '@/components/PlanSelector';
 import type { SharedCreditSelection } from '@/components/SharedCreditPicker';
@@ -234,6 +234,7 @@ export default function Clients() {
   const [showLookupDialog, setShowLookupDialog] = useState(false);
   const [lookupSearchQuery, setLookupSearchQuery] = useState('');
   const [selectedLookupClientId, setSelectedLookupClientId] = useState<string | null>(null);
+  const [selectedLookupPhone, setSelectedLookupPhone] = useState<string | null>(null); // Unified phone selection
   const [showLookupPasswords, setShowLookupPasswords] = useState(false);
   const [lookupDecryptedCredentials, setLookupDecryptedCredentials] = useState<{ login: string; password: string; login_2?: string; password_2?: string } | null>(null);
   const [lookupDecryptAttempt, setLookupDecryptAttempt] = useState(0);
@@ -640,19 +641,19 @@ export default function Clients() {
   });
 
   // ============= Consulta 360° Queries =============
-  // Search clients for 360° lookup
-  const { data: lookupSearchResults = [], isLoading: isLookupSearching } = useQuery({
+  // Search clients for 360° lookup - returns raw results
+  const { data: lookupSearchResultsRaw = [], isLoading: isLookupSearching } = useQuery({
     queryKey: ['client-lookup-search', lookupSearchQuery, user?.id],
     queryFn: async () => {
       if (!user?.id || lookupSearchQuery.length < 2) return [];
       const normalizedQuery = lookupSearchQuery.toLowerCase().trim();
       const { data, error } = await supabase
         .from('clients')
-        .select('id, name, phone, email, login, expiration_date, plan_name, is_archived')
+        .select('id, name, phone, email, login, expiration_date, plan_name, is_archived, created_at')
         .eq('seller_id', user.id)
         .or(`name.ilike.%${normalizedQuery}%,phone.ilike.%${normalizedQuery}%,email.ilike.%${normalizedQuery}%,login.ilike.%${normalizedQuery}%`)
-        .order('name')
-        .limit(20);
+        .order('expiration_date', { ascending: false })
+        .limit(50); // Increase limit to allow grouping
       if (error) throw error;
       return data || [];
     },
@@ -660,7 +661,96 @@ export default function Clients() {
     staleTime: 30000,
   });
 
-  // Fetch full client data when selected in 360° lookup
+  // Group lookup results by normalized phone number
+  const lookupGroupedResults = useMemo(() => {
+    const groups = new Map<string, { phone: string; normalizedPhone: string; clients: typeof lookupSearchResultsRaw }>();
+    
+    lookupSearchResultsRaw.forEach(client => {
+      const normalized = normalizeWhatsAppNumber(client.phone);
+      const key = normalized || `no-phone-${client.id}`; // Unique key for clients without phone
+      
+      if (!groups.has(key)) {
+        groups.set(key, {
+          phone: client.phone || '',
+          normalizedPhone: normalized || '',
+          clients: []
+        });
+      }
+      groups.get(key)!.clients.push(client);
+    });
+
+    // Sort clients within each group by expiration_date descending (most recent first)
+    groups.forEach(group => {
+      group.clients.sort((a, b) => 
+        new Date(b.expiration_date).getTime() - new Date(a.expiration_date).getTime()
+      );
+    });
+
+    return Array.from(groups.values());
+  }, [lookupSearchResultsRaw]);
+
+  // Fetch all clients for a selected phone number (consolidated view)
+  const { data: lookupPhoneClients = [], isLoading: isLoadingLookupPhoneClients } = useQuery({
+    queryKey: ['client-lookup-by-phone', selectedLookupPhone, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !selectedLookupPhone) return [];
+      
+      // Fetch all clients with the same normalized phone
+      const { data, error } = await supabase
+        .from('clients')
+        .select(`
+          *,
+          plan:plans(name, price, duration_days, category),
+          server:servers(name, icon_url)
+        `)
+        .eq('seller_id', user.id)
+        .order('expiration_date', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Filter by normalized phone on client side (since DB doesn't store normalized version)
+      const filtered = (data || []).filter(client => {
+        const normalized = normalizeWhatsAppNumber(client.phone);
+        return normalized === selectedLookupPhone;
+      });
+
+      // Fetch related data for each client in parallel
+      const enrichedClients = await Promise.all(filtered.map(async (client) => {
+        const [externalAppsResult, premiumAccountsResult, messageHistoryResult] = await Promise.all([
+          supabase
+            .from('client_external_apps')
+            .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
+            .eq('client_id', client.id)
+            .eq('seller_id', user.id),
+          supabase
+            .from('client_premium_accounts')
+            .select('id, plan_name, email, password, expiration_date, price, notes')
+            .eq('client_id', client.id)
+            .eq('seller_id', user.id),
+          supabase
+            .from('message_history')
+            .select('id, message_type, message_content, sent_at')
+            .eq('client_id', client.id)
+            .eq('seller_id', user.id)
+            .order('sent_at', { ascending: false })
+            .limit(5),
+        ]);
+        
+        return {
+          ...client,
+          external_apps: externalAppsResult.data || [],
+          premium_accounts: premiumAccountsResult.data || [],
+          message_history: messageHistoryResult.data || [],
+        };
+      }));
+
+      return enrichedClients;
+    },
+    enabled: !!user?.id && !!selectedLookupPhone && showLookupDialog,
+    staleTime: 30000,
+  });
+
+  // Fetch full client data when selected in 360° lookup (single client - legacy support)
   const { data: lookupClientData, isLoading: isLoadingLookupClient } = useQuery({
     queryKey: ['client-full-data', selectedLookupClientId, user?.id],
     queryFn: async () => {
@@ -4540,6 +4630,7 @@ export default function Clients() {
         if (!open) {
           setLookupSearchQuery('');
           setSelectedLookupClientId(null);
+          setSelectedLookupPhone(null);
           setShowLookupPasswords(false);
           setLookupDecryptedCredentials(null);
           setLookupDecryptAttempt(0);
@@ -4570,6 +4661,7 @@ export default function Clients() {
                 onChange={(e) => {
                   setLookupSearchQuery(e.target.value);
                   setSelectedLookupClientId(null);
+                  setSelectedLookupPhone(null);
                   setLookupDecryptedCredentials(null);
                   setLookupDecryptAttempt(0);
                 }}
@@ -4577,37 +4669,61 @@ export default function Clients() {
               />
             </div>
             
-            {/* Search Results */}
-            {lookupSearchQuery.length >= 2 && !selectedLookupClientId && (
-              <div className="border rounded-lg divide-y max-h-[200px] overflow-y-auto">
+            {/* Search Results - Grouped by Phone */}
+            {lookupSearchQuery.length >= 2 && !selectedLookupPhone && !selectedLookupClientId && (
+              <div className="border rounded-lg divide-y max-h-[250px] overflow-y-auto">
                 {isLookupSearching ? (
                   <div className="p-4 flex items-center justify-center">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
-                ) : lookupSearchResults.length === 0 ? (
+                ) : lookupGroupedResults.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground">
                     Nenhum cliente encontrado
                   </div>
                 ) : (
-                  lookupSearchResults.map((result: any) => {
-                    const badge = getLookupStatusBadge(result.expiration_date);
+                  lookupGroupedResults.map((group) => {
+                    const mainClient = group.clients[0]; // Most recent client in the group
+                    const hasMultiple = group.clients.length > 1;
+                    const badge = getLookupStatusBadge(mainClient.expiration_date);
+                    
                     return (
                       <button
-                        key={result.id}
-                        className="w-full p-3 text-left hover:bg-muted/50 transition-colors flex items-center justify-between"
-                         onClick={() => {
-                           setSelectedLookupClientId(result.id);
-                           setLookupDecryptedCredentials(null);
-                           setLookupDecryptAttempt(0);
-                         }}
+                        key={group.normalizedPhone || mainClient.id}
+                        className="w-full p-3 text-left hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          if (group.normalizedPhone) {
+                            setSelectedLookupPhone(group.normalizedPhone);
+                            setSelectedLookupClientId(null);
+                          } else {
+                            // Client without phone - use legacy single selection
+                            setSelectedLookupClientId(mainClient.id);
+                            setSelectedLookupPhone(null);
+                          }
+                          setLookupDecryptedCredentials(null);
+                          setLookupDecryptAttempt(0);
+                        }}
                       >
-                        <div>
-                          <p className="font-medium">{result.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {result.phone || result.email || result.login || 'Sem contato'}
-                          </p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{mainClient.name}</p>
+                              {hasMultiple && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {group.clients.length} registros
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {group.phone || mainClient.email || mainClient.login || 'Sem contato'}
+                            </p>
+                            {hasMultiple && (
+                              <p className="text-xs text-muted-foreground/70 mt-1">
+                                Planos: {group.clients.map(c => c.plan_name || 'N/A').join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          <Badge className={badge.class}>{badge.text}</Badge>
                         </div>
-                        <Badge className={badge.class}>{badge.text}</Badge>
                       </button>
                     );
                   })
@@ -4615,9 +4731,196 @@ export default function Clients() {
               </div>
             )}
             
-            {/* Client Full Data */}
-            {selectedLookupClientId && (
+            {/* Consolidated View - All clients for selected phone */}
+            {selectedLookupPhone && (
               <div className="space-y-4">
+                {/* Back button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLookupPhone(null);
+                    setLookupDecryptedCredentials(null);
+                  }}
+                  className="mb-2"
+                >
+                  ← Voltar aos resultados
+                </Button>
+
+                {isLoadingLookupPhoneClients ? (
+                  <div className="p-8 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : lookupPhoneClients.length > 0 ? (
+                  <>
+                    {/* Client Header - Using first (most recent) client info */}
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg p-4">
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <User className="h-5 w-5 text-primary" />
+                          {lookupPhoneClients[0].name}
+                        </h3>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          <Badge variant="outline" className="text-xs">
+                            <Phone className="h-3 w-3 mr-1" />
+                            {lookupPhoneClients[0].phone}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {lookupPhoneClients.length} {lookupPhoneClients.length === 1 ? 'registro' : 'registros'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowLookupPasswords(!showLookupPasswords)}
+                      >
+                        {showLookupPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <span className="ml-1">{showLookupPasswords ? 'Ocultar' : 'Mostrar'} senhas</span>
+                      </Button>
+                    </div>
+
+                    {/* Contact Info (shared) */}
+                    <Card>
+                      <CardContent className="p-4 space-y-2">
+                        <h4 className="font-medium flex items-center gap-2 text-sm text-muted-foreground">
+                          <Phone className="h-4 w-4" /> Contato
+                        </h4>
+                        {lookupPhoneClients[0].phone && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">{lookupPhoneClients[0].phone}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(lookupPhoneClients[0].phone!, 'Telefone')}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                        {lookupPhoneClients[0].email && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">{lookupPhoneClients[0].email}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(lookupPhoneClients[0].email!, 'Email')}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                        {lookupPhoneClients[0].telegram && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">@{lookupPhoneClients[0].telegram}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Historical Plans/Records */}
+                    <Card>
+                      <CardContent className="p-4">
+                        <h4 className="font-medium flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                          <History className="h-4 w-4" /> Histórico de Planos ({lookupPhoneClients.length})
+                        </h4>
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                          {lookupPhoneClients.map((client: any, idx: number) => {
+                            const statusBadge = getLookupStatusBadge(client.expiration_date);
+                            return (
+                              <div key={client.id} className={cn(
+                                "p-3 rounded-lg border",
+                                idx === 0 ? "bg-primary/5 border-primary/20" : "bg-muted/30"
+                              )}>
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    {idx === 0 && (
+                                      <Badge variant="default" className="text-xs">Atual</Badge>
+                                    )}
+                                    <Badge className={statusBadge.class}>{statusBadge.text}</Badge>
+                                    {client.is_archived && (
+                                      <Badge variant="outline" className="text-xs border-warning text-warning">Arquivado</Badge>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    Vence: {format(new Date(client.expiration_date), "dd/MM/yyyy", { locale: ptBR })}
+                                  </span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground text-xs">Plano:</span>
+                                    <p className="font-medium">{client.plan_name || 'N/A'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground text-xs">Valor:</span>
+                                    <p>R$ {(client.plan_price || 0).toFixed(2)}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground text-xs">Servidor:</span>
+                                    <p>{client.server_name || 'N/A'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground text-xs">Categoria:</span>
+                                    <p>{client.category || 'N/A'}</p>
+                                  </div>
+                                </div>
+
+                                {/* Credentials for this record */}
+                                {(client.login || client.password) && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Lock className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-muted-foreground">Login:</span>
+                                      <span>{showLookupPasswords ? (client.login || '-') : '••••••'}</span>
+                                      {client.login && showLookupPasswords && (
+                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(client.login, 'Login')}>
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                      <span className="text-muted-foreground ml-2">Senha:</span>
+                                      <span>{showLookupPasswords ? (client.password || '-') : '••••••'}</span>
+                                      {client.password && showLookupPasswords && (
+                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(client.password, 'Senha')}>
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* External Apps for this record */}
+                                {client.external_apps && client.external_apps.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <AppWindow className="h-3 w-3" />
+                                      Apps: {client.external_apps.map((app: any) => app.fixed_app_name || app.external_app?.name || 'App').join(', ')}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground">
+                    Nenhum registro encontrado para este número
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Client Full Data - Legacy single client view (for clients without phone) */}
+            {selectedLookupClientId && !selectedLookupPhone && (
+              <div className="space-y-4">
+                {/* Back button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLookupClientId(null);
+                    setLookupDecryptedCredentials(null);
+                  }}
+                  className="mb-2"
+                >
+                  ← Voltar aos resultados
+                </Button>
+
                 {isLoadingLookupClient ? (
                   <div className="p-8 flex items-center justify-center">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
