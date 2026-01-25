@@ -237,6 +237,15 @@ Deno.serve(async (req) => {
       console.log('[create-test-client] Auto-create disabled or no config, registering log only (no client creation)');
       
       // Registrar no log SEMPRE - mesmo sem criar cliente
+      // Gerar nome do teste mesmo sem criar cliente para rastreamento
+      const testCounter = Number((config as Record<string, unknown>)?.test_counter) || 0;
+      const newCounter = testCounter + 1;
+      const clientNamePrefix = ((config as Record<string, unknown>)?.client_name_prefix as string) || 'Teste';
+      const testName = username 
+        ? `${clientNamePrefix}${newCounter} - ${username}`
+        : `${clientNamePrefix}${newCounter}`;
+      const configServerIdForLog = (config as Record<string, unknown>)?.server_id as string | null;
+      
       await supabase.from('test_generation_log').insert({
         seller_id,
         api_id,
@@ -248,6 +257,8 @@ Deno.serve(async (req) => {
         expiration_date: expirationDate?.toISOString().split('T')[0] || null,
         client_created: false,
         error_message: 'Auto-create disabled - log only',
+        test_name: testName,
+        server_id: configServerIdForLog,
       });
       
       return new Response(
@@ -278,6 +289,8 @@ Deno.serve(async (req) => {
         expiration_date: expirationDate?.toISOString().split('T')[0] || null,
         client_created: false,
         error_message: `Invalid phone number: ${sender_phone}`,
+        test_name: null,
+        server_id: (config as Record<string, unknown>)?.server_id as string || null,
       });
       
       return new Response(
@@ -430,6 +443,8 @@ Deno.serve(async (req) => {
           expiration_date: expirationDate?.toISOString().split('T')[0],
           client_created: false,
           error_message: updateError.message,
+          test_name: clientName,
+          server_id: configServerId,
         });
         
         return new Response(
@@ -463,6 +478,8 @@ Deno.serve(async (req) => {
           expiration_date: expirationDate?.toISOString().split('T')[0],
           client_created: false,
           error_message: insertError.message,
+          test_name: clientName,
+          server_id: configServerId,
         });
         
         return new Response(
@@ -481,7 +498,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Registrar no log
+    // Registrar no log com nome do teste e servidor
     await supabase.from('test_generation_log').insert({
       seller_id,
       api_id,
@@ -493,6 +510,9 @@ Deno.serve(async (req) => {
       dns,
       expiration_date: expirationDate?.toISOString().split('T')[0],
       client_created: wasCreated,
+      // Novos campos para rastreamento completo
+      test_name: clientName,
+      server_id: configServerId,
     });
 
     return new Response(

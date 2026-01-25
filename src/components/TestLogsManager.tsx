@@ -21,6 +21,9 @@ interface TestLog {
   client_id: string | null;
   created_at: string;
   error_message: string | null;
+  test_name: string | null;
+  server_id: string | null;
+  servers?: { name: string } | null;
 }
 
 export function TestLogsManager() {
@@ -35,7 +38,7 @@ export function TestLogsManager() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('test_generation_log')
-        .select('id, sender_phone, username, client_created, client_id, created_at, error_message')
+        .select('id, sender_phone, username, client_created, client_id, created_at, error_message, test_name, server_id, servers:server_id(name)')
         .eq('seller_id', user!.id)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -235,26 +238,37 @@ export function TestLogsManager() {
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {/* Nome sequencial do teste - identificador principal */}
+                        {log.test_name && (
+                          <Badge variant="default" className="text-[10px] font-bold bg-primary/90 text-primary-foreground">
+                            {log.test_name.split(' - ')[0]}
+                          </Badge>
+                        )}
                         <span className="font-mono text-sm font-medium">
                           {formatPhone(log.sender_phone)}
                         </span>
                         {log.client_created ? (
-                          <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
                             <CheckCircle className="h-2.5 w-2.5" />
                             Cliente criado
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200">
+                          <Badge variant="outline" className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
                             <XCircle className="h-2.5 w-2.5" />
                             Falhou
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
                         {log.username && (
                           <span className="flex items-center gap-1">
                             <User className="h-2.5 w-2.5" />
                             {log.username}
+                          </span>
+                        )}
+                        {log.servers?.name && (
+                          <span className="flex items-center gap-1 text-primary/80">
+                            📺 {log.servers.name}
                           </span>
                         )}
                         <span className="flex items-center gap-1">
