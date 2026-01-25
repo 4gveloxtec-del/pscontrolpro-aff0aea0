@@ -100,66 +100,33 @@ export async function processGlobalCommand(
 
   console.log(`[BotEngine] Global command matched: ${command.action}`);
 
+  // ⚠️ NÃO envia mensagens - apenas muda estado/stack
+  // As mensagens devem vir dos fluxos configurados nas tabelas bot_engine_*
   switch (command.action) {
     case 'menu':
-      // Limpa a pilha e vai para MENU
       await clearStack(userId, sellerId);
       await setState(userId, sellerId, 'MENU');
-      await sendMessage(userId, sellerId, '[Sistema] Voltando ao menu principal...', 'text', false);
-      return {
-        handled: true,
-        command: 'menu',
-        newState: 'MENU',
-        message: 'Voltando ao menu principal'
-      };
+      return { handled: true, command: 'menu', newState: 'MENU' };
 
     case 'voltar':
-      // Volta ao estado anterior
       const previousState = await popStack(userId, sellerId);
       const backState = previousState || 'MENU';
-      await sendMessage(userId, sellerId, '[Sistema] Voltando...', 'text', false);
-      return {
-        handled: true,
-        command: 'voltar',
-        newState: backState,
-        message: `Voltando para ${backState}`
-      };
+      return { handled: true, command: 'voltar', newState: backState };
 
     case 'inicio':
-      // Reinicia sessão completamente
       await clearStack(userId, sellerId);
       await setState(userId, sellerId, 'INICIO');
-      await sendMessage(userId, sellerId, '[Sistema] Sessão reiniciada', 'text', false);
-      return {
-        handled: true,
-        command: 'inicio',
-        newState: 'INICIO',
-        message: 'Sessão reiniciada'
-      };
+      return { handled: true, command: 'inicio', newState: 'INICIO' };
 
     case 'sair':
-      // Encerra sessão
       await clearStack(userId, sellerId);
       await setState(userId, sellerId, 'ENCERRADO');
       await unlockSession(userId, sellerId);
-      await sendMessage(userId, sellerId, '[Sistema] Sessão encerrada. Até logo!', 'text', false);
-      return {
-        handled: true,
-        command: 'sair',
-        newState: 'ENCERRADO',
-        message: 'Sessão encerrada'
-      };
+      return { handled: true, command: 'sair', newState: 'ENCERRADO' };
 
     case 'humano':
-      // Encaminha para atendimento humano
       await setState(userId, sellerId, 'AGUARDANDO_HUMANO');
-      await sendMessage(userId, sellerId, '[Sistema] Encaminhando para atendente...', 'text', false);
-      return {
-        handled: true,
-        command: 'humano',
-        newState: 'AGUARDANDO_HUMANO',
-        message: 'Encaminhado para atendimento humano'
-      };
+      return { handled: true, command: 'humano', newState: 'AGUARDANDO_HUMANO' };
 
     default:
       return { handled: false };
