@@ -239,6 +239,8 @@ export default function Clients() {
   const [lookupDecryptedCredentials, setLookupDecryptedCredentials] = useState<{ login: string; password: string; login_2?: string; password_2?: string } | null>(null);
   const [lookupDecryptAttempt, setLookupDecryptAttempt] = useState(0);
   const lookupRetryTimeoutRef = useRef<number | null>(null);
+  // State for unified phone view decrypted credentials (keyed by client id)
+  const [lookupPhoneDecryptedCreds, setLookupPhoneDecryptedCreds] = useState<Record<string, { login: string; password: string; login_2?: string; password_2?: string }>>({});
   // State for unsaved changes confirmation
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [pendingCloseDialog, setPendingCloseDialog] = useState(false);
@@ -894,7 +896,51 @@ export default function Clients() {
     lookupLooksEncrypted,
   ]);
 
-  // Helper function for 360° lookup
+  // ============= Consulta 360° (Visão Unificada por Telefone) - Auto-descriptografia =============
+  useEffect(() => {
+    if (!showLookupDialog || !selectedLookupPhone || lookupPhoneClients.length === 0) {
+      return;
+    }
+
+    const maybeDecrypt = async (value: string | null): Promise<string> => {
+      if (!value) return '';
+      if (!lookupLooksEncrypted(value)) return value;
+      try {
+        return await decrypt(value);
+      } catch {
+        return value;
+      }
+    };
+
+    const decryptAllClientsInPhone = async () => {
+      const results: Record<string, { login: string; password: string; login_2?: string; password_2?: string }> = {};
+
+      await Promise.all(
+        lookupPhoneClients.map(async (client: any) => {
+          // Skip if already decrypted
+          if (lookupPhoneDecryptedCreds[client.id]) {
+            results[client.id] = lookupPhoneDecryptedCreds[client.id];
+            return;
+          }
+
+          const [login, password, login_2, password_2] = await Promise.all([
+            maybeDecrypt(client.login ?? null),
+            maybeDecrypt(client.password ?? null),
+            maybeDecrypt(client.login_2 ?? null),
+            maybeDecrypt(client.password_2 ?? null),
+          ]);
+
+          results[client.id] = { login, password, login_2, password_2 };
+        })
+      );
+
+      setLookupPhoneDecryptedCreds(prev => ({ ...prev, ...results }));
+    };
+
+    decryptAllClientsInPhone();
+  }, [showLookupDialog, selectedLookupPhone, lookupPhoneClients, decrypt, lookupLooksEncrypted]);
+
+
   const getLookupStatusBadge = (expirationDate: string) => {
     const daysLeft = differenceInDays(new Date(expirationDate), startOfToday());
     if (daysLeft < 0) return { text: 'Vencido', class: 'bg-destructive text-destructive-foreground' };
@@ -4634,6 +4680,7 @@ export default function Clients() {
           setShowLookupPasswords(false);
           setLookupDecryptedCredentials(null);
           setLookupDecryptAttempt(0);
+          setLookupPhoneDecryptedCreds({});
           if (lookupRetryTimeoutRef.current) {
             window.clearTimeout(lookupRetryTimeoutRef.current);
             lookupRetryTimeoutRef.current = null;
@@ -4741,6 +4788,8 @@ export default function Clients() {
                   onClick={() => {
                     setSelectedLookupPhone(null);
                     setLookupDecryptedCredentials(null);
+                    // Clear unified decrypted credentials cache for this phone
+                    setLookupPhoneDecryptedCreds({});
                   }}
                   className="mb-2"
                 >
@@ -4858,28 +4907,33 @@ export default function Clients() {
                                   </div>
                                 </div>
 
-                                {/* Credentials for this record */}
-                                {(client.login || client.password) && (
-                                  <div className="mt-2 pt-2 border-t border-border/50">
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <Lock className="h-3 w-3 text-muted-foreground" />
-                                      <span className="text-muted-foreground">Login:</span>
-                                      <span>{showLookupPasswords ? (client.login || '-') : '••••••'}</span>
-                                      {client.login && showLookupPasswords && (
-                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(client.login, 'Login')}>
-                                          <Copy className="h-3 w-3" />
-                                        </Button>
-                                      )}
-                                      <span className="text-muted-foreground ml-2">Senha:</span>
-                                      <span>{showLookupPasswords ? (client.password || '-') : '••••••'}</span>
-                                      {client.password && showLookupPasswords && (
-                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(client.password, 'Senha')}>
-                                          <Copy className="h-3 w-3" />
-                                        </Button>
-                                      )}
+                                {/* Credentials for this record - using decrypted values */}
+                                {(client.login || client.password) && (() => {
+                                  const decrypted = lookupPhoneDecryptedCreds[client.id] as { login?: string; password?: string } | undefined;
+                                  const displayLogin = decrypted?.login || client.login || '-';
+                                  const displayPassword = decrypted?.password || client.password || '-';
+                                  return (
+                                    <div className="mt-2 pt-2 border-t border-border/50">
+                                      <div className="flex items-center gap-2 text-xs flex-wrap">
+                                        <Lock className="h-3 w-3 text-muted-foreground" />
+                                        <span className="text-muted-foreground">Login:</span>
+                                        <span>{showLookupPasswords ? displayLogin : '••••••'}</span>
+                                        {displayLogin !== '-' && showLookupPasswords && (
+                                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(displayLogin, 'Login')}>
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        )}
+                                        <span className="text-muted-foreground ml-2">Senha:</span>
+                                        <span>{showLookupPasswords ? displayPassword : '••••••'}</span>
+                                        {displayPassword !== '-' && showLookupPasswords && (
+                                          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(displayPassword, 'Senha')}>
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
 
                                 {/* External Apps for this record */}
                                 {client.external_apps && client.external_apps.length > 0 && (
