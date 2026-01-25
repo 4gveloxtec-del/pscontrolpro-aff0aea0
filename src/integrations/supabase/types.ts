@@ -671,6 +671,66 @@ export type Database = {
           },
         ]
       }
+      bot_logs: {
+        Row: {
+          created_at: string
+          from_user: boolean
+          id: string
+          message: string
+          seller_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_user?: boolean
+          id?: string
+          message: string
+          seller_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_user?: boolean
+          id?: string
+          message?: string
+          seller_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bot_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          locked: boolean
+          seller_id: string
+          stack: Json
+          state: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          locked?: boolean
+          seller_id: string
+          stack?: Json
+          state?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          locked?: boolean
+          seller_id?: string
+          stack?: Json
+          state?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bulk_collection_jobs: {
         Row: {
           clients_data: Json
