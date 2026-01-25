@@ -107,63 +107,84 @@ function shouldOverwriteTemplateValue(current: unknown): boolean {
   );
 }
 
+/**
+ * Constrói payload para comandos de teste.
+ * IMPORTANTE: Envia AMBOS os formatos (dígitos e formatado) para garantir compatibilidade
+ * com diferentes painéis IPTV (StarPlay usa formatado, Azonix usa dígitos)
+ */
 function buildTestCommandPayload(params: {
   base: Record<string, unknown>;
-  clientPhone: string;
+  clientPhoneDigits: string;     // Apenas dígitos: 5531999887766
+  clientPhoneFormatted: string;  // Com espaços: 55 31 99988 7766
   clientName: string;
   testPlan: string;
   serverId: string;
   serverName: string | null;
   sellerId: string;
   instanceName: string | null;
-  whatsappNumber: string; // Número WhatsApp normalizado com DDI 55
 }): Record<string, unknown> {
   const payload: Record<string, unknown> = { ...params.base };
+  const digits = params.clientPhoneDigits;
+  const formatted = params.clientPhoneFormatted;
 
-  // Guarantee required fields are present (root-level) using common key names.
-  // We set the canonical keys unconditionally; aliases only if missing.
-  payload.phone = params.clientPhone;
+  // =====================================================================
+  // CAMPOS BÁSICOS - Ambos os formatos são enviados
+  // =====================================================================
   payload.name = params.clientName;
   payload.plan = params.testPlan;
   payload.server = params.serverName || params.serverId;
   payload.seller_id = params.sellerId;
   
   // =====================================================================
-  // CAMPOS DE WHATSAPP - Garantir que o número seja enviado corretamente
-  // Inclui formatos usados por chatbots (remoteJid, sender, from) e 
-  // formatos específicos de painéis IPTV (telefone, celular, contact)
+  // PHONE: Enviamos AMBOS os formatos para máxima compatibilidade
+  // StarPlay espera "phone" com espaços, Azonix espera apenas dígitos
   // =====================================================================
   
+  // Campos que DEVEM ter apenas dígitos (Azonix e similares)
+  payload.phone = digits;                    // Campo principal - apenas dígitos
+  payload.number = digits;
+  payload.telefone = digits;
+  payload.celular = digits;
+  payload.whatsapp = digits;
+  payload.whatsapp_number = digits;
+  payload.contact = digits;
+  payload.contact_phone = digits;
+  payload.client_phone = digits;
+  payload.user_phone = digits;
+  payload.user_whatsapp = digits;
+  payload.cliente_whatsapp = digits;
+  payload.cliente_telefone = digits;
+  payload.mobile = digits;
+  payload.phone_number = digits;
+  payload.wpp = digits;
+  payload.zap = digits;
+  
+  // Campos ESPECÍFICOS para formato com dígitos (explícito)
+  payload.phone_digits = digits;
+  payload.number_digits = digits;
+  payload.telefone_digits = digits;
+  payload.celular_digits = digits;
+  payload.client_phone_digits = digits;
+  
+  // Campos ESPECÍFICOS para formato com espaços (StarPlay e similares)
+  payload.phone_formatted = formatted;
+  payload.number_formatted = formatted;
+  payload.phone_spaced = formatted;
+  payload.telefone_formatado = formatted;
+  payload.celular_formatado = formatted;
+  
   // Formato JID do WhatsApp (usado por chatbots Evolution/Baileys)
-  const whatsappJid = `${params.whatsappNumber}@s.whatsapp.net`;
-  
-  // Campos primários de WhatsApp
-  payload.whatsapp = params.whatsappNumber;
-  payload.whatsapp_number = params.whatsappNumber;
-  payload.telefone = params.whatsappNumber;
-  payload.celular = params.whatsappNumber;
-  payload.contact = params.whatsappNumber;
-  payload.contact_phone = params.whatsappNumber;
-  
-  // Campos de chatbot (remoteJid, sender, from) - formato esperado por Sigma/Evolution
+  const whatsappJid = `${digits}@s.whatsapp.net`;
   payload.remoteJid = whatsappJid;
   payload.remote_jid = whatsappJid;
-  payload.sender = params.whatsappNumber;
-  payload.senderNumber = params.whatsappNumber;
-  payload.sender_number = params.whatsappNumber;
-  payload.from = params.whatsappNumber;
-  payload.fromNumber = params.whatsappNumber;
-  payload.from_number = params.whatsappNumber;
-  
-  // Campos específicos de painéis IPTV
-  payload.cliente_whatsapp = params.whatsappNumber;
-  payload.cliente_telefone = params.whatsappNumber;
-  payload.user_phone = params.whatsappNumber;
-  payload.user_whatsapp = params.whatsappNumber;
+  payload.sender = digits;
+  payload.senderNumber = digits;
+  payload.sender_number = digits;
+  payload.from = digits;
+  payload.fromNumber = digits;
+  payload.from_number = digits;
 
-  // Aliases (do not overwrite if already present)
-  if (isBlank(payload.client_phone)) payload.client_phone = params.clientPhone;
-  if (isBlank(payload.number)) payload.number = params.clientPhone;
+  // Aliases adicionais (do not overwrite if already present)
   if (isBlank(payload.client_name)) payload.client_name = params.clientName;
   if (isBlank(payload.test_plan)) payload.test_plan = params.testPlan;
   if (isBlank(payload.package)) payload.package = params.testPlan;
@@ -171,39 +192,42 @@ function buildTestCommandPayload(params: {
   if (isBlank(payload.server_id)) payload.server_id = params.serverId;
   if (isBlank(payload.reseller_id)) payload.reseller_id = params.sellerId;
   if (params.instanceName && isBlank(payload.instance_name)) payload.instance_name = params.instanceName;
-  
-  // Aliases de WhatsApp adicionais
-  if (isBlank(payload.client_whatsapp)) payload.client_whatsapp = params.whatsappNumber;
-  if (isBlank(payload.wpp)) payload.wpp = params.whatsappNumber;
-  if (isBlank(payload.zap)) payload.zap = params.whatsappNumber;
-  if (isBlank(payload.mobile)) payload.mobile = params.whatsappNumber;
-  if (isBlank(payload.phone_number)) payload.phone_number = params.whatsappNumber;
+  if (isBlank(payload.client_whatsapp)) payload.client_whatsapp = digits;
 
-  // If the template already has a nested structure, also populate common nested objects.
-  // This avoids breaking existing integrations that expect data/client wrappers.
+  // =====================================================================
+  // OBJETOS ANINHADOS: Também preenche data.* e client.* com TODOS os formatos
+  // =====================================================================
   const maybeData = payload.data;
   if (maybeData && typeof maybeData === 'object' && !Array.isArray(maybeData)) {
     const dataObj = maybeData as Record<string, unknown>;
-    // Overwrite placeholders to prevent sending literal "{phone}" etc.
-    if (shouldOverwriteTemplateValue(dataObj.phone)) dataObj.phone = params.clientPhone;
+    // Sempre sobrescrever com dígitos (formato mais compatível)
+    if (shouldOverwriteTemplateValue(dataObj.phone)) dataObj.phone = digits;
     if (shouldOverwriteTemplateValue(dataObj.name)) dataObj.name = params.clientName;
     if (shouldOverwriteTemplateValue(dataObj.plan)) dataObj.plan = params.testPlan;
     if (shouldOverwriteTemplateValue(dataObj.server)) dataObj.server = params.serverName || params.serverId;
     if (shouldOverwriteTemplateValue(dataObj.seller_id)) dataObj.seller_id = params.sellerId;
     if (shouldOverwriteTemplateValue(dataObj.server_id)) dataObj.server_id = params.serverId;
-    // WhatsApp no objeto data
-    if (shouldOverwriteTemplateValue(dataObj.whatsapp)) dataObj.whatsapp = params.whatsappNumber;
-    if (shouldOverwriteTemplateValue(dataObj.whatsapp_number)) dataObj.whatsapp_number = params.whatsappNumber;
+    if (shouldOverwriteTemplateValue(dataObj.whatsapp)) dataObj.whatsapp = digits;
+    if (shouldOverwriteTemplateValue(dataObj.whatsapp_number)) dataObj.whatsapp_number = digits;
+    if (shouldOverwriteTemplateValue(dataObj.telefone)) dataObj.telefone = digits;
+    if (shouldOverwriteTemplateValue(dataObj.celular)) dataObj.celular = digits;
+    // Formato com espaços
+    dataObj.phone_formatted = formatted;
+    dataObj.phone_digits = digits;
   }
 
   const maybeClient = payload.client;
   if (maybeClient && typeof maybeClient === 'object' && !Array.isArray(maybeClient)) {
     const clientObj = maybeClient as Record<string, unknown>;
-    if (shouldOverwriteTemplateValue(clientObj.phone)) clientObj.phone = params.clientPhone;
+    if (shouldOverwriteTemplateValue(clientObj.phone)) clientObj.phone = digits;
     if (shouldOverwriteTemplateValue(clientObj.name)) clientObj.name = params.clientName;
-    // WhatsApp no objeto client
-    if (shouldOverwriteTemplateValue(clientObj.whatsapp)) clientObj.whatsapp = params.whatsappNumber;
-    if (shouldOverwriteTemplateValue(clientObj.whatsapp_number)) clientObj.whatsapp_number = params.whatsappNumber;
+    if (shouldOverwriteTemplateValue(clientObj.whatsapp)) clientObj.whatsapp = digits;
+    if (shouldOverwriteTemplateValue(clientObj.whatsapp_number)) clientObj.whatsapp_number = digits;
+    if (shouldOverwriteTemplateValue(clientObj.telefone)) clientObj.telefone = digits;
+    if (shouldOverwriteTemplateValue(clientObj.celular)) clientObj.celular = digits;
+    // Formato com espaços
+    clientObj.phone_formatted = formatted;
+    clientObj.phone_digits = digits;
   }
 
   return payload;
@@ -613,11 +637,9 @@ Deno.serve(async (req) => {
         const finalClientName = (clientName || '').trim() || `Cliente ${clientPhone.slice(-4)}`;
 
         // =====================================================================
-        // PADRONIZAÇÃO: TODAS AS APIS RECEBEM O MESMO FORMATO DE TELEFONE
-        // Não importa o nome da API (STARPLAY, Azonix, etc.) - todas recebem:
-        // 1. clientPhoneDigits: apenas dígitos (ex: 5531999887766)
-        // 2. clientPhoneFormatted: com espaços brasileiros (ex: 55 31 99988 7766)
-        // 3. whatsappNumber: normalizado com DDI 55 (ex: 5531999887766)
+        // PADRONIZAÇÃO: TODAS AS APIS RECEBEM AMBOS OS FORMATOS DE TELEFONE
+        // - clientPhoneDigits: apenas dígitos (5531999887766) - usado por Azonix e similares
+        // - clientPhoneFormatted: com espaços (55 31 99988 7766) - usado por StarPlay e similares
         // =====================================================================
         const clientPhoneDigits = clientPhone; // Já normalizado com DDI 55
         const clientPhoneFormatted = formatBrazilPhoneWithSpaces(clientPhoneDigits);
@@ -626,62 +648,31 @@ Deno.serve(async (req) => {
           ? api.api_body_template
           : {};
 
+        // Construir payload com AMBOS os formatos
         const payload = buildTestCommandPayload({
           base,
-          // STARPLAY e outros painéis que esperam formato com espaços no campo principal
-          clientPhone: clientPhoneFormatted,
+          clientPhoneDigits,      // 5531999887766
+          clientPhoneFormatted,   // 55 31 99988 7766
           clientName: finalClientName,
           testPlan,
           serverId: testConfig!.server_id!,
           serverName: testConfig?.server_name || null,
           sellerId: seller_id,
           instanceName: instance_name || null,
-          whatsappNumber: clientPhoneDigits, // Número normalizado com DDI 55 (sem espaços)
         });
         
         console.log(`[process-command] 📞 Phone sent to ALL APIs: digits="${clientPhoneDigits}" formatted="${clientPhoneFormatted}"`);
-
-        // =====================================================================
-        // GARANTIR TODOS OS FORMATOS DE NÚMERO PARA COMPATIBILIDADE MÁXIMA
-        // Cada painel IPTV pode esperar o telefone em campos diferentes
-        // =====================================================================
-        
-        // Versão apenas dígitos - CRÍTICO para APIs como Azonix que não aceitam espaços
-        payload.phone_digits = clientPhoneDigits;
-        payload.client_phone_digits = clientPhoneDigits;
-        payload.number_digits = clientPhoneDigits;
-        payload.telefone_digits = clientPhoneDigits;
-        payload.celular_digits = clientPhoneDigits;
-        
-        // Garantir que os campos aninhados (data.*, client.*) também tenham versão dígitos
-        if (payload.data && typeof payload.data === 'object') {
-          const dataObj = payload.data as Record<string, unknown>;
-          dataObj.phone_digits = clientPhoneDigits;
-          dataObj.telefone = clientPhoneDigits;
-          dataObj.celular = clientPhoneDigits;
-          dataObj.whatsapp = clientPhoneDigits;
-        }
-        if (payload.client && typeof payload.client === 'object') {
-          const clientObj = payload.client as Record<string, unknown>;
-          clientObj.phone_digits = clientPhoneDigits;
-          clientObj.telefone = clientPhoneDigits;
-          clientObj.celular = clientPhoneDigits;
-          clientObj.whatsapp = clientPhoneDigits;
-        }
-        
-        // Versão formatada com espaços (STARPLAY e similares)
-        payload.phone_formatted = clientPhoneFormatted;
-        payload.number_formatted = clientPhoneFormatted;
 
         if (api.api_method === 'POST') {
           fetchOptions.body = JSON.stringify(payload);
           apiRequest.body = payload;
         } else if (api.api_method === 'GET') {
           const url = new URL(finalUrl);
-          url.searchParams.set('phone', clientPhoneFormatted); // Formato com espaços
-          url.searchParams.set('phone_digits', clientPhoneDigits); // Apenas dígitos
-          url.searchParams.set('phone_formatted', clientPhoneFormatted);
-          url.searchParams.set('whatsapp', clientPhoneDigits); // WhatsApp normalizado com DDI
+          // GET requests: enviar AMBOS os formatos em parâmetros separados
+          url.searchParams.set('phone', clientPhoneDigits);           // Dígitos (padrão)
+          url.searchParams.set('phone_digits', clientPhoneDigits);    // Dígitos (explícito)
+          url.searchParams.set('phone_formatted', clientPhoneFormatted); // Com espaços
+          url.searchParams.set('whatsapp', clientPhoneDigits);
           url.searchParams.set('whatsapp_number', clientPhoneDigits);
           url.searchParams.set('name', String(payload.name || ''));
           url.searchParams.set('plan', String(payload.plan || ''));
