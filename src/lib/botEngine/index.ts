@@ -2,8 +2,24 @@
  * BOT ENGINE - Exportações centralizadas
  * Módulo isolado de infraestrutura para chatbots
  * 
- * ⚠️ Este módulo NÃO modifica webhooks ou APIs existentes.
- * Ele fornece funções que podem ser CHAMADAS pelos sistemas existentes.
+ * ═══════════════════════════════════════════════════════════════════
+ * ⚠️ CONTRATO DE ISOLAMENTO - GARANTIAS OBRIGATÓRIAS
+ * ═══════════════════════════════════════════════════════════════════
+ * 
+ * ✅ NÃO modifica funções existentes
+ * ✅ NÃO altera integrações já prontas (Evolution API, webhooks)
+ * ✅ NÃO recria APIs
+ * ✅ APENAS adiciona camada de interceptação opcional
+ * ✅ Estrutura limpa, escalável e reutilizável
+ * ✅ Código organizado e documentado
+ * 
+ * Este módulo fornece funções que são CHAMADAS pelos sistemas existentes.
+ * O ponto de integração único está em `connection-heartbeat` (webhook),
+ * onde o BotEngine é chamado de forma segura (try/catch) antes do
+ * processamento normal de comandos IPTV.
+ * 
+ * Se o BotEngine falhar ou não interceptar, o fluxo continua normalmente.
+ * ═══════════════════════════════════════════════════════════════════
  */
 
 // Tipos
