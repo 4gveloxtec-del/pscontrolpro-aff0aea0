@@ -888,6 +888,9 @@ Fico à disposição! 🚀📺`,
                 api_response: apiResponse,
                 api_id: api?.id,
                 command_id: commandData.id,
+                // CRÍTICO: Passar server_id diretamente para evitar fallback incorreto
+                // testConfig.server_id já foi validado e é o servidor correto da API usada
+                server_id_override: testConfig?.server_id,
               }),
               signal: createController.signal,
             });
