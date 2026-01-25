@@ -603,8 +603,9 @@ export default function Clients() {
         `)
         .eq('id', selectedLookupClientId)
         .eq('seller_id', user.id)
-        .single();
+        .maybeSingle();
       if (clientError) throw clientError;
+      if (!client) throw new Error('Cliente não encontrado');
       
       // Fetch related data in parallel
       const [externalAppsResult, premiumAccountsResult, deviceAppsResult, messageHistoryResult, panelClientsResult] = await Promise.all([
@@ -1072,7 +1073,8 @@ export default function Clients() {
           if (panelEntries.length > 0) {
             supabase.from('panel_clients').insert(panelEntries).then(({ error: panelError }) => {
               if (panelError) {
-                console.error('Error registering credit slots:', panelError);
+                console.error('[Clients] Error registering credit slots:', panelError);
+                toast.error('Erro ao vincular créditos: ' + panelError.message);
               }
             });
           }
@@ -1113,7 +1115,8 @@ export default function Clients() {
             
             const { error } = await supabase.from('client_external_apps').insert(insertData);
             if (error) {
-              console.error('Error saving external app:', error);
+              console.error('[Clients] Error saving external app:', error);
+              toast.error('Erro ao salvar app: ' + error.message);
             }
           }
         })();
@@ -1125,7 +1128,7 @@ export default function Clients() {
           for (const account of premiumAccounts) {
             if (!account.planName && !account.email) continue;
             
-            await supabase.from('client_premium_accounts').insert([{
+            const { error } = await supabase.from('client_premium_accounts').insert([{
               client_id: insertedData.id,
               seller_id: user!.id,
               plan_name: account.planName || null,
@@ -1135,6 +1138,10 @@ export default function Clients() {
               expiration_date: account.expirationDate || null,
               notes: account.notes || null,
             }]);
+            if (error) {
+              console.error('[Clients] Error saving premium account:', error);
+              toast.error('Erro ao salvar conta premium: ' + error.message);
+            }
           }
         })();
       }

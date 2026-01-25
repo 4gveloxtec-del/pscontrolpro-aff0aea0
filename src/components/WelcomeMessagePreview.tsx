@@ -74,8 +74,8 @@ export function WelcomeMessagePreview({
         .from('profiles')
         .select('company_name, full_name, pix_key')
         .eq('id', user!.id)
-        .single();
-      if (error) throw error;
+        .maybeSingle();
+      if (error || !data) throw new Error('Profile not found');
       return data;
     },
     enabled: !!user?.id && open,

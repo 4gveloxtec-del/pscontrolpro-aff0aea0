@@ -13,15 +13,23 @@ interface SentMessage {
 export function useSentMessages() {
   const [sentMessages, setSentMessages] = useState<SentMessage[]>([]);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount with corruption protection
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setSentMessages(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        // Validate structure
+        if (Array.isArray(parsed)) {
+          setSentMessages(parsed);
+        } else {
+          throw new Error('Invalid cache structure');
+        }
       }
     } catch (error) {
-      console.error('Error loading sent messages:', error);
+      console.error('[useSentMessages] Corrupted cache, resetting:', error);
+      localStorage.removeItem(STORAGE_KEY);
+      setSentMessages([]);
     }
   }, []);
 

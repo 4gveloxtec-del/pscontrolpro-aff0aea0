@@ -26,7 +26,7 @@ try {
           })
         ))
         .then(() => console.log('[SW-Admin] All caches cleared'))
-        .catch(() => {})
+        .catch((error) => console.error('[SW-Admin] Cache clear error:', error))
     );
     
     self.skipWaiting();
@@ -40,9 +40,9 @@ try {
       Promise.all([
         caches.keys()
           .then((names) => Promise.all(names.map((n) => caches.delete(n))))
-          .catch(() => {}),
+          .catch((error) => console.error('[SW-Admin] Activate cache clear error:', error)),
         self.clients.claim()
-      ]).catch(() => {})
+      ]).catch((error) => console.error('[SW-Admin] Activate error:', error))
     );
   });
 
@@ -68,6 +68,7 @@ try {
         data: payload.data || data.data
       };
     } catch (e) {
+      console.error('[SW-Admin] Push payload parse error:', e);
       return;
     }
 
@@ -85,7 +86,7 @@ try {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title, options).catch(() => {})
+      self.registration.showNotification(data.title, options).catch((error) => console.error('[SW-Admin] Show notification error:', error))
     );
   });
 
@@ -111,10 +112,11 @@ try {
               return self.clients.openWindow(urlToOpen);
             }
           })
-          .catch(() => {})
+          .catch((error) => console.error('[SW-Admin] Notification click handler error:', error))
       );
-    } catch (e) {}
-  });
+    } catch (e) {
+      console.error('[SW-Admin] Notification click error:', e);
+    }
 
   // Fetch event - NEVER intercept
   self.addEventListener('fetch', () => {
@@ -134,11 +136,11 @@ try {
         case 'CLEAR_CACHES':
           caches.keys()
             .then((names) => Promise.all(names.map((n) => caches.delete(n))))
-            .catch(() => {});
+            .catch((error) => console.error('[SW-Admin] Clear caches error:', error));
           break;
           
         case 'UNREGISTER':
-          self.registration.unregister().catch(() => {});
+          self.registration.unregister().catch((error) => console.error('[SW-Admin] Unregister error:', error));
           break;
           
         case 'GET_VERSION':
@@ -147,7 +149,9 @@ try {
           }
           break;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[SW-Admin] Message handler error:', e);
+    }
   });
 
 } catch (globalError) {

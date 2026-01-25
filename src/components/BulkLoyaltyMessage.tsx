@@ -73,22 +73,38 @@ export function BulkLoyaltyMessage({
     clearAllSentMarks 
   } = useSentMessages();
 
-  // Load daily limit and progress from localStorage
+  // Load daily limit and progress from localStorage with corruption protection
   useEffect(() => {
-    const savedLimit = localStorage.getItem(DAILY_LIMIT_KEY);
-    if (savedLimit) setDailyLimit(parseInt(savedLimit, 10));
-
-    const savedProgress = localStorage.getItem(DAILY_PROGRESS_KEY);
-    if (savedProgress) {
-      const progress = JSON.parse(savedProgress) as DailyProgress;
-      const today = new Date().toISOString().split('T')[0];
-      // Reset if it's a new day
-      if (progress.date !== today) {
-        setDailyProgress({ date: today, count: 0, templateType: '' });
-      } else {
-        setDailyProgress(progress);
+    try {
+      const savedLimit = localStorage.getItem(DAILY_LIMIT_KEY);
+      if (savedLimit) {
+        const parsed = parseInt(savedLimit, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          setDailyLimit(parsed);
+        }
       }
-    } else {
+    } catch (error) {
+      console.error('[BulkLoyaltyMessage] Error loading daily limit:', error);
+      localStorage.removeItem(DAILY_LIMIT_KEY);
+    }
+
+    try {
+      const savedProgress = localStorage.getItem(DAILY_PROGRESS_KEY);
+      if (savedProgress) {
+        const progress = JSON.parse(savedProgress) as DailyProgress;
+        const today = new Date().toISOString().split('T')[0];
+        // Reset if it's a new day or invalid
+        if (progress?.date !== today || typeof progress.count !== 'number') {
+          setDailyProgress({ date: today, count: 0, templateType: '' });
+        } else {
+          setDailyProgress(progress);
+        }
+      } else {
+        setDailyProgress({ date: new Date().toISOString().split('T')[0], count: 0, templateType: '' });
+      }
+    } catch (error) {
+      console.error('[BulkLoyaltyMessage] Corrupted progress cache, resetting:', error);
+      localStorage.removeItem(DAILY_PROGRESS_KEY);
       setDailyProgress({ date: new Date().toISOString().split('T')[0], count: 0, templateType: '' });
     }
   }, []);

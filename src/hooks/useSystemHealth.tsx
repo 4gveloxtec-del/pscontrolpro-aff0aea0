@@ -54,7 +54,7 @@ export function useSystemHealth() {
     
     try {
       const [configResult, statusResult, logsResult] = await Promise.all([
-        supabase.from('system_health_config').select('*').single(),
+        supabase.from('system_health_config').select('*').maybeSingle(),
         supabase.from('system_health_status').select('*').order('component_name'),
         supabase.from('system_health_logs').select('*').order('created_at', { ascending: false }).limit(100),
       ]);

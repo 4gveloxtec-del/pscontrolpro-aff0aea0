@@ -39,7 +39,7 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
           .from('profiles')
           .select('hide_revenue, hide_client_numbers')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (!error && data) {
           setIsMoneyHidden(data.hide_revenue ?? false);

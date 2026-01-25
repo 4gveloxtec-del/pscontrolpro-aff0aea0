@@ -73,7 +73,7 @@ export function useTrialApiStatus() {
         .from('profiles')
         .select('is_permanent, subscription_expires_at, created_at, api_trial_started_at')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!fullProfile) {
         setIsLoading(false);

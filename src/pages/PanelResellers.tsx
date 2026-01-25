@@ -174,8 +174,8 @@ export default function PanelResellers() {
         .from('profiles')
         .select('pix_key, company_name')
         .eq('id', user!.id)
-        .single();
-      if (error) throw error;
+        .maybeSingle();
+      if (error || !data) throw new Error('Profile not found');
       return data;
     },
     enabled: !!user?.id,

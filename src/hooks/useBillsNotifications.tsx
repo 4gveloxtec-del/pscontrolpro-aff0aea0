@@ -39,7 +39,7 @@ export function useBillsNotifications() {
             .from('profiles')
             .select('*')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
           
           if (!isMountedRef.current) return;
           
