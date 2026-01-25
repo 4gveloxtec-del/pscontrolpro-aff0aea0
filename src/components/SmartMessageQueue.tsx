@@ -15,8 +15,9 @@ import { toast } from 'sonner';
 import { 
   Clock, Play, Pause, RotateCcw, Users, AlertTriangle, 
   CheckCircle, XCircle, Loader2, Calendar, Zap, Settings,
-  RefreshCw, Timer, Send
+  RefreshCw, Timer, Send, Archive, UserCheck
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { differenceInDays, format, startOfToday } from 'date-fns';
 
 interface Client {
@@ -37,6 +38,10 @@ interface QueueSettings {
   end_hour: number;
   catch_up_mode: boolean;
   catch_up_completed: boolean;
+  archived_reengagement_enabled?: boolean;
+  archived_reengagement_days?: number;
+  archived_reengagement_template_id?: string | null;
+  archived_reengagement_last_run?: string | null;
 }
 
 interface QueueItem {
@@ -75,6 +80,10 @@ export function SmartMessageQueue() {
         end_hour: 22,
         catch_up_mode: false,
         catch_up_completed: false,
+        archived_reengagement_enabled: false,
+        archived_reengagement_days: 30,
+        archived_reengagement_template_id: null,
+        archived_reengagement_last_run: null,
       };
     },
     enabled: !!user?.id,
@@ -124,6 +133,45 @@ export function SmartMessageQueue() {
       return Array.from(new Set((data || []).map(n => n.client_id)));
     },
     enabled: !!user?.id,
+  });
+
+  // Fetch templates for reengagement
+  const { data: templates = [] } = useQuery({
+    queryKey: ['whatsapp-templates', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_templates')
+        .select('id, name, type')
+        .eq('seller_id', user!.id);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch archived clients for reengagement preview
+  const { data: archivedClients = [] } = useQuery({
+    queryKey: ['archived-clients-reengagement', user?.id, settings?.archived_reengagement_days],
+    queryFn: async () => {
+      if (!settings?.archived_reengagement_enabled) return [];
+      
+      const daysAgo = settings.archived_reengagement_days || 30;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name, phone, archived_at')
+        .eq('seller_id', user!.id)
+        .eq('is_archived', true)
+        .not('phone', 'is', null)
+        .lte('archived_at', cutoffDate.toISOString());
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && settings?.archived_reengagement_enabled,
   });
 
   // Build prioritized queue
@@ -376,6 +424,134 @@ export function SmartMessageQueue() {
     toast.info('Fila reiniciada');
   };
 
+  // State for archived reengagement processing
+  const [isProcessingArchived, setIsProcessingArchived] = useState(false);
+  const [archivedProgress, setArchivedProgress] = useState(0);
+
+  // Process archived clients reengagement
+  const processArchivedReengagement = async () => {
+    if (!settings?.archived_reengagement_enabled || !settings?.archived_reengagement_template_id) {
+      toast.error('Configure o template de reengajamento primeiro');
+      return;
+    }
+
+    if (archivedClients.length === 0) {
+      toast.info('Nenhum cliente arquivado para reengajar');
+      return;
+    }
+
+    // Check operating hours
+    const currentHour = new Date().getHours();
+    if (settings && (currentHour < settings.start_hour || currentHour >= settings.end_hour)) {
+      toast.error(`Fora do horário de operação (${settings.start_hour}h - ${settings.end_hour}h)`);
+      return;
+    }
+
+    setIsProcessingArchived(true);
+    setArchivedProgress(0);
+
+    try {
+      // Get template
+      const { data: template } = await supabase
+        .from('whatsapp_templates')
+        .select('*')
+        .eq('id', settings.archived_reengagement_template_id)
+        .single();
+
+      if (!template) {
+        toast.error('Template não encontrado');
+        setIsProcessingArchived(false);
+        return;
+      }
+
+      // Get WhatsApp config
+      const { data: globalConfig } = await supabase
+        .from('whatsapp_global_config')
+        .select('*')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      const { data: sellerInstance } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('*')
+        .eq('seller_id', user!.id)
+        .eq('is_connected', true)
+        .maybeSingle();
+
+      const apiUrl = globalConfig?.api_url;
+      const apiKey = globalConfig?.api_token;
+      const instanceName = sellerInstance?.instance_name;
+
+      if (!apiUrl || !apiKey || !instanceName) {
+        toast.error('Configure o WhatsApp primeiro');
+        setIsProcessingArchived(false);
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < archivedClients.length; i++) {
+        const client = archivedClients[i];
+        setArchivedProgress(((i + 1) / archivedClients.length) * 100);
+
+        try {
+          // Replace template variables
+          let message = template.message || '';
+          message = message.replace(/{nome}/gi, client.name || 'Cliente');
+          message = message.replace(/{cliente}/gi, client.name || 'Cliente');
+
+          // Send via Edge Function (same approach as regular queue)
+          const { data, error } = await supabase.functions.invoke('evolution-api', {
+            body: {
+              action: 'send_message',
+              api_url: apiUrl,
+              api_token: apiKey,
+              instance_name: instanceName,
+              phone: client.phone,
+              message,
+            },
+          });
+
+          if (!error && data?.success) {
+            successCount++;
+            
+            // Track notification
+            await supabase.from('client_notification_tracking').insert({
+              seller_id: user!.id,
+              client_id: client.id,
+              notification_type: 'reengagement',
+              expiration_cycle_date: new Date().toISOString().split('T')[0],
+              sent_via: 'archived_reengagement',
+            });
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+
+        // Wait between messages
+        if (i < archivedClients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, (settings.interval_seconds || 30) * 1000));
+        }
+      }
+
+      // Update last run timestamp
+      saveSettingsMutation.mutate({ archived_reengagement_last_run: new Date().toISOString() });
+
+      toast.success(`Reengajamento concluído! ${successCount} enviados, ${failCount} falharam`);
+      queryClient.invalidateQueries({ queryKey: ['archived-clients-reengagement'] });
+
+    } catch (error) {
+      console.error('Archived reengagement error:', error);
+      toast.error('Erro no reengajamento');
+    } finally {
+      setIsProcessingArchived(false);
+      setArchivedProgress(0);
+    }
+  };
+
   // Categorize clients
   const expiredClients = queue.filter(q => q.daysUntilExpiration < 0);
   const expiringTodayClients = queue.filter(q => q.daysUntilExpiration === 0);
@@ -507,6 +683,109 @@ export function SmartMessageQueue() {
               Catch-up concluído
             </Badge>
           )}
+
+          <Separator />
+
+          {/* Archived Clients Reengagement Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label className="flex items-center gap-2">
+                  <Archive className="h-4 w-4 text-blue-500" />
+                  Reengajamento de Arquivados
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Enviar mensagens para clientes arquivados após um período definido
+                </p>
+              </div>
+              <Switch
+                checked={settings?.archived_reengagement_enabled || false}
+                onCheckedChange={(checked) => saveSettingsMutation.mutate({ archived_reengagement_enabled: checked })}
+              />
+            </div>
+
+            {settings?.archived_reengagement_enabled && (
+              <div className="space-y-4 pl-6 border-l-2 border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Dias após arquivamento
+                    </Label>
+                    <Input
+                      type="number"
+                      min={7}
+                      max={365}
+                      value={settings?.archived_reengagement_days || 30}
+                      onChange={(e) => saveSettingsMutation.mutate({ 
+                        archived_reengagement_days: parseInt(e.target.value) || 30 
+                      })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Clientes arquivados há mais de {settings?.archived_reengagement_days || 30} dias serão contatados
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Template de Mensagem</Label>
+                    <Select
+                      value={settings?.archived_reengagement_template_id || ''}
+                      onValueChange={(value) => saveSettingsMutation.mutate({ 
+                        archived_reengagement_template_id: value || null 
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name} ({template.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-blue-500" />
+                    <span className="text-sm font-medium">
+                      {archivedClients.length} cliente{archivedClients.length !== 1 ? 's' : ''} para reengajar
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {settings?.archived_reengagement_last_run && (
+                      <Badge variant="secondary" className="text-xs">
+                        Último: {format(new Date(settings.archived_reengagement_last_run), 'dd/MM HH:mm')}
+                      </Badge>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={processArchivedReengagement}
+                      disabled={isProcessingArchived || archivedClients.length === 0 || !settings?.archived_reengagement_template_id}
+                    >
+                      {isProcessingArchived ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          {Math.round(archivedProgress)}%
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-1" />
+                          Iniciar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {isProcessingArchived && (
+                  <Progress value={archivedProgress} className="h-2" />
+                )}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
