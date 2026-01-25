@@ -323,7 +323,7 @@ Qualquer dúvida estamos à disposição!`;
 
   const createBroadcastMutation = useMutation({
     mutationFn: async () => {
-      // Create broadcast record
+      // Create broadcast record - AUDIT FIX: Use maybeSingle() instead of single()
       const { data: broadcast, error: broadcastError } = await supabase
         .from('admin_broadcasts')
         .insert({
@@ -335,9 +335,10 @@ Qualquer dúvida estamos à disposição!`;
           started_at: new Date().toISOString(),
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (broadcastError) throw broadcastError;
+      if (!broadcast) throw new Error('Falha ao criar broadcast');
 
       // Create recipient records
       const recipients = filteredSellers.map(seller => ({

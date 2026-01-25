@@ -119,7 +119,7 @@ export function useWhatsAppGlobalConfig() {
         
         console.log('[GlobalConfig] Updated successfully with instance_name:', normalizedInstanceName);
       } else {
-        // Insert new
+        // Insert new - AUDIT FIX: Use maybeSingle() instead of single() on insert
         const { data, error: insertError } = await supabase
           .from('whatsapp_global_config')
           .insert({
@@ -130,7 +130,7 @@ export function useWhatsAppGlobalConfig() {
             admin_user_id: currentUserId,
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (insertError) {
           console.error('Error inserting global config:', insertError);

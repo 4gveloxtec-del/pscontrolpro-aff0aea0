@@ -21,6 +21,7 @@ export function InlineExternalAppCreator({ sellerId, onCreated }: InlineExternal
   const [websiteUrl, setWebsiteUrl] = useState('');
   const queryClient = useQueryClient();
 
+  // AUDIT FIX: Use maybeSingle() instead of single() on insert
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.from('external_apps').insert([{
@@ -28,8 +29,9 @@ export function InlineExternalAppCreator({ sellerId, onCreated }: InlineExternal
         auth_type: authType,
         website_url: websiteUrl || null,
         seller_id: sellerId,
-      }]).select('id').single();
+      }]).select('id').maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Falha ao criar app');
       return data;
     },
     onSuccess: (data) => {
@@ -145,6 +147,7 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
   const [icon, setIcon] = useState('📱');
   const queryClient = useQueryClient();
 
+  // AUDIT FIX: Use maybeSingle() instead of single() on insert
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.from('server_apps').insert([{
@@ -154,8 +157,9 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
         server_id: serverId,
         seller_id: sellerId,
         is_active: true,
-      }]).select('id').single();
+      }]).select('id').maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Falha ao criar app');
       return data;
     },
     onSuccess: (data) => {
@@ -286,6 +290,7 @@ export function InlineResellerAppCreator({ sellerId, onCreated }: InlineReseller
   const [downloaderCode, setDownloaderCode] = useState('');
   const queryClient = useQueryClient();
 
+  // AUDIT FIX: Use maybeSingle() instead of single() on insert
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase
@@ -301,8 +306,9 @@ export function InlineResellerAppCreator({ sellerId, onCreated }: InlineReseller
           },
         ])
         .select('id')
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Falha ao criar app');
       return data;
     },
     onSuccess: (data) => {

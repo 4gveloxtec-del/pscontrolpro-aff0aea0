@@ -29,12 +29,12 @@ Deno.serve(async (req) => {
 
     console.log(`Creating default data for: ${email}`);
 
-    // Find user by email in profiles
+    // Find user by email in profiles - AUDIT FIX: Use maybeSingle() instead of single()
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (profileError || !profile) {
       console.error('Profile not found:', profileError);
