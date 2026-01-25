@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCrypto } from '@/hooks/useCrypto';
+import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -155,15 +156,17 @@ interface DecryptedAppCredentials {
 function ClientLookup() {
   const { user } = useAuth();
   const { decrypt } = useCrypto();
+  const { isPrivacyMode } = usePrivacyMode();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [showPasswords, setShowPasswords] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(true); // Default to true - show passwords
   const [decryptedCredentials, setDecryptedCredentials] = useState<DecryptedCredentials | null>(null);
   const [decryptedApps, setDecryptedApps] = useState<DecryptedAppCredentials>({});
   const [decryptedPremium, setDecryptedPremium] = useState<DecryptedAppCredentials>({});
   const [decryptedLegacy, setDecryptedLegacy] = useState<{ email?: string; password?: string } | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [isDecryptingApps, setIsDecryptingApps] = useState(false);
+  const [autoDecryptDone, setAutoDecryptDone] = useState(false);
   
   // Reset decrypted credentials when client changes
   const handleClientSelect = useCallback((clientId: string) => {
@@ -172,6 +175,7 @@ function ClientLookup() {
     setDecryptedApps({});
     setDecryptedPremium({});
     setDecryptedLegacy(null);
+    setAutoDecryptDone(false); // Reset auto-decrypt flag
   }, []);
   
   // Search clients
@@ -339,6 +343,17 @@ function ClientLookup() {
     }
   }, [clientFullData, decrypt, isDecryptingApps]);
 
+  // Auto-decrypt all credentials when client data loads
+  useEffect(() => {
+    if (clientFullData && !autoDecryptDone && !isDecrypting && !isDecryptingApps) {
+      setAutoDecryptDone(true);
+      // Auto-decrypt main credentials
+      handleDecryptCredentials();
+      // Auto-decrypt apps credentials
+      handleDecryptAllApps();
+    }
+  }, [clientFullData, autoDecryptDone, isDecrypting, isDecryptingApps, handleDecryptCredentials, handleDecryptAllApps]);
+
   const getStatusBadge = (expirationDate: string) => {
     const expDate = parseISO(expirationDate);
     const daysUntil = differenceInDays(expDate, new Date());
@@ -377,23 +392,31 @@ function ClientLookup() {
   
   const CredentialField = ({ label, value, icon: Icon }: { label: string; value: string | null; icon: React.ComponentType<{ className?: string }> }) => {
     if (!value) return null;
+    
+    // In privacy mode, mask everything
+    const displayValue = isPrivacyMode 
+      ? '●●●●●●●●' 
+      : (showPasswords || !label.toLowerCase().includes('senha') ? value : '••••••••');
+    
     return (
       <div className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">{label}:</span>
           <span className="text-sm font-medium font-mono">
-            {showPasswords || !label.toLowerCase().includes('senha') ? value : '••••••••'}
+            {displayValue}
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => copyToClipboard(value, label)}
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </Button>
+        {!isPrivacyMode && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => copyToClipboard(value, label)}
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
     );
   };
@@ -521,15 +544,23 @@ function ClientLookup() {
                       </CardDescription>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowPasswords(!showPasswords)}
-                    className="gap-2"
-                  >
-                    {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    {showPasswords ? 'Ocultar' : 'Mostrar'} Senhas
-                  </Button>
+                  {!isPrivacyMode && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPasswords(!showPasswords)}
+                      className="gap-2"
+                    >
+                      {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPasswords ? 'Ocultar' : 'Mostrar'} Senhas
+                    </Button>
+                  )}
+                  {isPrivacyMode && (
+                    <Badge variant="secondary" className="gap-1">
+                      <EyeOff className="h-3 w-3" />
+                      Modo Privacidade
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -750,27 +781,12 @@ function ClientLookup() {
                           <Lock className="h-4 w-4" />
                           Credenciais de Acesso
                         </h3>
-                        {!decryptedCredentials ? (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={handleDecryptCredentials}
-                            disabled={isDecrypting}
-                            className="gap-1"
-                          >
-                            {isDecrypting ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                Descriptografando...
-                              </>
-                            ) : (
-                              <>
-                                <Eye className="h-3.5 w-3.5" />
-                                Ver Credenciais
-                              </>
-                            )}
-                          </Button>
-                        ) : (
+                        {isDecrypting ? (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Carregando...
+                          </div>
+                        ) : !isPrivacyMode && decryptedCredentials && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -902,35 +918,19 @@ function ClientLookup() {
                   
                   {/* Apps Tab */}
                   <TabsContent value="apps" className="space-y-4">
-                    {/* Decrypt All Apps Button */}
+                    {/* Apps Status Header */}
                     {(clientFullData.external_apps?.length > 0 || clientFullData.premium_accounts?.length > 0 || clientFullData.has_paid_apps) && (
                       <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
                         <span className="text-sm text-muted-foreground">
-                          {Object.keys(decryptedApps).length > 0 || Object.keys(decryptedPremium).length > 0 || decryptedLegacy
-                            ? 'Credenciais descriptografadas'
-                            : 'Credenciais criptografadas'}
+                          {isDecryptingApps 
+                            ? 'Carregando credenciais...'
+                            : isPrivacyMode 
+                              ? 'Credenciais ocultas (modo privacidade)'
+                              : 'Credenciais descriptografadas'}
                         </span>
-                        {Object.keys(decryptedApps).length === 0 && Object.keys(decryptedPremium).length === 0 && !decryptedLegacy ? (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={handleDecryptAllApps}
-                            disabled={isDecryptingApps}
-                            className="gap-1"
-                          >
-                            {isDecryptingApps ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                Descriptografando...
-                              </>
-                            ) : (
-                              <>
-                                <Eye className="h-3.5 w-3.5" />
-                                Ver Todas Credenciais
-                              </>
-                            )}
-                          </Button>
-                        ) : (
+                        {isDecryptingApps ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : !isPrivacyMode && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -974,12 +974,12 @@ function ClientLookup() {
                                 <div className="grid gap-2">
                                   <CredentialField 
                                     label="Email" 
-                                    value={decrypted?.email || (Object.keys(decryptedApps).length > 0 ? null : '••••••••')} 
+                                    value={decrypted?.email || null} 
                                     icon={Mail} 
                                   />
                                   <CredentialField 
                                     label="Senha" 
-                                    value={decrypted?.password || (Object.keys(decryptedApps).length > 0 ? null : '••••••••')} 
+                                    value={decrypted?.password || null} 
                                     icon={Lock} 
                                   />
                                 </div>
@@ -1028,12 +1028,12 @@ function ClientLookup() {
                                 <div className="grid gap-2">
                                   <CredentialField 
                                     label="Email" 
-                                    value={decrypted?.email || (Object.keys(decryptedPremium).length > 0 ? null : '••••••••')} 
+                                    value={decrypted?.email || null} 
                                     icon={Mail} 
                                   />
                                   <CredentialField 
                                     label="Senha" 
-                                    value={decrypted?.password || (Object.keys(decryptedPremium).length > 0 ? null : '••••••••')} 
+                                    value={decrypted?.password || null} 
                                     icon={Lock} 
                                   />
                                 </div>
@@ -1062,12 +1062,12 @@ function ClientLookup() {
                           <div className="grid gap-2">
                             <CredentialField 
                               label="Email" 
-                              value={decryptedLegacy?.email || (decryptedLegacy ? null : '••••••••')} 
+                              value={decryptedLegacy?.email || null} 
                               icon={Mail} 
                             />
                             <CredentialField 
                               label="Senha" 
-                              value={decryptedLegacy?.password || (decryptedLegacy ? null : '••••••••')} 
+                              value={decryptedLegacy?.password || null} 
                               icon={Lock} 
                             />
                           </div>
