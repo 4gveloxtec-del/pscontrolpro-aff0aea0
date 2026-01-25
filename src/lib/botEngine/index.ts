@@ -20,3 +20,6 @@ export * from './integration';
 
 // Funções Core (estado, parsing, ações, mensagens, lock)
 export * from './core';
+
+// Comandos Globais
+export * from './commands';
