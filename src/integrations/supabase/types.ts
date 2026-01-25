@@ -495,6 +495,48 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_engine_menus: {
+        Row: {
+          created_at: string | null
+          footer_message: string | null
+          header_message: string | null
+          id: string
+          is_active: boolean | null
+          menu_key: string
+          options: Json
+          parent_menu_key: string | null
+          seller_id: string
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          footer_message?: string | null
+          header_message?: string | null
+          id?: string
+          is_active?: boolean | null
+          menu_key: string
+          options?: Json
+          parent_menu_key?: string | null
+          seller_id: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          footer_message?: string | null
+          header_message?: string | null
+          id?: string
+          is_active?: boolean | null
+          menu_key?: string
+          options?: Json
+          parent_menu_key?: string | null
+          seller_id?: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       bot_engine_message_log: {
         Row: {
           direction: string

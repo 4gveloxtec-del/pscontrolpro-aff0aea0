@@ -58,6 +58,23 @@ interface ActionResult {
   popStack?: boolean;
 }
 
+interface MenuOption {
+  label: string;
+  target_menu?: string;
+  target_state?: string;
+  action?: string;
+  keywords?: string[];
+}
+
+interface DynamicMenu {
+  menu_key: string;
+  title?: string;
+  header_message?: string;
+  footer_message?: string;
+  options: MenuOption[];
+  parent_menu_key?: string;
+}
+
 // =====================================================================
 // COMANDOS GLOBAIS - REGRAS UNIVERSAIS DE NAVEGAÇÃO
 // =====================================================================
@@ -336,15 +353,141 @@ function executeAction(
   }
 }
 
+// =====================================================================
+// MENUS DINÂMICOS
+// =====================================================================
+
 /**
- * Busca mensagem do fluxo baseado no estado atual
+ * Busca menu dinâmico pelo menu_key
+ */
+async function getDynamicMenu(
+  supabase: SupabaseClient,
+  sellerId: string,
+  menuKey: string
+): Promise<DynamicMenu | null> {
+  const { data: menu } = await supabase
+    .from('bot_engine_menus')
+    .select('*')
+    .eq('seller_id', sellerId)
+    .eq('menu_key', menuKey)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!menu) return null;
+
+  return {
+    menu_key: menu.menu_key,
+    title: menu.title,
+    header_message: menu.header_message,
+    footer_message: menu.footer_message,
+    options: (menu.options as MenuOption[]) || [],
+    parent_menu_key: menu.parent_menu_key,
+  };
+}
+
+/**
+ * Renderiza menu dinâmico como texto formatado
+ */
+function renderDynamicMenu(menu: DynamicMenu): string {
+  const lines: string[] = [];
+
+  // Header
+  if (menu.header_message) {
+    lines.push(menu.header_message);
+    lines.push('');
+  } else if (menu.title) {
+    lines.push(`📋 *${menu.title}*`);
+    lines.push('');
+  }
+
+  // Opções numeradas
+  menu.options.forEach((opt, index) => {
+    lines.push(`*${index + 1}* - ${opt.label}`);
+  });
+
+  // Navegação automática
+  lines.push('');
+  if (menu.parent_menu_key) {
+    lines.push('*0* - Voltar');
+  }
+  lines.push('*#* - Menu Principal');
+
+  // Footer
+  if (menu.footer_message) {
+    lines.push('');
+    lines.push(menu.footer_message);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Processa seleção do usuário em menu dinâmico
+ */
+async function processMenuSelection(
+  supabase: SupabaseClient,
+  sellerId: string,
+  menu: DynamicMenu,
+  parsed: ParsedInput
+): Promise<{ targetMenu: string | null; targetState: string | null; action: string | null }> {
+  // Se é número, usar como índice
+  if (parsed.isNumber && parsed.number !== null) {
+    const optIndex = parsed.number - 1;
+    if (optIndex >= 0 && optIndex < menu.options.length) {
+      const option = menu.options[optIndex];
+      return {
+        targetMenu: option.target_menu || null,
+        targetState: option.target_state || null,
+        action: option.action || null,
+      };
+    }
+  }
+
+  // Buscar por keyword/label
+  for (const option of menu.options) {
+    const labelLower = option.label.toLowerCase();
+    
+    // Match exato ou parcial no label
+    if (parsed.normalized === labelLower || labelLower.includes(parsed.normalized)) {
+      return {
+        targetMenu: option.target_menu || null,
+        targetState: option.target_state || null,
+        action: option.action || null,
+      };
+    }
+
+    // Match por keywords da opção
+    if (option.keywords) {
+      for (const kw of option.keywords) {
+        if (parsed.normalized.includes(kw.toLowerCase())) {
+          return {
+            targetMenu: option.target_menu || null,
+            targetState: option.target_state || null,
+            action: option.action || null,
+          };
+        }
+      }
+    }
+  }
+
+  return { targetMenu: null, targetState: null, action: null };
+}
+
+/**
+ * Busca mensagem do fluxo OU menu dinâmico baseado no estado atual
  */
 async function getFlowMessage(
   supabase: SupabaseClient,
   sellerId: string,
   state: string
 ): Promise<string | null> {
-  // Buscar fluxo ativo do seller
+  // PRIMEIRO: Tentar menu dinâmico
+  const dynamicMenu = await getDynamicMenu(supabase, sellerId, state);
+  if (dynamicMenu) {
+    return renderDynamicMenu(dynamicMenu);
+  }
+
+  // FALLBACK: Buscar fluxo tradicional
   const { data: flows } = await supabase
     .from('bot_engine_flows')
     .select('id, trigger_keywords')
@@ -385,6 +528,7 @@ async function getFlowMessage(
 
 /**
  * Processa entrada do usuário e determina próximo estado/resposta
+ * PRIORIDADE: Menus dinâmicos > Fluxos tradicionais
  */
 async function processUserInput(
   supabase: SupabaseClient,
@@ -393,7 +537,84 @@ async function processUserInput(
   parsed: ParsedInput,
   currentStack: string[]
 ): Promise<{ newState: string; response: string | null; pushToStack: boolean }> {
-  // Buscar fluxo e nós
+  
+  // =========================================================
+  // PRIORIDADE 1: Verificar menu dinâmico no estado atual
+  // =========================================================
+  const currentMenu = await getDynamicMenu(supabase, sellerId, currentState);
+  
+  if (currentMenu) {
+    console.log(`[BotIntercept] Processing dynamic menu: ${currentState}`);
+    
+    const selection = await processMenuSelection(supabase, sellerId, currentMenu, parsed);
+    
+    if (selection.targetMenu) {
+      // Navegar para submenu
+      const targetMenu = await getDynamicMenu(supabase, sellerId, selection.targetMenu);
+      if (targetMenu) {
+        return {
+          newState: selection.targetMenu,
+          response: renderDynamicMenu(targetMenu),
+          pushToStack: true,
+        };
+      }
+    }
+    
+    if (selection.targetState) {
+      // Navegar para estado específico (pode ser nó de fluxo ou outro menu)
+      const response = await getFlowMessage(supabase, sellerId, selection.targetState);
+      return {
+        newState: selection.targetState,
+        response,
+        pushToStack: true,
+      };
+    }
+    
+    if (selection.action) {
+      // Executar ação especial
+      switch (selection.action) {
+        case 'human':
+        case 'humano':
+          return {
+            newState: 'AGUARDANDO_HUMANO',
+            response: '👤 Aguarde, um atendente irá te atender em breve!',
+            pushToStack: false,
+          };
+        case 'end':
+        case 'sair':
+          return {
+            newState: 'ENCERRADO',
+            response: '👋 Obrigado pelo contato! Até mais!',
+            pushToStack: false,
+          };
+      }
+    }
+    
+    // Opção não reconhecida - mostrar menu novamente com dica
+    return {
+      newState: currentState,
+      response: `❌ Opção inválida. Digite o *número* da opção desejada.\n\n${renderDynamicMenu(currentMenu)}`,
+      pushToStack: false,
+    };
+  }
+
+  // =========================================================
+  // PRIORIDADE 2: Verificar se START tem menu dinâmico
+  // =========================================================
+  if (currentState === 'START') {
+    const startMenu = await getDynamicMenu(supabase, sellerId, 'MENU_PRINCIPAL');
+    if (startMenu) {
+      return {
+        newState: 'MENU_PRINCIPAL',
+        response: renderDynamicMenu(startMenu),
+        pushToStack: false,
+      };
+    }
+  }
+
+  // =========================================================
+  // FALLBACK: Fluxo tradicional via bot_engine_flows
+  // =========================================================
   const { data: flows } = await supabase
     .from('bot_engine_flows')
     .select('id')
@@ -418,7 +639,6 @@ async function processUserInput(
     .maybeSingle();
 
   if (!currentNode) {
-    // Tentar nó de entrada se estado é START
     if (currentState === 'START') {
       const { data: entryNode } = await supabase
         .from('bot_engine_nodes')
@@ -478,7 +698,6 @@ async function processUserInput(
     }
 
     if (matches) {
-      // Buscar nó de destino
       const { data: targetNode } = await supabase
         .from('bot_engine_nodes')
         .select('id, config, node_type')
