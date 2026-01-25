@@ -84,71 +84,144 @@ const GLOBAL_COMMANDS = [
 ];
 
 // =====================================================================
-// FUNÇÕES CORE
+// SISTEMA ANTI-DUPLICAÇÃO - LOCK ATÔMICO
 // =====================================================================
 
 /**
- * 1. lockSession - Bloqueia a sessão para evitar processamento paralelo
+ * Timeout máximo para considerar um lock como "stale" (abandonado)
+ * Se o lock existir há mais tempo que isso, considera como abandonado
+ */
+const LOCK_TIMEOUT_MS = 30000; // 30 segundos
+
+/**
+ * 1. lockSession - Bloqueia a sessão de forma ATÔMICA
+ * 
+ * Fluxo:
+ * - Se locked = true E não expirado → IGNORAR (retorna false)
+ * - Se locked = false OU expirado → definir locked = true (retorna true)
+ * 
+ * Usa UPDATE com WHERE para garantir atomicidade
  */
 async function lockSession(
   supabase: SupabaseClient,
   userId: string,
   sellerId: string
 ): Promise<boolean> {
-  // Verificar se já está bloqueada
+  const now = new Date();
+  const lockExpiry = new Date(now.getTime() - LOCK_TIMEOUT_MS);
+
+  // Primeiro, verificar se já existe uma sessão
   const { data: existing } = await supabase
     .from('bot_sessions')
-    .select('locked')
+    .select('locked, updated_at')
     .eq('user_id', userId)
     .eq('seller_id', sellerId)
     .maybeSingle();
 
-  if (existing?.locked) {
-    console.log(`[BotIntercept] Session already locked for ${userId}`);
-    return false;
+  if (existing) {
+    // Sessão existe - verificar se está bloqueada
+    if (existing.locked) {
+      const lockTime = new Date(existing.updated_at);
+      
+      // Se lock não expirou, ignorar mensagem (anti-duplicação)
+      if (lockTime > lockExpiry) {
+        console.log(`[BotIntercept] ❌ ANTI-DUPLICAÇÃO: Sessão bloqueada para ${userId}, ignorando mensagem`);
+        return false;
+      }
+      
+      // Lock expirou (stale) - pode ser um crash anterior
+      console.log(`[BotIntercept] ⚠️ Lock stale detectado para ${userId}, renovando...`);
+    }
+
+    // Tentar adquirir lock de forma ATÔMICA
+    // UPDATE só acontece se locked = false OU se lock expirou
+    const { data: updated, error: updateError } = await supabase
+      .from('bot_sessions')
+      .update({
+        locked: true,
+        last_interaction: now.toISOString(),
+        updated_at: now.toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('seller_id', sellerId)
+      .or(`locked.eq.false,updated_at.lt.${lockExpiry.toISOString()}`)
+      .select('id')
+      .maybeSingle();
+
+    if (updateError) {
+      console.error(`[BotIntercept] lockSession update error:`, updateError);
+      return false;
+    }
+
+    if (!updated) {
+      // Outra instância pegou o lock primeiro
+      console.log(`[BotIntercept] ❌ ANTI-DUPLICAÇÃO: Lock não adquirido para ${userId}, outra instância processando`);
+      return false;
+    }
+
+    console.log(`[BotIntercept] ✅ Lock adquirido para ${userId}`);
+    return true;
   }
 
-  // Criar ou atualizar com lock
-  const { error } = await supabase
+  // Sessão não existe - criar nova com lock
+  const { error: insertError } = await supabase
     .from('bot_sessions')
-    .upsert({
+    .insert({
       user_id: userId,
       seller_id: sellerId,
-      phone: userId, // Usar userId como phone (já normalizado)
+      phone: userId,
+      state: 'START',
+      previous_state: 'START',
+      stack: [],
+      context: {},
       locked: true,
-      last_interaction: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, {
-      onConflict: 'user_id,seller_id'
+      last_interaction: now.toISOString(),
+      updated_at: now.toISOString()
     });
 
-  if (error) {
-    console.error(`[BotIntercept] lockSession error:`, error);
+  if (insertError) {
+    // Se erro de duplicata, outra instância criou primeiro
+    if (insertError.code === '23505') {
+      console.log(`[BotIntercept] ❌ ANTI-DUPLICAÇÃO: Sessão criada por outra instância para ${userId}`);
+      return false;
+    }
+    console.error(`[BotIntercept] lockSession insert error:`, insertError);
     return false;
   }
 
-  console.log(`[BotIntercept] Session locked for ${userId}`);
+  console.log(`[BotIntercept] ✅ Nova sessão criada e bloqueada para ${userId}`);
   return true;
 }
 
 /**
  * 7. unlockSession - Desbloqueia a sessão
+ * 
+ * SEMPRE deve ser chamado após processamento, mesmo em caso de erro
+ * Use try/finally para garantir execução
  */
 async function unlockSession(
   supabase: SupabaseClient,
   userId: string,
   sellerId: string
 ): Promise<void> {
-  await supabase
-    .from('bot_sessions')
-    .update({
-      locked: false,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', userId)
-    .eq('seller_id', sellerId);
+  try {
+    const { error } = await supabase
+      .from('bot_sessions')
+      .update({
+        locked: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('seller_id', sellerId);
 
-  console.log(`[BotIntercept] Session unlocked for ${userId}`);
+    if (error) {
+      console.error(`[BotIntercept] ⚠️ unlockSession error:`, error);
+    } else {
+      console.log(`[BotIntercept] 🔓 Sessão desbloqueada para ${userId}`);
+    }
+  } catch (err) {
+    console.error(`[BotIntercept] ⚠️ unlockSession exception:`, err);
+  }
 }
 
 /**
