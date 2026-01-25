@@ -8,17 +8,9 @@ const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
-// Wrap DialogPortal to avoid ref warning in React 18+
-// Portal doesn't accept ref, so we explicitly omit it from props
-// IMPORTANT: Radix may try to attach a ref to the Portal wrapper.
-// By using forwardRef we prevent the React warning: "Function components cannot be given refs".
-// We intentionally ignore the ref because Portal doesn't expose a meaningful DOM ref.
-const DialogPortal = React.forwardRef<unknown, DialogPrimitive.DialogPortalProps>(
-  ({ children, ...props }, _ref) => {
-    return <DialogPrimitive.Portal {...props}>{children}</DialogPrimitive.Portal>;
-  }
-);
-DialogPortal.displayName = "DialogPortal";
+// Use DialogPortal directly without forwardRef wrapper
+// Portal doesn't need a ref and wrapping it causes warnings
+const DialogPortal = DialogPrimitive.Portal;
 
 const DialogClose = DialogPrimitive.Close;
 
