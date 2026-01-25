@@ -30,7 +30,7 @@ export function AdminTrialSettings({ onBack }: AdminTrialSettingsProps) {
   const [automaticPlanPrice, setAutomaticPlanPrice] = useState('35');
 
   // Fetch current settings
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading, isError } = useQuery({
     queryKey: ['admin-central-settings'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -115,6 +115,17 @@ export function AdminTrialSettings({ onBack }: AdminTrialSettingsProps) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <p className="text-destructive mb-2">Erro ao carregar configurações</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+          Tentar novamente
+        </Button>
       </div>
     );
   }

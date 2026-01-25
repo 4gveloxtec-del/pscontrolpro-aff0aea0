@@ -421,10 +421,11 @@ export function useRenewalMutation(userId: string | undefined) {
       // Invalidate to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       
-      // Send renewal confirmation via WhatsApp API (background, non-blocking)
+      // Send renewal confirmation via WhatsApp API (background, non-blocking with user feedback)
       if (result.newExpirationDate) {
-        sendRenewalConfirmation(data, result.newExpirationDate).catch(() => {
-          // Silent fail - renewal was successful
+        sendRenewalConfirmation(data, result.newExpirationDate).catch((err) => {
+          console.warn('[renewal-whatsapp]', err);
+          toast.warning('Renovado, mas mensagem WhatsApp não foi enviada');
         });
       }
       
