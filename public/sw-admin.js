@@ -117,6 +117,7 @@ try {
     } catch (e) {
       console.error('[SW-Admin] Notification click error:', e);
     }
+  });
 
   // Fetch event - NEVER intercept
   self.addEventListener('fetch', () => {

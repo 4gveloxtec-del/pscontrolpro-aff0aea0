@@ -64,7 +64,7 @@ export function SharedServersModal({
   });
 
   // Fetch shared servers
-  const { data: servers = [], isLoading } = useQuery({
+  const { data: servers = [], isLoading, isError } = useQuery({
     queryKey: ['shared-servers'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -202,6 +202,12 @@ export function SharedServersModal({
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : isError ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <AlertCircle className="h-12 w-12 text-destructive/50 mb-2" />
+                  <p className="text-destructive">Erro ao carregar servidores</p>
+                  <p className="text-xs text-muted-foreground mt-1">Tente novamente mais tarde</p>
                 </div>
               ) : filteredServers.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">

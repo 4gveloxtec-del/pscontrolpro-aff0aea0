@@ -28,7 +28,7 @@ const ServerIcons = () => {
   const [editingIcon, setEditingIcon] = useState<ServerIcon | null>(null);
   const [formData, setFormData] = useState({ name: '', icon_url: '' });
 
-  const { data: icons = [], isLoading } = useQuery({
+  const { data: icons = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['default-server-icons'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -39,6 +39,24 @@ const ServerIcons = () => {
       return data as ServerIcon[];
     },
   });
+
+  // AUDIT FIX: isError guard
+  if (isError) {
+    return (
+      <div className="p-4">
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <p className="text-destructive font-medium">Erro ao carregar ícones</p>
+              <Button variant="outline" onClick={() => refetch()} className="mt-2">
+                Tentar novamente
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; icon_url: string }) => {

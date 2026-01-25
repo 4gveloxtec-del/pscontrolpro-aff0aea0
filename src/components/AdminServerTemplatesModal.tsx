@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Server, ExternalLink, Check } from 'lucide-react';
+import { Search, Server, ExternalLink, Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ServerTemplate {
@@ -36,7 +36,7 @@ export function AdminServerTemplatesModal({
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError } = useQuery({
     queryKey: ['admin-server-templates'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,6 +88,11 @@ export function AdminServerTemplatesModal({
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="h-12 w-12 text-destructive/50 mb-2" />
+              <p className="text-destructive">Erro ao carregar servidores</p>
             </div>
           ) : filteredTemplates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
