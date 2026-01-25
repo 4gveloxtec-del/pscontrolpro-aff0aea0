@@ -398,6 +398,7 @@ Deno.serve(async (req) => {
 
     if (isUpdate && existingClient) {
       // Atualizar cliente existente com novas credenciais
+      // IMPORTANTE: Atualizar também is_test e is_integrated para garantir que apareça na aba "Testes API"
       const { error: updateError } = await supabase
         .from('clients')
         .update({
@@ -406,6 +407,10 @@ Deno.serve(async (req) => {
           dns: dns || null,
           expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
           expiration_datetime: finalExpirationDatetime.toISOString(),
+          // Garantir que as flags de teste estejam corretas
+          is_test: true,
+          is_integrated: true,
+          integration_origin: 'api',
           notes: `[TESTE API] Atualizado via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Expira: ${finalExpirationDatetime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. [INTEGRADO]`,
           updated_at: new Date().toISOString(),
         })
