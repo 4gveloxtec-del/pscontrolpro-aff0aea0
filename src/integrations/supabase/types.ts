@@ -359,6 +359,51 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_engine_audit_log: {
+        Row: {
+          contact_phone: string | null
+          created_at: string | null
+          event_category: string
+          event_data: Json | null
+          event_type: string
+          flow_id: string | null
+          id: string
+          ip_address: unknown
+          node_id: string | null
+          seller_id: string
+          session_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          contact_phone?: string | null
+          created_at?: string | null
+          event_category?: string
+          event_data?: Json | null
+          event_type: string
+          flow_id?: string | null
+          id?: string
+          ip_address?: unknown
+          node_id?: string | null
+          seller_id: string
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          contact_phone?: string | null
+          created_at?: string | null
+          event_category?: string
+          event_data?: Json | null
+          event_type?: string
+          flow_id?: string | null
+          id?: string
+          ip_address?: unknown
+          node_id?: string | null
+          seller_id?: string
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       bot_engine_config: {
         Row: {
           auto_reply_delay_ms: number | null
@@ -769,6 +814,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bot_engine_usage_metrics: {
+        Row: {
+          avg_session_duration_seconds: number | null
+          created_at: string | null
+          flows_executed: number | null
+          human_transfers: number | null
+          id: string
+          messages_received: number | null
+          messages_sent: number | null
+          nodes_processed: number | null
+          period_end: string
+          period_start: string
+          seller_id: string
+          sessions_completed: number | null
+          sessions_created: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_session_duration_seconds?: number | null
+          created_at?: string | null
+          flows_executed?: number | null
+          human_transfers?: number | null
+          id?: string
+          messages_received?: number | null
+          messages_sent?: number | null
+          nodes_processed?: number | null
+          period_end: string
+          period_start: string
+          seller_id: string
+          sessions_completed?: number | null
+          sessions_created?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_session_duration_seconds?: number | null
+          created_at?: string | null
+          flows_executed?: number | null
+          human_transfers?: number | null
+          id?: string
+          messages_received?: number | null
+          messages_sent?: number | null
+          nodes_processed?: number | null
+          period_end?: string
+          period_start?: string
+          seller_id?: string
+          sessions_completed?: number | null
+          sessions_created?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       bot_logs: {
         Row: {
@@ -3710,6 +3806,18 @@ export type Database = {
         Returns: undefined
       }
       find_server_icon: { Args: { server_name: string }; Returns: string }
+      get_bot_usage_summary: {
+        Args: { p_period_start?: string; p_seller_id: string }
+        Returns: {
+          flows_executed: number
+          human_transfers: number
+          messages_received: number
+          messages_sent: number
+          sessions_completed: number
+          sessions_created: number
+          total_messages: number
+        }[]
+      }
       get_global_api_status: { Args: never; Returns: boolean }
       has_role: {
         Args: {
@@ -3718,7 +3826,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_bot_usage: {
+        Args: { p_increment?: number; p_metric: string; p_seller_id: string }
+        Returns: undefined
+      }
       is_user_blocked: { Args: { user_email: string }; Returns: boolean }
+      log_bot_audit_event: {
+        Args: {
+          p_contact_phone?: string
+          p_event_category?: string
+          p_event_data?: Json
+          p_event_type: string
+          p_flow_id?: string
+          p_node_id?: string
+          p_seller_id: string
+          p_session_id?: string
+        }
+        Returns: string
+      }
       log_connection_event: {
         Args: {
           p_error_code?: string

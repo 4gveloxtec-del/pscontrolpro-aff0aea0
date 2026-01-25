@@ -87,22 +87,93 @@ await botEngineIntercept({
 | **Frontend Hooks** | user.id automático | Queries já filtradas |
 | **Webhook** | instance_name → seller | Identificação na entrada |
 
-### Tabelas Isoladas por seller_id
+### Tabelas Isoladas por seller_id (RLS Ativo)
 
-Todas as tabelas do BotEngine possuem:
-- Coluna `seller_id UUID NOT NULL`
-- Índice em `seller_id`
-- RLS habilitado
-- Policy `USING (auth.uid() = seller_id)`
+| Tabela | RLS Policy |
+|--------|------------|
+| `bot_engine_config` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_flows` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_nodes` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_edges` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_sessions` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_message_log` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_menus` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_actions` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_usage_metrics` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_engine_audit_log` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_sessions` | `seller_id = auth.uid() OR has_role(admin)` |
+| `bot_logs` | `seller_id = auth.uid() OR has_role(admin)` |
 
 ```sql
 -- Exemplo de política RLS
-CREATE POLICY "Sellers can manage their own menus"
-ON public.bot_engine_menus
-FOR ALL
-USING (auth.uid() = seller_id)
-WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "Sellers manage own config"
+ON public.bot_engine_config
+FOR ALL USING (seller_id = auth.uid() OR public.has_role(auth.uid(), 'admin'));
 ```
+
+---
+
+## 📊 Métricas de Uso (Billing)
+
+Estrutura para cobrança por uso mensal:
+
+### Tabela `bot_engine_usage_metrics`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `seller_id` | UUID | Revendedor |
+| `period_start` | TIMESTAMPTZ | Início do período (mês) |
+| `period_end` | TIMESTAMPTZ | Fim do período |
+| `messages_received` | INT | Total de mensagens recebidas |
+| `messages_sent` | INT | Total de mensagens enviadas |
+| `sessions_created` | INT | Sessões iniciadas |
+| `sessions_completed` | INT | Sessões finalizadas |
+| `human_transfers` | INT | Transferências para humano |
+| `flows_executed` | INT | Fluxos executados |
+| `nodes_processed` | INT | Nós processados |
+
+### Funções de Suporte
+
+```sql
+-- Incrementar métrica (uso interno)
+SELECT increment_bot_usage('seller-uuid', 'messages_received', 1);
+
+-- Obter resumo para billing
+SELECT * FROM get_bot_usage_summary('seller-uuid');
+-- Retorna: messages_received, messages_sent, sessions_created, etc.
+```
+
+---
+
+## 🔍 Auditoria e Logs
+
+### Tabela `bot_engine_audit_log`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `seller_id` | UUID | Revendedor (obrigatório) |
+| `event_type` | TEXT | session_start, message_in, message_out, flow_change, error |
+| `event_category` | TEXT | session, message, flow, config, security |
+| `session_id` | UUID | Sessão relacionada |
+| `flow_id` | UUID | Fluxo relacionado |
+| `contact_phone` | TEXT | Telefone do contato |
+| `event_data` | JSONB | Dados detalhados do evento |
+
+```sql
+-- Registrar evento de auditoria
+SELECT log_bot_audit_event(
+  'seller-uuid',           -- seller_id
+  'session_start',         -- event_type
+  'session',               -- event_category
+  'session-uuid',          -- session_id
+  NULL,                    -- flow_id
+  NULL,                    -- node_id
+  '5511999999999',         -- contact_phone
+  '{"source": "webhook"}'  -- event_data
+);
+```
+
+---
 
 ### O Que Cada Revendedor Possui
 
@@ -116,6 +187,8 @@ WITH CHECK (auth.uid() = seller_id);
 | Sessões Ativas | `bot_engine_sessions` | Por contato + seller |
 | Estado de Navegação | `bot_sessions` | UNIQUE(user_id, seller_id) |
 | Log de Mensagens | `bot_logs` | seller_id obrigatório |
+| **Métricas de Uso** | `bot_engine_usage_metrics` | Por período + seller |
+| **Logs de Auditoria** | `bot_engine_audit_log` | seller_id obrigatório |
 
 ---
 
