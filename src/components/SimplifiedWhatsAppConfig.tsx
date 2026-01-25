@@ -296,12 +296,14 @@ export function SimplifiedWhatsAppConfig() {
 
   // Disconnect instance
   const handleDisconnect = () => {
+   console.log('[SimplifiedWhatsAppConfig] handleDisconnect called');
     confirm({
       title: 'Desconectar WhatsApp',
       description: 'Tem certeza que deseja desconectar? Você precisará escanear o QR Code novamente.',
       confirmText: 'Desconectar',
       variant: 'warning',
       onConfirm: async () => {
+       console.log('[SimplifiedWhatsAppConfig] onConfirm disconnect triggered');
         setIsDisconnecting(true);
         try {
           const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
@@ -335,12 +337,14 @@ export function SimplifiedWhatsAppConfig() {
 
   // Forçar desconexão (fallback)
   const handleForceDisconnect = () => {
+   console.log('[SimplifiedWhatsAppConfig] handleForceDisconnect called');
     confirm({
       title: 'Forçar Desconexão',
       description: 'Isso irá remover completamente a instância do WhatsApp. Você precisará configurar novamente do zero.',
       confirmText: 'Forçar Desconexão',
       variant: 'destructive',
       onConfirm: async () => {
+       console.log('[SimplifiedWhatsAppConfig] onConfirm force_disconnect triggered');
         setIsDisconnecting(true);
         try {
           const { data, error } = await supabase.functions.invoke('configure-seller-instance', {
@@ -696,6 +700,9 @@ export function SimplifiedWhatsAppConfig() {
           </Card>
         )}
       </div>
+
+     {/* Global Confirm Dialog */}
+     <ConfirmDialog {...dialogProps} />
     </>
   );
 }
