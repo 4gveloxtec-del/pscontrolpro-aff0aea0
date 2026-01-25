@@ -37,7 +37,8 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '' });
 
   // Fetch reseller apps - using custom_products with a specific naming convention
-  const { data: resellerApps = [], isLoading } = useQuery({
+  // AUDIT FIX: Added isError guard for ResellerAppsManager
+  const { data: resellerApps = [], isLoading, isError } = useQuery({
     queryKey: ['reseller-apps', sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -161,6 +162,23 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       createMutation.mutate(formData);
     }
   };
+
+  // AUDIT FIX: Error state guard
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5" />
+            Meus Apps (Revendedor)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="py-8 text-center text-destructive">
+          <p>Erro ao carregar apps. Tente novamente.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

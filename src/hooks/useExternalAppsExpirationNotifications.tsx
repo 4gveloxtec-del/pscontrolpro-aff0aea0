@@ -18,10 +18,15 @@ interface ExpiringApp {
 export function useExternalAppsExpirationNotifications() {
   const { user, isSeller } = useAuth();
 
+  // AUDIT FIX: Safe localStorage access for Safari Private Mode
   const isNotificationsEnabled = useCallback(() => {
     if (!('Notification' in window)) return false;
     if (Notification.permission !== 'granted') return false;
-    return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+    try {
+      return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+    } catch {
+      return false;
+    }
   }, []);
 
   const sendPushNotification = useCallback(async (title: string, body: string, tag: string) => {

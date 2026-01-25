@@ -100,7 +100,7 @@ export function useWhatsAppConfig() {
 
         setConfig(prev => prev ? { ...prev, ...newConfig } : null);
       } else {
-        // Insert new
+        // Insert new - AUDIT FIX: Use maybeSingle() instead of single() on insert
         const { data, error: insertError } = await (supabase as any)
           .from('whatsapp_api_config')
           .insert({
@@ -112,7 +112,7 @@ export function useWhatsAppConfig() {
             auto_send_enabled: newConfig.auto_send_enabled,
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (insertError) {
           setError(insertError.message);

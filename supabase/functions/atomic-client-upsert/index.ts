@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
         ]);
 
       } else {
-        // Insert new client
+        // Insert new client - AUDIT FIX: Use maybeSingle() instead of single()
         const { data: insertedClient, error: insertError } = await supabase
           .from('clients')
           .insert([{ 
@@ -201,10 +201,13 @@ Deno.serve(async (req) => {
             renewed_at: new Date().toISOString(),
           }])
           .select('id')
-          .single();
+          .maybeSingle();
 
         if (insertError) {
           throw new Error(`Falha ao criar cliente: ${insertError.message}`);
+        }
+        if (!insertedClient) {
+          throw new Error('Falha ao criar cliente: nenhum dado retornado');
         }
 
         finalClientId = insertedClient.id;
@@ -257,14 +260,18 @@ Deno.serve(async (req) => {
           fixed_app_name: fixedAppName,
         };
 
+        // AUDIT FIX: Use maybeSingle() instead of single()
         const { data: insertedApp, error: appError } = await supabase
           .from('client_external_apps')
           .insert([insertData])
           .select('id')
-          .single();
+          .maybeSingle();
 
         if (appError) {
           throw new Error(`Falha ao salvar app externo: ${appError.message}`);
+        }
+        if (!insertedApp) {
+          throw new Error('Falha ao salvar app externo: nenhum dado retornado');
         }
 
         tracker.insertedIds.get('client_external_apps')?.push(insertedApp.id);
@@ -287,14 +294,18 @@ Deno.serve(async (req) => {
           notes: account.notes || null,
         };
 
+        // AUDIT FIX: Use maybeSingle() instead of single()
         const { data: insertedAccount, error: accountError } = await supabase
           .from('client_premium_accounts')
           .insert([insertData])
           .select('id')
-          .single();
+          .maybeSingle();
 
         if (accountError) {
           throw new Error(`Falha ao salvar conta premium: ${accountError.message}`);
+        }
+        if (!insertedAccount) {
+          throw new Error('Falha ao salvar conta premium: nenhum dado retornado');
         }
 
         tracker.insertedIds.get('client_premium_accounts')?.push(insertedAccount.id);
@@ -318,14 +329,18 @@ Deno.serve(async (req) => {
             provider: app.provider || null,
           };
 
+          // AUDIT FIX: Use maybeSingle() instead of single()
           const { data: insertedCred, error: credError } = await supabase
             .from('client_server_app_credentials')
             .insert([insertData])
             .select('id')
-            .single();
+            .maybeSingle();
 
           if (credError) {
             throw new Error(`Falha ao salvar credencial: ${credError.message}`);
+          }
+          if (!insertedCred) {
+            throw new Error('Falha ao salvar credencial: nenhum dado retornado');
           }
 
           tracker.insertedIds.get('client_server_app_credentials')?.push(insertedCred.id);

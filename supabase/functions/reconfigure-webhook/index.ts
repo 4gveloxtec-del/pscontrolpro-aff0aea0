@@ -165,14 +165,14 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const targetSellerId = body.seller_id;
 
-    // Get global config
+    // Get global config - AUDIT FIX: Use maybeSingle() with limit(1) instead of single()
     const { data: globalConfig, error: configError } = await supabase
       .from('whatsapp_global_config')
       .select('*')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (configError || !globalConfig) {
       return new Response(JSON.stringify({ 

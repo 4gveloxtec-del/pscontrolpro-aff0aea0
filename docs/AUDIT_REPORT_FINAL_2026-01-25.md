@@ -279,20 +279,29 @@ TOTAL: 32 problemas identificados (6 CRÍTICOS, 8 MUITO ALTOS, 10 ALTOS, 8 MÉDI
 
 ## 📊 CHECKLIST DE CORREÇÃO
 
-- [ ] CRIT-01: try-catch em JSON.parse TestCommands
-- [ ] CRIT-02: AbortController em send-test-message
-- [ ] CRIT-03: .maybeSingle() em whatsapp-automation
-- [ ] CRIT-04: try-catch localStorage em hooks notificação
-- [ ] CRIT-05: .maybeSingle() em sync-client-renewal
-- [ ] CRIT-06: onError em BulkImportClients
-- [ ] VALTO-01: .catch() em fire-and-forget Clients.tsx
-- [ ] VALTO-02: timeout global em backup functions
-- [ ] VALTO-03: onError em useCircuitBreaker
-- [ ] VALTO-04: Promise.allSettled em wipe/cleanup
-- [ ] VALTO-05: try-catch JSON.parse linha 495
-- [ ] VALTO-06: isError guards em PanelResellers
-- [ ] VALTO-07: isError guard em MonthlyProfitHistory
-- [ ] VALTO-08: verificação erro em usePushNotifications
+- [x] CRIT-01: try-catch em JSON.parse TestCommands ✅
+- [x] CRIT-02: AbortController em send-test-message ✅
+- [x] CRIT-03: .maybeSingle() em whatsapp-automation ✅
+- [x] CRIT-04: try-catch localStorage em hooks notificação ✅
+- [x] CRIT-05: .maybeSingle() em sync-client-renewal ✅
+- [x] CRIT-06: onError em BulkImportClients ✅
+- [x] VALTO-01: .catch() em fire-and-forget Clients.tsx ✅
+- [x] VALTO-02: timeout global em backup functions ✅
+- [x] VALTO-03: onError em useCircuitBreaker ✅
+- [x] VALTO-04: Promise.allSettled em wipe/cleanup ✅
+- [x] VALTO-05: try-catch JSON.parse linha 495 ✅
+- [x] VALTO-06: isError guards em PanelResellers ✅
+- [x] VALTO-07: isError guard em MonthlyProfitHistory ✅
+- [x] VALTO-08: verificação erro em usePushNotifications ✅
+- [x] ALTO-01: AdminBroadcastResellers usa .maybeSingle() ✅
+- [x] ALTO-02: useCircuitBreaker usa .maybeSingle() ✅
+- [x] ALTO-03: useWhatsAppGlobalConfig usa .maybeSingle() ✅
+- [x] ALTO-04: useWhatsAppConfig usa .maybeSingle() ✅
+- [x] ALTO-06: reconfigure-webhook usa .maybeSingle() ✅
+- [x] ALTO-07: create-default-data usa .maybeSingle() ✅
+- [x] ALTO-10: InlineAppCreator usa .maybeSingle() ✅
+- [x] MED-01: ResellerAppsManager isError guard ✅
+- [x] MED-03: ServerAppsManager isError guard ✅
 
 ---
 

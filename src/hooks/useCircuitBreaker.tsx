@@ -81,14 +81,15 @@ export function useCircuitBreaker() {
       
       if (existing) return existing as CircuitBreakerState;
       
-      // Criar se não existe
+      // Criar se não existe - AUDIT FIX: Use maybeSingle() instead of single()
       const { data: created, error } = await supabase
         .from('evolution_circuit_breaker')
         .insert({ seller_id: user.id })
         .select('*')
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
+      if (!created) throw new Error('Falha ao criar circuit breaker');
       return created as CircuitBreakerState;
     },
     enabled: !!user?.id,

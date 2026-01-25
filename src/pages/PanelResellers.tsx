@@ -103,7 +103,7 @@ export default function PanelResellers() {
   });
 
   // Fetch resellers with server name
-  const { data: resellers = [], isLoading } = useQuery({
+  const { data: resellers = [], isLoading, isError: resellersError } = useQuery({
     queryKey: ['panel-resellers', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -124,8 +124,8 @@ export default function PanelResellers() {
     enabled: !!user?.id,
   });
 
-  // Fetch servers
-  const { data: servers = [] } = useQuery({
+  // AUDIT FIX: isError guards for PanelResellers queries
+  const { data: servers = [], isError: serversError } = useQuery({
     queryKey: ['servers-active', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -141,7 +141,7 @@ export default function PanelResellers() {
   });
 
   // Fetch templates for panel resellers
-  const { data: templates = [] } = useQuery({
+  const { data: templates = [], isError: templatesError } = useQuery({
     queryKey: ['panel-reseller-templates', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -167,7 +167,7 @@ export default function PanelResellers() {
   });
 
   // Fetch seller profile for PIX key
-  const { data: profile } = useQuery({
+  const { data: profile, isError: profileError } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -180,6 +180,9 @@ export default function PanelResellers() {
     },
     enabled: !!user?.id,
   });
+
+  // AUDIT FIX: Error state handling
+  const hasQueryError = resellersError || serversError || templatesError || profileError;
 
   // Decrypt credentials
   const decryptCredentialsForReseller = useCallback(async (resellerId: string, encryptedLogin: string | null, encryptedPassword: string | null) => {
@@ -442,6 +445,32 @@ export default function PanelResellers() {
     }
     return <Badge variant="outline" className="border-success text-success">Ativo ({days} dias)</Badge>;
   };
+
+  // AUDIT FIX: Error state guard for PanelResellers
+  if (hasQueryError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Revendedores de Painéis</h1>
+          <p className="text-muted-foreground">Gerencie seus revendedores dos servidores cadastrados</p>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <RefreshCw className="h-8 w-8 mx-auto mb-2 text-destructive opacity-50" />
+            <p className="text-muted-foreground">Erro ao carregar dados. Tente novamente.</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-2"
+              onClick={() => window.location.reload()}
+            >
+              Recarregar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

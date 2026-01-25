@@ -88,7 +88,8 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
   });
 
   // Fetch server apps
-  const { data: serverApps = [], isLoading } = useQuery({
+  // AUDIT FIX: Added isError guard for ServerAppsManager
+  const { data: serverApps = [], isLoading, isError } = useQuery({
     queryKey: ['server-apps', serverId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -212,6 +213,28 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
 
   const ownApps = serverApps.filter(a => a.app_type === 'own');
   const partnershipApps = serverApps.filter(a => a.app_type === 'partnership');
+
+  // AUDIT FIX: Error state guard
+  if (isError) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5" />
+              Apps do Servidor - {serverName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-8 text-center text-destructive">
+            <p>Erro ao carregar apps. Tente novamente.</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClose}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

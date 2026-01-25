@@ -19,10 +19,15 @@ interface ClientWithPayment {
 export function usePaymentNotifications() {
   const { user, isSeller } = useAuth();
 
+  // AUDIT FIX: Safe localStorage access for Safari Private Mode
   const isNotificationsEnabled = useCallback(() => {
     if (!('Notification' in window)) return false;
     if (Notification.permission !== 'granted') return false;
-    return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+    try {
+      return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+    } catch {
+      return false;
+    }
   }, []);
 
   const showPaymentNotification = useCallback((clients: ClientWithPayment[]) => {

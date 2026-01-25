@@ -71,7 +71,7 @@ export function MonthlyProfitHistory({
   const currentYear = today.getFullYear();
 
   // Fetch profit history
-  const { data: profitHistory = [], isLoading } = useQuery({
+  const { data: profitHistory = [], isLoading, isError } = useQuery({
     queryKey: ['monthly-profits', sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -212,6 +212,26 @@ export function MonthlyProfitHistory({
       deleteYearHistory.mutate(yearToDelete);
     }
   };
+
+  // AUDIT FIX: isError guard for MonthlyProfitHistory
+  if (isError) {
+    return (
+      <Card className="border-destructive/20">
+        <CardContent className="py-8 text-center">
+          <AlertCircle className="h-8 w-8 mx-auto mb-2 text-destructive opacity-50" />
+          <p className="text-muted-foreground">Erro ao carregar histórico de lucros.</p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-2"
+            onClick={() => window.location.reload()}
+          >
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">

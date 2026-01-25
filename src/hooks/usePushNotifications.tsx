@@ -148,8 +148,13 @@ export function usePushNotifications() {
       if (supported) {
         setPermission(Notification.permission);
         
-        // Check if already subscribed
-        const storedActive = localStorage.getItem(PUSH_SUBSCRIPTION_STORAGE);
+        // Check if already subscribed - AUDIT FIX: Safe localStorage access
+        let storedActive: string | null = null;
+        try {
+          storedActive = localStorage.getItem(PUSH_SUBSCRIPTION_STORAGE);
+        } catch {
+          // Safari Private Mode - localStorage not available
+        }
         if (storedActive === 'true' && Notification.permission === 'granted') {
           try {
             const registration = await navigator.serviceWorker.ready;
@@ -163,10 +168,14 @@ export function usePushNotifications() {
           }
         }
 
-        // Get stored VAPID key
-        const storedKey = localStorage.getItem(VAPID_PUBLIC_KEY_STORAGE);
-        if (storedKey && isMountedRef.current) {
-          setVapidPublicKey(storedKey);
+        // Get stored VAPID key - AUDIT FIX: Safe localStorage access
+        try {
+          const storedKey = localStorage.getItem(VAPID_PUBLIC_KEY_STORAGE);
+          if (storedKey && isMountedRef.current) {
+            setVapidPublicKey(storedKey);
+          }
+        } catch {
+          // Safari Private Mode - localStorage not available
         }
       }
     };
@@ -220,7 +229,12 @@ export function usePushNotifications() {
           return null;
         }
         
-        localStorage.setItem(VAPID_PUBLIC_KEY_STORAGE, key);
+        // AUDIT FIX: Safe localStorage access
+        try {
+          localStorage.setItem(VAPID_PUBLIC_KEY_STORAGE, key);
+        } catch {
+          // Safari Private Mode - localStorage not available
+        }
         setVapidPublicKey(key);
         return key;
       }
@@ -480,7 +494,12 @@ export function usePushNotifications() {
       }
       console.log('[Push] Subscription saved successfully');
 
-      localStorage.setItem(PUSH_SUBSCRIPTION_STORAGE, 'true');
+      // AUDIT FIX: Safe localStorage access
+      try {
+        localStorage.setItem(PUSH_SUBSCRIPTION_STORAGE, 'true');
+      } catch {
+        // Safari Private Mode - localStorage not available
+      }
       setIsSubscribed(true);
       setIsLoading(false);
       
@@ -529,7 +548,12 @@ export function usePushNotifications() {
         });
       }
 
-      localStorage.setItem(PUSH_SUBSCRIPTION_STORAGE, 'false');
+      // AUDIT FIX: Safe localStorage access
+      try {
+        localStorage.setItem(PUSH_SUBSCRIPTION_STORAGE, 'false');
+      } catch {
+        // Safari Private Mode - localStorage not available
+      }
       setIsSubscribed(false);
       setIsLoading(false);
       return true;

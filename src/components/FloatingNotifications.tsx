@@ -83,8 +83,13 @@ export function FloatingNotifications() {
   const [isDismissed, setIsDismissed] = useState(false);
   const [hasNewNotifications, setHasNewNotifications] = useState(true);
   
-  // Check if push notifications are enabled
-  const isPushEnabled = localStorage.getItem(PUSH_SUBSCRIPTION_STORAGE) === 'true';
+  // AUDIT FIX: Safe localStorage access for Safari Private Mode
+  let isPushEnabled = false;
+  try {
+    isPushEnabled = localStorage.getItem(PUSH_SUBSCRIPTION_STORAGE) === 'true';
+  } catch {
+    // Safari Private Mode - localStorage not available
+  }
 
   // OPTIMIZED: Single consolidated query for all notification data
   // This reduces CPU overhead on mobile devices by combining 3 queries into 1
