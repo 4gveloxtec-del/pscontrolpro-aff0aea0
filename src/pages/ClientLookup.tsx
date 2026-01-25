@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -167,6 +167,15 @@ function ClientLookup() {
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [isDecryptingApps, setIsDecryptingApps] = useState(false);
   const [autoDecryptDone, setAutoDecryptDone] = useState(false);
+  const [decryptAttempt, setDecryptAttempt] = useState(0);
+  const retryTimeoutRef = useRef<number | null>(null);
+
+  const looksEncrypted = useCallback((value: string) => {
+    // Mirror backend heuristic: base64-ish and long enough to likely include IV+payload
+    // Keeps plaintext like "565655" from being treated as ciphertext.
+    const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+    return base64Regex.test(value) && value.length >= 20;
+  }, []);
   
   // Reset decrypted credentials when client changes
   const handleClientSelect = useCallback((clientId: string) => {
@@ -176,6 +185,11 @@ function ClientLookup() {
     setDecryptedPremium({});
     setDecryptedLegacy(null);
     setAutoDecryptDone(false); // Reset auto-decrypt flag
+    setDecryptAttempt(0);
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
   }, []);
   
   // Search clients
@@ -271,30 +285,79 @@ function ClientLookup() {
   // Auto-decrypt all credentials when client data loads
   useEffect(() => {
     if (!clientFullData || autoDecryptDone) return;
+
+    // Clear any pending retry when new data arrives or we re-run
+    if (retryTimeoutRef.current) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
     
     const autoDecrypt = async () => {
-      setAutoDecryptDone(true);
-      
+      // Do NOT mark as done until we have something that is actually decrypted.
       // Decrypt main credentials
       setIsDecrypting(true);
       try {
+        const maybeDecrypt = async (value: string | null): Promise<string> => {
+          if (!value) return '';
+          // If it doesn't look encrypted, keep as-is.
+          if (!looksEncrypted(value)) return value;
+          return await decrypt(value);
+        };
+
         const [login, password, login_2, password_2] = await Promise.all([
-          clientFullData.login ? decrypt(clientFullData.login) : Promise.resolve(''),
-          clientFullData.password ? decrypt(clientFullData.password) : Promise.resolve(''),
-          clientFullData.login_2 ? decrypt(clientFullData.login_2) : Promise.resolve(''),
-          clientFullData.password_2 ? decrypt(clientFullData.password_2) : Promise.resolve(''),
+          maybeDecrypt(clientFullData.login),
+          maybeDecrypt(clientFullData.password),
+          maybeDecrypt(clientFullData.login_2),
+          maybeDecrypt(clientFullData.password_2),
         ]);
-        
+
+        // If the result still looks encrypted while the original looked encrypted,
+        // we likely decrypted too early (no session yet) or the backend returned the original.
+        const unresolved = [
+          { original: clientFullData.login, result: login },
+          { original: clientFullData.password, result: password },
+          { original: clientFullData.login_2, result: login_2 },
+          { original: clientFullData.password_2, result: password_2 },
+        ].some(({ original, result }) => {
+          if (!original) return false;
+          return looksEncrypted(original) && looksEncrypted(result);
+        });
+
+        if (unresolved && decryptAttempt < 3) {
+          // Keep UI in "locked/loading" state instead of showing ciphertext.
+          setDecryptedCredentials(null);
+
+          const delayMs = 600 * Math.pow(2, decryptAttempt); // 600ms, 1200ms, 2400ms
+          retryTimeoutRef.current = window.setTimeout(() => {
+            setDecryptAttempt((a) => a + 1);
+          }, delayMs);
+          return;
+        }
+
         setDecryptedCredentials({ login, password, login_2, password_2 });
+        setAutoDecryptDone(true);
       } catch (error) {
+        // Common case: decrypt called before auth session is ready.
+        // Retry a few times before giving up.
         console.error('Failed to decrypt credentials:', error);
-        // If decryption fails, show original values (might not be encrypted)
+
+        if (decryptAttempt < 3) {
+          setDecryptedCredentials(null);
+          const delayMs = 600 * Math.pow(2, decryptAttempt);
+          retryTimeoutRef.current = window.setTimeout(() => {
+            setDecryptAttempt((a) => a + 1);
+          }, delayMs);
+          return;
+        }
+
+        // Final fallback: show original values
         setDecryptedCredentials({
           login: clientFullData.login || '',
           password: clientFullData.password || '',
           login_2: clientFullData.login_2 || '',
           password_2: clientFullData.password_2 || '',
         });
+        setAutoDecryptDone(true);
       } finally {
         setIsDecrypting(false);
       }
@@ -365,7 +428,13 @@ function ClientLookup() {
     };
     
     autoDecrypt();
-  }, [clientFullData, autoDecryptDone, decrypt]);
+    return () => {
+      if (retryTimeoutRef.current) {
+        window.clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+    };
+  }, [clientFullData, autoDecryptDone, decrypt, decryptAttempt, looksEncrypted]);
 
   const getStatusBadge = (expirationDate: string) => {
     const expDate = parseISO(expirationDate);
