@@ -718,7 +718,7 @@ export default function Clients() {
 
       // Fetch related data for each client in parallel
       const enrichedClients = await Promise.all(filtered.map(async (client) => {
-        const [externalAppsResult, premiumAccountsResult, messageHistoryResult] = await Promise.all([
+        const [externalAppsResult, premiumAccountsResult, messageHistoryResult, deviceAppsResult, serverAppsCredsResult] = await Promise.all([
           supabase
             .from('client_external_apps')
             .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
@@ -736,6 +736,16 @@ export default function Clients() {
             .eq('seller_id', user.id)
             .order('sent_at', { ascending: false })
             .limit(5),
+          supabase
+            .from('client_device_apps')
+            .select('id, app:reseller_device_apps(name, icon, download_url)')
+            .eq('client_id', client.id)
+            .eq('seller_id', user.id),
+          supabase
+            .from('client_server_app_credentials')
+            .select('id, auth_code, username, password, provider, notes, server_app:server_apps(name, auth_type)')
+            .eq('client_id', client.id)
+            .eq('seller_id', user.id),
         ]);
         
         return {
@@ -743,6 +753,8 @@ export default function Clients() {
           external_apps: externalAppsResult.data || [],
           premium_accounts: premiumAccountsResult.data || [],
           message_history: messageHistoryResult.data || [],
+          device_apps: deviceAppsResult.data || [],
+          server_app_credentials: serverAppsCredsResult.data || [],
         };
       }));
 
@@ -4935,13 +4947,127 @@ export default function Clients() {
                                   );
                                 })()}
 
+                                {/* GerenciaApp MACs */}
+                                {client.gerencia_app_mac && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Tv className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-muted-foreground">MAC GerenciaApp:</span>
+                                      <span className="font-mono">{showLookupPasswords ? client.gerencia_app_mac : '••••••••••••'}</span>
+                                      {showLookupPasswords && (
+                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(client.gerencia_app_mac, 'MAC')}>
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Device Apps (GerenciaApp devices) */}
+                                {client.gerencia_app_devices && Array.isArray(client.gerencia_app_devices) && client.gerencia_app_devices.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                                      <Monitor className="h-3 w-3" />
+                                      Dispositivos ({client.gerencia_app_devices.length}):
+                                    </p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {client.gerencia_app_devices.map((dev: any, i: number) => (
+                                        <Badge key={i} variant="outline" className="text-xs font-mono">
+                                          {dev.name}: {showLookupPasswords ? dev.mac : '••••••'}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* External Apps for this record */}
                                 {client.external_apps && client.external_apps.length > 0 && (
                                   <div className="mt-2 pt-2 border-t border-border/50">
-                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
                                       <AppWindow className="h-3 w-3" />
-                                      Apps: {client.external_apps.map((app: any) => app.fixed_app_name || app.external_app?.name || 'App').join(', ')}
+                                      Apps Externos ({client.external_apps.length}):
                                     </p>
+                                    <div className="space-y-1">
+                                      {client.external_apps.map((app: any, i: number) => (
+                                        <div key={i} className="text-xs flex items-center gap-2 flex-wrap">
+                                          <Badge variant="secondary" className="text-xs">{app.fixed_app_name || app.external_app?.name || 'App'}</Badge>
+                                          {app.email && showLookupPasswords && (
+                                            <span className="text-muted-foreground">{app.email}</span>
+                                          )}
+                                          {app.expiration_date && (
+                                            <span className="text-muted-foreground">Vence: {format(new Date(app.expiration_date), 'dd/MM/yy')}</span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Reseller Device Apps */}
+                                {client.device_apps && client.device_apps.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Smartphone className="h-3 w-3" />
+                                      Apps Instalados: {client.device_apps.map((da: any) => da.app?.name || 'App').join(', ')}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Server Partner Apps Credentials */}
+                                {client.server_app_credentials && client.server_app_credentials.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                                      <Package className="h-3 w-3" />
+                                      Apps Parceiros ({client.server_app_credentials.length}):
+                                    </p>
+                                    <div className="space-y-1">
+                                      {client.server_app_credentials.map((cred: any, i: number) => (
+                                        <div key={i} className="text-xs flex items-center gap-2 flex-wrap">
+                                          <Badge variant="outline" className="text-xs">{cred.server_app?.name || 'App Parceiro'}</Badge>
+                                          {cred.auth_code && showLookupPasswords && (
+                                            <>
+                                              <span className="text-muted-foreground">Código:</span>
+                                              <span className="font-mono">{cred.auth_code}</span>
+                                              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copyToClipboard(cred.auth_code, 'Código')}>
+                                                <Copy className="h-3 w-3" />
+                                              </Button>
+                                            </>
+                                          )}
+                                          {cred.username && showLookupPasswords && (
+                                            <>
+                                              <span className="text-muted-foreground">Usuário:</span>
+                                              <span>{cred.username}</span>
+                                            </>
+                                          )}
+                                          {cred.provider && (
+                                            <span className="text-muted-foreground italic">{cred.provider}</span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Premium Accounts */}
+                                {client.premium_accounts && client.premium_accounts.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                                      <Sparkles className="h-3 w-3 text-amber-500" />
+                                      Contas Premium ({client.premium_accounts.length}):
+                                    </p>
+                                    <div className="space-y-1">
+                                      {client.premium_accounts.map((acc: any, i: number) => (
+                                        <div key={i} className="text-xs flex items-center gap-2 flex-wrap">
+                                          <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-600">{acc.plan_name}</Badge>
+                                          {acc.email && showLookupPasswords && (
+                                            <span className="text-muted-foreground">{acc.email}</span>
+                                          )}
+                                          {acc.price && (
+                                            <span className="font-medium">R$ {parseFloat(acc.price).toFixed(2)}</span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
