@@ -701,12 +701,120 @@ Deno.serve(async (req: Request) => {
             }
             
             // ===============================================================
-            // MENSAGENS ENVIADAS (fromMe = true) - Detectar renovação da API do servidor
+            // MENSAGENS ENVIADAS (fromMe = true) - Processar comandos do atendente
             // ===============================================================
             if (msg.key?.fromMe) {
+              const trimmedFromMe = String(messageText || '').trimStart();
+              
+              // Se for um comando (inicia com /), processar como disparo ativo pelo atendente
+              if (trimmedFromMe.startsWith('/')) {
+                console.log(`[Webhook] ATTENDANT command detected: "${trimmedFromMe}" to client ${senderPhone}`);
+                
+                // Buscar configuração de logs do seller
+                const { data: configData } = await supabase
+                  .from('test_integration_config')
+                  .select('logs_enabled')
+                  .eq('seller_id', instance.seller_id)
+                  .eq('is_active', true)
+                  .maybeSingle();
+                
+                const logsEnabled = configData?.logs_enabled ?? true;
+                
+                // Chamar edge function de processamento de comando
+                // O target_phone é o remoteJid (número do cliente na conversa)
+                // O from_attendant flag indica que foi disparado pelo atendente
+                try {
+                  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+                  const commandResponse = await fetch(`${supabaseUrl}/functions/v1/process-whatsapp-command`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify({
+                      seller_id: instance.seller_id,
+                      command_text: trimmedFromMe.trim(),
+                      sender_phone: senderPhone, // Este é o número do CLIENTE na conversa
+                      instance_name: instanceName,
+                      logs_enabled: logsEnabled,
+                      from_attendant: true, // Flag para indicar disparo pelo atendente
+                    }),
+                  });
+
+                  const cmdText = await commandResponse.text();
+                  let cmdResult: any = {};
+                  try {
+                    cmdResult = cmdText ? JSON.parse(cmdText) : {};
+                  } catch {
+                    cmdResult = { success: false, error: 'Invalid JSON from process-whatsapp-command', raw: cmdText?.substring(0, 500) };
+                  }
+                  console.log(`[Webhook] ATTENDANT command result:`, JSON.stringify(cmdResult));
+
+                  if (!commandResponse.ok) {
+                    try {
+                      await supabase.from('command_logs').insert({
+                        owner_id: instance.seller_id,
+                        command_text: `[ATENDENTE] ${trimmedFromMe}`,
+                        sender_phone: senderPhone,
+                        success: false,
+                        error_message: `process-whatsapp-command HTTP ${commandResponse.status}: ${String(cmdText || '').substring(0, 200)}`,
+                      });
+                    } catch { /* ignore */ }
+                  }
+                  
+                  // Enviar resposta ao cliente
+                  const textToSend = (cmdResult && (cmdResult.response || cmdResult.user_message))
+                    ? String(cmdResult.response || cmdResult.user_message)
+                    : '';
+
+                  if (textToSend) {
+                    const cleanTargetPhone = senderPhone.replace(/\D/g, '');
+                    const cleanInstancePhone = instancePhone || '';
+                    
+                    // Validar que não estamos enviando para o próprio número da instância
+                    if (cleanInstancePhone && cleanTargetPhone === cleanInstancePhone) {
+                      console.error(`[Webhook] BLOCKED: Attempted to send attendant command response to instance's own number`);
+                    } else {
+                      // Buscar config global para enviar resposta
+                      const { data: globalConfig } = await supabase
+                        .from('whatsapp_global_config')
+                        .select('api_url, api_token')
+                        .eq('is_active', true)
+                        .maybeSingle();
+
+                      if (globalConfig?.api_url && globalConfig?.api_token) {
+                        const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
+                        const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                        
+                        try {
+                          const sendResponse = await fetch(sendUrl, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'apikey': globalConfig.api_token,
+                            },
+                            body: JSON.stringify({
+                              number: cleanTargetPhone,
+                              text: textToSend,
+                            }),
+                          });
+                          console.log(`[Webhook] ATTENDANT command response sent to ${cleanTargetPhone}, status: ${sendResponse.status}`);
+                        } catch (sendErr) {
+                          console.error(`[Webhook] Error sending attendant command response:`, sendErr);
+                        }
+                      }
+                    }
+                  }
+                } catch (cmdErr) {
+                  console.error(`[Webhook] Attendant command error:`, cmdErr);
+                }
+                
+                continue; // Comando processado, não continuar
+              }
+              
               // Verificar se é mensagem de renovação automática do servidor
               await detectAndSyncRenewal(supabase, instance.seller_id, senderPhone, messageText);
-              continue; // Não processar mais nada para mensagens enviadas
+              continue; // Não processar mais nada para mensagens enviadas não-comando
             }
             
             // ===============================================================
