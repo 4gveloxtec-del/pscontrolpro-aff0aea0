@@ -1141,14 +1141,14 @@ export default function TestCommands() {
 
       {/* API Dialog */}
       <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader className="pb-2">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg flex flex-col p-0">
+          <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 flex-shrink-0">
             <DialogTitle className="text-lg">{editingApi ? 'Editar API' : 'Nova API de Teste'}</DialogTitle>
             <DialogDescription className="text-xs">
               Configure a API que será chamada pelo comando.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleApiSubmit} className="space-y-3">
+          <form onSubmit={handleApiSubmit} className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6 overflow-y-auto max-h-[calc(85vh-120px)] flex-1">
             <div className="space-y-1.5">
               <Label className="text-sm">Nome *</Label>
               <Input
@@ -1232,14 +1232,25 @@ export default function TestCommands() {
               Testar API
             </Button>
             
-            {/* Test Response Preview */}
+            {/* Test Response Preview - Compact */}
             {testResponse && (
-              <div className="space-y-2 border rounded-lg p-3 bg-muted/50">
-                <div className="flex items-center gap-2 text-xs font-medium text-green-600">
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Resposta da API
+              <div className="space-y-2 border rounded-lg p-3 bg-muted/50 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-green-600">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Resposta da API
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                    onClick={() => setTestResponse(null)}
+                  >
+                    ✕
+                  </Button>
                 </div>
-                <div className="bg-background rounded p-2 text-[10px] font-mono max-h-24 overflow-y-auto">
+                <div className="bg-background rounded p-2 text-[10px] font-mono max-h-16 overflow-y-auto">
                   <pre>{JSON.stringify(testResponse, null, 2)}</pre>
                 </div>
               </div>
