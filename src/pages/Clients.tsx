@@ -32,7 +32,8 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Search, Phone, Mail, Calendar as CalendarIcon, CreditCard, User, Trash2, Eye, EyeOff, MessageCircle, Lock, Loader2, Monitor, Smartphone, Tv, Gamepad2, Laptop, Flame, ChevronDown, ExternalLink, AppWindow, Send, Archive, RotateCcw, Sparkles, Server, Copy, UserPlus, CheckCircle, X, DollarSign, Globe, ArrowRightLeft, UserSearch, History, Shield, Package } from 'lucide-react';
+import { Plus, Search, Phone, Mail, Calendar as CalendarIcon, CreditCard, User, Trash2, Eye, EyeOff, MessageCircle, Lock, Loader2, Monitor, Smartphone, Tv, Gamepad2, Laptop, Flame, ChevronDown, ExternalLink, AppWindow, Send, Archive, RotateCcw, Sparkles, Server, Copy, UserPlus, CheckCircle, X, DollarSign, Globe, ArrowRightLeft, UserSearch, History, Shield, Package, Beaker } from 'lucide-react';
+import { TestCountdown } from '@/components/TestCountdown';
 import { BulkImportClients } from '@/components/BulkImportClients';
 import { BulkServerMigration } from '@/components/BulkServerMigration';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -80,6 +81,7 @@ interface Client {
   device: string | null;
   dns: string | null;
   expiration_date: string;
+  expiration_datetime: string | null; // Precise datetime for short-duration tests
   plan_id: string | null;
   plan_name: string | null;
   plan_price: number | null;
@@ -115,6 +117,9 @@ interface Client {
   device_model: string | null;
   // Additional servers
   additional_servers?: AdditionalServer[] | null;
+  // Test client fields
+  is_test: boolean | null;
+  is_integrated: boolean | null;
 }
 
 interface ClientCategory {
@@ -148,7 +153,7 @@ interface ServerData {
   total_screens_per_credit: number;
 }
 
-type FilterType = 'all' | 'active' | 'expiring' | 'expired' | 'expired_not_called' | 'unpaid' | 'with_paid_apps' | 'archived';
+type FilterType = 'all' | 'active' | 'expiring' | 'expired' | 'expired_not_called' | 'unpaid' | 'with_paid_apps' | 'archived' | 'api_tests';
 const DEFAULT_CATEGORIES = ['IPTV', 'P2P', 'Contas Premium', 'SSH', 'Revendedor'] as const;
 
 const DEVICE_OPTIONS = [
@@ -384,7 +389,7 @@ export default function Clients() {
       let query = supabase
         .from('clients')
         .select(`
-          id, name, phone, email, device, dns, expiration_date,
+          id, name, phone, email, device, dns, expiration_date, expiration_datetime,
           plan_id, plan_name, plan_price, premium_price,
           server_id, server_name, login, password,
           server_id_2, server_name_2, login_2, password_2,
@@ -392,7 +397,8 @@ export default function Clients() {
           has_paid_apps, paid_apps_duration, paid_apps_expiration,
           telegram, is_archived, archived_at, created_at, renewed_at,
           gerencia_app_mac, gerencia_app_devices,
-          app_name, app_type, device_model, additional_servers
+          app_name, app_type, device_model, additional_servers,
+          is_test, is_integrated
         `)
 
       query = query.eq('seller_id', user.id).or('is_archived.is.null,is_archived.eq.false');
@@ -2354,6 +2360,12 @@ export default function Clients() {
     return status === 'expired' && !isSent(c.id);
   }).length, [activeClients, isSent]);
 
+  // Count API test clients (created via integration)
+  const apiTestClientsCount = useMemo(() => 
+    activeClients.filter(c => c.is_test && c.is_integrated).length, 
+    [activeClients]
+  );
+
   // Normalize phone number for comparison - remove all non-numeric characters
   const normalizePhoneForSearch = useCallback((phone: string | null | undefined): string => {
     if (!phone) return '';
@@ -2504,6 +2516,8 @@ export default function Clients() {
           return !client.is_paid;
         case 'with_paid_apps':
           return clientsWithPaidAppsSet.has(client.id);
+        case 'api_tests':
+          return client.is_test && client.is_integrated;
         default:
           return true;
       }
@@ -3685,6 +3699,10 @@ export default function Clients() {
                 <AppWindow className="h-3 w-3" />
                 Apps Pagos ({clientsWithExternalApps.length > 0 ? activeClients.filter(c => clientsWithPaidAppsSet.has(c.id)).length : 0})
               </TabsTrigger>
+              <TabsTrigger value="api_tests" className="gap-1 text-purple-600 dark:text-purple-400">
+                <Beaker className="h-3 w-3" />
+                Testes API ({apiTestClientsCount})
+              </TabsTrigger>
               <TabsTrigger value="archived" className="gap-1">
                 <Archive className="h-3 w-3" />
                 Lixeira ({archivedClients.length})
@@ -3899,9 +3917,20 @@ export default function Clients() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className={cn('text-xs px-2 py-0.5 rounded-full', statusBadges[status])}>
-                          {statusLabels[status]} {daysLeft > 0 && status !== 'expired' && `(${daysLeft}d)`}
-                        </span>
+                        {/* For API test clients with expiration_datetime, show countdown */}
+                        {client.is_test && client.is_integrated && client.expiration_datetime ? (
+                          <>
+                            <Badge variant="outline" className="gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                              <Beaker className="h-3 w-3" />
+                              TESTE
+                            </Badge>
+                            <TestCountdown expirationDatetime={client.expiration_datetime} />
+                          </>
+                        ) : (
+                          <span className={cn('text-xs px-2 py-0.5 rounded-full', statusBadges[status])}>
+                            {statusLabels[status]} {daysLeft > 0 && status !== 'expired' && `(${daysLeft}d)`}
+                          </span>
+                        )}
                         {client.category && (
                           <span className={cn(
                             'text-xs px-2 py-0.5 rounded-full',
