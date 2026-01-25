@@ -641,7 +641,15 @@ Deno.serve(async (req) => {
           JSON.stringify({
             success: false,
             error: 'duplicate_test',
-            user_message: '❌ Este número já possui um teste gerado.\n\n🔄 Apenas 1 teste por número é permitido.\n\n💡 Entre em contato com o suporte para mais informações.',
+            user_message: `Olá! 👋
+
+Identifiquei que já foi gerado um teste de IPTV para este número anteriormente.
+
+Quero saber: conseguiu testar direitinho?
+
+Se precisar, posso liberar um novo acesso, explicar os planos ou te ajudar a escolher a melhor opção para você.
+
+Fico à disposição! 🚀📺`,
             existing_client_id: existingTestClient.id,
             existing_client_name: existingTestClient.name,
           }),
