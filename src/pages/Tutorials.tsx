@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Play, Trash2, Edit, Youtube, X } from 'lucide-react';
+import { Plus, Play, Trash2, Edit, Youtube, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -62,7 +62,7 @@ export default function Tutorials() {
     youtube_url: ''
   });
 
-  const { data: tutorials = [], isLoading } = useQuery({
+  const { data: tutorials = [], isLoading, isError } = useQuery({
     queryKey: ['tutorials'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -194,6 +194,25 @@ export default function Tutorials() {
       window.open(getYouTubeWatchUrl(videoId), '_blank', 'noopener,noreferrer');
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <p className="text-destructive mb-2">Erro ao carregar tutoriais</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">

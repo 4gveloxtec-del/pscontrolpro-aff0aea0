@@ -18,8 +18,12 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   
   const [isPrivacyMode, setIsPrivacyMode] = useState(() => {
-    const saved = localStorage.getItem('privacyMode');
-    return saved === 'true';
+    try {
+      const saved = localStorage.getItem('privacyMode');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const [isMoneyHidden, setIsMoneyHidden] = useState(false);
@@ -56,7 +60,11 @@ export function PrivacyModeProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
-    localStorage.setItem('privacyMode', isPrivacyMode.toString());
+    try {
+      localStorage.setItem('privacyMode', isPrivacyMode.toString());
+    } catch (error) {
+      console.warn('[usePrivacyMode] Unable to save to localStorage:', error);
+    }
   }, [isPrivacyMode]);
 
   const togglePrivacyMode = () => {

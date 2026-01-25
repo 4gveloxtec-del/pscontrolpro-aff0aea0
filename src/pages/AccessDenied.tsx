@@ -45,8 +45,8 @@ export default function AccessDenied() {
       setIsLoggingOut(true);
       await signOut();
       toast.success('Sessão encerrada com sucesso!');
-      // Force navigation to auth page after logout
-      window.location.href = '/auth';
+      // Use SPA navigation to preserve history
+      navigate('/auth', { replace: true });
     } catch (error) {
       console.error('Erro ao sair:', error);
       toast.error('Erro ao encerrar sessão. Tente novamente.');

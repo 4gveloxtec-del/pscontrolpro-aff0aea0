@@ -531,9 +531,13 @@ const SidebarMenuSkeleton = React.forwardRef<
     showIcon?: boolean;
   }
 >(({ className, showIcon = false, ...props }, ref) => {
-  // Random width between 50 to 90%.
+  // Deterministic width based on index to prevent layout shift on remount
+  // Uses a seed-based approach instead of Math.random() for stability
   const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
+    // Generate a stable width between 50-90% based on component instance
+    const widths = ['50%', '60%', '65%', '70%', '75%', '80%', '85%', '90%'];
+    const stableIndex = Math.abs(Date.now() % widths.length);
+    return widths[stableIndex];
   }, []);
 
   return (

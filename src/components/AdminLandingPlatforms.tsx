@@ -55,7 +55,7 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   // Fetch platforms
-  const { data: platforms, isLoading } = useQuery({
+  const { data: platforms, isLoading, isError } = useQuery({
     queryKey: ['landing_platforms'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -199,6 +199,17 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <p className="text-destructive mb-2">Erro ao carregar plataformas</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+          Tentar novamente
+        </Button>
       </div>
     );
   }

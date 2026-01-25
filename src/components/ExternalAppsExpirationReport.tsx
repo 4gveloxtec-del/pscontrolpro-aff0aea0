@@ -31,7 +31,7 @@ interface ExternalAppExpiration {
 export function ExternalAppsExpirationReport() {
   const { user } = useAuth();
 
-  const { data: expiringApps, isLoading } = useQuery({
+  const { data: expiringApps, isLoading, isError } = useQuery({
     queryKey: ['external-apps-expiration-report', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -183,6 +183,19 @@ export function ExternalAppsExpirationReport() {
       <Card>
         <CardContent className="p-8 text-center">
           <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <p className="text-destructive mb-2">Erro ao carregar vencimentos</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+            Tentar novamente
+          </Button>
         </CardContent>
       </Card>
     );
