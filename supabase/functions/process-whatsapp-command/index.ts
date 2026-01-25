@@ -101,6 +101,7 @@ function buildTestCommandPayload(params: {
   serverName: string | null;
   sellerId: string;
   instanceName: string | null;
+  whatsappNumber: string; // Número WhatsApp normalizado com DDI 55
 }): Record<string, unknown> {
   const payload: Record<string, unknown> = { ...params.base };
 
@@ -111,6 +112,16 @@ function buildTestCommandPayload(params: {
   payload.plan = params.testPlan;
   payload.server = params.serverName || params.serverId;
   payload.seller_id = params.sellerId;
+  
+  // =====================================================================
+  // CAMPOS DE WHATSAPP - Garantir que o número seja enviado corretamente
+  // =====================================================================
+  payload.whatsapp = params.whatsappNumber;
+  payload.whatsapp_number = params.whatsappNumber;
+  payload.telefone = params.whatsappNumber;
+  payload.celular = params.whatsappNumber;
+  payload.contact = params.whatsappNumber;
+  payload.contact_phone = params.whatsappNumber;
 
   // Aliases (do not overwrite if already present)
   if (isBlank(payload.client_phone)) payload.client_phone = params.clientPhone;
@@ -122,6 +133,11 @@ function buildTestCommandPayload(params: {
   if (isBlank(payload.server_id)) payload.server_id = params.serverId;
   if (isBlank(payload.reseller_id)) payload.reseller_id = params.sellerId;
   if (params.instanceName && isBlank(payload.instance_name)) payload.instance_name = params.instanceName;
+  
+  // Aliases de WhatsApp
+  if (isBlank(payload.client_whatsapp)) payload.client_whatsapp = params.whatsappNumber;
+  if (isBlank(payload.wpp)) payload.wpp = params.whatsappNumber;
+  if (isBlank(payload.zap)) payload.zap = params.whatsappNumber;
 
   // If the template already has a nested structure, also populate common nested objects.
   // This avoids breaking existing integrations that expect data/client wrappers.
@@ -134,6 +150,9 @@ function buildTestCommandPayload(params: {
     if (isBlank(dataObj.server)) dataObj.server = params.serverName || params.serverId;
     if (isBlank(dataObj.seller_id)) dataObj.seller_id = params.sellerId;
     if (isBlank(dataObj.server_id)) dataObj.server_id = params.serverId;
+    // WhatsApp no objeto data
+    if (isBlank(dataObj.whatsapp)) dataObj.whatsapp = params.whatsappNumber;
+    if (isBlank(dataObj.whatsapp_number)) dataObj.whatsapp_number = params.whatsappNumber;
   }
 
   const maybeClient = payload.client;
@@ -141,6 +160,9 @@ function buildTestCommandPayload(params: {
     const clientObj = maybeClient as Record<string, unknown>;
     if (isBlank(clientObj.phone)) clientObj.phone = params.clientPhone;
     if (isBlank(clientObj.name)) clientObj.name = params.clientName;
+    // WhatsApp no objeto client
+    if (isBlank(clientObj.whatsapp)) clientObj.whatsapp = params.whatsappNumber;
+    if (isBlank(clientObj.whatsapp_number)) clientObj.whatsapp_number = params.whatsappNumber;
   }
 
   return payload;
@@ -576,7 +598,10 @@ Deno.serve(async (req) => {
           serverName: testConfig?.server_name || null,
           sellerId: seller_id,
           instanceName: instance_name || null,
+          whatsappNumber: clientPhone, // Número normalizado com DDI 55 (já validado)
         });
+        
+        console.log(`[process-command] WhatsApp number in payload: ${clientPhone}`);
 
         // Sempre enviar também a versão "só dígitos" como fallback (não quebra APIs que ignorem campos extras)
         payload.phone_digits = clientPhoneDigits;
@@ -593,6 +618,8 @@ Deno.serve(async (req) => {
         } else if (api.api_method === 'GET') {
           const url = new URL(finalUrl);
           url.searchParams.set('phone', clientPhoneForApi);
+          url.searchParams.set('whatsapp', clientPhone); // WhatsApp normalizado com DDI
+          url.searchParams.set('whatsapp_number', clientPhone);
           url.searchParams.set('name', String(payload.name || ''));
           url.searchParams.set('plan', String(payload.plan || ''));
           url.searchParams.set('server', String(payload.server || ''));
