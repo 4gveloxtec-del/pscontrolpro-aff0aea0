@@ -2497,6 +2497,14 @@ export default function Clients() {
             });
             return;
           }
+          
+          // PERF: Enable lazy queries when dialog opens (ensures plans/servers/categories load immediately)
+          if (open) {
+            setPlansEnabled(true);
+            setServersEnabled(true);
+            setCategoriesEnabled(true);
+          }
+          
           setIsDialogOpen(open);
           if (!open) {
             setEditingClient(null);
