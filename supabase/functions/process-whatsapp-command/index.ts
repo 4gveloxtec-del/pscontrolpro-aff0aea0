@@ -575,13 +575,15 @@ Deno.serve(async (req) => {
         // Use name provided in the command. If user didn't provide it, fall back to a safe default.
         const finalClientName = (clientName || '').trim() || `Cliente ${clientPhone.slice(-4)}`;
 
-        // Alguns servidores exigem telefone com espaços (ex: STARPLAY)
-        const isStarplay = String(api.name || '').toLowerCase().includes('starplay') ||
-          String(api.api_url || '').toLowerCase().includes('starplay');
-        const clientPhoneDigits = clientPhone;
-        const clientPhoneForApi = isStarplay
-          ? formatBrazilPhoneWithSpaces(clientPhoneDigits)
-          : clientPhoneDigits;
+        // =====================================================================
+        // PADRONIZAÇÃO: TODAS AS APIS RECEBEM O MESMO FORMATO DE TELEFONE
+        // Não importa o nome da API (STARPLAY, Azonix, etc.) - todas recebem:
+        // 1. clientPhoneDigits: apenas dígitos (ex: 5531999887766)
+        // 2. clientPhoneFormatted: com espaços brasileiros (ex: 55 31 99988 7766)
+        // 3. whatsappNumber: normalizado com DDI 55 (ex: 5531999887766)
+        // =====================================================================
+        const clientPhoneDigits = clientPhone; // Já normalizado com DDI 55
+        const clientPhoneFormatted = formatBrazilPhoneWithSpaces(clientPhoneDigits);
 
         const base = (api.api_body_template && typeof api.api_body_template === 'object')
           ? api.api_body_template
@@ -589,35 +591,41 @@ Deno.serve(async (req) => {
 
         const payload = buildTestCommandPayload({
           base,
-          clientPhone: clientPhoneForApi,
+          clientPhone: clientPhoneFormatted, // Formato com espaços para compatibilidade com todas as APIs
           clientName: finalClientName,
           testPlan,
           serverId: testConfig!.server_id!,
           serverName: testConfig?.server_name || null,
           sellerId: seller_id,
           instanceName: instance_name || null,
-          whatsappNumber: clientPhone, // Número normalizado com DDI 55 (já validado)
+          whatsappNumber: clientPhoneDigits, // Número normalizado com DDI 55 (sem espaços)
         });
         
-        console.log(`[process-command] WhatsApp number in payload: ${clientPhone}`);
+        console.log(`[process-command] 📞 Phone sent to ALL APIs: digits="${clientPhoneDigits}" formatted="${clientPhoneFormatted}"`);
 
-        // Sempre enviar também a versão "só dígitos" como fallback (não quebra APIs que ignorem campos extras)
+        // =====================================================================
+        // GARANTIR TODOS OS FORMATOS DE NÚMERO PARA COMPATIBILIDADE MÁXIMA
+        // Cada painel IPTV pode esperar o telefone em campos diferentes
+        // =====================================================================
+        
+        // Versão apenas dígitos (fallback mais comum)
         payload.phone_digits = clientPhoneDigits;
-        if (isBlank(payload.client_phone_digits)) payload.client_phone_digits = clientPhoneDigits;
-        if (isBlank(payload.number_digits)) payload.number_digits = clientPhoneDigits;
-
-        if (isStarplay) {
-          console.log(`[process-command] STARPLAY phone format: digits=${clientPhoneDigits} api="${clientPhoneForApi}"`);
-        }
+        payload.client_phone_digits = clientPhoneDigits;
+        payload.number_digits = clientPhoneDigits;
+        
+        // Versão formatada com espaços (alguns painéis exigem)
+        payload.phone = clientPhoneFormatted;
+        payload.number = clientPhoneFormatted;
 
         if (api.api_method === 'POST') {
           fetchOptions.body = JSON.stringify(payload);
           apiRequest.body = payload;
         } else if (api.api_method === 'GET') {
           const url = new URL(finalUrl);
-          url.searchParams.set('phone', clientPhoneForApi);
-          url.searchParams.set('whatsapp', clientPhone); // WhatsApp normalizado com DDI
-          url.searchParams.set('whatsapp_number', clientPhone);
+          url.searchParams.set('phone', clientPhoneFormatted); // Formato com espaços
+          url.searchParams.set('phone_digits', clientPhoneDigits); // Apenas dígitos
+          url.searchParams.set('whatsapp', clientPhoneDigits); // WhatsApp normalizado com DDI
+          url.searchParams.set('whatsapp_number', clientPhoneDigits);
           url.searchParams.set('name', String(payload.name || ''));
           url.searchParams.set('plan', String(payload.plan || ''));
           url.searchParams.set('server', String(payload.server || ''));
