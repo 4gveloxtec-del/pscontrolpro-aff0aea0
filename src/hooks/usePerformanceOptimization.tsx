@@ -74,11 +74,14 @@ export function usePerformanceOptimization<T>(
   }, [paginatedItems, maxVisibleItems]);
 
   // Navigation functions - stable references
-  const goToPage = useCallback((page: number) => {
+  // scrollToTop param allows callers to opt-out of auto scroll (e.g., after save operations)
+  const goToPage = useCallback((page: number, scrollToTop: boolean = true) => {
     const validPage = Math.max(1, Math.min(page, totalPages));
     setCurrentPage(validPage);
-    // Scroll to top smoothly when changing pages
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Only scroll to top if explicitly requested (default for page navigation)
+    if (scrollToTop) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, [totalPages]);
 
   const nextPage = useCallback(() => {

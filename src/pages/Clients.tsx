@@ -1423,8 +1423,8 @@ export default function Clients() {
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
       queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
-      // Go to page 1 to see the new client (recent clients appear at top)
-      goToPage(1);
+      // Go to page 1 to see the new client BUT don't scroll (user stays in place)
+      goToPage(1, false);
       toast.success(selectedSharedCredit 
         ? 'Cliente criado e vinculado ao crédito compartilhado! ✅' 
         : 'Cliente salvo com sucesso! ✅');
@@ -2487,7 +2487,7 @@ export default function Clients() {
 
   // Sempre volte para a página 1 quando mudar busca/filtros (evita parecer que “sumiu” cliente)
   useEffect(() => {
-    goToPage(1);
+    goToPage(1, false);
   }, [debouncedSearch, filter, categoryFilter, serverFilter, dnsFilter, dateFilter, goToPage]);
 
   const addCategoryMutation = useMutation({
