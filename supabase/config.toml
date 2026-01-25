@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.check-test-alerts]
 verify_jwt = false
+
+[functions.daily-maintenance]
+verify_jwt = false
