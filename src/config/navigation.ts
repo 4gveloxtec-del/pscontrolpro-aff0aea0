@@ -48,8 +48,18 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { title: 'Clientes', href: '/clientes', icon: Users, sellerOnly: true },
-      { title: 'Meus Aplicativos', href: '/my-apps', icon: Smartphone, sellerOnly: true },
+    ],
+  },
+  {
+    title: 'Apps',
+    items: [
+      { title: 'Apps do Revendedor', href: '/my-apps', icon: Smartphone, sellerOnly: true },
       { title: 'Apps Pagos', href: '/external-apps', icon: AppWindow, sellerOnly: true },
+    ],
+  },
+  {
+    title: 'Infraestrutura',
+    items: [
       { title: 'Servidores', href: '/servers', icon: Server, sellerOnly: true },
       { title: 'Revendedores', href: '/panel-resellers', icon: UsersRound, sellerOnly: true },
       { title: 'Painéis', href: '/panels', icon: Globe, sellerOnly: true },
