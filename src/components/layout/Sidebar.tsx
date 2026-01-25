@@ -300,6 +300,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </TooltipProvider>
           </div>
         )}
+        
+        {/* Version */}
+        <div className={cn(
+          "text-center text-[10px] text-sidebar-foreground/30 pt-2",
+          isIconsOnly && "text-[8px]"
+        )}>
+          v1.0
+        </div>
       </div>
     </div>
   );
