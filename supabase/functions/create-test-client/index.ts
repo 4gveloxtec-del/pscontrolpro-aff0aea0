@@ -52,10 +52,13 @@ Deno.serve(async (req) => {
       sender_phone, 
       api_response,
       api_id,
-      command_id
+      command_id,
+      // NOVO: Aceitar server_id diretamente do process-whatsapp-command
+      // Isso elimina o fallback incorreto que pode pegar servidor errado
+      server_id_override
     } = body;
 
-    console.log(`[create-test-client] Creating client for seller ${seller_id}, phone ${sender_phone}`);
+    console.log(`[create-test-client] Creating client for seller ${seller_id}, phone ${sender_phone}, api_id: ${api_id}, server_override: ${server_id_override}`);
 
     if (!seller_id || !sender_phone) {
       return new Response(
@@ -268,7 +271,9 @@ Deno.serve(async (req) => {
     }
 
     const configCategory = ((config as Record<string, unknown>).category as string) || 'IPTV';
-    const configServerId = (config as Record<string, unknown>).server_id as string | null;
+    // PRIORIDADE: server_id_override > config.server_id
+    // Isso garante que o servidor passado pelo command seja usado, não o fallback
+    const configServerId = server_id_override || (config as Record<string, unknown>).server_id as string | null;
 
     console.log('[create-test-client] Creating client with data:', {
       name: clientName,
