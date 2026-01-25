@@ -607,10 +607,8 @@ Deno.serve(async (req) => {
 
         const payload = buildTestCommandPayload({
           base,
-          // IMPORTANTE: aqui usamos a versão em dígitos como "fonte" do payload
-          // e adicionamos a versão com espaços como campos extras.
-          // Isso evita que APIs que só leem "data.phone" (ou "client.phone") recebam "55 31 ..." e falhem.
-          clientPhone: clientPhoneDigits,
+          // STARPLAY e outros painéis que esperam formato com espaços no campo principal
+          clientPhone: clientPhoneFormatted,
           clientName: finalClientName,
           testPlan,
           serverId: testConfig!.server_id!,
@@ -627,14 +625,30 @@ Deno.serve(async (req) => {
         // Cada painel IPTV pode esperar o telefone em campos diferentes
         // =====================================================================
         
-        // Versão apenas dígitos (fallback mais comum)
+        // Versão apenas dígitos - CRÍTICO para APIs como Azonix que não aceitam espaços
         payload.phone_digits = clientPhoneDigits;
         payload.client_phone_digits = clientPhoneDigits;
         payload.number_digits = clientPhoneDigits;
+        payload.telefone_digits = clientPhoneDigits;
+        payload.celular_digits = clientPhoneDigits;
         
-        // Versão formatada com espaços (alguns painéis exigem)
-        payload.phone = clientPhoneFormatted;
-        payload.number = clientPhoneFormatted;
+        // Garantir que os campos aninhados (data.*, client.*) também tenham versão dígitos
+        if (payload.data && typeof payload.data === 'object') {
+          const dataObj = payload.data as Record<string, unknown>;
+          dataObj.phone_digits = clientPhoneDigits;
+          dataObj.telefone = clientPhoneDigits;
+          dataObj.celular = clientPhoneDigits;
+          dataObj.whatsapp = clientPhoneDigits;
+        }
+        if (payload.client && typeof payload.client === 'object') {
+          const clientObj = payload.client as Record<string, unknown>;
+          clientObj.phone_digits = clientPhoneDigits;
+          clientObj.telefone = clientPhoneDigits;
+          clientObj.celular = clientPhoneDigits;
+          clientObj.whatsapp = clientPhoneDigits;
+        }
+        
+        // Versão formatada com espaços (STARPLAY e similares)
         payload.phone_formatted = clientPhoneFormatted;
         payload.number_formatted = clientPhoneFormatted;
 
