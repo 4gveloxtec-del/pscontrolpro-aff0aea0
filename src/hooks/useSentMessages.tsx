@@ -33,12 +33,14 @@ export function useSentMessages() {
     }
   }, []);
 
-  // Save to localStorage whenever sentMessages changes
+  // Save to localStorage whenever sentMessages changes - with Safari Private Mode protection
   const saveToStorage = useCallback((messages: SentMessage[]) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     } catch (error) {
-      console.error('Error saving sent messages:', error);
+      // Safari Private Mode throws QuotaExceededError
+      console.error('[useSentMessages] Error saving to localStorage (possibly Safari Private Mode):', error);
+      // Fallback: keep state in memory only, don't crash
     }
   }, []);
 

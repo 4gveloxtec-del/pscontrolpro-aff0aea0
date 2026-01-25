@@ -87,8 +87,13 @@ export function useExpirationNotifications() {
     if (!user?.id || !isSeller) return;
     if (!isNotificationsEnabled()) return;
 
-    // Check if we already notified today
-    const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
+    // Check if we already notified today - with Safari Private Mode protection
+    let lastCheck: string | null = null;
+    try {
+      lastCheck = localStorage.getItem(LAST_CHECK_KEY);
+    } catch (e) {
+      console.warn('[useExpirationNotifications] localStorage unavailable (possibly Safari Private Mode)');
+    }
     const today = startOfToday().toISOString().split('T')[0];
     
     if (lastCheck === today) return;
@@ -115,7 +120,11 @@ export function useExpirationNotifications() {
 
       if (expiringClients.length > 0) {
         showExpirationNotification(expiringClients);
-        localStorage.setItem(LAST_CHECK_KEY, today);
+        try {
+          localStorage.setItem(LAST_CHECK_KEY, today);
+        } catch (e) {
+          console.warn('[useExpirationNotifications] Failed to save to localStorage');
+        }
       }
     } catch (error) {
       console.error('Error checking expirations:', error);

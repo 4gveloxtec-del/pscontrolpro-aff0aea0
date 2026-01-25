@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 const BATCH_SIZE = 500;
+const GLOBAL_TIMEOUT_MS = 55000; // 55 seconds to stay under Deno's 60s limit
 
 // Helper to fetch all records from a table with pagination
 async function fetchAllPaginated(
@@ -79,6 +80,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Global timeout to prevent hanging
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GLOBAL_TIMEOUT_MS);
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -88,6 +93,7 @@ Deno.serve(async (req) => {
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      clearTimeout(timeoutId);
       return new Response(
         JSON.stringify({ error: 'Authorization required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -99,10 +105,16 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
+      clearTimeout(timeoutId);
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Check if aborted
+    if (controller.signal.aborted) {
+      throw new Error('Request timed out');
     }
 
     // Standardized logging
@@ -111,7 +123,6 @@ Deno.serve(async (req) => {
 
     const sellerId = user.id;
     const sellerFilter = { column: 'seller_id', value: sellerId };
-    const idFilter = { column: 'id', value: sellerId };
 
     // Fetch all data in parallel with pagination
     // Group 1: Tables with seller_id and created_at
@@ -137,6 +148,11 @@ Deno.serve(async (req) => {
       fetchAllPaginated(supabase, 'message_history', sellerFilter),
     ]);
 
+    // Check if aborted after first group
+    if (controller.signal.aborted) {
+      throw new Error('Request timed out after fetching primary data');
+    }
+
     // Group 2: Tables that may not have created_at or have different structure
     const [
       panelClientsResult,
@@ -155,6 +171,8 @@ Deno.serve(async (req) => {
       fetchAllPaginatedSimple(supabase, 'server_apps', sellerFilter),
       fetchAllPaginatedSimple(supabase, 'client_premium_accounts', sellerFilter),
     ]);
+
+    clearTimeout(timeoutId);
 
     // Check for any errors
     const errors: string[] = [];
@@ -237,10 +255,22 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error(`[backup-data] timestamp=${new Date().toISOString()} action=export_error status=failed error=${error instanceof Error ? error.message : 'Unknown'}`);
+    clearTimeout(timeoutId);
+    
+    const isTimeout = error instanceof Error && (
+      error.name === 'AbortError' || 
+      error.message.includes('timed out')
+    );
+    
+    console.error(`[backup-data] timestamp=${new Date().toISOString()} action=export_error status=failed error=${error instanceof Error ? error.message : 'Unknown'} isTimeout=${isTimeout}`);
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: isTimeout 
+          ? 'Backup timed out. Try exporting with fewer data or contact support.' 
+          : (error instanceof Error ? error.message : 'Unknown error') 
+      }),
+      { status: isTimeout ? 504 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

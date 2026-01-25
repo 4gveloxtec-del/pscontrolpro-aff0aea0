@@ -48,13 +48,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if requesting user is admin
+    // Check if requesting user is admin - use maybeSingle to prevent PGRST116
     const { data: roleData, error: roleError } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', requestingUser.id)
       .eq('role', 'admin')
-      .single();
+      .maybeSingle();
 
     if (roleError || !roleData) {
       return new Response(
@@ -102,6 +102,7 @@ Deno.serve(async (req) => {
       console.log(`Deleting data for seller: ${seller.email}`);
 
       // Delete all related data in correct order (respecting foreign keys)
+      // Using Promise.allSettled for granular error handling
       const deleteOperations = [
         // First level - no dependencies
         supabase.from('chatbot_send_logs').delete().eq('seller_id', seller.id),
@@ -114,16 +115,24 @@ Deno.serve(async (req) => {
         supabase.from('reseller_notification_tracking').delete().eq('admin_id', seller.id),
       ];
       
-      await Promise.all(deleteOperations);
+      const level1Results = await Promise.allSettled(deleteOperations);
+      const failures = level1Results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.warn(`[wipe-all-data] First level delete had ${failures.length} failures for seller ${seller.id}`);
+      }
 
-      // Second level - depends on clients
-      await Promise.all([
+      // Second level - depends on clients - with granular error handling
+      const level2Results = await Promise.allSettled([
         supabase.from('client_external_apps').delete().eq('seller_id', seller.id),
         supabase.from('client_premium_accounts').delete().eq('seller_id', seller.id),
         supabase.from('panel_clients').delete().eq('seller_id', seller.id),
         supabase.from('message_history').delete().eq('seller_id', seller.id),
         supabase.from('referrals').delete().eq('seller_id', seller.id),
       ]);
+      const level2Failures = level2Results.filter(r => r.status === 'rejected');
+      if (level2Failures.length > 0) {
+        console.warn(`[wipe-all-data] Second level delete had ${level2Failures.length} failures for seller ${seller.id}`);
+      }
 
       // Third level - chatbot contacts (depends on clients)
       await supabase.from('chatbot_contacts').delete().eq('seller_id', seller.id);
@@ -140,8 +149,8 @@ Deno.serve(async (req) => {
       // Fifth level - chatbot flow nodes (depends on flows)
       await supabase.from('chatbot_flow_nodes').delete().eq('seller_id', seller.id);
       
-      // Sixth level - other data
-      await Promise.all([
+      // Sixth level - other data - with granular error handling
+      const level6Results = await Promise.allSettled([
         supabase.from('chatbot_flows').delete().eq('seller_id', seller.id),
         supabase.from('chatbot_rules').delete().eq('seller_id', seller.id),
         supabase.from('chatbot_settings').delete().eq('seller_id', seller.id),
@@ -162,6 +171,10 @@ Deno.serve(async (req) => {
         supabase.from('seller_queue_settings').delete().eq('seller_id', seller.id),
         supabase.from('push_subscriptions').delete().eq('user_id', seller.id),
       ]);
+      const level6Failures = level6Results.filter(r => r.status === 'rejected');
+      if (level6Failures.length > 0) {
+        console.warn(`[wipe-all-data] Sixth level delete had ${level6Failures.length} failures for seller ${seller.id}`);
+      }
 
       // Delete the user role
       await supabase.from('user_roles').delete().eq('user_id', seller.id);
@@ -185,8 +198,8 @@ Deno.serve(async (req) => {
       .select('*', { count: 'exact', head: true })
       .eq('seller_id', requestingUser.id);
 
-    // Delete admin's client-related data
-    await Promise.all([
+    // Delete admin's client-related data - with granular error handling
+    const adminCleanupResults = await Promise.allSettled([
       supabase.from('client_notification_tracking').delete().eq('seller_id', requestingUser.id),
       supabase.from('client_external_apps').delete().eq('seller_id', requestingUser.id),
       supabase.from('client_premium_accounts').delete().eq('seller_id', requestingUser.id),
@@ -195,6 +208,10 @@ Deno.serve(async (req) => {
       supabase.from('referrals').delete().eq('seller_id', requestingUser.id),
       supabase.from('chatbot_contacts').delete().eq('seller_id', requestingUser.id),
     ]);
+    const adminCleanupFailures = adminCleanupResults.filter(r => r.status === 'rejected');
+    if (adminCleanupFailures.length > 0) {
+      console.warn(`[wipe-all-data] Admin cleanup had ${adminCleanupFailures.length} failures`);
+    }
 
     await supabase.from('clients').delete().eq('seller_id', requestingUser.id);
     results.clients_deleted += adminClientCount || 0;

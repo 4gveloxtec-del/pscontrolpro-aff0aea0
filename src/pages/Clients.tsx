@@ -1319,78 +1319,19 @@ export default function Clients() {
       if (error) throw error;
 
       // Save/update external apps and premium accounts in BACKGROUND - don't block response
+      // Added .catch() to prevent silent failures
       if (user) {
         (async () => {
-          // Delete existing apps for this client
-          await supabase.from('client_external_apps').delete().eq('client_id', id);
-          
-          // Insert updated apps
-          if (externalApps.length > 0) {
-            for (const app of externalApps) {
-              if (!app.appId) continue;
-              
-              // Encrypt password if present
-              let encryptedPassword = app.password || null;
-              if (encryptedPassword) {
-                try {
-                  encryptedPassword = await encrypt(encryptedPassword);
-                } catch (e) {
-                  console.error('Error encrypting app password:', e);
-                }
-              }
-              
-              // Check if it's a fixed app (starts with "fixed-") or a custom app (UUID)
-              const isFixedApp = app.appId.startsWith('fixed-');
-              const fixedAppName = isFixedApp ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') : null;
-              
-              // Build insert data with proper typing
-              const insertData = {
-                client_id: id,
-                seller_id: user.id,
-                devices: app.devices.filter(d => d.mac.trim() !== '') as unknown as any,
-                email: app.email || null,
-                password: encryptedPassword,
-                expiration_date: app.expirationDate || null,
-                external_app_id: isFixedApp ? null : app.appId,
-                fixed_app_name: fixedAppName,
-              } as any;
-              
-              const { error } = await supabase.from('client_external_apps').insert(insertData);
-              if (error) {
-                console.error('Error saving external app:', error);
-              }
-            }
-          }
-          
-          // Save/update premium accounts for this client
-          await supabase.from('client_premium_accounts').delete().eq('client_id', id);
-          
-          if (premiumAccounts.length > 0) {
-            for (const account of premiumAccounts) {
-              if (!account.planName && !account.email) continue;
-              
-              await supabase.from('client_premium_accounts').insert([{
-                client_id: id,
-                seller_id: user.id,
-                plan_name: account.planName || null,
-                email: account.email || null,
-                password: account.password || null,
-                price: account.price ? parseFloat(account.price) : 0,
-                expiration_date: account.expirationDate || null,
-                notes: account.notes || null,
-              }]);
-            }
-          }
-          
-          // Save/update server partner app credentials
-          await supabase.from('client_server_app_credentials' as any).delete().eq('client_id', id);
-          
-          if (serverAppsConfig.length > 0) {
-            for (const config of serverAppsConfig) {
-              for (const app of config.apps) {
-                if (!app.serverAppId) continue;
+          try {
+            // Delete existing apps for this client
+            await supabase.from('client_external_apps').delete().eq('client_id', id);
+            
+            // Insert updated apps
+            if (externalApps.length > 0) {
+              for (const app of externalApps) {
+                if (!app.appId) continue;
                 
-                // Encrypt sensitive data
+                // Encrypt password if present
                 let encryptedPassword = app.password || null;
                 if (encryptedPassword) {
                   try {
@@ -1400,24 +1341,89 @@ export default function Clients() {
                   }
                 }
                 
-                await supabase.from('client_server_app_credentials' as any).insert([{
+                // Check if it's a fixed app (starts with "fixed-") or a custom app (UUID)
+                const isFixedApp = app.appId.startsWith('fixed-');
+                const fixedAppName = isFixedApp ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') : null;
+                
+                // Build insert data with proper typing
+                const insertData = {
                   client_id: id,
                   seller_id: user.id,
-                  server_id: config.serverId,
-                  server_app_id: app.serverAppId,
-                  auth_code: app.authCode || null,
-                  username: app.username || null,
+                  devices: app.devices.filter(d => d.mac.trim() !== '') as unknown as any,
+                  email: app.email || null,
                   password: encryptedPassword,
-                  provider: app.provider || null,
+                  expiration_date: app.expirationDate || null,
+                  external_app_id: isFixedApp ? null : app.appId,
+                  fixed_app_name: fixedAppName,
+                } as any;
+                
+                const { error } = await supabase.from('client_external_apps').insert(insertData);
+                if (error) {
+                  console.error('Error saving external app:', error);
+                }
+              }
+            }
+            
+            // Save/update premium accounts for this client
+            await supabase.from('client_premium_accounts').delete().eq('client_id', id);
+            
+            if (premiumAccounts.length > 0) {
+              for (const account of premiumAccounts) {
+                if (!account.planName && !account.email) continue;
+                
+                await supabase.from('client_premium_accounts').insert([{
+                  client_id: id,
+                  seller_id: user.id,
+                  plan_name: account.planName || null,
+                  email: account.email || null,
+                  password: account.password || null,
+                  price: account.price ? parseFloat(account.price) : 0,
+                  expiration_date: account.expirationDate || null,
+                  notes: account.notes || null,
                 }]);
               }
             }
+            
+            // Save/update server partner app credentials
+            await supabase.from('client_server_app_credentials' as any).delete().eq('client_id', id);
+            
+            if (serverAppsConfig.length > 0) {
+              for (const config of serverAppsConfig) {
+                for (const app of config.apps) {
+                  if (!app.serverAppId) continue;
+                  
+                  // Encrypt sensitive data
+                  let encryptedPassword = app.password || null;
+                  if (encryptedPassword) {
+                    try {
+                      encryptedPassword = await encrypt(encryptedPassword);
+                    } catch (e) {
+                      console.error('Error encrypting app password:', e);
+                    }
+                  }
+                  
+                  await supabase.from('client_server_app_credentials' as any).insert([{
+                    client_id: id,
+                    seller_id: user.id,
+                    server_id: config.serverId,
+                    server_app_id: app.serverAppId,
+                    auth_code: app.authCode || null,
+                    username: app.username || null,
+                    password: encryptedPassword,
+                    provider: app.provider || null,
+                  }]);
+                }
+              }
+            }
+            
+            // Invalidate related queries after background work completes
+            queryClient.invalidateQueries({ queryKey: ['client-external-apps'] });
+            queryClient.invalidateQueries({ queryKey: ['client-premium-accounts'] });
+            queryClient.invalidateQueries({ queryKey: ['client-server-app-credentials'] });
+          } catch (bgError) {
+            console.error('[Clients] Background save error:', bgError);
+            toast.warning('Alguns dados adicionais podem não ter sido salvos');
           }
-          
-          // Invalidate related queries after background work completes
-          queryClient.invalidateQueries({ queryKey: ['client-external-apps'] });
-          queryClient.invalidateQueries({ queryKey: ['client-premium-accounts'] });
-          queryClient.invalidateQueries({ queryKey: ['client-server-app-credentials'] });
         })();
       }
 

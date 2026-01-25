@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
             .from('plans')
             .select('duration_days')
             .eq('id', client.plan_id)
-            .single();
+            .maybeSingle();
           
           if (plan?.duration_days) {
             durationDays = plan.duration_days;
@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
           .from('plans')
           .select('duration_days')
           .eq('id', client.plan_id)
-          .single();
+          .maybeSingle();
         
         if (plan?.duration_days) {
           durationDays = plan.duration_days;
