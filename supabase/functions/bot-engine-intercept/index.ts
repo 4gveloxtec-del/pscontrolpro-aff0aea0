@@ -193,13 +193,17 @@ function matchGlobalCommand(parsed: ParsedInput): { action: string } | null {
 /**
  * 4. executeAction - Executa a ação do comando
  */
+/**
+ * 4. executeAction - Executa a ação do comando
+ * ⚠️ NÃO retorna mensagens - apenas muda estado/stack
+ * As mensagens devem vir dos fluxos configurados nas tabelas bot_engine_*
+ */
 function executeAction(action: string, currentStack: string[]): ActionResult {
   switch (action) {
     case 'menu':
       return {
         success: true,
         newState: 'MENU',
-        response: '📋 Voltando ao menu principal...',
         clearStack: true,
       };
 
@@ -211,7 +215,6 @@ function executeAction(action: string, currentStack: string[]): ActionResult {
       return {
         success: true,
         newState: newStack[newStack.length - 1] || 'MENU',
-        response: '⬅️ Voltando...',
         popStack: true,
       };
 
@@ -219,7 +222,6 @@ function executeAction(action: string, currentStack: string[]): ActionResult {
       return {
         success: true,
         newState: 'INICIO',
-        response: '🔄 Sessão reiniciada! Como posso ajudar?',
         clearStack: true,
       };
 
@@ -227,7 +229,6 @@ function executeAction(action: string, currentStack: string[]): ActionResult {
       return {
         success: true,
         newState: 'ENCERRADO',
-        response: '👋 Sessão encerrada. Até logo!',
         clearStack: true,
       };
 
@@ -235,7 +236,6 @@ function executeAction(action: string, currentStack: string[]): ActionResult {
       return {
         success: true,
         newState: 'AGUARDANDO_HUMANO',
-        response: '👤 Encaminhando para um atendente. Por favor, aguarde...',
       };
 
     default:
