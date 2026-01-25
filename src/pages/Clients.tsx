@@ -349,6 +349,7 @@ export default function Clients() {
           `email.ilike.${like}`,
           `telegram.ilike.${like}`,
           `app_name.ilike.${like}`,
+          `login.ilike.${like}`,
         ];
         if (digits.length >= 4) {
           orParts.push(`phone.ilike.%${digits}%`);
@@ -406,6 +407,7 @@ export default function Clients() {
           `email.ilike.${like}`,
           `telegram.ilike.${like}`,
           `app_name.ilike.${like}`,
+          `login.ilike.${like}`,
         ];
         if (digits.length >= 4) {
           orParts.push(`phone.ilike.%${digits}%`);
