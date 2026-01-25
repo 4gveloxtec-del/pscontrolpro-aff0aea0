@@ -295,9 +295,16 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const body = await req.json();
-    const { seller_id, command_text, sender_phone, instance_name, logs_enabled = true } = body;
+    const { 
+      seller_id, 
+      command_text, 
+      sender_phone, 
+      instance_name, 
+      logs_enabled = true,
+      from_attendant = false // Flag para indicar disparo ativo pelo atendente
+    } = body;
 
-    console.log(`[process-command] Received: "${command_text}" from ${sender_phone} for seller ${seller_id}, logs_enabled: ${logs_enabled}`);
+    console.log(`[process-command] Received: "${command_text}" from ${sender_phone} for seller ${seller_id}, logs_enabled: ${logs_enabled}, from_attendant: ${from_attendant}`);
 
     // More explicit validation (this was previously a generic "Missing required fields")
     const missing: string[] = [];
@@ -429,11 +436,12 @@ Deno.serve(async (req) => {
     
     // =====================================================================
     // CRITICAL FIX: If no phone provided in command, use SENDER's phone
-    // This allows clients to send just "/teste" and receive their own test
+    // - Cliente envia /teste -> sender_phone é o próprio cliente
+    // - Atendente envia /teste -> sender_phone é o cliente na conversa (remoteJid)
     // =====================================================================
     if (isTestCommand && !clientPhone && sender_phone) {
       clientPhone = normalizePhoneDigits(sender_phone);
-      console.log(`[process-command] No phone in command args, using sender_phone: ${clientPhone}`);
+      console.log(`[process-command] No phone in command args, using sender_phone: ${clientPhone} (from_attendant: ${from_attendant})`);
     }
     
     const testPlan = (api?.name && String(api.name).trim())
