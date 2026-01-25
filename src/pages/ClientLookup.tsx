@@ -268,91 +268,104 @@ function ClientLookup() {
     staleTime: 60000,
   });
   
-  // Decrypt credentials function - defined after clientFullData query
-  const handleDecryptCredentials = useCallback(async () => {
-    if (!clientFullData || isDecrypting) return;
-    
-    setIsDecrypting(true);
-    try {
-      const [login, password, login_2, password_2] = await Promise.all([
-        clientFullData.login ? decrypt(clientFullData.login) : Promise.resolve(''),
-        clientFullData.password ? decrypt(clientFullData.password) : Promise.resolve(''),
-        clientFullData.login_2 ? decrypt(clientFullData.login_2) : Promise.resolve(''),
-        clientFullData.password_2 ? decrypt(clientFullData.password_2) : Promise.resolve(''),
-      ]);
-      
-      setDecryptedCredentials({ login, password, login_2, password_2 });
-    } catch (error) {
-      console.error('Failed to decrypt credentials:', error);
-      // If decryption fails, show original values (might not be encrypted)
-      setDecryptedCredentials({
-        login: clientFullData.login || '',
-        password: clientFullData.password || '',
-        login_2: clientFullData.login_2 || '',
-        password_2: clientFullData.password_2 || '',
-      });
-    } finally {
-      setIsDecrypting(false);
-    }
-  }, [clientFullData, decrypt, isDecrypting]);
-
-  // Decrypt all apps credentials function
-  const handleDecryptAllApps = useCallback(async () => {
-    if (!clientFullData || isDecryptingApps) return;
-    
-    setIsDecryptingApps(true);
-    try {
-      // Decrypt external apps
-      const externalAppsDecrypted: DecryptedAppCredentials = {};
-      if (clientFullData.external_apps) {
-        for (const app of clientFullData.external_apps) {
-          const [email, password] = await Promise.all([
-            app.email ? decrypt(app.email) : Promise.resolve(''),
-            app.password ? decrypt(app.password) : Promise.resolve(''),
-          ]);
-          externalAppsDecrypted[app.id] = { email, password };
-        }
-      }
-      setDecryptedApps(externalAppsDecrypted);
-      
-      // Decrypt premium accounts
-      const premiumDecrypted: DecryptedAppCredentials = {};
-      if (clientFullData.premium_accounts) {
-        for (const acc of clientFullData.premium_accounts) {
-          const [email, password] = await Promise.all([
-            acc.email ? decrypt(acc.email) : Promise.resolve(''),
-            acc.password ? decrypt(acc.password) : Promise.resolve(''),
-          ]);
-          premiumDecrypted[acc.id] = { email, password };
-        }
-      }
-      setDecryptedPremium(premiumDecrypted);
-      
-      // Decrypt legacy paid apps
-      if (clientFullData.has_paid_apps) {
-        const [email, password] = await Promise.all([
-          clientFullData.paid_apps_email ? decrypt(clientFullData.paid_apps_email) : Promise.resolve(''),
-          clientFullData.paid_apps_password ? decrypt(clientFullData.paid_apps_password) : Promise.resolve(''),
-        ]);
-        setDecryptedLegacy({ email, password });
-      }
-    } catch (error) {
-      console.error('Failed to decrypt apps credentials:', error);
-    } finally {
-      setIsDecryptingApps(false);
-    }
-  }, [clientFullData, decrypt, isDecryptingApps]);
-
   // Auto-decrypt all credentials when client data loads
   useEffect(() => {
-    if (clientFullData && !autoDecryptDone && !isDecrypting && !isDecryptingApps) {
+    if (!clientFullData || autoDecryptDone) return;
+    
+    const autoDecrypt = async () => {
       setAutoDecryptDone(true);
-      // Auto-decrypt main credentials
-      handleDecryptCredentials();
-      // Auto-decrypt apps credentials
-      handleDecryptAllApps();
-    }
-  }, [clientFullData, autoDecryptDone, isDecrypting, isDecryptingApps, handleDecryptCredentials, handleDecryptAllApps]);
+      
+      // Decrypt main credentials
+      setIsDecrypting(true);
+      try {
+        const [login, password, login_2, password_2] = await Promise.all([
+          clientFullData.login ? decrypt(clientFullData.login) : Promise.resolve(''),
+          clientFullData.password ? decrypt(clientFullData.password) : Promise.resolve(''),
+          clientFullData.login_2 ? decrypt(clientFullData.login_2) : Promise.resolve(''),
+          clientFullData.password_2 ? decrypt(clientFullData.password_2) : Promise.resolve(''),
+        ]);
+        
+        setDecryptedCredentials({ login, password, login_2, password_2 });
+      } catch (error) {
+        console.error('Failed to decrypt credentials:', error);
+        // If decryption fails, show original values (might not be encrypted)
+        setDecryptedCredentials({
+          login: clientFullData.login || '',
+          password: clientFullData.password || '',
+          login_2: clientFullData.login_2 || '',
+          password_2: clientFullData.password_2 || '',
+        });
+      } finally {
+        setIsDecrypting(false);
+      }
+      
+      // Decrypt apps credentials
+      setIsDecryptingApps(true);
+      try {
+        // Decrypt external apps
+        const externalAppsDecrypted: DecryptedAppCredentials = {};
+        if (clientFullData.external_apps) {
+          for (const app of clientFullData.external_apps) {
+            try {
+              const [email, password] = await Promise.all([
+                app.email ? decrypt(app.email) : Promise.resolve(''),
+                app.password ? decrypt(app.password) : Promise.resolve(''),
+              ]);
+              externalAppsDecrypted[app.id] = { email, password };
+            } catch {
+              externalAppsDecrypted[app.id] = { 
+                email: app.email || '', 
+                password: app.password || '' 
+              };
+            }
+          }
+        }
+        setDecryptedApps(externalAppsDecrypted);
+        
+        // Decrypt premium accounts
+        const premiumDecrypted: DecryptedAppCredentials = {};
+        if (clientFullData.premium_accounts) {
+          for (const acc of clientFullData.premium_accounts) {
+            try {
+              const [email, password] = await Promise.all([
+                acc.email ? decrypt(acc.email) : Promise.resolve(''),
+                acc.password ? decrypt(acc.password) : Promise.resolve(''),
+              ]);
+              premiumDecrypted[acc.id] = { email, password };
+            } catch {
+              premiumDecrypted[acc.id] = { 
+                email: acc.email || '', 
+                password: acc.password || '' 
+              };
+            }
+          }
+        }
+        setDecryptedPremium(premiumDecrypted);
+        
+        // Decrypt legacy paid apps
+        if (clientFullData.has_paid_apps) {
+          try {
+            const [email, password] = await Promise.all([
+              clientFullData.paid_apps_email ? decrypt(clientFullData.paid_apps_email) : Promise.resolve(''),
+              clientFullData.paid_apps_password ? decrypt(clientFullData.paid_apps_password) : Promise.resolve(''),
+            ]);
+            setDecryptedLegacy({ email, password });
+          } catch {
+            setDecryptedLegacy({ 
+              email: clientFullData.paid_apps_email || '', 
+              password: clientFullData.paid_apps_password || '' 
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to decrypt apps credentials:', error);
+      } finally {
+        setIsDecryptingApps(false);
+      }
+    };
+    
+    autoDecrypt();
+  }, [clientFullData, autoDecryptDone, decrypt]);
 
   const getStatusBadge = (expirationDate: string) => {
     const expDate = parseISO(expirationDate);
