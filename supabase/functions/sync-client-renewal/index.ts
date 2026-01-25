@@ -106,9 +106,10 @@ Deno.serve(async (req) => {
     console.log(`[sync-renewal] Processing renewal for seller ${seller_id}, phone ${client_phone}`);
 
     // Buscar cliente pelo telefone (already normalized by Zod transform)
+    // Incluir campos de integração para validação
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, name, phone, expiration_date, plan_id, plan_name, plan_price, is_archived')
+      .select('id, name, phone, expiration_date, plan_id, plan_name, plan_price, is_archived, is_integrated, integration_origin')
       .eq('seller_id', seller_id)
       .eq('phone', client_phone)
       .eq('is_archived', false)
@@ -137,6 +138,47 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // =====================================================================
+    // VALIDAÇÃO DE INTEGRAÇÃO
+    // Apenas clientes criados via API (is_integrated = true) participam
+    // da sincronização automática. Clientes manuais são ignorados.
+    // =====================================================================
+    if (!client.is_integrated) {
+      console.log(`[sync-renewal] Client ${client.name} (${client.id}) is NOT integrated - skipping sync`);
+      console.log(`[sync-renewal] Integration status: is_integrated=${client.is_integrated}, origin=${client.integration_origin}`);
+      
+      // Registrar no log técnico sem alterar dados
+      await supabase.from('server_sync_log').insert({
+        seller_id,
+        client_id: client.id,
+        client_phone,
+        sync_type: 'renewal',
+        source,
+        success: false,
+        error_message: 'Client is not integrated (manual client) - sync skipped',
+        server_response: {
+          is_integrated: client.is_integrated,
+          integration_origin: client.integration_origin,
+          message_content: message_content?.substring(0, 200),
+        },
+      });
+
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Client not integrated',
+          reason: 'manual_client',
+          client_id: client.id,
+          client_name: client.name,
+          is_integrated: false,
+          sync_skipped: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[sync-renewal] Client ${client.name} is integrated (origin: ${client.integration_origin}) - proceeding with sync`);
 
     // Determinar nova data de vencimento
     let newExpirationDate: Date;

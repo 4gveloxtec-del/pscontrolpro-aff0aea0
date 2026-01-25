@@ -307,6 +307,10 @@ Deno.serve(async (req) => {
     });
 
     // Criar o cliente com suporte a testes curtos (horas)
+    // =====================================================================
+    // INTEGRAÇÃO: Clientes criados via API recebem is_integrated = true
+    // Apenas esses clientes participam da sincronização automática
+    // =====================================================================
     const clientData: Record<string, unknown> = {
       seller_id,
       name: clientName,
@@ -330,8 +334,14 @@ Deno.serve(async (req) => {
       // Marcar como cliente de teste
       is_test: true,
       
+      // =====================================================================
+      // CAMPOS DE INTEGRAÇÃO - Sincronização automática habilitada
+      // =====================================================================
+      is_integrated: true,
+      integration_origin: 'api',
+      
       // Notas com informações do teste
-      notes: `[TESTE] Gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Expira: ${finalExpirationDatetime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+      notes: `[TESTE API] Gerado automaticamente via comando WhatsApp em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Expira: ${finalExpirationDatetime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. [INTEGRADO]`,
     };
 
     const { data: newClient, error: insertError } = await supabase
