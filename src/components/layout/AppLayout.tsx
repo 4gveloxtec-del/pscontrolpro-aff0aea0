@@ -325,11 +325,6 @@ export function AppLayout() {
         )}>
           <Outlet />
         </div>
-        
-        {/* Version footer */}
-        <div className="text-center py-4 text-xs text-muted-foreground/50">
-          v1.0
-        </div>
       </main>
       {isMobile && (
         <>
