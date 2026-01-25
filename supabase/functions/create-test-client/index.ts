@@ -1,4 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { normalizePhoneWithDDI } from "../_shared/phone-utils.ts";
+import { parseExpirationDate, formatDateBR, toISODateString } from "../_shared/date-utils.ts";
+import { encryptData } from "../_shared/crypto-utils.ts";
+import { extractByPath } from "../_shared/object-utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,117 +20,20 @@ interface TestApiResponse {
   [key: string]: unknown;
 }
 
-/**
- * Extrai valor de um objeto usando notação de ponto (ex: "data.credentials.login")
- */
-function extractByPath(obj: unknown, path: string): unknown {
-  if (!path || typeof obj !== 'object' || obj === null) return undefined;
-  
-  const parts = path.split('.');
-  let current: unknown = obj;
-  
-  for (const part of parts) {
-    if (current === null || current === undefined) return undefined;
-    if (typeof current !== 'object') return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  
-  return current;
-}
-
-/**
- * Criptografa dados sensíveis
- */
-async function encryptData(supabaseUrl: string, serviceKey: string, plaintext: string): Promise<string> {
-  // AbortController with 15s timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-  
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/crypto`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({ action: 'encrypt', data: plaintext }),
-      signal: controller.signal,
-    });
-    
-    if (!response.ok) {
-      console.error('[create-test-client] Encryption failed:', await response.text());
-      return plaintext; // Fallback: não criptografado
-    }
-    
-    const result = await response.json();
-    return result.encrypted || plaintext;
-  } catch (error) {
-    console.error('[create-test-client] Encryption error:', error);
-    return plaintext;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-/**
- * Parseia data no formato brasileiro ou ISO
- */
-function parseExpirationDate(dateStr: string | undefined): Date | null {
-  if (!dateStr) return null;
-  
-  // Formato: dd/MM/yyyy HH:mm:ss ou dd/MM/yyyy
-  const brMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (brMatch) {
-    const [, day, month, year] = brMatch;
-    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0);
-  }
-  
-  // Formato ISO: yyyy-MM-dd
-  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const [, year, month, day] = isoMatch;
-    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0);
-  }
-  
-  return null;
-}
-
-/**
- * Normaliza telefone para padrão brasileiro com DDI 55
- * - Remove caracteres não numéricos
- * - Adiciona DDI 55 se não existir
- * - Garante formato consistente
- */
-function normalizePhoneWithDDI(phone: string | null | undefined): string | null {
-  if (!phone) return null;
-  
-  // Remove tudo que não é número
-  let digits = phone.replace(/\D/g, '');
-  
-  if (digits.length < 8) {
-    console.log(`[create-test-client] Phone too short: ${digits}`);
-    return null;
-  }
-  
-  // Se começa com 55 e tem 12-13 dígitos, já está correto
-  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
-    return digits;
-  }
-  
-  // Se tem 10-11 dígitos (DDD + número), adiciona 55
-  if (digits.length >= 10 && digits.length <= 11) {
-    return '55' + digits;
-  }
-  
-  // Se tem 8-9 dígitos (apenas número local), não temos DDD - retorna como está
-  // Isso não deveria acontecer com WhatsApp, mas é um fallback
-  if (digits.length >= 8 && digits.length <= 9) {
-    console.log(`[create-test-client] Phone without DDD: ${digits}, keeping as-is`);
-    return digits;
-  }
-  
-  // Se já é um número grande (provavelmente internacional), manter como está
-  return digits;
+interface TestConfig {
+  id: string;
+  seller_id: string;
+  api_id: string | null;
+  server_id: string | null;
+  client_name_prefix: string;
+  test_counter: number;
+  auto_create_client: boolean;
+  map_login_path: string;
+  map_password_path: string;
+  map_dns_path: string;
+  map_expiration_path: string;
+  category: string;
+  default_duration_hours: number;
 }
 
 Deno.serve(async (req) => {
