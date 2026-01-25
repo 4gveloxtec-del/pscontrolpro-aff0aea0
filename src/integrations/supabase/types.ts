@@ -700,9 +700,13 @@ export type Database = {
       }
       bot_sessions: {
         Row: {
+          context: Json | null
           created_at: string
           id: string
+          last_interaction: string | null
           locked: boolean
+          phone: string | null
+          previous_state: string | null
           seller_id: string
           stack: Json
           state: string
@@ -710,9 +714,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          context?: Json | null
           created_at?: string
           id?: string
+          last_interaction?: string | null
           locked?: boolean
+          phone?: string | null
+          previous_state?: string | null
           seller_id: string
           stack?: Json
           state?: string
@@ -720,9 +728,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          context?: Json | null
           created_at?: string
           id?: string
+          last_interaction?: string | null
           locked?: boolean
+          phone?: string | null
+          previous_state?: string | null
           seller_id?: string
           stack?: Json
           state?: string
