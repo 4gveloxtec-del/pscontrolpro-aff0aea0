@@ -38,6 +38,9 @@ export interface TestIntegrationConfigData {
   logs_enabled: boolean;
   is_active: boolean;
   default_duration_hours: number;
+  post_endpoint: string | null;
+  get_endpoint: string | null;
+  api_key: string | null;
 }
 
 export interface TestConfigFormData {
@@ -54,6 +57,9 @@ export interface TestConfigFormData {
   detect_renewal_keywords: string;
   logs_enabled: boolean;
   default_duration_hours: number;
+  post_endpoint: string;
+  get_endpoint: string;
+  api_key: string;
 }
 
 const DEFAULT_FORM_DATA: TestConfigFormData = {
@@ -70,6 +76,9 @@ const DEFAULT_FORM_DATA: TestConfigFormData = {
   detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
   logs_enabled: true,
   default_duration_hours: 2,
+  post_endpoint: '',
+  get_endpoint: '',
+  api_key: '',
 };
 
 export function useTestIntegrationConfig() {
@@ -157,6 +166,9 @@ export function useTestIntegrationConfig() {
         detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || DEFAULT_FORM_DATA.detect_renewal_keywords,
         logs_enabled: config.logs_enabled ?? true,
         default_duration_hours: config.default_duration_hours ?? 2,
+        post_endpoint: config.post_endpoint || '',
+        get_endpoint: config.get_endpoint || '',
+        api_key: config.api_key || '',
       });
     } else {
       setFormData(DEFAULT_FORM_DATA);
@@ -191,6 +203,9 @@ export function useTestIntegrationConfig() {
         detect_renewal_keywords: keywordsArray,
         logs_enabled: formData.logs_enabled,
         default_duration_hours: formData.default_duration_hours,
+        post_endpoint: formData.post_endpoint || null,
+        get_endpoint: formData.get_endpoint || null,
+        api_key: formData.api_key || null,
         is_active: true,
       };
 
