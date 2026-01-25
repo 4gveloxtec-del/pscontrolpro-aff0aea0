@@ -153,6 +153,11 @@ Deno.serve(async (req) => {
         : `${clientNamePrefix}${newCounter}`;
       const configServerIdForLog = (config as Record<string, unknown>)?.server_id as string | null;
       
+      // Calcular datetime de expiração para log-only (usar duração padrão)
+      const durationHours = Number((config as Record<string, unknown>)?.default_duration_hours) || 2;
+      const logExpirationDatetime = new Date();
+      logExpirationDatetime.setHours(logExpirationDatetime.getHours() + durationHours);
+      
       await supabase.from('test_generation_log').insert({
         seller_id,
         api_id,
@@ -161,11 +166,13 @@ Deno.serve(async (req) => {
         username,
         password,
         dns,
-        expiration_date: expirationDate?.toISOString().split('T')[0] || null,
+        expiration_date: expirationDate?.toISOString().split('T')[0] || logExpirationDatetime.toISOString().split('T')[0],
+        expiration_datetime: expirationDate?.toISOString() || logExpirationDatetime.toISOString(),
         client_created: false,
         error_message: 'Auto-create disabled - log only',
         test_name: testName,
         server_id: configServerIdForLog,
+        notified_20min: false,
       });
       
       return new Response(
@@ -405,7 +412,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Registrar no log com nome do teste e servidor
+    // Registrar no log com nome do teste, servidor e datetime preciso
     await supabase.from('test_generation_log').insert({
       seller_id,
       api_id,
@@ -415,11 +422,12 @@ Deno.serve(async (req) => {
       username,
       password,
       dns,
-      expiration_date: expirationDate?.toISOString().split('T')[0],
+      expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
+      expiration_datetime: finalExpirationDatetime.toISOString(), // Precisão em horas/minutos
       client_created: wasCreated,
-      // Novos campos para rastreamento completo
       test_name: clientName,
       server_id: configServerId,
+      notified_20min: false,
     });
 
     return new Response(

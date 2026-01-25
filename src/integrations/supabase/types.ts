@@ -3223,7 +3223,9 @@ export type Database = {
           dns: string | null
           error_message: string | null
           expiration_date: string | null
+          expiration_datetime: string | null
           id: string
+          notified_20min: boolean | null
           password: string | null
           seller_id: string
           sender_phone: string
@@ -3240,7 +3242,9 @@ export type Database = {
           dns?: string | null
           error_message?: string | null
           expiration_date?: string | null
+          expiration_datetime?: string | null
           id?: string
+          notified_20min?: boolean | null
           password?: string | null
           seller_id: string
           sender_phone: string
@@ -3257,7 +3261,9 @@ export type Database = {
           dns?: string | null
           error_message?: string | null
           expiration_date?: string | null
+          expiration_datetime?: string | null
           id?: string
+          notified_20min?: boolean | null
           password?: string | null
           seller_id?: string
           sender_phone?: string
