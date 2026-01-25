@@ -34,21 +34,39 @@ export interface CommandResult {
 // COMANDOS GLOBAIS
 // =====================================================================
 
+/**
+ * Comandos universais que funcionam em QUALQUER estado/fluxo:
+ * 
+ * "0"  → Retorna ao previous_state (menu anterior)
+ * "#"  → Retorna ao START (menu inicial)
+ */
 export const GLOBAL_COMMANDS: GlobalCommand[] = [
+  // NAVEGAÇÃO UNIVERSAL (prioridade máxima)
   {
-    keywords: ['menu', 'cardapio', 'opcoes', 'opções'],
-    action: 'menu',
-    description: 'Vai para o menu principal e limpa a pilha de navegação'
+    keywords: ['0'],
+    action: 'back_to_previous',
+    description: 'Retorna ao menu anterior (previous_state)'
   },
   {
-    keywords: ['voltar', 'anterior', 'retornar', '*', '#'],
-    action: 'voltar',
+    keywords: ['#'],
+    action: 'back_to_start',
+    description: 'Retorna ao menu inicial (START)'
+  },
+  // Comandos por texto
+  {
+    keywords: ['voltar', 'anterior', 'retornar', '*'],
+    action: 'back_to_previous',
     description: 'Retorna ao estado anterior'
   },
   {
-    keywords: ['inicio', 'início', 'começo', 'reiniciar', 'restart', '00', '##'],
-    action: 'inicio',
-    description: 'Reinicia a sessão completamente'
+    keywords: ['inicio', 'início', 'começo', 'reiniciar', 'start', '00', '##'],
+    action: 'back_to_start',
+    description: 'Reinicia a sessão para o início'
+  },
+  {
+    keywords: ['menu', 'cardapio', 'opcoes', 'opções'],
+    action: 'menu',
+    description: 'Vai para o menu principal'
   },
   {
     keywords: ['sair', 'exit', 'encerrar', 'tchau', 'bye', 'fim'],
@@ -103,20 +121,22 @@ export async function processGlobalCommand(
   // ⚠️ NÃO envia mensagens - apenas muda estado/stack
   // As mensagens devem vir dos fluxos configurados nas tabelas bot_engine_*
   switch (command.action) {
+    case 'back_to_previous':
+      // "0" → Retorna ao previous_state
+      const previousState = await popStack(userId, sellerId);
+      const backState = previousState || 'START';
+      return { handled: true, command: 'back_to_previous', newState: backState };
+
+    case 'back_to_start':
+      // "#" → Retorna ao START
+      await clearStack(userId, sellerId);
+      await setState(userId, sellerId, 'START');
+      return { handled: true, command: 'back_to_start', newState: 'START' };
+
     case 'menu':
       await clearStack(userId, sellerId);
       await setState(userId, sellerId, 'MENU');
       return { handled: true, command: 'menu', newState: 'MENU' };
-
-    case 'voltar':
-      const previousState = await popStack(userId, sellerId);
-      const backState = previousState || 'MENU';
-      return { handled: true, command: 'voltar', newState: backState };
-
-    case 'inicio':
-      await clearStack(userId, sellerId);
-      await setState(userId, sellerId, 'INICIO');
-      return { handled: true, command: 'inicio', newState: 'INICIO' };
 
     case 'sair':
       await clearStack(userId, sellerId);
