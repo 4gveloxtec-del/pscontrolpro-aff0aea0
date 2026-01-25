@@ -292,11 +292,7 @@ function executeAction(
   previousState: string
 ): ActionResult {
   switch (action) {
-    // =========================================================
-    // "0" → Retornar ao previous_state (menu anterior)
-    // =========================================================
     case 'back_to_previous':
-      // Usar previous_state do banco (trigger atualiza automaticamente)
       const backState = previousState || 'START';
       const stackAfterBack = [...currentStack];
       if (stackAfterBack.length > 0) {
@@ -308,9 +304,6 @@ function executeAction(
         popStack: true,
       };
 
-    // =========================================================
-    // "#" → Retornar para o estado START (menu inicial)
-    // =========================================================
     case 'back_to_start':
       return {
         success: true,
@@ -318,9 +311,6 @@ function executeAction(
         clearStack: true,
       };
 
-    // =========================================================
-    // Comandos adicionais
-    // =========================================================
     case 'menu':
       return {
         success: true,
@@ -344,6 +334,172 @@ function executeAction(
     default:
       return { success: false };
   }
+}
+
+/**
+ * Busca mensagem do fluxo baseado no estado atual
+ */
+async function getFlowMessage(
+  supabase: SupabaseClient,
+  sellerId: string,
+  state: string
+): Promise<string | null> {
+  // Buscar fluxo ativo do seller
+  const { data: flows } = await supabase
+    .from('bot_engine_flows')
+    .select('id, trigger_keywords')
+    .eq('seller_id', sellerId)
+    .eq('is_active', true)
+    .order('priority', { ascending: false });
+
+  if (!flows || flows.length === 0) return null;
+
+  // Encontrar nó que corresponde ao estado
+  for (const flow of flows) {
+    const { data: nodes } = await supabase
+      .from('bot_engine_nodes')
+      .select('id, config, node_type')
+      .eq('flow_id', flow.id)
+      .eq('seller_id', sellerId);
+
+    if (nodes) {
+      // Procurar nó com name ou state_name correspondente
+      const matchingNode = nodes.find((n) => {
+        const config = n.config as Record<string, unknown> || {};
+        return (
+          config.state_name === state || 
+          config.menu_key === state ||
+          (state === 'START' && n.node_type === 'start')
+        );
+      });
+
+      if (matchingNode) {
+        const config = matchingNode.config as Record<string, unknown> || {};
+        return (config.message_text as string) || null;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Processa entrada do usuário e determina próximo estado/resposta
+ */
+async function processUserInput(
+  supabase: SupabaseClient,
+  sellerId: string,
+  currentState: string,
+  parsed: ParsedInput,
+  currentStack: string[]
+): Promise<{ newState: string; response: string | null; pushToStack: boolean }> {
+  // Buscar fluxo e nós
+  const { data: flows } = await supabase
+    .from('bot_engine_flows')
+    .select('id')
+    .eq('seller_id', sellerId)
+    .eq('is_active', true)
+    .order('priority', { ascending: false })
+    .limit(1);
+
+  if (!flows || flows.length === 0) {
+    return { newState: currentState, response: null, pushToStack: false };
+  }
+
+  const flowId = flows[0].id;
+
+  // Buscar nó atual baseado no estado
+  const { data: currentNode } = await supabase
+    .from('bot_engine_nodes')
+    .select('id, config, node_type')
+    .eq('flow_id', flowId)
+    .eq('seller_id', sellerId)
+    .filter('config->>state_name', 'eq', currentState)
+    .maybeSingle();
+
+  if (!currentNode) {
+    // Tentar nó de entrada se estado é START
+    if (currentState === 'START') {
+      const { data: entryNode } = await supabase
+        .from('bot_engine_nodes')
+        .select('id, config')
+        .eq('flow_id', flowId)
+        .eq('is_entry_point', true)
+        .maybeSingle();
+
+      if (entryNode) {
+        const config = entryNode.config as Record<string, unknown> || {};
+        return { 
+          newState: 'START', 
+          response: (config.message_text as string) || null,
+          pushToStack: false
+        };
+      }
+    }
+    return { newState: currentState, response: null, pushToStack: false };
+  }
+
+  // Buscar edges (transições) do nó atual
+  const { data: edges } = await supabase
+    .from('bot_engine_edges')
+    .select('id, target_node_id, condition_type, condition_value, priority')
+    .eq('source_node_id', currentNode.id)
+    .eq('flow_id', flowId)
+    .order('priority', { ascending: false });
+
+  if (!edges || edges.length === 0) {
+    return { newState: currentState, response: null, pushToStack: false };
+  }
+
+  // Avaliar condições para encontrar próximo nó
+  for (const edge of edges) {
+    let matches = false;
+
+    switch (edge.condition_type) {
+      case 'always':
+        matches = true;
+        break;
+      case 'equals':
+        matches = parsed.normalized === (edge.condition_value || '').toLowerCase();
+        break;
+      case 'number':
+        matches = parsed.isNumber && parsed.number === parseInt(edge.condition_value || '0');
+        break;
+      case 'contains':
+        matches = parsed.normalized.includes((edge.condition_value || '').toLowerCase());
+        break;
+      case 'regex':
+        try {
+          matches = new RegExp(edge.condition_value || '', 'i').test(parsed.original);
+        } catch {
+          matches = false;
+        }
+        break;
+    }
+
+    if (matches) {
+      // Buscar nó de destino
+      const { data: targetNode } = await supabase
+        .from('bot_engine_nodes')
+        .select('id, config, node_type')
+        .eq('id', edge.target_node_id)
+        .maybeSingle();
+
+      if (targetNode) {
+        const config = targetNode.config as Record<string, unknown> || {};
+        const newState = (config.state_name as string) || currentState;
+        const response = (config.message_text as string) || null;
+
+        return { 
+          newState, 
+          response,
+          pushToStack: true
+        };
+      }
+    }
+  }
+
+  return { newState: currentState, response: null, pushToStack: false };
 }
 
 /**
@@ -468,10 +624,9 @@ Deno.serve(async (req) => {
         .eq('seller_id', sellerId)
         .single();
 
-      const currentState = session?.state || 'INICIO';
-      const previousState = session?.previous_state || 'INICIO';
-      const currentStack: string[] = (session?.stack as string[]) || [];
-      const context = session?.context || {};
+      const currentState = session?.state || 'START';
+      const previousState = session?.previous_state || 'START';
+      let currentStack: string[] = (session?.stack as string[]) || [];
 
       // =========================================================
       // PASSO 2: parseInput
@@ -503,52 +658,81 @@ Deno.serve(async (req) => {
       }
 
       // =========================================================
-      // PASSO 3: Verificar comandos globais
+      // PASSO 3: Verificar comandos globais PRIMEIRO
       // =========================================================
       const globalCmd = matchGlobalCommand(parsed);
+      
+      let newState = currentState;
+      let responseMessage: string | null = null;
 
-      if (!globalCmd) {
-        // Não é comando global, deixar fluxo seguir
-        console.log(`[BotIntercept] No global command matched, passing through`);
-        await unlockSession(supabase, userId, sellerId);
-        return new Response(
-          JSON.stringify({ intercepted: false, should_continue: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      if (globalCmd) {
+        console.log(`[BotIntercept] Global command matched: ${globalCmd.action}`);
+        
+        // =========================================================
+        // PASSO 4a: executeAction para comando global
+        // =========================================================
+        const actionResult = executeAction(globalCmd.action, currentStack, previousState);
+
+        if (actionResult.success && actionResult.newState) {
+          newState = actionResult.newState;
+          
+          // Atualizar stack
+          if (actionResult.clearStack) {
+            currentStack = [];
+          } else if (actionResult.popStack && currentStack.length > 0) {
+            currentStack.pop();
+          }
+
+          // Buscar mensagem do estado destino no fluxo
+          responseMessage = await getFlowMessage(supabase, sellerId, newState);
+        }
+      } else {
+        // =========================================================
+        // PASSO 4b: Processar entrada do usuário pelo fluxo
+        // =========================================================
+        console.log(`[BotIntercept] Processing user input via flow, current state: ${currentState}`);
+        
+        const flowResult = await processUserInput(
+          supabase,
+          sellerId,
+          currentState,
+          parsed,
+          currentStack
         );
+
+        if (flowResult.response || flowResult.newState !== currentState) {
+          newState = flowResult.newState;
+          responseMessage = flowResult.response;
+
+          // Atualizar stack se navegou
+          if (flowResult.pushToStack && currentState !== 'START') {
+            currentStack.push(currentState);
+          }
+        }
       }
 
-      console.log(`[BotIntercept] Global command matched: ${globalCmd.action}`);
-
       // =========================================================
-      // PASSO 4: executeAction (com previousState para navegação "0")
+      // PASSO 5: Atualizar state e stack se houve mudança
       // =========================================================
-      const actionResult = executeAction(globalCmd.action, currentStack, previousState);
+      if (newState !== currentState || responseMessage) {
+        await supabase
+          .from('bot_sessions')
+          .update({
+            state: newState,
+            stack: currentStack,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+          .eq('seller_id', sellerId);
 
-      if (!actionResult.success) {
-        await unlockSession(supabase, userId, sellerId);
-        return new Response(
-          JSON.stringify({ intercepted: false, should_continue: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.log(`[BotIntercept] State updated: ${currentState} -> ${newState}, stack: [${currentStack.join(', ')}]`);
       }
 
       // =========================================================
-      // PASSO 5: Atualizar state e stack
+      // PASSO 6: Log da resposta
       // =========================================================
-      await updateStateAndStack(
-        supabase,
-        userId,
-        sellerId,
-        actionResult.newState || currentState,
-        actionResult,
-        currentStack
-      );
-
-      // =========================================================
-      // PASSO 6: sendMessage (log da resposta)
-      // =========================================================
-      if (actionResult.response) {
-        await logMessage(supabase, userId, sellerId, actionResult.response, false);
+      if (responseMessage) {
+        await logMessage(supabase, userId, sellerId, responseMessage, false);
       }
 
       // =========================================================
@@ -556,13 +740,27 @@ Deno.serve(async (req) => {
       // =========================================================
       await unlockSession(supabase, userId, sellerId);
 
+      // Se temos resposta, interceptamos a mensagem
+      if (responseMessage) {
+        return new Response(
+          JSON.stringify({
+            intercepted: true,
+            response: responseMessage,
+            new_state: newState,
+            should_continue: false,
+          } as BotInterceptResponse),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Se não há fluxo configurado, deixar passar para handler existente
+      console.log(`[BotIntercept] No flow response, passing to existing handlers`);
       return new Response(
-        JSON.stringify({
-          intercepted: true,
-          response: actionResult.response,
-          new_state: actionResult.newState,
-          should_continue: false,
-        } as BotInterceptResponse),
+        JSON.stringify({ 
+          intercepted: false, 
+          should_continue: true,
+          new_state: newState,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
