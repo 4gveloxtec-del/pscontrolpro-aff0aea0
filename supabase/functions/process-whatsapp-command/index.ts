@@ -115,13 +115,36 @@ function buildTestCommandPayload(params: {
   
   // =====================================================================
   // CAMPOS DE WHATSAPP - Garantir que o número seja enviado corretamente
+  // Inclui formatos usados por chatbots (remoteJid, sender, from) e 
+  // formatos específicos de painéis IPTV (telefone, celular, contact)
   // =====================================================================
+  
+  // Formato JID do WhatsApp (usado por chatbots Evolution/Baileys)
+  const whatsappJid = `${params.whatsappNumber}@s.whatsapp.net`;
+  
+  // Campos primários de WhatsApp
   payload.whatsapp = params.whatsappNumber;
   payload.whatsapp_number = params.whatsappNumber;
   payload.telefone = params.whatsappNumber;
   payload.celular = params.whatsappNumber;
   payload.contact = params.whatsappNumber;
   payload.contact_phone = params.whatsappNumber;
+  
+  // Campos de chatbot (remoteJid, sender, from) - formato esperado por Sigma/Evolution
+  payload.remoteJid = whatsappJid;
+  payload.remote_jid = whatsappJid;
+  payload.sender = params.whatsappNumber;
+  payload.senderNumber = params.whatsappNumber;
+  payload.sender_number = params.whatsappNumber;
+  payload.from = params.whatsappNumber;
+  payload.fromNumber = params.whatsappNumber;
+  payload.from_number = params.whatsappNumber;
+  
+  // Campos específicos de painéis IPTV
+  payload.cliente_whatsapp = params.whatsappNumber;
+  payload.cliente_telefone = params.whatsappNumber;
+  payload.user_phone = params.whatsappNumber;
+  payload.user_whatsapp = params.whatsappNumber;
 
   // Aliases (do not overwrite if already present)
   if (isBlank(payload.client_phone)) payload.client_phone = params.clientPhone;
@@ -134,10 +157,12 @@ function buildTestCommandPayload(params: {
   if (isBlank(payload.reseller_id)) payload.reseller_id = params.sellerId;
   if (params.instanceName && isBlank(payload.instance_name)) payload.instance_name = params.instanceName;
   
-  // Aliases de WhatsApp
+  // Aliases de WhatsApp adicionais
   if (isBlank(payload.client_whatsapp)) payload.client_whatsapp = params.whatsappNumber;
   if (isBlank(payload.wpp)) payload.wpp = params.whatsappNumber;
   if (isBlank(payload.zap)) payload.zap = params.whatsappNumber;
+  if (isBlank(payload.mobile)) payload.mobile = params.whatsappNumber;
+  if (isBlank(payload.phone_number)) payload.phone_number = params.whatsappNumber;
 
   // If the template already has a nested structure, also populate common nested objects.
   // This avoids breaking existing integrations that expect data/client wrappers.
