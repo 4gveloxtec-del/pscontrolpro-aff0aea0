@@ -1,13 +1,14 @@
-import { useTestLogs, TestLog } from '@/hooks/useTestLogs';
+import { useTestLogs, calcularTempoRestante } from '@/hooks/useTestLogs';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Trash2, Phone, User, Calendar, Loader2, CheckCircle, XCircle, RefreshCw, Server } from 'lucide-react';
+import { Trash2, Phone, User, Loader2, CheckCircle, XCircle, RefreshCw, Server, Clock, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 function formatPhone(phone: string): string {
   if (phone.length === 13) {
@@ -32,7 +33,7 @@ export function TestLogsManager() {
     deleteLogs,
     handleSelectLog,
     handleSelectAll,
-  } = useTestLogs({ limit: 100 });
+  } = useTestLogs({ limit: 100, autoRefreshInterval: 30000 });
 
   const handleDeleteSelected = () => {
     if (stats.selectedCount === 0) return;
@@ -46,7 +47,7 @@ export function TestLogsManager() {
     });
   };
 
-  const handleDeleteSingle = (log: TestLog) => {
+  const handleDeleteSingle = (log: typeof logs[0]) => {
     confirm({
       title: 'Remover Teste',
       description: `Remover o teste do número ${formatPhone(log.sender_phone)}? O cliente associado também será removido e o número será liberado para um novo teste.`,
@@ -76,10 +77,16 @@ export function TestLogsManager() {
                 <Phone className="h-4 w-4" />
                 Testes Gerados ({stats.total})
               </CardTitle>
-              <CardDescription className="text-xs mt-1">
-                <span className="text-green-600">{stats.created} criados</span>
-                {stats.failed > 0 && (
-                  <span className="text-red-600 ml-2">{stats.failed} falhos</span>
+              <CardDescription className="text-xs mt-1 flex items-center gap-3 flex-wrap">
+                <span className="text-green-600">{stats.ativos} ativos</span>
+                {stats.criticos > 0 && (
+                  <span className="text-red-600 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    {stats.criticos} críticos
+                  </span>
+                )}
+                {stats.vencidos > 0 && (
+                  <span className="text-muted-foreground">{stats.vencidos} vencidos</span>
                 )}
               </CardDescription>
             </div>
@@ -125,6 +132,9 @@ export function TestLogsManager() {
                   onCheckedChange={handleSelectAll}
                 />
                 <span className="text-xs text-muted-foreground">Selecionar todos</span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  ⏱️ Atualiza a cada 30s
+                </span>
               </div>
 
               {/* Lista de logs */}
@@ -149,22 +159,27 @@ export function TestLogsManager() {
   );
 }
 
-// Componente extraído para melhor performance com React.memo potential
+// Componente para cada item de log
 interface TestLogItemProps {
-  log: TestLog;
+  log: ReturnType<typeof useTestLogs>['logs'][0];
   isSelected: boolean;
   onSelect: (id: string, checked: boolean) => void;
-  onDelete: (log: TestLog) => void;
+  onDelete: (log: ReturnType<typeof useTestLogs>['logs'][0]) => void;
 }
 
 function TestLogItem({ log, isSelected, onSelect, onDelete }: TestLogItemProps) {
+  const { texto: tempoTexto, status: tempoStatus } = log.tempoRestante;
+
   return (
     <div
-      className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+      className={cn(
+        "flex items-center gap-3 p-2.5 rounded-lg border transition-colors",
         isSelected 
           ? 'bg-primary/5 border-primary/30' 
-          : 'bg-muted/30 hover:bg-muted/50'
-      }`}
+          : 'bg-muted/30 hover:bg-muted/50',
+        tempoStatus === 'critical' && 'border-red-300 dark:border-red-800',
+        tempoStatus === 'expired' && 'opacity-60'
+      )}
     >
       <Checkbox
         checked={isSelected}
@@ -179,13 +194,30 @@ function TestLogItem({ log, isSelected, onSelect, onDelete }: TestLogItemProps) 
               {log.test_name.split(' - ')[0]}
             </Badge>
           )}
+          
+          {/* Tempo restante - DESTAQUE PRINCIPAL */}
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-[10px] font-bold gap-1",
+              tempoStatus === 'ok' && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
+              tempoStatus === 'warning' && "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
+              tempoStatus === 'critical' && "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800 animate-pulse",
+              tempoStatus === 'expired' && "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700"
+            )}
+          >
+            <Clock className="h-2.5 w-2.5" />
+            {tempoTexto}
+          </Badge>
+
           <span className="font-mono text-sm font-medium">
             {formatPhone(log.sender_phone)}
           </span>
+          
           {log.client_created ? (
             <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
               <CheckCircle className="h-2.5 w-2.5" />
-              Cliente criado
+              Criado
             </Badge>
           ) : (
             <Badge variant="outline" className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
@@ -194,6 +226,7 @@ function TestLogItem({ log, isSelected, onSelect, onDelete }: TestLogItemProps) 
             </Badge>
           )}
         </div>
+        
         <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
           {log.username && (
             <span className="flex items-center gap-1">
@@ -207,11 +240,11 @@ function TestLogItem({ log, isSelected, onSelect, onDelete }: TestLogItemProps) 
               {log.servers.name}
             </span>
           )}
-          <span className="flex items-center gap-1">
-            <Calendar className="h-2.5 w-2.5" />
-            {format(new Date(log.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+          <span className="text-[9px]">
+            Criado: {format(new Date(log.created_at), "dd/MM HH:mm", { locale: ptBR })}
           </span>
         </div>
+        
         {log.error_message && (
           <p className="text-[10px] text-red-600 mt-0.5 truncate">
             {log.error_message}
