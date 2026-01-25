@@ -326,6 +326,342 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_engine_actions: {
+        Row: {
+          action_type: string
+          config: Json | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          seller_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          action_type: string
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          seller_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          action_type?: string
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          seller_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bot_engine_config: {
+        Row: {
+          created_at: string | null
+          default_timeout_minutes: number | null
+          fallback_message: string | null
+          id: string
+          is_enabled: boolean | null
+          seller_id: string
+          session_expire_minutes: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_timeout_minutes?: number | null
+          fallback_message?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          seller_id: string
+          session_expire_minutes?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_timeout_minutes?: number | null
+          fallback_message?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          seller_id?: string
+          session_expire_minutes?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bot_engine_edges: {
+        Row: {
+          condition_type: string | null
+          condition_value: string | null
+          created_at: string | null
+          flow_id: string
+          id: string
+          label: string | null
+          priority: number | null
+          seller_id: string
+          source_node_id: string
+          target_node_id: string
+        }
+        Insert: {
+          condition_type?: string | null
+          condition_value?: string | null
+          created_at?: string | null
+          flow_id: string
+          id?: string
+          label?: string | null
+          priority?: number | null
+          seller_id: string
+          source_node_id: string
+          target_node_id: string
+        }
+        Update: {
+          condition_type?: string | null
+          condition_value?: string | null
+          created_at?: string | null
+          flow_id?: string
+          id?: string
+          label?: string | null
+          priority?: number | null
+          seller_id?: string
+          source_node_id?: string
+          target_node_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_engine_edges_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_engine_edges_source_node_id_fkey"
+            columns: ["source_node_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_engine_edges_target_node_id_fkey"
+            columns: ["target_node_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_engine_flows: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          priority: number | null
+          seller_id: string
+          trigger_keywords: string[] | null
+          trigger_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          priority?: number | null
+          seller_id: string
+          trigger_keywords?: string[] | null
+          trigger_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          priority?: number | null
+          seller_id?: string
+          trigger_keywords?: string[] | null
+          trigger_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      bot_engine_message_log: {
+        Row: {
+          direction: string
+          id: string
+          message_content: string | null
+          message_type: string | null
+          metadata: Json | null
+          node_id: string | null
+          processed_at: string | null
+          seller_id: string
+          session_id: string | null
+        }
+        Insert: {
+          direction: string
+          id?: string
+          message_content?: string | null
+          message_type?: string | null
+          metadata?: Json | null
+          node_id?: string | null
+          processed_at?: string | null
+          seller_id: string
+          session_id?: string | null
+        }
+        Update: {
+          direction?: string
+          id?: string
+          message_content?: string | null
+          message_type?: string | null
+          metadata?: Json | null
+          node_id?: string | null
+          processed_at?: string | null
+          seller_id?: string
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_engine_message_log_node_id_fkey"
+            columns: ["node_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_engine_message_log_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_engine_nodes: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          flow_id: string
+          id: string
+          is_entry_point: boolean | null
+          name: string | null
+          node_type: string
+          position_x: number | null
+          position_y: number | null
+          seller_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          flow_id: string
+          id?: string
+          is_entry_point?: boolean | null
+          name?: string | null
+          node_type: string
+          position_x?: number | null
+          position_y?: number | null
+          seller_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          flow_id?: string
+          id?: string
+          is_entry_point?: boolean | null
+          name?: string | null
+          node_type?: string
+          position_x?: number | null
+          position_y?: number | null
+          seller_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_engine_nodes_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_engine_sessions: {
+        Row: {
+          awaiting_input: boolean | null
+          contact_name: string | null
+          contact_phone: string
+          current_node_id: string | null
+          ended_at: string | null
+          error_message: string | null
+          flow_id: string | null
+          id: string
+          input_variable_name: string | null
+          last_activity_at: string | null
+          seller_id: string
+          started_at: string | null
+          status: string | null
+          variables: Json | null
+        }
+        Insert: {
+          awaiting_input?: boolean | null
+          contact_name?: string | null
+          contact_phone: string
+          current_node_id?: string | null
+          ended_at?: string | null
+          error_message?: string | null
+          flow_id?: string | null
+          id?: string
+          input_variable_name?: string | null
+          last_activity_at?: string | null
+          seller_id: string
+          started_at?: string | null
+          status?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          awaiting_input?: boolean | null
+          contact_name?: string | null
+          contact_phone?: string
+          current_node_id?: string | null
+          ended_at?: string | null
+          error_message?: string | null
+          flow_id?: string | null
+          id?: string
+          input_variable_name?: string | null
+          last_activity_at?: string | null
+          seller_id?: string
+          started_at?: string | null
+          status?: string | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_engine_sessions_current_node_id_fkey"
+            columns: ["current_node_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_engine_sessions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_collection_jobs: {
         Row: {
           clients_data: Json
