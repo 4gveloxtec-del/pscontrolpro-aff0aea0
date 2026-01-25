@@ -4,6 +4,40 @@
 
 ---
 
+## ⚠️ Garantias de Isolamento
+
+| Garantia | Descrição |
+|----------|-----------|
+| ✅ **Não modifica funções existentes** | Nenhuma função de negócio IPTV é alterada |
+| ✅ **Não altera integrações prontas** | Evolution API, webhooks e comandos continuam intactos |
+| ✅ **Não recria APIs** | Usa as mesmas APIs e endpoints já existentes |
+| ✅ **Camada aditiva** | Apenas adiciona interceptação opcional |
+| ✅ **Escalável e reutilizável** | Baseado em tabelas de configuração, não código fixo |
+| ✅ **Documentado** | Cada função possui documentação inline |
+
+### Ponto de Integração Único
+
+O BotEngine se conecta ao sistema existente em **apenas um ponto**:
+
+```
+connection-heartbeat (webhook existente)
+         ↓
+   [try/catch seguro]
+         ↓
+   bot-engine-intercept → Se falhar ou retornar false, 
+         ↓                 continua para IPTV normalmente
+   [Se intercepted: true]
+         ↓
+   Envia resposta e continua
+```
+
+**Código de integração** (`connection-heartbeat`, linhas ~820-876):
+- Envolvido em `try/catch` para nunca quebrar o fluxo principal
+- Se `intercepted: false` → continua para comandos IPTV
+- Se ocorrer erro → log e continua normalmente
+
+---
+
 ## 📁 Estrutura de Arquivos
 
 ```
@@ -253,13 +287,32 @@ Mensagem Recebida
 
 ---
 
-## ⚠️ Regras Importantes
+## ⚠️ Regras Importantes (Contrato de Isolamento)
 
-1. **NÃO criar menus prontos** — Os menus vêm dos fluxos configurados
-2. **NÃO criar mensagens fixas** — As mensagens vêm dos nós `message`
-3. **NÃO interferir em `/comandos`** — Comandos com `/` passam direto
-4. **NÃO modificar webhook existente** — Apenas interceptar quando necessário
-5. **SEMPRE usar lock/unlock** — Evita processamento paralelo
+### O que o BotEngine FAZ:
+1. ✅ Interceptar mensagens ANTES do processamento IPTV
+2. ✅ Gerenciar estado/sessão do chatbot
+3. ✅ Responder com menus dinâmicos configurados em banco
+4. ✅ Logar todas as interações
+5. ✅ Usar lock atômico para anti-duplicação
+
+### O que o BotEngine NÃO FAZ:
+1. ❌ **NÃO modifica funções existentes** — Código IPTV permanece intacto
+2. ❌ **NÃO altera integrações prontas** — Evolution API, webhooks existentes
+3. ❌ **NÃO recria APIs** — Usa infraestrutura existente
+4. ❌ **NÃO interfere em `/comandos`** — Comandos com `/` passam direto
+5. ❌ **NÃO cria menus fixos em código** — Tudo vem do banco de dados
+
+### Tabelas Exclusivas (não afetam tabelas existentes):
+- `bot_engine_config` — Configuração por seller
+- `bot_engine_flows` — Fluxos de conversa
+- `bot_engine_nodes` — Nós dos fluxos
+- `bot_engine_edges` — Conexões entre nós
+- `bot_engine_menus` — Menus dinâmicos
+- `bot_engine_sessions` — Sessões ativas
+- `bot_engine_message_log` — Log de mensagens
+- `bot_sessions` — Estado/stack de navegação (legado)
+- `bot_logs` — Log de mensagens (legado)
 
 ---
 
