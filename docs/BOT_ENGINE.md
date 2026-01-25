@@ -4,6 +4,84 @@
 
 ---
 
+## 🏢 Arquitetura Multi-Revendedor (Multi-Tenant)
+
+O BotEngine foi projetado para operar com **total isolamento** entre revendedores, mesmo utilizando:
+- ✅ Uma única Evolution API global
+- ✅ Um único webhook global (`connection-heartbeat`)
+- ✅ Um único banco de dados
+
+### Como Funciona o Isolamento
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    EVOLUTION API GLOBAL                         │
+│                     (Único endpoint)                            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 WEBHOOK: connection-heartbeat                    │
+│                                                                  │
+│   1. Identifica seller_id pelo instance_name                    │
+│   2. Chama bot-engine-intercept com seller_id                   │
+│   3. Aplica isolamento via RLS                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+           ┌──────────────────┼──────────────────┐
+           ▼                  ▼                  ▼
+    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+    │ Revendedor A│    │ Revendedor B│    │ Revendedor C│
+    ├─────────────┤    ├─────────────┤    ├─────────────┤
+    │ • Seu bot   │    │ • Seu bot   │    │ • Seu bot   │
+    │ • Seus menus│    │ • Seus menus│    │ • Seus menus│
+    │ • Seus fluxos│   │ • Seus fluxos│   │ • Seus fluxos│
+    │ • Sessões   │    │ • Sessões   │    │ • Sessões   │
+    │   isoladas  │    │   isoladas  │    │   isoladas  │
+    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### Garantias de Isolamento por Camada
+
+| Camada | Mecanismo | Garantia |
+|--------|-----------|----------|
+| **Banco de Dados** | RLS (Row Level Security) | `seller_id = auth.uid()` |
+| **Edge Functions** | Parâmetro seller_id | Filtra TODAS as queries |
+| **Frontend Hooks** | user.id automático | Queries já filtradas |
+| **Webhook** | instance_name → seller | Identificação na entrada |
+
+### Tabelas Isoladas por seller_id
+
+Todas as tabelas do BotEngine possuem:
+- Coluna `seller_id UUID NOT NULL`
+- Índice em `seller_id`
+- RLS habilitado
+- Policy `USING (auth.uid() = seller_id)`
+
+```sql
+-- Exemplo de política RLS
+CREATE POLICY "Sellers can manage their own menus"
+ON public.bot_engine_menus
+FOR ALL
+USING (auth.uid() = seller_id)
+WITH CHECK (auth.uid() = seller_id);
+```
+
+### O Que Cada Revendedor Possui
+
+| Recurso | Tabela | Isolamento |
+|---------|--------|------------|
+| Configuração do Bot | `bot_engine_config` | 1 registro por seller |
+| Fluxos de Conversa | `bot_engine_flows` | N fluxos por seller |
+| Nós dos Fluxos | `bot_engine_nodes` | Via flow_id + seller_id |
+| Conexões | `bot_engine_edges` | Via flow_id + seller_id |
+| Menus Dinâmicos | `bot_engine_menus` | UNIQUE(seller_id, menu_key) |
+| Sessões Ativas | `bot_engine_sessions` | Por contato + seller |
+| Estado de Navegação | `bot_sessions` | user_id + seller_id |
+| Log de Mensagens | `bot_logs` | seller_id obrigatório |
+
+---
+
 ## ⚠️ Garantias de Isolamento
 
 | Garantia | Descrição |
