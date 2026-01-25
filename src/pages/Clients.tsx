@@ -336,7 +336,8 @@ export default function Clients() {
       let query = supabase
         .from('clients')
         .select('id', { count: 'exact', head: true })
-        .eq('seller_id', user.id);
+        .eq('seller_id', user.id)
+        .or('is_archived.is.null,is_archived.eq.false');
 
       const raw = debouncedSearch.trim();
       if (raw) {
@@ -362,7 +363,7 @@ export default function Clients() {
       return count || 0;
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 0, // Always refetch to ensure accurate count after deletions
   });
 
   // Update total count when it changes
@@ -394,7 +395,7 @@ export default function Clients() {
           app_name, app_type, device_model, additional_servers
         `)
 
-      query = query.eq('seller_id', user.id);
+      query = query.eq('seller_id', user.id).or('is_archived.is.null,is_archived.eq.false');
 
       const raw = debouncedSearch.trim();
       if (raw) {
