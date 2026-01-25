@@ -371,7 +371,7 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
     enabled: !!client.id && open,
   });
 
-  // Check if WhatsApp API is available
+  // Check if WhatsApp API is available - use maybeSingle to avoid PGRST116
   const { data: sellerInstance } = useQuery({
     queryKey: ['whatsapp-seller-instance-dialog', user?.id],
     queryFn: async () => {
@@ -379,8 +379,8 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
         .from('whatsapp_seller_instances')
         .select('*')
         .eq('seller_id', user!.id)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error;
+        .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!user?.id,
@@ -393,8 +393,10 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
         .from('whatsapp_global_config')
         .select('*')
         .eq('is_active', true)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error;
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });

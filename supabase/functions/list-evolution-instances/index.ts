@@ -25,14 +25,14 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const sellerId = body.seller_id;
 
-    // Get global config
+    // Get global config - use maybeSingle to avoid PGRST116
     const { data: globalConfig, error: configError } = await supabase
       .from('whatsapp_global_config')
       .select('*')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (configError || !globalConfig) {
       return new Response(JSON.stringify({ 
@@ -49,12 +49,22 @@ Deno.serve(async (req) => {
     const listUrl = `${baseUrl}/instance/fetchInstances`;
     console.log(`[list-instances] Fetching from: ${listUrl}`);
     
-    const response = await fetch(listUrl, {
-      method: 'GET',
-      headers: {
-        'apikey': globalConfig.api_token,
-      },
-    });
+    // AbortController with 15s timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    let response: Response;
+    try {
+      response = await fetch(listUrl, {
+        method: 'GET',
+        headers: {
+          'apikey': globalConfig.api_token,
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errText = await response.text();

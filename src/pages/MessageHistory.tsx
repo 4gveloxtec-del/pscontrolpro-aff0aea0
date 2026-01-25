@@ -107,7 +107,7 @@ export default function MessageHistory() {
   const [filterType, setFilterType] = useState<string>('all');
 
   // Query for manual messages
-  const { data: manualMessages = [], isLoading: loadingManual, refetch: refetchManual } = useQuery({
+  const { data: manualMessages = [], isLoading: loadingManual, isError: errorManual, refetch: refetchManual } = useQuery({
     queryKey: ['message-history', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -123,7 +123,7 @@ export default function MessageHistory() {
   });
 
   // Query for automatic notifications
-  const { data: autoNotifications = [], isLoading: loadingAuto, refetch: refetchAuto, isFetching } = useQuery({
+  const { data: autoNotifications = [], isLoading: loadingAuto, isError: errorAuto, refetch: refetchAuto, isFetching } = useQuery({
     queryKey: ['sent-notifications-history', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -150,7 +150,7 @@ export default function MessageHistory() {
 
       if (error) {
         console.error('Error fetching notifications:', error);
-        return [];
+        throw error;
       }
 
       return (data || []) as unknown as SentNotification[];
@@ -159,7 +159,7 @@ export default function MessageHistory() {
     refetchInterval: 60000,
   });
 
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [], isError: errorClients } = useQuery({
     queryKey: ['clients', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -209,6 +209,30 @@ export default function MessageHistory() {
   };
 
   const isLoading = loadingManual || loadingAuto;
+  const hasError = errorManual || errorAuto || errorClients;
+
+  // Error state guard
+  if (hasError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <History className="h-8 w-8 text-primary" />
+            Histórico de Mensagens
+          </h1>
+        </div>
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-muted-foreground mb-4">Erro ao carregar histórico de mensagens</p>
+            <Button variant="outline" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Stats
   const todayAutoCount = autoNotifications.filter(n => {

@@ -194,6 +194,36 @@ export function ServerPartnerAppsSection({
     return null;
   }
 
+  // Show loading state
+  if (appsLoading) {
+    return (
+      <div className="space-y-3 p-3 rounded-lg bg-card border border-border">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-md bg-amber-500/10">
+            <Handshake className="h-4 w-4 text-amber-600" />
+          </div>
+          <span className="font-medium text-sm">Apps Parceiros do Servidor</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Carregando apps...</p>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (appsError) {
+    return (
+      <div className="space-y-3 p-3 rounded-lg bg-card border border-destructive/30">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-md bg-destructive/10">
+            <Handshake className="h-4 w-4 text-destructive" />
+          </div>
+          <span className="font-medium text-sm text-destructive">Erro ao carregar apps parceiros</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Não foi possível carregar os apps parceiros. Tente novamente.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 p-3 rounded-lg bg-card border border-border">
       <div className="flex items-center justify-between flex-wrap gap-2">

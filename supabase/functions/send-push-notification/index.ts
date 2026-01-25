@@ -351,17 +351,26 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Send the push notification
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `vapid t=${token}, k=${vapidPublicKey}`,
-            'Content-Type': 'application/octet-stream',
-            'Content-Encoding': 'aes128gcm',
-            'TTL': '86400',
-          },
-          body: toArrayBuffer(encryptedBody),
-        });
+        // Send the push notification with 15s timeout
+        const pushController = new AbortController();
+        const pushTimeoutId = setTimeout(() => pushController.abort(), 15000);
+        
+        let response: Response;
+        try {
+          response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Authorization': `vapid t=${token}, k=${vapidPublicKey}`,
+              'Content-Type': 'application/octet-stream',
+              'Content-Encoding': 'aes128gcm',
+              'TTL': '86400',
+            },
+            body: toArrayBuffer(encryptedBody),
+            signal: pushController.signal,
+          });
+        } finally {
+          clearTimeout(pushTimeoutId);
+        }
 
         console.log('[send-push] Response:', response.status);
 

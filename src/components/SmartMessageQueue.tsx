@@ -278,12 +278,12 @@ export function SmartMessageQueue() {
         return;
       }
 
-      // Get seller profile for variables
+      // Get seller profile for variables - use maybeSingle to avoid PGRST116
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user!.id)
-        .single();
+        .maybeSingle();
 
       // Replace variables
       const message = template.message

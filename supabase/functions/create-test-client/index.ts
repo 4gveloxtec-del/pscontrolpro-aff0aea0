@@ -38,6 +38,10 @@ function extractByPath(obj: unknown, path: string): unknown {
  * Criptografa dados sensíveis
  */
 async function encryptData(supabaseUrl: string, serviceKey: string, plaintext: string): Promise<string> {
+  // AbortController with 15s timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/crypto`, {
       method: 'POST',
@@ -46,6 +50,7 @@ async function encryptData(supabaseUrl: string, serviceKey: string, plaintext: s
         'Authorization': `Bearer ${serviceKey}`,
       },
       body: JSON.stringify({ action: 'encrypt', data: plaintext }),
+      signal: controller.signal,
     });
     
     if (!response.ok) {
@@ -58,6 +63,8 @@ async function encryptData(supabaseUrl: string, serviceKey: string, plaintext: s
   } catch (error) {
     console.error('[create-test-client] Encryption error:', error);
     return plaintext;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

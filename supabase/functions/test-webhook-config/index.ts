@@ -34,14 +34,14 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const instanceName = body.instance_name || "seller_c4f9e3be";
 
-    // Get global config
+    // Get global config - use maybeSingle to handle gracefully
     const { data: globalConfig } = await supabase
       .from('whatsapp_global_config')
       .select('*')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!globalConfig) {
       return new Response(JSON.stringify({ error: 'No global config' }), {
