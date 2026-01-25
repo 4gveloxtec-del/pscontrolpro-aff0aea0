@@ -169,34 +169,61 @@ Deno.serve(async (req) => {
       console.error('[create-test-client] Config error:', configError);
     }
 
-    // Se não há configuração ou auto_create_client está desabilitado, apenas loga
-    if (!config || !config.auto_create_client) {
-      console.log('[create-test-client] Auto-create disabled or no config, skipping client creation');
-      
-      // Registrar no log mesmo sem criar cliente
-      await supabase.from('test_generation_log').insert({
-        seller_id,
-        api_id,
-        sender_phone,
-        api_response,
-        client_created: false,
-        error_message: 'Auto-create disabled or no configuration',
-      });
-      
-      return new Response(
-        JSON.stringify({ success: true, client_created: false, reason: 'auto_create_disabled' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // =====================================================================
-    // NORMALIZAÇÃO DO TELEFONE COM DDI 55
+    // NORMALIZAÇÃO INICIAL - Executada ANTES de qualquer lógica
     // Garante que o telefone seja salvo no formato brasileiro padrão
     // =====================================================================
     console.log(`[create-test-client] Raw sender_phone received: "${sender_phone}"`);
     
     const normalizedPhone = normalizePhoneWithDDI(sender_phone);
     
+    // Extrair dados da resposta da API (usado tanto para log quanto para criação de cliente)
+    const apiData = api_response as TestApiResponse;
+    const username = extractByPath(apiData, config?.map_login_path || 'username') as string || apiData.username;
+    const password = extractByPath(apiData, config?.map_password_path || 'password') as string || apiData.password;
+    const dns = extractByPath(apiData, config?.map_dns_path || 'dns') as string || apiData.dns;
+    const expirationStr = extractByPath(apiData, config?.map_expiration_path || 'expiresAtFormatted') as string 
+      || apiData.expiresAtFormatted 
+      || apiData.expiresAt;
+    const expirationDate = parseExpirationDate(expirationStr);
+    
+    // =====================================================================
+    // SEMPRE REGISTRAR NO LOG - independente de auto_create_client
+    // Isso permite visualizar todos os testes na aba "Testes"
+    // =====================================================================
+    
+    // Se não há configuração ou auto_create_client está desabilitado, apenas loga (sem criar cliente)
+    if (!config || !config.auto_create_client) {
+      console.log('[create-test-client] Auto-create disabled or no config, registering log only (no client creation)');
+      
+      // Registrar no log SEMPRE - mesmo sem criar cliente
+      await supabase.from('test_generation_log').insert({
+        seller_id,
+        api_id,
+        sender_phone: normalizedPhone || sender_phone,
+        api_response,
+        username,
+        password,
+        dns,
+        expiration_date: expirationDate?.toISOString().split('T')[0] || null,
+        client_created: false,
+        error_message: 'Auto-create disabled - log only',
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          client_created: false, 
+          reason: 'auto_create_disabled',
+          log_registered: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // =====================================================================
+    // VALIDAÇÃO DO TELEFONE NORMALIZADO
+    // =====================================================================
     if (!normalizedPhone) {
       console.error(`[create-test-client] Failed to normalize phone: ${sender_phone}`);
       
@@ -205,6 +232,10 @@ Deno.serve(async (req) => {
         api_id,
         sender_phone,
         api_response,
+        username,
+        password,
+        dns,
+        expiration_date: expirationDate?.toISOString().split('T')[0] || null,
         client_created: false,
         error_message: `Invalid phone number: ${sender_phone}`,
       });
@@ -231,16 +262,6 @@ Deno.serve(async (req) => {
       console.log(`[create-test-client] Client exists, will update: ${existingClient.name}`);
     }
 
-    // Extrair dados da resposta da API usando os paths configurados
-    const apiData = api_response as TestApiResponse;
-    
-    const username = extractByPath(apiData, config.map_login_path || 'username') as string || apiData.username;
-    const password = extractByPath(apiData, config.map_password_path || 'password') as string || apiData.password;
-    const dns = extractByPath(apiData, config.map_dns_path || 'dns') as string || apiData.dns;
-    const expirationStr = extractByPath(apiData, config.map_expiration_path || 'expiresAtFormatted') as string 
-      || apiData.expiresAtFormatted 
-      || apiData.expiresAt;
-
     // Incrementar contador de testes
     const newCounter = (config.test_counter || 0) + 1;
     
@@ -259,11 +280,8 @@ Deno.serve(async (req) => {
     const encryptedLogin = username ? await encryptData(supabaseUrl, serviceRoleKey, username) : null;
     const encryptedPassword = password ? await encryptData(supabaseUrl, serviceRoleKey, password) : null;
 
-    // Parsear data de expiração da API
-    const expirationDate = parseExpirationDate(expirationStr);
-    
     // Calcular expiração final:
-    // 1. Se a API retornou uma data válida, usar ela
+    // 1. Se a API retornou uma data válida (expirationDate já calculado no início), usar ela
     // 2. Senão, usar a duração padrão configurada (em horas)
     let finalExpirationDatetime: Date;
     let isShortTest = false;
