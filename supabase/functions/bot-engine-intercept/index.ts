@@ -101,7 +101,9 @@ async function lockSession(
     .upsert({
       user_id: userId,
       seller_id: sellerId,
+      phone: userId, // Usar userId como phone (já normalizado)
       locked: true,
+      last_interaction: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }, {
       onConflict: 'user_id,seller_id'
@@ -322,10 +324,11 @@ Deno.serve(async (req) => {
     }
 
     // Normalizar identificadores
-    userId = sender_phone.replace(/\D/g, '');
+    const phone = sender_phone.replace(/\D/g, '');
+    userId = phone;
     sellerId = seller_id;
     
-    console.log(`[BotIntercept] Processing message from ${userId} for seller ${sellerId}`);
+    console.log(`[BotIntercept] Processing message from ${phone} for seller ${sellerId}`);
 
     // Verificar se BotEngine está habilitado
     const { data: config } = await supabase
@@ -365,7 +368,9 @@ Deno.serve(async (req) => {
         .single();
 
       const currentState = session?.state || 'INICIO';
+      const previousState = session?.previous_state || 'INICIO';
       const currentStack: string[] = (session?.stack as string[]) || [];
+      const context = session?.context || {};
 
       // =========================================================
       // PASSO 2: parseInput
