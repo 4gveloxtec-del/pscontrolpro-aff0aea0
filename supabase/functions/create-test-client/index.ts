@@ -157,14 +157,49 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar configuração de integração
-    const { data: config, error: configError } = await supabase
-      .from('test_integration_config')
-      .select('*')
-      .eq('seller_id', seller_id)
-      .eq('is_active', true)
-      .maybeSingle();
-
+    // Buscar configuração de integração - priorizar por api_id se disponível
+    let config: Record<string, unknown> | null = null;
+    let configError: Error | null = null;
+    
+    // Primeiro tenta buscar configuração específica para a API usada
+    if (api_id) {
+      const { data: apiConfig, error: apiConfigError } = await supabase
+        .from('test_integration_config')
+        .select('*')
+        .eq('seller_id', seller_id)
+        .eq('api_id', api_id)
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (apiConfigError) {
+        console.error('[create-test-client] API-specific config error:', apiConfigError);
+        configError = apiConfigError as unknown as Error;
+      } else if (apiConfig) {
+        config = apiConfig;
+        console.log(`[create-test-client] Found config for api_id: ${api_id}`);
+      }
+    }
+    
+    // Se não encontrou por api_id, busca qualquer configuração ativa do seller
+    if (!config) {
+      const { data: fallbackConfig, error: fallbackError } = await supabase
+        .from('test_integration_config')
+        .select('*')
+        .eq('seller_id', seller_id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (fallbackError) {
+        console.error('[create-test-client] Fallback config error:', fallbackError);
+        configError = fallbackError as unknown as Error;
+      } else {
+        config = fallbackConfig;
+        console.log(`[create-test-client] Using fallback config for seller: ${seller_id}`);
+      }
+    }
+    
     if (configError) {
       console.error('[create-test-client] Config error:', configError);
     }
@@ -179,10 +214,15 @@ Deno.serve(async (req) => {
     
     // Extrair dados da resposta da API (usado tanto para log quanto para criação de cliente)
     const apiData = api_response as TestApiResponse;
-    const username = extractByPath(apiData, config?.map_login_path || 'username') as string || apiData.username;
-    const password = extractByPath(apiData, config?.map_password_path || 'password') as string || apiData.password;
-    const dns = extractByPath(apiData, config?.map_dns_path || 'dns') as string || apiData.dns;
-    const expirationStr = extractByPath(apiData, config?.map_expiration_path || 'expiresAtFormatted') as string 
+    const mapLoginPath = (config?.map_login_path as string) || 'username';
+    const mapPasswordPath = (config?.map_password_path as string) || 'password';
+    const mapDnsPath = (config?.map_dns_path as string) || 'dns';
+    const mapExpirationPath = (config?.map_expiration_path as string) || 'expiresAtFormatted';
+    
+    const username = extractByPath(apiData, mapLoginPath) as string || apiData.username;
+    const password = extractByPath(apiData, mapPasswordPath) as string || apiData.password;
+    const dns = extractByPath(apiData, mapDnsPath) as string || apiData.dns;
+    const expirationStr = extractByPath(apiData, mapExpirationPath) as string 
       || apiData.expiresAtFormatted 
       || apiData.expiresAt;
     const expirationDate = parseExpirationDate(expirationStr);
@@ -263,18 +303,21 @@ Deno.serve(async (req) => {
     }
 
     // Incrementar contador de testes
-    const newCounter = (config.test_counter || 0) + 1;
+    const testCounter = Number((config as Record<string, unknown>).test_counter) || 0;
+    const newCounter = testCounter + 1;
     
+    const configId = (config as Record<string, unknown>).id as string;
     await supabase
       .from('test_integration_config')
       .update({ test_counter: newCounter })
-      .eq('id', config.id);
+      .eq('id', configId);
 
     // Gerar nome do cliente - incluir username para facilitar busca
     // O username não é criptografado no nome, permitindo busca textual
+    const clientNamePrefix = ((config as Record<string, unknown>).client_name_prefix as string) || 'Teste';
     const clientName = username 
-      ? `${config.client_name_prefix || 'Teste'}${newCounter} - ${username}`
-      : `${config.client_name_prefix || 'Teste'}${newCounter}`;
+      ? `${clientNamePrefix}${newCounter} - ${username}`
+      : `${clientNamePrefix}${newCounter}`;
 
     // Criptografar credenciais
     const encryptedLogin = username ? await encryptData(supabaseUrl, serviceRoleKey, username) : null;
@@ -290,18 +333,21 @@ Deno.serve(async (req) => {
       finalExpirationDatetime = expirationDate;
     } else {
       // Usar duração configurável (padrão: 2 horas para testes IPTV)
-      const durationHours = Number(config.default_duration_hours) || 2;
+      const durationHours = Number((config as Record<string, unknown>).default_duration_hours) || 2;
       finalExpirationDatetime = new Date();
       finalExpirationDatetime.setHours(finalExpirationDatetime.getHours() + durationHours);
       isShortTest = durationHours <= 24; // Testes de até 24h são considerados "curtos"
       console.log(`[create-test-client] Using configured duration: ${durationHours} hours (short test: ${isShortTest})`);
     }
 
+    const configCategory = ((config as Record<string, unknown>).category as string) || 'IPTV';
+    const configServerId = (config as Record<string, unknown>).server_id as string | null;
+
     console.log('[create-test-client] Creating client with data:', {
       name: clientName,
       phone: normalizedPhone,
-      category: config.category || 'IPTV',
-      server_id: config.server_id,
+      category: configCategory,
+      server_id: configServerId,
       expiration_datetime: finalExpirationDatetime.toISOString(),
       is_short_test: isShortTest,
       has_login: !!encryptedLogin,
@@ -318,7 +364,7 @@ Deno.serve(async (req) => {
       seller_id,
       name: clientName,
       phone: normalizedPhone,
-      category: config.category || 'IPTV',
+      category: configCategory,
       
       // Credenciais
       login: encryptedLogin,
@@ -326,7 +372,7 @@ Deno.serve(async (req) => {
       dns: dns || null,
       
       // Servidor (se configurado)
-      server_id: config.server_id || null,
+      server_id: configServerId,
       
       // Data de expiração (formato date para compatibilidade)
       expiration_date: finalExpirationDatetime.toISOString().split('T')[0],
