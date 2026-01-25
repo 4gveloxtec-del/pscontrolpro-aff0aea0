@@ -512,17 +512,38 @@ Deno.serve(async (req) => {
       : normalizedCommand.replace('/', '').trim();
 
     if (isTestCommand) {
-      const { data: cfg, error: cfgErr } = await supabase
+      // Primeiro tenta buscar config específica para esta API
+      let { data: cfg, error: cfgErr } = await supabase
         .from('test_integration_config')
         .select('server_id, server_name, client_name_prefix, category')
         .eq('seller_id', seller_id)
+        .eq('api_id', api.id)
         .eq('is_active', true)
         .maybeSingle();
+
+      // Se não encontrar config específica, busca qualquer config ativa do seller
+      if (!cfg && !cfgErr) {
+        const { data: fallbackCfg, error: fallbackErr } = await supabase
+          .from('test_integration_config')
+          .select('server_id, server_name, client_name_prefix, category')
+          .eq('seller_id', seller_id)
+          .eq('is_active', true)
+          .not('server_id', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        
+        if (fallbackErr) {
+          console.error('[process-command] test_integration_config fallback error:', fallbackErr);
+        }
+        cfg = fallbackCfg;
+      }
 
       if (cfgErr) {
         console.error('[process-command] test_integration_config error:', cfgErr);
       }
       testConfig = cfg as any;
+      
+      console.log(`[process-command] Test config for API ${api.id}: server_id=${testConfig?.server_id}, server_name=${testConfig?.server_name}`);
 
       // clientPhone should now be available (from args OR sender_phone)
       if (!clientPhone) {
