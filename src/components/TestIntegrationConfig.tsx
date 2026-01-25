@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity, Clock } from 'lucide-react';
+import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity, Clock, Globe } from 'lucide-react';
 
 interface TestApi {
   id: string;
@@ -46,6 +46,9 @@ interface TestIntegrationConfigData {
   logs_enabled: boolean;
   is_active: boolean;
   default_duration_hours: number;
+  post_endpoint: string | null;
+  get_endpoint: string | null;
+  api_key: string | null;
 }
 
 // Constants moved outside component to prevent re-allocation on every render
@@ -63,6 +66,9 @@ const DEFAULT_FORM_DATA = {
   detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
   logs_enabled: true,
   default_duration_hours: 2,
+  post_endpoint: '',
+  get_endpoint: '',
+  api_key: '',
 };
 
 export function TestIntegrationConfig() {
@@ -136,6 +142,9 @@ export function TestIntegrationConfig() {
     detect_renewal_keywords: 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
     logs_enabled: true,
     default_duration_hours: 2,
+    post_endpoint: '',
+    get_endpoint: '',
+    api_key: '',
   });
 
   // Unified effect: Reset to defaults when no API selected, load config when available
@@ -165,6 +174,9 @@ export function TestIntegrationConfig() {
         detect_renewal_keywords: config.detect_renewal_keywords?.join(',') || 'renovado,renovação,renovacao,renewed,prorrogado,estendido',
         logs_enabled: config.logs_enabled ?? true,
         default_duration_hours: config.default_duration_hours ?? 2,
+        post_endpoint: config.post_endpoint || '',
+        get_endpoint: config.get_endpoint || '',
+        api_key: config.api_key || '',
       });
     } else {
       // New API without existing config - use defaults
@@ -202,6 +214,9 @@ export function TestIntegrationConfig() {
         detect_renewal_keywords: keywordsArray,
         logs_enabled: formData.logs_enabled,
         default_duration_hours: formData.default_duration_hours,
+        post_endpoint: formData.post_endpoint || null,
+        get_endpoint: formData.get_endpoint || null,
+        api_key: formData.api_key || null,
         is_active: true,
       };
 
@@ -443,6 +458,74 @@ export function TestIntegrationConfig() {
                         </Button>
                       </div>
                     )}
+
+                    {/* API Endpoints Section */}
+                    <div className="border-t pt-6 mt-4 space-y-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Globe className="h-5 w-5 text-blue-500" />
+                        <h4 className="font-medium">Endpoints da API (POST/GET)</h4>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">POST</Badge>
+                            Endpoint para Criar Teste
+                          </Label>
+                          <Input
+                            value={formData.post_endpoint}
+                            onChange={(e) => setFormData({ ...formData, post_endpoint: e.target.value })}
+                            placeholder="https://api.servidor.com/api/create-test"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            URL que será chamada para criar testes automaticamente
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">GET</Badge>
+                            Endpoint para Listar Testes
+                          </Label>
+                          <Input
+                            value={formData.get_endpoint}
+                            onChange={(e) => setFormData({ ...formData, get_endpoint: e.target.value })}
+                            placeholder="https://api.servidor.com/api/list-tests"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            URL para buscar lista de testes ativos
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>API Key (opcional)</Label>
+                          <Input
+                            type="password"
+                            value={formData.api_key}
+                            onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                            placeholder="sk-xxx..."
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Chave de autenticação enviada no header
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {(formData.post_endpoint || formData.get_endpoint) && (
+                        <div className="flex gap-2 mt-2">
+                          {formData.post_endpoint && (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                              ✓ POST configurado
+                            </Badge>
+                          )}
+                          {formData.get_endpoint && (
+                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              ✓ GET configurado
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     {/* Advanced Mapping */}
                     <details className="space-y-4">

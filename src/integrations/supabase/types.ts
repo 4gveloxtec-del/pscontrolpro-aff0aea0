@@ -3298,6 +3298,7 @@ export type Database = {
       test_integration_config: {
         Row: {
           api_id: string | null
+          api_key: string | null
           auto_create_client: boolean | null
           category: string | null
           client_name_prefix: string | null
@@ -3305,6 +3306,7 @@ export type Database = {
           default_duration_hours: number | null
           detect_renewal_enabled: boolean | null
           detect_renewal_keywords: string[] | null
+          get_endpoint: string | null
           id: string
           is_active: boolean | null
           logs_enabled: boolean | null
@@ -3312,6 +3314,7 @@ export type Database = {
           map_expiration_path: string | null
           map_login_path: string | null
           map_password_path: string | null
+          post_endpoint: string | null
           seller_id: string
           send_welcome_message: boolean | null
           server_id: string | null
@@ -3324,6 +3327,7 @@ export type Database = {
         }
         Insert: {
           api_id?: string | null
+          api_key?: string | null
           auto_create_client?: boolean | null
           category?: string | null
           client_name_prefix?: string | null
@@ -3331,6 +3335,7 @@ export type Database = {
           default_duration_hours?: number | null
           detect_renewal_enabled?: boolean | null
           detect_renewal_keywords?: string[] | null
+          get_endpoint?: string | null
           id?: string
           is_active?: boolean | null
           logs_enabled?: boolean | null
@@ -3338,6 +3343,7 @@ export type Database = {
           map_expiration_path?: string | null
           map_login_path?: string | null
           map_password_path?: string | null
+          post_endpoint?: string | null
           seller_id: string
           send_welcome_message?: boolean | null
           server_id?: string | null
@@ -3350,6 +3356,7 @@ export type Database = {
         }
         Update: {
           api_id?: string | null
+          api_key?: string | null
           auto_create_client?: boolean | null
           category?: string | null
           client_name_prefix?: string | null
@@ -3357,6 +3364,7 @@ export type Database = {
           default_duration_hours?: number | null
           detect_renewal_enabled?: boolean | null
           detect_renewal_keywords?: string[] | null
+          get_endpoint?: string | null
           id?: string
           is_active?: boolean | null
           logs_enabled?: boolean | null
@@ -3364,6 +3372,7 @@ export type Database = {
           map_expiration_path?: string | null
           map_login_path?: string | null
           map_password_path?: string | null
+          post_endpoint?: string | null
           seller_id?: string
           send_welcome_message?: boolean | null
           server_id?: string | null

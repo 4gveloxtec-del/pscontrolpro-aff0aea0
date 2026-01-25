@@ -29,9 +29,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope, Users, Rocket } from 'lucide-react';
 import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
 import { TestLogsManager } from '@/components/TestLogsManager';
+import { TestGeneratorPanel } from '@/components/TestGeneratorPanel';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -117,7 +118,7 @@ export default function TestCommands() {
   const { user } = useAuth();
   const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('commands');
+  const [activeTab, setActiveTab] = useState('generator');
   
   // API Dialog State
   const [apiDialogOpen, setApiDialogOpen] = useState(false);
@@ -867,7 +868,12 @@ export default function TestCommands() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
+          <TabsTrigger value="generator" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
+            <Rocket className="h-4 w-4" />
+            <span className="hidden sm:inline">Gerar</span>
+            <span className="sm:hidden">Gerar</span>
+          </TabsTrigger>
           <TabsTrigger value="commands" className="flex flex-col sm:flex-row items-center gap-1 py-2 px-1 text-[10px] sm:text-xs">
             <Terminal className="h-4 w-4" />
             <span className="hidden sm:inline">Comandos</span>
@@ -891,6 +897,11 @@ export default function TestCommands() {
             <span>Logs</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Generator Tab */}
+        <TabsContent value="generator" className="space-y-4">
+          <TestGeneratorPanel />
+        </TabsContent>
 
         {/* Commands Tab */}
         <TabsContent value="commands" className="space-y-4">
