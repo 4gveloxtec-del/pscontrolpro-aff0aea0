@@ -181,6 +181,7 @@ async function lockSession(
   }
 
   // Sessão não existe - criar nova com lock
+  // IMPORTANTE: Iniciar interaction_count como 0 para primeira mensagem ser detectada corretamente
   const { error: insertError } = await supabase
     .from('bot_sessions')
     .insert({
@@ -190,11 +191,13 @@ async function lockSession(
       state: 'START',
       previous_state: 'START',
       stack: [],
-      context: {},
+      context: { interaction_count: 0 },
       locked: true,
       last_interaction: now.toISOString(),
       updated_at: now.toISOString()
     });
+  
+  console.log(`[BotIntercept] 🆕 Creating new session for ${userId} with interaction_count: 0`);
 
   if (insertError) {
     // Se erro de duplicata, outra instância criou primeiro

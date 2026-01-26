@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
     try {
       const interceptPayload = {
         seller_id: sellerId,
-        user_id: testPhone,
+        sender_phone: testPhone,  // CORRETO: usar sender_phone, não user_id
         message_text: testMessage,
         instance_name: "test_simulation",
       };
