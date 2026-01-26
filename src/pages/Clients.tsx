@@ -4113,6 +4113,42 @@ export default function Clients() {
                           );
                         })()}
                         
+                        {/* Additional Servers Badges */}
+                        {client.additional_servers && Array.isArray(client.additional_servers) && client.additional_servers.length > 0 && (
+                          client.additional_servers.map((addServer, index) => {
+                            const serverData = serversForBadges.find(s => s.id === addServer.server_id);
+                            const hasPanel = !!serverData?.panel_url;
+                            const handleAdditionalServerClick = (e: React.MouseEvent | React.KeyboardEvent) => {
+                              e.stopPropagation();
+                              if (hasPanel && serverData?.panel_url) {
+                                window.open(serverData.panel_url, '_blank', 'noopener,noreferrer');
+                                toast.success(`Abrindo painel: ${addServer.server_name}`);
+                              } else {
+                                toast.info(`Servidor "${addServer.server_name}" não possui link de painel cadastrado`);
+                              }
+                            };
+                            return (
+                              <span 
+                                key={addServer.server_id || index}
+                                role="button"
+                                tabIndex={0}
+                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 ${hasPanel ? 'cursor-pointer hover:bg-emerald-500/20 hover:scale-105 active:scale-95' : 'cursor-default opacity-70'} transition-all select-none`}
+                                onClick={handleAdditionalServerClick}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAdditionalServerClick(e)}
+                                title={hasPanel ? `Clique para abrir o painel` : 'Sem link de painel cadastrado'}
+                              >
+                                {serverData?.icon_url ? (
+                                  <img src={serverData.icon_url} alt={addServer.server_name} className="h-4 w-4 rounded-sm object-cover pointer-events-none" />
+                                ) : (
+                                  <Server className="h-3 w-3 pointer-events-none" />
+                                )}
+                                <span className="pointer-events-none">{addServer.server_name}</span>
+                                {hasPanel && <ExternalLink className="h-3 w-3 opacity-60 pointer-events-none" />}
+                              </span>
+                            );
+                          })
+                        )}
+                        
                         {/* App do Revendedor Badge */}
                         {client.app_type === 'own' && client.app_name && (
                           <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
