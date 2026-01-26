@@ -10,6 +10,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// =====================================================================
+// WHITELIST DE TELEFONES PARA TESTES - BYPASS DE FILTROS
+// Números nesta lista ignoram verificações de instancePhone (próprio número)
+// Para desativar: remova o número ou deixe a lista vazia
+// =====================================================================
+const TEST_WHITELIST_PHONES: string[] = [
+  '5531998518865',  // Número de desenvolvimento/teste
+];
+
+function isPhoneWhitelistedForTest(phone: string): boolean {
+  const normalized = phone.replace(/\D/g, '');
+  return TEST_WHITELIST_PHONES.some(w => {
+    const wNorm = w.replace(/\D/g, '');
+    return normalized === wNorm || 
+           normalized.endsWith(wNorm.slice(-11)) ||
+           wNorm.endsWith(normalized.slice(-11));
+  });
+}
+
 // Default renewal keywords
 const DEFAULT_RENEWAL_KEYWORDS = ['renovado', 'renovação', 'renovacao', 'renewed', 'prorrogado', 'estendido', 'renovou', 'extensão'];
 
@@ -242,6 +261,14 @@ function getSenderPhoneFromWebhook(
   // This is the most reliable field across Evolution/Baileys formats.
   if (!isGroupChat && !isFromMe) {
     const remotePhone = normalizeJidToPhone(remoteJid);
+    
+    // BYPASS: Se o número está na whitelist de testes, permitir mesmo se for instancePhone
+    const isWhitelisted = remotePhone && isPhoneWhitelistedForTest(remotePhone);
+    if (isWhitelisted) {
+      console.log(`[getSenderPhone] ✅ WHITELIST BYPASS: ${remotePhone} allowed for testing`);
+      return remotePhone;
+    }
+    
     if (remotePhone && (!instancePhone || remotePhone !== instancePhone)) {
       console.log(`[getSenderPhone] Using remoteJid as sender: ${remotePhone}`);
       return remotePhone;
@@ -1036,7 +1063,10 @@ Deno.serve(async (req: Request) => {
                   const cleanSenderPhone = senderPhone.replace(/\D/g, '');
                   const cleanInstancePhone = instancePhone || '';
                   
-                  if (cleanInstancePhone && cleanSenderPhone === cleanInstancePhone) {
+                  // BYPASS: Permitir envio para números na whitelist de teste
+                  const isSenderWhitelisted = isPhoneWhitelistedForTest(cleanSenderPhone);
+                  
+                  if (cleanInstancePhone && cleanSenderPhone === cleanInstancePhone && !isSenderWhitelisted) {
                     console.error(`[Webhook] BLOCKED: Attempted to send response to instance's own number: ${cleanSenderPhone}`);
                     try {
                       await supabase.from('command_logs').insert({
