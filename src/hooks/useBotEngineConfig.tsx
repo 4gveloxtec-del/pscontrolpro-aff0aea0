@@ -34,8 +34,14 @@ export function useBotEngineConfig() {
   });
 
   // Valores padrão garantidos para toda nova configuração
+  // Mensagem padrão com menu de opções para boas-vindas
   const DEFAULT_CONFIG = {
-    welcome_message: 'Olá! 👋 Seja bem-vindo(a)! Como posso ajudar você hoje?',
+    welcome_message: `Olá! 👋 Seja bem-vindo!
+
+Escolha uma opção:
+1️⃣ Testar IPTV
+2️⃣ Ver Planos
+3️⃣ Suporte`,
     fallback_message: 'Desculpe, não entendi. Digite *menu* para ver as opções.',
     inactivity_message: 'Sessão encerrada por inatividade.',
     outside_hours_message: 'No momento estamos fora do horário de atendimento. Retornaremos em breve!',
