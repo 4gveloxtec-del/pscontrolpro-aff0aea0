@@ -552,7 +552,22 @@ export default function Clients() {
     staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
-  // PERF: Lazy load servers - only fetch when dialog opens
+  // Servers for client list badges - always loaded for quick access
+  const { data: serversForBadges = [] } = useQuery({
+    queryKey: ['servers-badges', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('id, name, panel_url, icon_url')
+        .eq('seller_id', user!.id);
+      if (error) throw error;
+      return data as Pick<ServerData, 'id' | 'name' | 'panel_url' | 'icon_url'>[];
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 10, // 10 minutes cache - stable data
+  });
+
+  // PERF: Lazy load full servers - only fetch when dialog opens
   const [serversEnabled, setServersEnabled] = useState(false);
   const { data: servers = [] } = useQuery({
     queryKey: ['servers-all', user?.id],
@@ -2316,8 +2331,13 @@ export default function Clients() {
     });
   };
 
+  // Use serversForBadges for quick access links (always loaded)
   const getClientServer = (client: Client) => {
-    return servers.find(s => s.id === client.server_id);
+    return serversForBadges.find(s => s.id === client.server_id);
+  };
+  
+  const getClientServer2 = (client: Client) => {
+    return serversForBadges.find(s => s.id === client.server_id_2);
   };
 
   const handleShowPassword = async (client: Client) => {
@@ -4062,7 +4082,7 @@ export default function Clients() {
                           );
                         })()}
                         {client.server_name_2 && (() => {
-                          const server2 = servers.find(s => s.id === client.server_id_2);
+                          const server2 = getClientServer2(client);
                           const hasPanel = !!server2?.panel_url;
                           const handleServer2Click = (e: React.MouseEvent | React.KeyboardEvent) => {
                             e.stopPropagation();
