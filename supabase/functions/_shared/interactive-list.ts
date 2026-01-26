@@ -269,7 +269,11 @@ export function deserializeResponse(data: string): BotStructuredResponse | null 
 /**
  * Converte lista interativa para payload da Evolution API (sendList)
  * 
- * IMPORTANTE: A Evolution API espera o campo "values" (não "sections")
+ * IMPORTANTE: A Evolution API LATEST espera:
+ * - Campo "values" (não "sections") para as opções
+ * - Campo "description" é OBRIGATÓRIO (não pode ser undefined)
+ * - Campo "footerText" é OBRIGATÓRIO (não pode ser undefined)
+ * 
  * Documentação: POST /message/sendList/{instance}
  */
 export function toEvolutionApiPayload(
@@ -278,46 +282,37 @@ export function toEvolutionApiPayload(
 ): {
   number: string;
   title: string;
-  description?: string;
+  description: string;
   buttonText: string;
-  footerText?: string;
-  // Alguns provedores esperam "sections" (formato antigo)
-  sections?: Array<{
-    title: string;
-    rows: Array<{
-      title: string;
-      description?: string;
-      rowId: string;
-    }>;
-  }>;
-  // Outros esperam "values" (formato alternativo)
+  footerText: string;
   values: Array<{
     title: string;
     rows: Array<{
       title: string;
-      description?: string;
+      description: string;
       rowId: string;
     }>;
   }>;
 } {
-  const mapped = list.sections.map(section => ({
-    title: section.title,
+  const values = list.sections.map(section => ({
+    title: section.title.substring(0, 24), // Max 24 chars
     rows: section.rows.map(row => ({
-      title: row.title,
-      description: row.description,
+      title: row.title.substring(0, 24), // Max 24 chars
+      // Evolution API LATEST: description é OBRIGATÓRIO
+      description: (row.description || ' ').substring(0, 72), // Max 72 chars, fallback to space
       rowId: row.rowId,
     })),
   }));
 
   return {
     number: phoneNumber,
-    title: list.title,
-    description: list.description,
-    buttonText: list.buttonText,
-    footerText: list.footerText,
-    // Compatibilidade: enviar ambos. A API do seu ambiente está reclamando de falta de "sections".
-    sections: mapped,
-    values: mapped,
+    title: list.title.substring(0, 60), // Max 60 chars
+    // Evolution API LATEST: description é OBRIGATÓRIO
+    description: (list.description || 'Selecione uma opção').substring(0, 1024),
+    buttonText: list.buttonText.substring(0, 20), // Max 20 chars
+    // Evolution API LATEST: footerText é OBRIGATÓRIO
+    footerText: (list.footerText || ' ').substring(0, 60), // Max 60 chars
+    values,
   };
 }
 
