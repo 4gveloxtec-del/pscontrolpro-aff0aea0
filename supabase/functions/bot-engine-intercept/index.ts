@@ -936,37 +936,32 @@ Deno.serve(async (req) => {
         // =========================================================
         if (shouldSendWelcome) {
           console.log(`[BotIntercept] First contact or cooldown expired - sending welcome message`);
+          console.log(`[BotIntercept] Welcome message to send: "${welcomeMessage?.substring(0, 50)}..."`);
           responseMessage = welcomeMessage;
           newState = 'START';
           
-          // Criar ou atualizar sessão com context
-          if (isFirstContact) {
-            await supabase
-              .from('bot_sessions')
-              .insert({
-                user_id: userId,
-                seller_id: sellerId,
-                phone: userId,
-                state: 'START',
-                previous_state: 'START',
-                stack: [],
-                context: { interaction_count: 1 },
-                locked: false,
-                last_interaction: now.toISOString(),
-                updated_at: now.toISOString()
-              });
+          // SEMPRE usar UPSERT para evitar conflitos com sessão criada por lockSession
+          const { error: upsertError } = await supabase
+            .from('bot_sessions')
+            .upsert({
+              user_id: userId,
+              seller_id: sellerId,
+              phone: userId,
+              state: 'START',
+              previous_state: 'START',
+              stack: [],
+              context: { interaction_count: 1 },
+              locked: false,
+              last_interaction: now.toISOString(),
+              updated_at: now.toISOString()
+            }, {
+              onConflict: 'user_id,seller_id',
+            });
+          
+          if (upsertError) {
+            console.error(`[BotIntercept] Error upserting session:`, upsertError);
           } else {
-            // Atualizar last_interaction e incrementar contador
-            await supabase
-              .from('bot_sessions')
-              .update({
-                last_interaction: now.toISOString(),
-                context: { interaction_count: interactionCount + 1 },
-                state: 'START',
-                updated_at: now.toISOString()
-              })
-              .eq('user_id', userId)
-              .eq('seller_id', sellerId);
+            console.log(`[BotIntercept] Session upserted successfully for ${userId}`);
           }
         } else {
           // =========================================================
