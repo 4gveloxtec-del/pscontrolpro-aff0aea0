@@ -406,21 +406,63 @@ async function checkEvolutionConnection(
       }
 
       const result = await response.json();
-      
-      // fetchInstances returns array of instances
-      const instanceData = Array.isArray(result) ? result[0] : result;
+
+      // fetchInstances can return an array (sometimes unfiltered even with instanceName param)
+      // IMPORTANT: never assume the first item is the requested instance.
+      const pickInstanceFromResult = (raw: any, desiredName: string) => {
+        if (!Array.isArray(raw)) return raw;
+
+        const desired = String(desiredName || '').trim().toLowerCase();
+        const getName = (inst: any) =>
+          String(
+            inst?.instance?.instanceName ||
+              inst?.instanceName ||
+              inst?.name ||
+              inst?.instance?.name ||
+              ''
+          )
+            .trim()
+            .toLowerCase();
+
+        const exact = raw.find((i: any) => getName(i) === desired);
+        if (exact) return exact;
+
+        const partial = raw.find((i: any) => {
+          const n = getName(i);
+          return !!n && !!desired && (n.includes(desired) || desired.includes(n));
+        });
+        if (partial) return partial;
+
+        // Fallbacks
+        if (raw.length === 1) return raw[0];
+        console.warn(
+          `[checkEvolutionConnection] Could not match instanceName="${instanceName}" in fetchInstances result (count=${raw.length}). Falling back to first item.`
+        );
+        return raw[0];
+      };
+
+      const instanceData = pickInstanceFromResult(result, instanceName);
       
       if (!instanceData) {
         return { connected: false, error: 'Instance not found', state: 'not_found' };
       }
       
       // Get connection state - check both possible formats
-      const state = instanceData?.connectionStatus || instanceData?.instance?.state || 'unknown';
+      const state =
+        instanceData?.instance?.state ||
+        instanceData?.state ||
+        instanceData?.instance?.connectionStatus ||
+        instanceData?.connectionStatus ||
+        'unknown';
       const isConnected = state === 'open';
       
       // Extract phone number from ownerJid (format: 5511999999999@s.whatsapp.net)
       let phone: string | undefined;
-      const ownerJid = instanceData?.ownerJid || instanceData?.owner || instanceData?.instance?.owner;
+      const ownerJid =
+        instanceData?.ownerJid ||
+        instanceData?.instance?.ownerJid ||
+        instanceData?.owner ||
+        instanceData?.instance?.owner;
       if (ownerJid) {
         phone = ownerJid.replace(/@.*$/, '');
       }
