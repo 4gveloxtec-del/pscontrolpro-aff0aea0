@@ -109,7 +109,7 @@ const GLOBAL_COMMANDS = [
 ];
 
 // =====================================================================
-// SISTEMA ANTI-DUPLICAÇÃO - LOCK ATÔMICO
+// SISTEMA ANTI-DUPLICAÇÃO - LOCK ATÔMICO + HASH DE MENSAGEM
 // =====================================================================
 
 /**
@@ -117,6 +117,54 @@ const GLOBAL_COMMANDS = [
  * Se o lock existir há mais tempo que isso, considera como abandonado
  */
 const LOCK_TIMEOUT_MS = 30000; // 30 segundos
+
+/**
+ * Janela de deduplicação para evitar processar a mesma mensagem múltiplas vezes
+ */
+const DEDUP_WINDOW_MS = 15000; // 15 segundos
+
+/**
+ * Gera hash simples de uma mensagem para deduplicação
+ */
+function generateMessageHash(userId: string, message: string, sellerId: string): string {
+  const input = `${userId}:${sellerId}:${message}:${Math.floor(Date.now() / DEDUP_WINDOW_MS)}`;
+  // Simple hash using charCodeAt
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(36);
+}
+
+// Cache local de mensagens processadas (em memória da instância da função)
+const processedMessages = new Map<string, number>();
+
+/**
+ * Verifica se a mensagem já foi processada recentemente
+ */
+function isMessageDuplicate(userId: string, message: string, sellerId: string): boolean {
+  const hash = generateMessageHash(userId, message, sellerId);
+  const now = Date.now();
+  
+  // Limpar cache de entradas antigas (mais de 30s)
+  for (const [key, timestamp] of processedMessages.entries()) {
+    if (now - timestamp > 30000) {
+      processedMessages.delete(key);
+    }
+  }
+  
+  // Verificar se já processamos
+  if (processedMessages.has(hash)) {
+    console.log(`[BotIntercept] ❌ DEDUP: Mensagem duplicada detectada (hash: ${hash})`);
+    return true;
+  }
+  
+  // Marcar como processada
+  processedMessages.set(hash, now);
+  return false;
+}
 
 /**
  * 1. lockSession - Bloqueia a sessão de forma ATÔMICA
@@ -150,7 +198,7 @@ async function lockSession(
       
       // Se lock não expirou, ignorar mensagem (anti-duplicação)
       if (lockTime > lockExpiry) {
-        console.log(`[BotIntercept] ❌ ANTI-DUPLICAÇÃO: Sessão bloqueada para ${userId}, ignorando mensagem`);
+        console.log(`[BotIntercept] ❌ LOCK ATIVO: Sessão bloqueada para ${userId}, ignorando mensagem duplicada`);
         return false;
       }
       
@@ -180,7 +228,7 @@ async function lockSession(
 
     if (!updated) {
       // Outra instância pegou o lock primeiro
-      console.log(`[BotIntercept] ❌ ANTI-DUPLICAÇÃO: Lock não adquirido para ${userId}, outra instância processando`);
+      console.log(`[BotIntercept] ❌ RACE CONDITION: Lock não adquirido para ${userId}, outra instância processando`);
       return false;
     }
 
@@ -210,7 +258,7 @@ async function lockSession(
   if (insertError) {
     // Se erro de duplicata, outra instância criou primeiro
     if (insertError.code === '23505') {
-      console.log(`[BotIntercept] ❌ ANTI-DUPLICAÇÃO: Sessão criada por outra instância para ${userId}`);
+      console.log(`[BotIntercept] ❌ RACE CONDITION: Sessão criada por outra instância para ${userId}`);
       return false;
     }
     console.error(`[BotIntercept] lockSession insert error:`, insertError);
@@ -1011,6 +1059,17 @@ Deno.serve(async (req) => {
     console.log(`[BotIntercept] Message: "${message_text?.substring(0, 100)}"`);
     console.log(`[BotIntercept] ===============================================`);
 
+    // =========================================================
+    // PASSO 0: VERIFICAÇÃO DE DUPLICAÇÃO EM MEMÓRIA (mais rápido)
+    // =========================================================
+    if (isMessageDuplicate(userId, message_text, sellerId)) {
+      console.log(`[BotIntercept] 🚫 Mensagem duplicada ignorada (dedup em memória)`);
+      return new Response(
+        JSON.stringify({ intercepted: true, should_continue: false, deduplicated: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verificar se BotEngine está habilitado e buscar config completa
     const { data: config, error: configError } = await supabase
       .from('bot_engine_config')
@@ -1043,13 +1102,14 @@ Deno.serve(async (req) => {
     const _suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;
 
     // =========================================================
-    // PASSO 1: lockSession
+    // PASSO 1: lockSession (ATÔMICO - previne processamento paralelo)
     // =========================================================
     const locked = await lockSession(supabase, userId, sellerId);
     if (!locked) {
-      // Sessão já está sendo processada
+      // Sessão já está sendo processada por outra instância
+      console.log(`[BotIntercept] 🚫 Sessão já em processamento, ignorando para evitar resposta dupla`);
       return new Response(
-        JSON.stringify({ intercepted: false, should_continue: true }),
+        JSON.stringify({ intercepted: true, should_continue: false, already_processing: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

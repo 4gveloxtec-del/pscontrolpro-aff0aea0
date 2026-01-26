@@ -1121,14 +1121,102 @@ Deno.serve(async (req: Request) => {
             
             // ===============================================================
             // BOT ENGINE INTERCEPT - Apenas se NÃO for comando "/"
+            // ÚNICA CHAMADA ao bot - garantindo UMA RESPOSTA por mensagem
             // ===============================================================
             console.log(`[Webhook] ===============================================`);
-            console.log(`[Webhook] BOTENGINE INTERCEPT ATTEMPT (no "/" command)`);
+            console.log(`[Webhook] BOTENGINE INTERCEPT (single response mode)`);
             console.log(`[Webhook] Seller ID: ${instance.seller_id}`);
             console.log(`[Webhook] Sender Phone: ${senderPhone}`);
-            console.log(`[Webhook] Instance Name: ${instanceName}`);
             console.log(`[Webhook] Message: "${messageText?.substring(0, 100)}"`);
             console.log(`[Webhook] ===============================================`);
+            
+            try {
+              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+              
+              // CHAMADA ÚNICA ao bot-engine-intercept
+              const botResponse = await fetch(`${supabaseUrl}/functions/v1/bot-engine-intercept`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({
+                  seller_id: instance.seller_id,
+                  sender_phone: senderPhone,
+                  message_text: messageText,
+                  instance_name: instanceName,
+                }),
+              });
+              
+              const botResult = await botResponse.json();
+              console.log(`[Webhook] Bot response:`, JSON.stringify(botResult));
+              
+              // Se o bot interceptou e tem resposta, enviar via Evolution API
+              if (botResult.intercepted && botResult.response) {
+                console.log(`[Webhook] ✅ Bot intercepted with response, sending via Evolution API`);
+                
+                // Buscar config global para enviar resposta
+                const { data: globalConfig } = await supabase
+                  .from('whatsapp_global_config')
+                  .select('api_url, api_token')
+                  .eq('is_active', true)
+                  .maybeSingle();
+                
+                if (globalConfig?.api_url && globalConfig?.api_token) {
+                  const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
+                  const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                  
+                  // Normalizar telefone
+                  const cleanPhone = senderPhone.replace(/\D/g, '');
+                  const phoneVariants: string[] = [cleanPhone];
+                  
+                  // Adicionar variantes de formato
+                  if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+                    phoneVariants.push(`55${cleanPhone}`);
+                  }
+                  
+                  const uniqueVariants = [...new Set(phoneVariants)];
+                  let messageSent = false;
+                  
+                  for (const phoneVariant of uniqueVariants) {
+                    try {
+                      const sendResponse = await fetch(sendUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'apikey': globalConfig.api_token,
+                        },
+                        body: JSON.stringify({
+                          number: phoneVariant,
+                          text: botResult.response,
+                        }),
+                      });
+                      
+                      if (sendResponse.ok) {
+                        console.log(`[Webhook] ✅ Bot response sent to ${phoneVariant}`);
+                        messageSent = true;
+                        break;
+                      } else {
+                        const errText = await sendResponse.text();
+                        console.log(`[Webhook] ❌ Format ${phoneVariant} failed: ${errText.substring(0, 100)}`);
+                      }
+                    } catch (sendErr) {
+                      console.error(`[Webhook] Send error for ${phoneVariant}:`, sendErr);
+                    }
+                  }
+                  
+                  if (!messageSent) {
+                    console.error(`[Webhook] Failed to send bot response to any phone format`);
+                  }
+                }
+              } else if (botResult.deduplicated || botResult.already_processing) {
+                console.log(`[Webhook] 🚫 Message deduplicated/already processing, no response needed`);
+              } else {
+                console.log(`[Webhook] Bot did not intercept, message passed through`);
+              }
+            } catch (botError) {
+              console.error(`[Webhook] Bot intercept error:`, botError instanceof Error ? botError.message : String(botError));
+            }
           }
           
           // Resumo de filtragem
