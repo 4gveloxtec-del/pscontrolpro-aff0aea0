@@ -306,7 +306,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           "text-center text-[10px] text-sidebar-foreground/30 pt-2",
           isIconsOnly && "text-[8px]"
         )}>
-          v1.0
+          v2.0
         </div>
       </div>
     </div>

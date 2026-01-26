@@ -743,7 +743,7 @@ export default function Settings() {
         <SettingItem
           icon={Info}
           title="Sobre"
-          description="PSControl • v1.0.0"
+          description="PSControl • v2.0.0"
         />
       </SettingSection>
 
