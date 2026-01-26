@@ -266,6 +266,12 @@ export function deserializeResponse(data: string): BotStructuredResponse | null 
 /**
  * Converte lista interativa para payload da Evolution API (sendList)
  */
+/**
+ * Converte lista interativa para payload da Evolution API (sendList)
+ * 
+ * IMPORTANTE: A Evolution API espera o campo "values" (não "sections")
+ * Documentação: POST /message/sendList/{instance}
+ */
 export function toEvolutionApiPayload(
   list: InteractiveListMessage,
   phoneNumber: string
@@ -275,7 +281,7 @@ export function toEvolutionApiPayload(
   description?: string;
   buttonText: string;
   footerText?: string;
-  sections: Array<{
+  values: Array<{
     title: string;
     rows: Array<{
       title: string;
@@ -290,7 +296,8 @@ export function toEvolutionApiPayload(
     description: list.description,
     buttonText: list.buttonText,
     footerText: list.footerText,
-    sections: list.sections.map(section => ({
+    // Evolution API usa "values" ao invés de "sections"
+    values: list.sections.map(section => ({
       title: section.title,
       rows: section.rows.map(row => ({
         title: row.title,
