@@ -800,12 +800,22 @@ Deno.serve(async (req) => {
     }
 
     // Normalizar identificadores
-    const phone = sender_phone.replace(/\D/g, '');
+    let phone = sender_phone.replace(/\D/g, '');
+    // Adicionar DDI 55 se necessário (números brasileiros)
+    if (!phone.startsWith('55') && phone.length >= 10 && phone.length <= 11) {
+      phone = '55' + phone;
+      console.log(`[BotIntercept] Added DDI to phone: ${phone}`);
+    }
     userId = phone;
     sellerId = seller_id;
     
-    console.log(`[BotIntercept] Processing message from ${phone} for seller ${sellerId}`);
-    console.log(`[BotIntercept] Message text: "${message_text?.substring(0, 50)}..."`);
+    console.log(`[BotIntercept] ===============================================`);
+    console.log(`[BotIntercept] NEW MESSAGE RECEIVED`);
+    console.log(`[BotIntercept] Seller ID: ${sellerId}`);
+    console.log(`[BotIntercept] Original phone: ${sender_phone}`);
+    console.log(`[BotIntercept] Normalized phone: ${phone}`);
+    console.log(`[BotIntercept] Message: "${message_text?.substring(0, 100)}"`);
+    console.log(`[BotIntercept] ===============================================`);
 
     // Verificar se BotEngine está habilitado e buscar config completa
     const { data: config, error: configError } = await supabase
@@ -873,7 +883,15 @@ Deno.serve(async (req) => {
       const cooldownExpired = lastInteraction && (now.getTime() - lastInteraction.getTime() > cooldownMs);
       const shouldSendWelcome = isFirstContact || cooldownExpired;
       
-      console.log(`[BotIntercept] isFirstContact: ${isFirstContact}, interactionCount: ${interactionCount}, cooldownExpired: ${cooldownExpired}, shouldSendWelcome: ${shouldSendWelcome}`);
+      console.log(`[BotIntercept] ===============================================`);
+      console.log(`[BotIntercept] WELCOME CHECK`);
+      console.log(`[BotIntercept] - First contact: ${isFirstContact}`);
+      console.log(`[BotIntercept] - Interaction count: ${interactionCount}`);
+      console.log(`[BotIntercept] - Last interaction: ${lastInteraction?.toISOString() || 'never'}`);
+      console.log(`[BotIntercept] - Cooldown expired: ${cooldownExpired}`);
+      console.log(`[BotIntercept] - SHOULD SEND WELCOME: ${shouldSendWelcome}`);
+      console.log(`[BotIntercept] - Welcome message: "${welcomeMessage?.substring(0, 50)}..."`);
+      console.log(`[BotIntercept] ===============================================`);
 
       const currentState = session?.state || 'START';
       const previousState = session?.previous_state || 'START';
@@ -942,8 +960,8 @@ Deno.serve(async (req) => {
         // PASSO 4b: Verificar se é primeira mensagem (enviar boas-vindas)
         // =========================================================
         if (shouldSendWelcome) {
-          console.log(`[BotIntercept] First contact or cooldown expired - sending welcome message`);
-          console.log(`[BotIntercept] Welcome message to send: "${welcomeMessage?.substring(0, 50)}..."`);
+          console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE`);
+          console.log(`[BotIntercept] Message: "${welcomeMessage}"`);
           responseMessage = welcomeMessage;
           newState = 'START';
           
@@ -998,10 +1016,11 @@ Deno.serve(async (req) => {
             const shouldSendFallback = !suppressFallbackFirstContact || interactionCount > 0;
             
             if (shouldSendFallback) {
-              console.log(`[BotIntercept] No flow matched - sending fallback message`);
+              console.log(`[BotIntercept] ⚠️ NO FLOW MATCHED - SENDING FALLBACK`);
+              console.log(`[BotIntercept] Fallback: "${fallbackMessage}"`);
               responseMessage = fallbackMessage;
             } else {
-              console.log(`[BotIntercept] First contact with no flow - suppressing fallback`);
+              console.log(`[BotIntercept] 🔇 FIRST CONTACT - SUPPRESSING FALLBACK`);
             }
           }
           
@@ -1038,6 +1057,12 @@ Deno.serve(async (req) => {
       // PASSO 6: Log da resposta
       // =========================================================
       if (responseMessage) {
+        console.log(`[BotIntercept] ===============================================`);
+        console.log(`[BotIntercept] FINAL RESPONSE TO SEND`);
+        console.log(`[BotIntercept] Phone: ${userId}`);
+        console.log(`[BotIntercept] Message: "${responseMessage}"`);
+        console.log(`[BotIntercept] New state: ${newState}`);
+        console.log(`[BotIntercept] ===============================================`);
         await logMessage(supabase, userId, sellerId, responseMessage, false);
       }
 
