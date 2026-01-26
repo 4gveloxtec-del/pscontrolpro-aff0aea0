@@ -736,21 +736,16 @@ Deno.serve(async (req: Request) => {
           for (const msg of messages) {
             const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
             
+            // Ignorar grupos silenciosamente - bot exclusivo para conversas privadas
+            if (remoteJid.includes('@g.us')) continue;
+            
             console.log(`[Webhook] ===============================================`);
-            console.log(`[Webhook] 🔍 PROCESSING MESSAGE`);
+            console.log(`[Webhook] 🔍 PROCESSING PRIVATE MESSAGE`);
             console.log(`[Webhook] remoteJid: ${remoteJid}`);
             console.log(`[Webhook] fromMe: ${msg.key?.fromMe}`);
-           console.log(`[Webhook] messageId: ${msg.key?.id || 'N/A'}`);
-           console.log(`[Webhook] pushName: ${msg.pushName || 'N/A'}`);
+            console.log(`[Webhook] messageId: ${msg.key?.id || 'N/A'}`);
+            console.log(`[Webhook] pushName: ${msg.pushName || 'N/A'}`);
             console.log(`[Webhook] ===============================================`);
-            
-            // SIMPLES: Ignorar TODOS os grupos - bot apenas para conversas privadas
-            if (remoteJid.includes('@g.us')) {
-              console.log(`[Webhook] ❌ IGNORED: Group message (bot is private-only)`);
-              continue;
-            }
-            
-            console.log(`[Webhook] ✅ PRIVATE MESSAGE - continuing processing`);
             
             // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
             const messageText = extractWhatsAppMessageText(msg);
