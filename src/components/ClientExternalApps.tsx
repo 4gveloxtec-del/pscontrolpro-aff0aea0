@@ -665,15 +665,38 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 mt-2">
       {linkedApps.map((app) => {
         const appName = app.external_app?.name || app.fixed_app_name || 'App';
         const isMacType = app.external_app?.auth_type === 'mac_key' || app.fixed_app_name;
+        const appLink = app.external_app?.website_url || app.external_app?.download_url;
+        const hasLink = !!appLink;
+        
+        const handleAppClick = () => {
+          if (hasLink && appLink) {
+            window.open(appLink, '_blank', 'noopener,noreferrer');
+            toast.success(`Abrindo: ${appName}`);
+          }
+        };
         
         return (
           <div key={app.id} className="text-xs bg-muted/50 rounded p-1.5">
             <div className="flex items-center justify-between mb-1">
-              <span className="font-medium">{appName}</span>
+              {/* App name badge - clickable if has link */}
+              <button
+                onClick={handleAppClick}
+                disabled={!hasLink}
+                className={`inline-flex items-center gap-1 font-medium transition-colors ${
+                  hasLink 
+                    ? 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer' 
+                    : 'text-foreground cursor-default'
+                }`}
+                title={hasLink ? `Clique para abrir ${appName}` : appName}
+              >
+                <AppWindow className="h-3 w-3" />
+                {appName}
+                {hasLink && <ExternalLink className="h-2.5 w-2.5 opacity-70" />}
+              </button>
               {app.expiration_date && (
                 <Badge variant="outline" className="text-[10px] h-4 px-1">
                   {format(new Date(app.expiration_date + 'T12:00:00'), 'dd/MM/yy')}
@@ -685,6 +708,7 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
               <div className="space-y-0.5">
                 {app.devices.map((device, i) => (
                   <div key={i} className="flex items-center gap-1 text-muted-foreground">
+                    <Monitor className="h-3 w-3 text-green-500 flex-shrink-0" />
                     <span className="truncate">{device.name || `Disp ${i+1}`}:</span>
                     <button
                       onClick={() => copyToClipboard(device.mac, 'MAC')}
@@ -698,8 +722,14 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
             )}
             
             {!isMacType && app.email && (
-              <div className="text-muted-foreground">
-                {app.email}
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Mail className="h-3 w-3 flex-shrink-0" />
+                <button
+                  onClick={() => copyToClipboard(app.email!, 'Email')}
+                  className="hover:text-primary truncate"
+                >
+                  {app.email}
+                </button>
               </div>
             )}
           </div>
