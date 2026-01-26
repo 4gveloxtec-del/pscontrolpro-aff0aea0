@@ -18,10 +18,11 @@ export type BotNodeType =
   | 'end';        // Finaliza sessão
 
 export type BotTriggerType = 
-  | 'keyword'     // Palavra-chave na mensagem
-  | 'webhook'     // Chamada externa
-  | 'manual'      // Iniciado manualmente
-  | 'default';    // Fallback quando nenhum trigger bate
+  | 'keyword'       // Palavra-chave na mensagem
+  | 'first_message' // Primeira mensagem do contato
+  | 'webhook'       // Chamada externa
+  | 'manual'        // Iniciado manualmente
+  | 'default';      // Fallback quando nenhum trigger bate
 
 export type BotConditionType = 
   | 'always'      // Sempre passa
@@ -288,7 +289,7 @@ export interface BotEngineResponse {
 // TIPOS PARA CRIAÇÃO/ATUALIZAÇÃO
 // =====================================================================
 
-export type CreateBotFlow = Omit<BotFlow, 'id' | 'created_at' | 'updated_at'>;
+export type CreateBotFlow = Pick<BotFlow, 'name'> & Partial<Omit<BotFlow, 'id' | 'seller_id' | 'created_at' | 'updated_at'>>;
 export type UpdateBotFlow = Partial<Omit<BotFlow, 'id' | 'seller_id' | 'created_at' | 'updated_at'>>;
 
 export type CreateBotNode = Omit<BotNode, 'id' | 'created_at' | 'updated_at'>;

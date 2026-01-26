@@ -58,6 +58,12 @@ export default function BotEngine() {
   const [isFlowDialogOpen, setIsFlowDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Flow form states
+  const [flowName, setFlowName] = useState('');
+  const [flowDescription, setFlowDescription] = useState('');
+  const [flowTriggerType, setFlowTriggerType] = useState<'keyword' | 'first_message' | 'default'>('keyword');
+  const [flowKeywords, setFlowKeywords] = useState('');
 
   // Form states for config
   const [welcomeMessage, setWelcomeMessage] = useState(config?.welcome_message || '');
@@ -97,6 +103,68 @@ export default function BotEngine() {
         ? prev.filter(d => d !== day) 
         : [...prev, day].sort()
     );
+  };
+
+  // Reset flow form
+  const resetFlowForm = () => {
+    setFlowName('');
+    setFlowDescription('');
+    setFlowTriggerType('keyword');
+    setFlowKeywords('');
+  };
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editingFlow) {
+      setFlowName(editingFlow.name || '');
+      setFlowDescription(editingFlow.description || '');
+      setFlowTriggerType(editingFlow.trigger_type || 'keyword');
+      setFlowKeywords(editingFlow.trigger_keywords?.join(', ') || '');
+    } else {
+      resetFlowForm();
+    }
+  }, [editingFlow]);
+
+  // Save flow handler
+  const handleSaveFlow = async () => {
+    if (!flowName.trim()) {
+      toast.error('Nome do fluxo é obrigatório');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const keywords = flowTriggerType === 'keyword' 
+        ? flowKeywords.split(',').map(k => k.trim()).filter(Boolean)
+        : [];
+      
+      if (editingFlow) {
+        await updateFlow({
+          id: editingFlow.id,
+          updates: {
+            name: flowName.trim(),
+            description: flowDescription.trim() || null,
+            trigger_type: flowTriggerType,
+            trigger_keywords: keywords,
+          }
+        });
+      } else {
+        await createFlow({
+          name: flowName.trim(),
+          description: flowDescription.trim() || undefined,
+          trigger_type: flowTriggerType,
+          trigger_keywords: keywords,
+        });
+      }
+      
+      setIsFlowDialogOpen(false);
+      setEditingFlow(null);
+      resetFlowForm();
+    } catch (error) {
+      console.error('Error saving flow:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveConfig = async () => {
@@ -610,17 +678,26 @@ export default function BotEngine() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nome do Fluxo</Label>
-              <Input placeholder="Ex: Menu Principal" />
+              <Input 
+                placeholder="Ex: Menu Principal" 
+                value={flowName}
+                onChange={(e) => setFlowName(e.target.value)}
+              />
             </div>
             
             <div className="space-y-2">
               <Label>Descrição</Label>
-              <Textarea placeholder="Descreva o objetivo deste fluxo" rows={2} />
+              <Textarea 
+                placeholder="Descreva o objetivo deste fluxo" 
+                rows={2} 
+                value={flowDescription}
+                onChange={(e) => setFlowDescription(e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Tipo de Gatilho</Label>
-              <Select defaultValue="keyword">
+              <Select value={flowTriggerType} onValueChange={(v) => setFlowTriggerType(v as any)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -632,25 +709,31 @@ export default function BotEngine() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Palavras-chave (separadas por vírgula)</Label>
-              <Input placeholder="menu, início, oi, olá" />
-            </div>
+            {flowTriggerType === 'keyword' && (
+              <div className="space-y-2">
+                <Label>Palavras-chave (separadas por vírgula)</Label>
+                <Input 
+                  placeholder="menu, início, oi, olá" 
+                  value={flowKeywords}
+                  onChange={(e) => setFlowKeywords(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setIsFlowDialogOpen(false);
               setEditingFlow(null);
+              resetFlowForm();
             }}>
               Cancelar
             </Button>
-            <Button onClick={() => {
-              toast.success('Fluxo salvo!');
-              setIsFlowDialogOpen(false);
-              setEditingFlow(null);
-            }}>
-              Salvar
+            <Button 
+              onClick={handleSaveFlow}
+              disabled={isSaving || !flowName.trim()}
+            >
+              {isSaving ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>
