@@ -497,11 +497,283 @@ function executeAction(
 }
 
 // =====================================================================
-// MENUS DINÂMICOS
+// MENUS DINÂMICOS V2 - TABELA bot_engine_dynamic_menus
+// =====================================================================
+
+interface DynamicMenuItemV2 {
+  id: string;
+  menu_key: string;
+  title: string;
+  description: string | null;
+  emoji: string | null;
+  section_title: string | null;
+  menu_type: 'submenu' | 'flow' | 'command' | 'link' | 'message';
+  target_menu_key: string | null;
+  target_flow_id: string | null;
+  target_command: string | null;
+  target_url: string | null;
+  target_message: string | null;
+  display_order: number;
+  is_active: boolean;
+  is_root: boolean;
+  show_back_button: boolean;
+  back_button_text: string | null;
+  header_message: string | null;
+  footer_message: string | null;
+  parent_menu_id: string | null;
+}
+
+/**
+ * Busca menu raiz (is_root = true) do revendedor
+ */
+async function getRootMenuV2(
+  supabase: SupabaseClient,
+  sellerId: string
+): Promise<DynamicMenuItemV2 | null> {
+  const { data, error } = await supabase
+    .from('bot_engine_dynamic_menus')
+    .select('*')
+    .eq('seller_id', sellerId)
+    .eq('is_root', true)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.log(`[BotIntercept] No root menu found for seller ${sellerId}`);
+    return null;
+  }
+
+  return data as DynamicMenuItemV2;
+}
+
+/**
+ * Busca menu por menu_key
+ */
+async function getMenuByKeyV2(
+  supabase: SupabaseClient,
+  sellerId: string,
+  menuKey: string
+): Promise<DynamicMenuItemV2 | null> {
+  const { data, error } = await supabase
+    .from('bot_engine_dynamic_menus')
+    .select('*')
+    .eq('seller_id', sellerId)
+    .eq('menu_key', menuKey)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as DynamicMenuItemV2;
+}
+
+/**
+ * Busca todos os itens de um menu (filhos diretos)
+ */
+async function getMenuItemsV2(
+  supabase: SupabaseClient,
+  sellerId: string,
+  parentMenuId: string | null
+): Promise<DynamicMenuItemV2[]> {
+  let query = supabase
+    .from('bot_engine_dynamic_menus')
+    .select('*')
+    .eq('seller_id', sellerId)
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+    .order('title', { ascending: true });
+
+  if (parentMenuId) {
+    query = query.eq('parent_menu_id', parentMenuId);
+  } else {
+    query = query.is('parent_menu_id', null);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as DynamicMenuItemV2[];
+}
+
+/**
+ * Busca menu pai de um menu
+ */
+async function getParentMenuV2(
+  supabase: SupabaseClient,
+  sellerId: string,
+  childMenuId: string
+): Promise<DynamicMenuItemV2 | null> {
+  const { data: child } = await supabase
+    .from('bot_engine_dynamic_menus')
+    .select('parent_menu_id')
+    .eq('id', childMenuId)
+    .maybeSingle();
+
+  if (!child?.parent_menu_id) {
+    return null;
+  }
+
+  const { data: parent } = await supabase
+    .from('bot_engine_dynamic_menus')
+    .select('*')
+    .eq('id', child.parent_menu_id)
+    .maybeSingle();
+
+  return parent as DynamicMenuItemV2 | null;
+}
+
+/**
+ * Renderiza menu dinâmico como texto formatado para WhatsApp
+ */
+function renderMenuAsTextV2(
+  items: DynamicMenuItemV2[],
+  headerMessage?: string,
+  footerMessage?: string,
+  showBackButton: boolean = true,
+  backButtonText: string = '⬅️ Voltar'
+): string {
+  const lines: string[] = [];
+
+  // Header
+  if (headerMessage) {
+    lines.push(headerMessage);
+    lines.push('');
+  }
+
+  // Agrupar por seção
+  const sections = new Map<string, DynamicMenuItemV2[]>();
+  for (const item of items) {
+    const section = item.section_title || 'Opções';
+    if (!sections.has(section)) {
+      sections.set(section, []);
+    }
+    sections.get(section)!.push(item);
+  }
+
+  // Renderizar seções
+  let itemIndex = 1;
+  for (const [sectionTitle, sectionItems] of sections) {
+    if (sections.size > 1) {
+      lines.push(`📌 *${sectionTitle}*`);
+    }
+    
+    for (const item of sectionItems) {
+      const emoji = item.emoji ? `${item.emoji} ` : '';
+      lines.push(`*${itemIndex}* - ${emoji}${item.title}`);
+      if (item.description) {
+        lines.push(`   └ ${item.description}`);
+      }
+      itemIndex++;
+    }
+    lines.push('');
+  }
+
+  // Navegação
+  lines.push('────────────');
+  if (showBackButton) {
+    lines.push(`*0* - ${backButtonText}`);
+  }
+  lines.push('*#* - Menu Principal');
+
+  // Footer
+  if (footerMessage) {
+    lines.push('');
+    lines.push(footerMessage);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Processa seleção do usuário em um menu V2
+ * Suporta: número, menu_key, texto parcial
+ */
+async function processMenuSelectionV2(
+  supabase: SupabaseClient,
+  sellerId: string,
+  parentMenuId: string | null,
+  userInput: string
+): Promise<{
+  found: boolean;
+  menuType?: 'submenu' | 'flow' | 'command' | 'link' | 'message';
+  targetMenuKey?: string;
+  targetFlowId?: string;
+  targetCommand?: string;
+  targetUrl?: string;
+  targetMessage?: string;
+  parentMenuId?: string;
+}> {
+  const items = await getMenuItemsV2(supabase, sellerId, parentMenuId);
+  
+  if (items.length === 0) {
+    return { found: false };
+  }
+
+  const normalized = userInput.toLowerCase().trim();
+
+  // 1. Verificar por número
+  const inputNumber = parseInt(normalized, 10);
+  if (!isNaN(inputNumber) && inputNumber >= 1 && inputNumber <= items.length) {
+    const item = items[inputNumber - 1];
+    return {
+      found: true,
+      menuType: item.menu_type,
+      targetMenuKey: item.target_menu_key || undefined,
+      targetFlowId: item.target_flow_id || undefined,
+      targetCommand: item.target_command || undefined,
+      targetUrl: item.target_url || undefined,
+      targetMessage: item.target_message || undefined,
+      parentMenuId: item.parent_menu_id || undefined,
+    };
+  }
+
+  // 2. Verificar por menu_key exato
+  const byKey = items.find(item => item.menu_key.toLowerCase() === normalized);
+  if (byKey) {
+    return {
+      found: true,
+      menuType: byKey.menu_type,
+      targetMenuKey: byKey.target_menu_key || undefined,
+      targetFlowId: byKey.target_flow_id || undefined,
+      targetCommand: byKey.target_command || undefined,
+      targetUrl: byKey.target_url || undefined,
+      targetMessage: byKey.target_message || undefined,
+      parentMenuId: byKey.parent_menu_id || undefined,
+    };
+  }
+
+  // 3. Verificar por título parcial
+  const byTitle = items.find(item => 
+    item.title.toLowerCase().includes(normalized) ||
+    normalized.includes(item.title.toLowerCase())
+  );
+  if (byTitle) {
+    return {
+      found: true,
+      menuType: byTitle.menu_type,
+      targetMenuKey: byTitle.target_menu_key || undefined,
+      targetFlowId: byTitle.target_flow_id || undefined,
+      targetCommand: byTitle.target_command || undefined,
+      targetUrl: byTitle.target_url || undefined,
+      targetMessage: byTitle.target_message || undefined,
+      parentMenuId: byTitle.parent_menu_id || undefined,
+    };
+  }
+
+  return { found: false };
+}
+
+// =====================================================================
+// COMPATIBILIDADE - MENUS ANTIGOS (bot_engine_menus)
 // =====================================================================
 
 /**
- * Busca menu dinâmico pelo menu_key
+ * Busca menu dinâmico pelo menu_key (legado)
  */
 async function getDynamicMenu(
   supabase: SupabaseClient,
@@ -529,7 +801,7 @@ async function getDynamicMenu(
 }
 
 /**
- * Renderiza menu dinâmico como texto formatado
+ * Renderiza menu dinâmico como texto formatado (legado)
  */
 function renderDynamicMenu(menu: DynamicMenu): string {
   const lines: string[] = [];
@@ -565,7 +837,7 @@ function renderDynamicMenu(menu: DynamicMenu): string {
 }
 
 /**
- * Processa seleção do usuário em menu dinâmico
+ * Processa seleção do usuário em menu dinâmico (legado)
  */
 async function processMenuSelection(
   supabase: SupabaseClient,
@@ -618,19 +890,41 @@ async function processMenuSelection(
 
 /**
  * Busca mensagem do fluxo OU menu dinâmico baseado no estado atual
+ * PRIORIDADE: bot_engine_dynamic_menus (V2) > bot_engine_menus (legado) > bot_engine_flows
  */
 async function getFlowMessage(
   supabase: SupabaseClient,
   sellerId: string,
   state: string
 ): Promise<string | null> {
-  // PRIMEIRO: Tentar menu dinâmico
+  // =========================================================
+  // PRIORIDADE 1: Tentar menu dinâmico V2 (bot_engine_dynamic_menus)
+  // =========================================================
+  const menuV2 = await getMenuByKeyV2(supabase, sellerId, state);
+  if (menuV2) {
+    console.log(`[BotIntercept] Found V2 menu: ${state}`);
+    const menuItems = await getMenuItemsV2(supabase, sellerId, menuV2.id);
+    return renderMenuAsTextV2(
+      menuItems,
+      menuV2.header_message || undefined,
+      menuV2.footer_message || undefined,
+      menuV2.show_back_button,
+      menuV2.back_button_text || '⬅️ Voltar'
+    );
+  }
+
+  // =========================================================
+  // PRIORIDADE 2: Tentar menu legado (bot_engine_menus)
+  // =========================================================
   const dynamicMenu = await getDynamicMenu(supabase, sellerId, state);
   if (dynamicMenu) {
+    console.log(`[BotIntercept] Found legacy menu: ${state}`);
     return renderDynamicMenu(dynamicMenu);
   }
 
-  // FALLBACK: Buscar fluxo tradicional
+  // =========================================================
+  // PRIORIDADE 3: Buscar fluxo tradicional (bot_engine_flows)
+  // =========================================================
   const { data: flows } = await supabase
     .from('bot_engine_flows')
     .select('id, trigger_keywords')
@@ -671,7 +965,7 @@ async function getFlowMessage(
 
 /**
  * Processa entrada do usuário e determina próximo estado/resposta
- * PRIORIDADE: Menus dinâmicos > Fluxos tradicionais
+ * PRIORIDADE: Menus V2 (bot_engine_dynamic_menus) > Menus legado > Fluxos tradicionais
  */
 async function processUserInput(
   supabase: SupabaseClient,
@@ -682,12 +976,122 @@ async function processUserInput(
 ): Promise<{ newState: string; response: string | null; pushToStack: boolean }> {
   
   // =========================================================
-  // PRIORIDADE 1: Verificar menu dinâmico no estado atual
+  // PRIORIDADE 0: Verificar menu dinâmico V2 (bot_engine_dynamic_menus)
+  // =========================================================
+  const currentMenuV2 = await getMenuByKeyV2(supabase, sellerId, currentState);
+  
+  if (currentMenuV2) {
+    console.log(`[BotIntercept] Processing V2 dynamic menu: ${currentState}`);
+    
+    const menuItemsV2 = await getMenuItemsV2(supabase, sellerId, currentMenuV2.id);
+    const selection = await processMenuSelectionV2(supabase, sellerId, currentMenuV2.id, parsed.original);
+    
+    if (selection.found) {
+      // Determinar ação baseada no tipo
+      switch (selection.menuType) {
+        case 'submenu':
+          if (selection.targetMenuKey) {
+            const targetMenuV2 = await getMenuByKeyV2(supabase, sellerId, selection.targetMenuKey);
+            if (targetMenuV2) {
+              const targetItems = await getMenuItemsV2(supabase, sellerId, targetMenuV2.id);
+              return {
+                newState: selection.targetMenuKey,
+                response: renderMenuAsTextV2(
+                  targetItems,
+                  targetMenuV2.header_message || undefined,
+                  targetMenuV2.footer_message || undefined,
+                  targetMenuV2.show_back_button,
+                  targetMenuV2.back_button_text || '⬅️ Voltar'
+                ),
+                pushToStack: true,
+              };
+            }
+          }
+          break;
+          
+        case 'flow':
+          if (selection.targetFlowId) {
+            // Buscar mensagem do fluxo
+            const flowResponse = await getFlowMessage(supabase, sellerId, selection.targetFlowId);
+            return {
+              newState: selection.targetFlowId,
+              response: flowResponse,
+              pushToStack: true,
+            };
+          }
+          break;
+          
+        case 'command':
+          // Comando técnico - deixar passar para handler existente
+          if (selection.targetCommand) {
+            console.log(`[BotIntercept] Menu action: execute command ${selection.targetCommand}`);
+            // Não interceptar - deixar o sistema de comandos processar
+            return {
+              newState: currentState,
+              response: null,
+              pushToStack: false,
+            };
+          }
+          break;
+          
+        case 'link':
+          return {
+            newState: currentState,
+            response: `🔗 Acesse: ${selection.targetUrl}`,
+            pushToStack: false,
+          };
+          
+        case 'message':
+          return {
+            newState: currentState,
+            response: selection.targetMessage || 'Mensagem não configurada.',
+            pushToStack: false,
+          };
+      }
+    }
+    
+    // Opção não reconhecida - mostrar menu novamente
+    return {
+      newState: currentState,
+      response: `❌ Opção inválida. Digite o *número* da opção desejada.\n\n${renderMenuAsTextV2(
+        menuItemsV2,
+        currentMenuV2.header_message || undefined,
+        currentMenuV2.footer_message || undefined,
+        currentMenuV2.show_back_button,
+        currentMenuV2.back_button_text || '⬅️ Voltar'
+      )}`,
+      pushToStack: false,
+    };
+  }
+
+  // =========================================================
+  // PRIORIDADE 0.5: Verificar se há menu ROOT V2 para START
+  // =========================================================
+  if (currentState === 'START') {
+    const rootMenuV2 = await getRootMenuV2(supabase, sellerId);
+    if (rootMenuV2) {
+      const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2.id);
+      return {
+        newState: rootMenuV2.menu_key,
+        response: renderMenuAsTextV2(
+          rootItems,
+          rootMenuV2.header_message || undefined,
+          rootMenuV2.footer_message || undefined,
+          rootMenuV2.show_back_button,
+          rootMenuV2.back_button_text || '⬅️ Voltar'
+        ),
+        pushToStack: false,
+      };
+    }
+  }
+
+  // =========================================================
+  // PRIORIDADE 1: Verificar menu dinâmico LEGADO no estado atual
   // =========================================================
   const currentMenu = await getDynamicMenu(supabase, sellerId, currentState);
   
   if (currentMenu) {
-    console.log(`[BotIntercept] Processing dynamic menu: ${currentState}`);
+    console.log(`[BotIntercept] Processing legacy dynamic menu: ${currentState}`);
     
     const selection = await processMenuSelection(supabase, sellerId, currentMenu, parsed);
     
@@ -742,7 +1146,7 @@ async function processUserInput(
   }
 
   // =========================================================
-  // PRIORIDADE 2: Verificar se START tem menu dinâmico
+  // PRIORIDADE 2: Verificar se START tem menu dinâmico LEGADO
   // =========================================================
   if (currentState === 'START') {
     const startMenu = await getDynamicMenu(supabase, sellerId, 'MENU_PRINCIPAL');
