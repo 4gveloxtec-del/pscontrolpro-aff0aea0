@@ -53,8 +53,9 @@ export const GLOBAL_COMMANDS: GlobalCommand[] = [
     description: 'Retorna ao menu inicial (START)'
   },
   // Comandos por texto
+  // NOTA: "*" removido - ele serve como roteador para o bot, não como comando
   {
-    keywords: ['voltar', 'anterior', 'retornar', '*'],
+    keywords: ['voltar', 'anterior', 'retornar'],
     action: 'back_to_previous',
     description: 'Retorna ao estado anterior'
   },

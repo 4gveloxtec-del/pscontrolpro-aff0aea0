@@ -93,7 +93,8 @@ const GLOBAL_COMMANDS = [
   { keywords: ['#'], action: 'back_to_start', priority: 100 },
   
   // Comandos por texto
-  { keywords: ['voltar', 'anterior', 'retornar', '*'], action: 'back_to_previous', priority: 90 },
+  // NOTA: "*" removido - ele serve como roteador para o bot, não como comando direto
+  { keywords: ['voltar', 'anterior', 'retornar'], action: 'back_to_previous', priority: 90 },
   { keywords: ['inicio', 'início', 'começo', 'reiniciar', 'start', '00', '##'], action: 'back_to_start', priority: 90 },
   { keywords: ['menu', 'cardapio', 'opcoes', 'opções'], action: 'menu', priority: 80 },
   { keywords: ['sair', 'exit', 'encerrar', 'tchau', 'bye', 'fim'], action: 'sair', priority: 70 },
