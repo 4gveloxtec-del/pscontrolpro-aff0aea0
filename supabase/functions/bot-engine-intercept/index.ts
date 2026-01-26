@@ -14,6 +14,13 @@
  */
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { 
+  processStateTransition, 
+  getStateMessage, 
+  stateRequiresInput,
+  STATE_MESSAGES,
+  type StateTransitionResult 
+} from "../_shared/bot-state-machine.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -777,6 +784,189 @@ async function logMessage(
 }
 
 // =====================================================================
+// FUNÇÕES AUXILIARES - INTEGRAÇÃO COM SISTEMA EXISTENTE
+// =====================================================================
+
+interface TestGenerationResult {
+  success: boolean;
+  username?: string;
+  password?: string;
+  dns?: string;
+  expiration?: string;
+  error?: string;
+}
+
+/**
+ * Gera teste IPTV via API existente (create-test-client)
+ * Reutiliza a infraestrutura já implementada
+ */
+async function generateTestForBot(
+  supabase: SupabaseClient,
+  sellerId: string,
+  senderPhone: string,
+  testType: 'tv' | 'celular',
+  deviceInfo: string
+): Promise<TestGenerationResult> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  
+  console.log(`[BotIntercept] generateTestForBot - seller: ${sellerId}, phone: ${senderPhone}, type: ${testType}, device: ${deviceInfo}`);
+  
+  try {
+    // Buscar configuração de teste ativa
+    const { data: testConfig } = await supabase
+      .from('test_integration_config')
+      .select('*')
+      .eq('seller_id', sellerId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (!testConfig) {
+      console.log(`[BotIntercept] No test config found for seller ${sellerId}`);
+      return { success: false, error: 'Configuração de teste não encontrada' };
+    }
+    
+    if (!testConfig.post_endpoint) {
+      console.log(`[BotIntercept] No POST endpoint configured`);
+      return { success: false, error: 'Endpoint de teste não configurado' };
+    }
+    
+    // Gerar credenciais
+    const testCounter = (testConfig.test_counter || 0) + 1;
+    const username = `${testConfig.client_name_prefix || 'teste'}${testCounter}`;
+    const password = Math.random().toString(36).slice(-8);
+    
+    // Construir headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (testConfig.api_key) {
+      headers['apikey'] = testConfig.api_key;
+      headers['Authorization'] = `Bearer ${testConfig.api_key}`;
+    }
+    
+    // Fazer requisição para API externa
+    console.log(`[BotIntercept] Calling test API: ${testConfig.post_endpoint}`);
+    
+    const apiResponse = await fetch(testConfig.post_endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action: 'usercreate',
+        username,
+        password,
+        trial: 1,
+        // Informações adicionais
+        device_type: testType,
+        device_info: deviceInfo,
+        phone: senderPhone,
+      }),
+    });
+    
+    if (!apiResponse.ok) {
+      const errorText = await apiResponse.text();
+      console.error(`[BotIntercept] API error: ${apiResponse.status} - ${errorText}`);
+      return { success: false, error: `Erro na API: ${apiResponse.status}` };
+    }
+    
+    const result = await apiResponse.json();
+    console.log(`[BotIntercept] API response:`, JSON.stringify(result));
+    
+    // Atualizar contador
+    await supabase
+      .from('test_integration_config')
+      .update({ test_counter: testCounter })
+      .eq('id', testConfig.id);
+    
+    // Chamar create-test-client para registrar o cliente
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/create-test-client`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({
+          seller_id: sellerId,
+          sender_phone: senderPhone,
+          api_response: result,
+          api_id: testConfig.api_id,
+          server_id_override: testConfig.server_id,
+        }),
+      });
+    } catch (e) {
+      console.error(`[BotIntercept] Error calling create-test-client:`, e);
+      // Não falha a operação, apenas log
+    }
+    
+    // Calcular expiração (padrão: 2 horas)
+    const durationHours = testConfig.default_duration_hours || 2;
+    const expirationDate = new Date();
+    expirationDate.setHours(expirationDate.getHours() + durationHours);
+    const expirationStr = durationHours <= 24 
+      ? `${durationHours} hora${durationHours > 1 ? 's' : ''}`
+      : `${Math.floor(durationHours / 24)} dia${durationHours >= 48 ? 's' : ''}`;
+    
+    return {
+      success: true,
+      username: result.username || username,
+      password: result.password || password,
+      dns: result.dns || result.server_url || testConfig.dns,
+      expiration: expirationStr,
+    };
+    
+  } catch (error) {
+    console.error(`[BotIntercept] generateTestForBot error:`, error);
+    return { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' };
+  }
+}
+
+/**
+ * Busca planos cadastrados do revendedor
+ */
+async function fetchSellerPlans(
+  supabase: SupabaseClient,
+  sellerId: string
+): Promise<string> {
+  try {
+    const { data: plans } = await supabase
+      .from('plans')
+      .select('name, price, duration_days, description')
+      .eq('seller_id', sellerId)
+      .eq('is_active', true)
+      .order('price', { ascending: true })
+      .limit(10);
+    
+    if (!plans || plans.length === 0) {
+      return `_Nenhum plano cadastrado no momento._
+
+Entre em contato para mais informações!`;
+    }
+    
+    const plansList = plans.map((plan, index) => {
+      const emoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '📦';
+      const duration = plan.duration_days 
+        ? `${plan.duration_days} dia${plan.duration_days > 1 ? 's' : ''}`
+        : 'Mensal';
+      const price = plan.price 
+        ? `R$ ${Number(plan.price).toFixed(2).replace('.', ',')}`
+        : 'Consulte';
+      
+      return `${emoji} *${plan.name}*
+   💰 ${price} • ⏱️ ${duration}${plan.description ? `\n   _${plan.description}_` : ''}`;
+    }).join('\n\n');
+    
+    return plansList;
+    
+  } catch (error) {
+    console.error(`[BotIntercept] fetchSellerPlans error:`, error);
+    return `_Erro ao carregar planos. Tente novamente._`;
+  }
+}
+
+// =====================================================================
 // HANDLER PRINCIPAL
 // =====================================================================
 
@@ -844,18 +1034,13 @@ Deno.serve(async (req) => {
     console.log(`[BotIntercept] Config found - is_enabled: ${config.is_enabled}, welcome_message: "${config.welcome_message?.substring(0, 30)}..."`);
 
     // Extrair configurações COM FALLBACKS ROBUSTOS
-    // Mensagem padrão de boas-vindas com menu de opções
-    const defaultWelcomeMessage = `Olá! 👋 Seja bem-vindo!
-
-Escolha uma opção:
-1️⃣ Testar IPTV
-2️⃣ Ver Planos
-3️⃣ Suporte`;
+    // Usar mensagem da máquina de estados como padrão
+    const defaultWelcomeMessage = STATE_MESSAGES.START.message;
     
     const welcomeMessage = config.welcome_message || defaultWelcomeMessage;
     const fallbackMessage = config.fallback_message || 'Desculpe, não entendi. Digite *menu* para ver as opções.';
     const welcomeCooldownHours = config.welcome_cooldown_hours ?? 24;
-    const suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;
+    const _suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;
 
     // =========================================================
     // PASSO 1: lockSession
@@ -1002,48 +1187,116 @@ Escolha uma opção:
           }
         } else {
           // =========================================================
-          // PASSO 4c: Processar entrada do usuário pelo fluxo
+          // PASSO 4c: Processar via MÁQUINA DE ESTADOS
           // =========================================================
-          console.log(`[BotIntercept] Processing user input via flow, current state: ${currentState}`);
+          console.log(`[BotIntercept] Processing via STATE MACHINE, current state: ${currentState}`);
           
-          const flowResult = await processUserInput(
-            supabase,
-            sellerId,
+          // Verificar se estamos aguardando input do usuário
+          const isAwaitingInput = (session?.context as Record<string, unknown>)?.awaiting_input === true;
+          const inputVariableName = (session?.context as Record<string, unknown>)?.input_variable_name as string | null;
+          
+          // Usar máquina de estados
+          const stateResult = processStateTransition(
             currentState,
-            parsed,
-            currentStack
+            message_text,
+            session?.context as Record<string, unknown> || {}
           );
+          
+          console.log(`[BotIntercept] State transition result:`, JSON.stringify(stateResult));
+          
+          newState = stateResult.newState;
+          responseMessage = stateResult.response;
+          
+          // Salvar variável coletada no contexto
+          const updatedContext: Record<string, unknown> = {
+            ...(session?.context as Record<string, unknown> || {}),
+            interaction_count: interactionCount + 1,
+            awaiting_input: stateResult.awaitingInput || false,
+            input_variable_name: stateResult.inputVariableName || null,
+          };
+          
+          // Se coletamos input, salvar no contexto
+          if (isAwaitingInput && inputVariableName) {
+            updatedContext[inputVariableName] = message_text;
+            console.log(`[BotIntercept] Saved input: ${inputVariableName} = "${message_text}"`);
+          }
+          
+          // Verificar se precisamos gerar teste
+          if (stateResult.shouldGenerateTest) {
+            console.log(`[BotIntercept] 🧪 GENERATING TEST - Type: ${stateResult.testType}, Device: ${stateResult.deviceInfo}`);
+            
+            try {
+              const testResult = await generateTestForBot(
+                supabase,
+                sellerId,
+                userId,
+                stateResult.testType || 'tv',
+                stateResult.deviceInfo || 'Não informado'
+              );
+              
+              if (testResult.success) {
+                newState = 'TESTE_SUCESSO';
+                responseMessage = STATE_MESSAGES.TESTE_SUCESSO.message
+                  .replace('{expiration}', testResult.expiration || '2 horas');
+                  
+                // Adicionar credenciais à resposta
+                if (testResult.username && testResult.password) {
+                  responseMessage = `✅ *Teste gerado com sucesso!*
 
-          if (flowResult.response || flowResult.newState !== currentState) {
-            newState = flowResult.newState;
-            responseMessage = flowResult.response;
+📋 *Seus dados de acesso:*
+👤 Usuário: \`${testResult.username}\`
+🔐 Senha: \`${testResult.password}\`
+${testResult.dns ? `🌐 DNS: \`${testResult.dns}\`\n` : ''}
+⏰ Expira em: ${testResult.expiration || '2 horas'}
 
-            // Atualizar stack se navegou
-            if (flowResult.pushToStack && currentState !== 'START') {
-              currentStack.push(currentState);
-            }
-          } else {
-            // Nenhum fluxo respondeu
-            // CORREÇÃO: Se estamos no START e não há menu/fluxo, enviar boas-vindas como fallback
-            // Isso garante que o bot SEMPRE responda quando habilitado
-            if (currentState === 'START' && interactionCount <= 1) {
-              console.log(`[BotIntercept] ⚠️ NO FLOW AT START - SENDING WELCOME AS FALLBACK`);
-              console.log(`[BotIntercept] Welcome: "${welcomeMessage}"`);
-              responseMessage = welcomeMessage;
-            } else {
-              // Envia fallback para interações subsequentes
-              console.log(`[BotIntercept] ⚠️ NO FLOW MATCHED - SENDING FALLBACK`);
-              console.log(`[BotIntercept] Fallback: "${fallbackMessage}"`);
-              responseMessage = fallbackMessage;
+Precisa de algo mais?
+1️⃣ Voltar ao menu
+0️⃣ Encerrar`;
+                }
+              } else {
+                newState = 'TESTE_ERRO';
+                responseMessage = STATE_MESSAGES.TESTE_ERRO.message;
+                console.error(`[BotIntercept] Test generation failed:`, testResult.error);
+              }
+            } catch (testError) {
+              console.error(`[BotIntercept] Test generation exception:`, testError);
+              newState = 'TESTE_ERRO';
+              responseMessage = STATE_MESSAGES.TESTE_ERRO.message;
             }
           }
           
-          // Incrementar contador de interações
+          // Verificar se precisa transferir para humano
+          if (stateResult.transferToHuman) {
+            console.log(`[BotIntercept] 👤 TRANSFER TO HUMAN requested`);
+            updatedContext.support_requested = true;
+            updatedContext.support_message = updatedContext.support_message || message_text;
+            newState = 'AGUARDANDO_HUMANO';
+            
+            // Gerar ticket ID simples
+            const ticketId = Date.now().toString(36).toUpperCase();
+            responseMessage = responseMessage?.replace('{ticket_id}', ticketId);
+          }
+          
+          // Verificar se precisamos mostrar planos
+          if (newState === 'PLANOS') {
+            const plansList = await fetchSellerPlans(supabase, sellerId);
+            responseMessage = responseMessage?.replace('{plans_list}', plansList);
+          }
+          
+          // Atualizar stack para navegação
+          if (newState !== currentState && currentState !== 'START' && !['ENCERRADO', 'AGUARDANDO_HUMANO'].includes(newState)) {
+            currentStack.push(currentState);
+          }
+          
+          // Atualizar sessão
           await supabase
             .from('bot_sessions')
             .update({
-              context: { interaction_count: interactionCount + 1 },
+              state: newState,
+              previous_state: currentState,
+              context: updatedContext,
               last_interaction: now.toISOString(),
+              stack: currentStack,
             })
             .eq('user_id', userId)
             .eq('seller_id', sellerId);
