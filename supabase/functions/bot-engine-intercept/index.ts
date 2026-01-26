@@ -806,10 +806,10 @@ Deno.serve(async (req) => {
     
     console.log(`[BotIntercept] Processing message from ${phone} for seller ${sellerId}`);
 
-    // Verificar se BotEngine está habilitado
+    // Verificar se BotEngine está habilitado e buscar config completa
     const { data: config } = await supabase
       .from('bot_engine_config')
-      .select('is_enabled')
+      .select('*')
       .eq('seller_id', sellerId)
       .eq('is_enabled', true)
       .maybeSingle();
@@ -821,6 +821,12 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Extrair configurações
+    const welcomeMessage = config.welcome_message || 'Olá! 👋 Seja bem-vindo(a)!';
+    const fallbackMessage = config.fallback_message || 'Não entendi 😕 Digite *MENU* para ver as opções.';
+    const welcomeCooldownHours = config.welcome_cooldown_hours ?? 24;
+    const suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;
 
     // =========================================================
     // PASSO 1: lockSession
@@ -841,11 +847,23 @@ Deno.serve(async (req) => {
         .select('*')
         .eq('user_id', userId)
         .eq('seller_id', sellerId)
-        .single();
+        .maybeSingle();
+
+      const isFirstContact = !session;
+      const lastInteraction = session?.last_interaction ? new Date(session.last_interaction) : null;
+      const cooldownMs = welcomeCooldownHours * 60 * 60 * 1000;
+      const now = new Date();
+      
+      // Verificar se deve enviar boas-vindas (primeira vez ou cooldown expirado)
+      const shouldSendWelcome = isFirstContact || 
+        (lastInteraction && (now.getTime() - lastInteraction.getTime() > cooldownMs));
 
       const currentState = session?.state || 'START';
       const previousState = session?.previous_state || 'START';
       let currentStack: string[] = (session?.stack as string[]) || [];
+      
+      // Contador de interações para saber se é primeira mensagem
+      const interactionCount = (session?.context as Record<string, unknown>)?.interaction_count as number || 0;
 
       // =========================================================
       // PASSO 2: parseInput
@@ -907,26 +925,86 @@ Deno.serve(async (req) => {
         }
       } else {
         // =========================================================
-        // PASSO 4b: Processar entrada do usuário pelo fluxo
+        // PASSO 4b: Verificar se é primeira mensagem (enviar boas-vindas)
         // =========================================================
-        console.log(`[BotIntercept] Processing user input via flow, current state: ${currentState}`);
-        
-        const flowResult = await processUserInput(
-          supabase,
-          sellerId,
-          currentState,
-          parsed,
-          currentStack
-        );
-
-        if (flowResult.response || flowResult.newState !== currentState) {
-          newState = flowResult.newState;
-          responseMessage = flowResult.response;
-
-          // Atualizar stack se navegou
-          if (flowResult.pushToStack && currentState !== 'START') {
-            currentStack.push(currentState);
+        if (shouldSendWelcome) {
+          console.log(`[BotIntercept] First contact or cooldown expired - sending welcome message`);
+          responseMessage = welcomeMessage;
+          newState = 'START';
+          
+          // Criar ou atualizar sessão com context
+          if (isFirstContact) {
+            await supabase
+              .from('bot_sessions')
+              .insert({
+                user_id: userId,
+                seller_id: sellerId,
+                phone: userId,
+                state: 'START',
+                previous_state: 'START',
+                stack: [],
+                context: { interaction_count: 1 },
+                locked: false,
+                last_interaction: now.toISOString(),
+                updated_at: now.toISOString()
+              });
+          } else {
+            // Atualizar last_interaction e incrementar contador
+            await supabase
+              .from('bot_sessions')
+              .update({
+                last_interaction: now.toISOString(),
+                context: { interaction_count: interactionCount + 1 },
+                state: 'START',
+                updated_at: now.toISOString()
+              })
+              .eq('user_id', userId)
+              .eq('seller_id', sellerId);
           }
+        } else {
+          // =========================================================
+          // PASSO 4c: Processar entrada do usuário pelo fluxo
+          // =========================================================
+          console.log(`[BotIntercept] Processing user input via flow, current state: ${currentState}`);
+          
+          const flowResult = await processUserInput(
+            supabase,
+            sellerId,
+            currentState,
+            parsed,
+            currentStack
+          );
+
+          if (flowResult.response || flowResult.newState !== currentState) {
+            newState = flowResult.newState;
+            responseMessage = flowResult.response;
+
+            // Atualizar stack se navegou
+            if (flowResult.pushToStack && currentState !== 'START') {
+              currentStack.push(currentState);
+            }
+          } else {
+            // Nenhum fluxo respondeu - verificar se deve enviar fallback
+            // Só envia fallback se NÃO for primeiro contato OU se suppress está desativado
+            const shouldSendFallback = !suppressFallbackFirstContact || interactionCount > 0;
+            
+            if (shouldSendFallback) {
+              console.log(`[BotIntercept] No flow matched - sending fallback message`);
+              responseMessage = fallbackMessage;
+            } else {
+              console.log(`[BotIntercept] First contact with no flow - suppressing fallback`);
+            }
+          }
+          
+          // Incrementar contador de interações
+          await supabase
+            .from('bot_sessions')
+            .update({
+              context: { interaction_count: interactionCount + 1 },
+              last_interaction: now.toISOString(),
+            })
+            .eq('user_id', userId)
+            .eq('seller_id', sellerId);
         }
       }
 
