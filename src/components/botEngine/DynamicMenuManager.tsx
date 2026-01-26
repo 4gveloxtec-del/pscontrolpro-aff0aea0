@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Plus, 
   ChevronRight, 
@@ -24,7 +25,10 @@ import {
   MessageSquare,
   Link as LinkIcon,
   Terminal,
-  Play
+  Play,
+  Sparkles,
+  Loader2,
+  Info
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -45,6 +49,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useDynamicMenus } from '@/hooks/useDynamicMenus';
 import { DynamicMenuEditor } from './DynamicMenuEditor';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import type { DynamicMenu, DynamicMenuType } from '@/lib/botEngine/menuTypes';
 import { cn } from '@/lib/utils';
 
@@ -66,9 +73,11 @@ const TYPE_LABELS: Record<DynamicMenuType, string> = {
 };
 
 export function DynamicMenuManager() {
+  const { user } = useAuth();
   const {
     menus,
     isLoading,
+    refetch,
     getChildMenus,
     createMenu,
     updateMenu,
@@ -87,6 +96,29 @@ export function DynamicMenuManager() {
   const [parentMenuId, setParentMenuId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState<DynamicMenu | null>(null);
+  const [isGeneratingBase, setIsGeneratingBase] = useState(false);
+
+  // Gerar menus base
+  const generateBaseMenus = async () => {
+    if (!user?.id) return;
+    
+    setIsGeneratingBase(true);
+    try {
+      const { error } = await supabase.rpc('create_default_dynamic_menus', {
+        p_seller_id: user.id
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Menus base criados com sucesso!');
+      refetch();
+    } catch (err) {
+      console.error('Error generating base menus:', err);
+      toast.error('Erro ao gerar menus base');
+    } finally {
+      setIsGeneratingBase(false);
+    }
+  };
 
   // Toggle expansão
   const toggleExpand = (menuId: string) => {
@@ -295,13 +327,36 @@ export function DynamicMenuManager() {
         <CardContent>
           {rootMenus.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">Nenhum menu criado</p>
-              <p className="text-sm">Clique em "Novo Menu" para começar</p>
-              <Button className="mt-4" onClick={() => openNewMenu(null)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Primeiro Menu
-              </Button>
+              <Sparkles className="h-12 w-12 mx-auto mb-4 text-primary/50" />
+              <p className="font-medium text-lg">Nenhum menu criado</p>
+              <p className="text-sm mb-6">Você pode criar menus do zero ou gerar um modelo base pronto!</p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button variant="outline" onClick={() => openNewMenu(null)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Menu do Zero
+                </Button>
+                <Button onClick={generateBaseMenus} disabled={isGeneratingBase}>
+                  {isGeneratingBase ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Gerar Modelo Base
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              <Alert className="mt-6 text-left max-w-lg mx-auto">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  O <strong>Modelo Base</strong> inclui: Menu Principal, Teste Grátis, Já sou Cliente, Como Funciona, Quero ser Revendedor e Suporte - todos editáveis!
+                </AlertDescription>
+              </Alert>
             </div>
           ) : (
             <div className="border rounded-lg overflow-hidden">
