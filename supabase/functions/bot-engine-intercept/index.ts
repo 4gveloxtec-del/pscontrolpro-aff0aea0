@@ -1736,105 +1736,318 @@ Deno.serve(async (req) => {
         }
       } else {
         // =========================================================
-        // PASSO 4b: Verificar se é primeira mensagem (enviar boas-vindas)
+        // PASSO 4b: PRIORIDADE MÁXIMA - MENUS DINÂMICOS V2
         // =========================================================
-        if (shouldSendWelcome) {
-          console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE`);
-          console.log(`[BotIntercept] Message: "${welcomeMessage}"`);
-          responseMessage = welcomeMessage;
-          newState = 'START';
+        // Verifica se existem menus dinâmicos configurados
+        // Se sim, usa o sistema de menus V2 ao invés da máquina de estados
+        // =========================================================
+        
+        const rootMenuV2 = await getRootMenuV2(supabase, sellerId);
+        const hasMenusV2 = !!rootMenuV2;
+        
+        console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
+        console.log(`[BotIntercept] MENU V2 CHECK`);
+        console.log(`[BotIntercept] - Has root menu V2: ${hasMenusV2}`);
+        if (rootMenuV2) {
+          console.log(`[BotIntercept] - Root menu key: ${rootMenuV2.menu_key}`);
+          console.log(`[BotIntercept] - Root menu title: ${rootMenuV2.title}`);
+        }
+        console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
+        
+        if (hasMenusV2) {
+          // =========================================================
+          // SISTEMA DE MENUS DINÂMICOS V2 ATIVO
+          // =========================================================
           
-          // SEMPRE usar UPSERT para evitar conflitos com sessão criada por lockSession
-          const { error: upsertError } = await supabase
-            .from('bot_sessions')
-            .upsert({
-              user_id: userId,
-              seller_id: sellerId,
-              phone: userId,
-              state: 'START',
-              previous_state: 'START',
-              stack: [],
-              context: { interaction_count: 1 },
-              locked: false,
-              last_interaction: now.toISOString(),
-              updated_at: now.toISOString()
-            }, {
-              onConflict: 'user_id,seller_id',
-            });
+          // Determinar em qual menu estamos (do contexto da sessão)
+          const currentMenuKey = (session?.context as Record<string, unknown>)?.current_menu_key as string || rootMenuV2!.menu_key;
+          const currentMenuV2 = await getMenuByKeyV2(supabase, sellerId, currentMenuKey);
           
-          if (upsertError) {
-            console.error(`[BotIntercept] Error upserting session:`, upsertError);
+          console.log(`[BotIntercept] V2 Menu Navigation - Current: ${currentMenuKey}`);
+          
+          // Se é primeira mensagem ou cooldown expirou, mostrar menu raiz
+          if (shouldSendWelcome) {
+            console.log(`[BotIntercept] ✅ SENDING DYNAMIC MENU V2 (first contact/cooldown)`);
+            
+            // Buscar itens do menu raiz
+            const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
+            
+            // Renderizar menu
+            responseMessage = renderMenuAsTextV2(
+              rootItems,
+              rootMenuV2!.header_message || `Olá! 👋 Seja bem-vindo(a)!\n\nEscolha uma opção:`,
+              rootMenuV2!.footer_message || undefined,
+              false, // Não mostrar voltar no menu raiz
+              rootMenuV2!.back_button_text || '⬅️ Voltar'
+            );
+            
+            newState = 'MENU_V2';
+            
+            // Atualizar sessão com contexto do menu V2
+            const { error: upsertError } = await supabase
+              .from('bot_sessions')
+              .upsert({
+                user_id: userId,
+                seller_id: sellerId,
+                phone: userId,
+                state: 'MENU_V2',
+                previous_state: 'START',
+                stack: [],
+                context: { 
+                  interaction_count: 1,
+                  current_menu_key: rootMenuV2!.menu_key,
+                  current_menu_id: rootMenuV2!.id,
+                  menu_v2_active: true,
+                },
+                locked: false,
+                last_interaction: now.toISOString(),
+                updated_at: now.toISOString()
+              }, {
+                onConflict: 'user_id,seller_id',
+              });
+            
+            if (upsertError) {
+              console.error(`[BotIntercept] Error upserting session:`, upsertError);
+            } else {
+              console.log(`[BotIntercept] Session upserted with menu V2 context`);
+            }
+            
           } else {
-            console.log(`[BotIntercept] Session upserted successfully for ${userId}`);
+            // Processar navegação no menu V2
+            console.log(`[BotIntercept] Processing V2 menu navigation - Input: "${message_text}"`);
+            
+            const currentMenuId = (session?.context as Record<string, unknown>)?.current_menu_id as string || rootMenuV2!.id;
+            
+            // Processar seleção do usuário
+            const selection = await processMenuSelectionV2(supabase, sellerId, currentMenuId, message_text);
+            
+            console.log(`[BotIntercept] Selection result:`, JSON.stringify(selection));
+            
+            if (selection.found) {
+              switch (selection.menuType) {
+                case 'submenu':
+                  // Navegar para submenu
+                  if (selection.targetMenuKey) {
+                    const targetMenu = await getMenuByKeyV2(supabase, sellerId, selection.targetMenuKey);
+                    if (targetMenu) {
+                      const menuItems = await getMenuItemsV2(supabase, sellerId, targetMenu.id);
+                      
+                      responseMessage = renderMenuAsTextV2(
+                        menuItems,
+                        targetMenu.header_message || `📌 *${targetMenu.title}*`,
+                        targetMenu.footer_message || undefined,
+                        targetMenu.show_back_button,
+                        targetMenu.back_button_text || '⬅️ Voltar'
+                      );
+                      
+                      newState = 'MENU_V2';
+                      currentStack.push(currentMenuKey);
+                      
+                      // Atualizar contexto com novo menu
+                      await supabase
+                        .from('bot_sessions')
+                        .update({
+                          state: 'MENU_V2',
+                          previous_state: currentState,
+                          stack: currentStack,
+                          context: {
+                            ...(session?.context as Record<string, unknown> || {}),
+                            interaction_count: interactionCount + 1,
+                            current_menu_key: targetMenu.menu_key,
+                            current_menu_id: targetMenu.id,
+                            menu_v2_active: true,
+                          },
+                          last_interaction: now.toISOString(),
+                        })
+                        .eq('user_id', userId)
+                        .eq('seller_id', sellerId);
+                    }
+                  }
+                  break;
+                  
+                case 'message':
+                  // Enviar mensagem simples
+                  responseMessage = selection.targetMessage || 'Mensagem não configurada.';
+                  break;
+                  
+                case 'link':
+                  // Enviar link
+                  responseMessage = selection.targetUrl 
+                    ? `🔗 Acesse: ${selection.targetUrl}`
+                    : 'Link não configurado.';
+                  break;
+                  
+                case 'command':
+                  // Executar comando - delegar para handler existente
+                  if (selection.targetCommand) {
+                    console.log(`[BotIntercept] Delegating to command: ${selection.targetCommand}`);
+                    // Marcar para continuar processamento com o comando
+                    await unlockSession(supabase, userId, sellerId);
+                    return new Response(
+                      JSON.stringify({ 
+                        intercepted: false, 
+                        should_continue: true,
+                        delegate_command: selection.targetCommand,
+                      }),
+                      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    );
+                  }
+                  break;
+                  
+                case 'flow':
+                  // Iniciar fluxo do BotEngine
+                  if (selection.targetFlowId) {
+                    console.log(`[BotIntercept] Starting flow: ${selection.targetFlowId}`);
+                    // Buscar entry point do fluxo
+                    const { data: entryNode } = await supabase
+                      .from('bot_engine_nodes')
+                      .select('id, config, node_type')
+                      .eq('flow_id', selection.targetFlowId)
+                      .eq('seller_id', sellerId)
+                      .eq('is_entry_point', true)
+                      .maybeSingle();
+                    
+                    if (entryNode) {
+                      const nodeConfig = entryNode.config as Record<string, unknown> || {};
+                      responseMessage = (nodeConfig.message_text as string) || 'Fluxo iniciado.';
+                      newState = (nodeConfig.state_name as string) || 'FLOW_' + selection.targetFlowId.substring(0, 8);
+                    }
+                  }
+                  break;
+              }
+            } else {
+              // Opção não encontrada - mostrar menu atual novamente
+              console.log(`[BotIntercept] Option not found, reshowing current menu`);
+              
+              if (currentMenuV2) {
+                const menuItems = await getMenuItemsV2(supabase, sellerId, currentMenuV2.id);
+                
+                responseMessage = `❌ Opção inválida. Escolha uma das opções:\n\n` + renderMenuAsTextV2(
+                  menuItems,
+                  currentMenuV2.header_message || undefined,
+                  currentMenuV2.footer_message || undefined,
+                  currentMenuV2.show_back_button,
+                  currentMenuV2.back_button_text || '⬅️ Voltar'
+                );
+              } else {
+                // Fallback para menu raiz
+                const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
+                responseMessage = renderMenuAsTextV2(
+                  rootItems,
+                  rootMenuV2!.header_message || `Escolha uma opção:`,
+                  rootMenuV2!.footer_message || undefined,
+                  false,
+                  '⬅️ Voltar'
+                );
+              }
+            }
+            
+            // Atualizar contagem de interações
+            await supabase
+              .from('bot_sessions')
+              .update({
+                context: {
+                  ...(session?.context as Record<string, unknown> || {}),
+                  interaction_count: interactionCount + 1,
+                },
+                last_interaction: now.toISOString(),
+              })
+              .eq('user_id', userId)
+              .eq('seller_id', sellerId);
           }
+          
         } else {
           // =========================================================
-          // PASSO 4c: Processar via MÁQUINA DE ESTADOS
+          // FALLBACK: MÁQUINA DE ESTADOS LEGADA (sem menus V2)
           // =========================================================
-          console.log(`[BotIntercept] Processing via STATE MACHINE, current state: ${currentState}`);
           
-          // Verificar se estamos aguardando input do usuário
-          const isAwaitingInput = (session?.context as Record<string, unknown>)?.awaiting_input === true;
-          const inputVariableName = (session?.context as Record<string, unknown>)?.input_variable_name as string | null;
-          
-          // Usar máquina de estados
-          const stateResult = processStateTransition(
-            currentState,
-            message_text,
-            session?.context as Record<string, unknown> || {}
-          );
-          
-          console.log(`[BotIntercept] State transition result:`, JSON.stringify(stateResult));
-          
-          // DEBUG LOG: Transição de estado
-          debugStateTransition(
-            userId,
-            sellerId,
-            currentState,
-            stateResult.newState,
-            message_text,
-            stateResult.shouldGenerateTest ? 'generate_test' : 
-              stateResult.transferToHuman ? 'transfer_human' : null
-          );
-          
-          newState = stateResult.newState;
-          responseMessage = stateResult.response;
-          
-          // Salvar variável coletada no contexto
-          const updatedContext: Record<string, unknown> = {
-            ...(session?.context as Record<string, unknown> || {}),
-            interaction_count: interactionCount + 1,
-            awaiting_input: stateResult.awaitingInput || false,
-            input_variable_name: stateResult.inputVariableName || null,
-          };
-          
-          // Se coletamos input, salvar no contexto
-          if (isAwaitingInput && inputVariableName) {
-            updatedContext[inputVariableName] = message_text;
-            console.log(`[BotIntercept] Saved input: ${inputVariableName} = "${message_text}"`);
-          }
-          
-          // Verificar se precisamos gerar teste
-          if (stateResult.shouldGenerateTest) {
-            console.log(`[BotIntercept] 🧪 GENERATING TEST - Type: ${stateResult.testType}, Device: ${stateResult.deviceInfo}`);
+          if (shouldSendWelcome) {
+            console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE (legacy)`);
+            console.log(`[BotIntercept] Message: "${welcomeMessage}"`);
+            responseMessage = welcomeMessage;
+            newState = 'START';
             
-            try {
-              const testResult = await generateTestForBot(
-                supabase,
-                sellerId,
-                userId,
-                stateResult.testType || 'tv',
-                stateResult.deviceInfo || 'Não informado'
-              );
+            const { error: upsertError } = await supabase
+              .from('bot_sessions')
+              .upsert({
+                user_id: userId,
+                seller_id: sellerId,
+                phone: userId,
+                state: 'START',
+                previous_state: 'START',
+                stack: [],
+                context: { interaction_count: 1 },
+                locked: false,
+                last_interaction: now.toISOString(),
+                updated_at: now.toISOString()
+              }, {
+                onConflict: 'user_id,seller_id',
+              });
+            
+            if (upsertError) {
+              console.error(`[BotIntercept] Error upserting session:`, upsertError);
+            } else {
+              console.log(`[BotIntercept] Session upserted successfully for ${userId}`);
+            }
+          } else {
+            // Processar via máquina de estados
+            console.log(`[BotIntercept] Processing via STATE MACHINE, current state: ${currentState}`);
+            
+            const isAwaitingInput = (session?.context as Record<string, unknown>)?.awaiting_input === true;
+            const inputVariableName = (session?.context as Record<string, unknown>)?.input_variable_name as string | null;
+            
+            const stateResult = processStateTransition(
+              currentState,
+              message_text,
+              session?.context as Record<string, unknown> || {}
+            );
+            
+            console.log(`[BotIntercept] State transition result:`, JSON.stringify(stateResult));
+            
+            debugStateTransition(
+              userId,
+              sellerId,
+              currentState,
+              stateResult.newState,
+              message_text,
+              stateResult.shouldGenerateTest ? 'generate_test' : 
+                stateResult.transferToHuman ? 'transfer_human' : null
+            );
+            
+            newState = stateResult.newState;
+            responseMessage = stateResult.response;
+            
+            const updatedContext: Record<string, unknown> = {
+              ...(session?.context as Record<string, unknown> || {}),
+              interaction_count: interactionCount + 1,
+              awaiting_input: stateResult.awaitingInput || false,
+              input_variable_name: stateResult.inputVariableName || null,
+            };
+            
+            if (isAwaitingInput && inputVariableName) {
+              updatedContext[inputVariableName] = message_text;
+              console.log(`[BotIntercept] Saved input: ${inputVariableName} = "${message_text}"`);
+            }
+            
+            if (stateResult.shouldGenerateTest) {
+              console.log(`[BotIntercept] 🧪 GENERATING TEST - Type: ${stateResult.testType}, Device: ${stateResult.deviceInfo}`);
               
-              if (testResult.success) {
-                newState = 'TESTE_SUCESSO';
-                responseMessage = STATE_MESSAGES.TESTE_SUCESSO.message
-                  .replace('{expiration}', testResult.expiration || '2 horas');
-                  
-                // Adicionar credenciais à resposta
-                if (testResult.username && testResult.password) {
-                  responseMessage = `✅ *Teste gerado com sucesso!*
+              try {
+                const testResult = await generateTestForBot(
+                  supabase,
+                  sellerId,
+                  userId,
+                  stateResult.testType || 'tv',
+                  stateResult.deviceInfo || 'Não informado'
+                );
+                
+                if (testResult.success) {
+                  newState = 'TESTE_SUCESSO';
+                  responseMessage = STATE_MESSAGES.TESTE_SUCESSO.message
+                    .replace('{expiration}', testResult.expiration || '2 horas');
+                    
+                  if (testResult.username && testResult.password) {
+                    responseMessage = `✅ *Teste gerado com sucesso!*
 
 📋 *Seus dados de acesso:*
 👤 Usuário: \`${testResult.username}\`
@@ -1845,54 +2058,50 @@ ${testResult.dns ? `🌐 DNS: \`${testResult.dns}\`\n` : ''}
 Precisa de algo mais?
 1️⃣ Voltar ao menu
 0️⃣ Encerrar`;
+                  }
+                } else {
+                  newState = 'TESTE_ERRO';
+                  responseMessage = STATE_MESSAGES.TESTE_ERRO.message;
+                  console.error(`[BotIntercept] Test generation failed:`, testResult.error);
                 }
-              } else {
+              } catch (testError) {
+                console.error(`[BotIntercept] Test generation exception:`, testError);
                 newState = 'TESTE_ERRO';
                 responseMessage = STATE_MESSAGES.TESTE_ERRO.message;
-                console.error(`[BotIntercept] Test generation failed:`, testResult.error);
               }
-            } catch (testError) {
-              console.error(`[BotIntercept] Test generation exception:`, testError);
-              newState = 'TESTE_ERRO';
-              responseMessage = STATE_MESSAGES.TESTE_ERRO.message;
             }
-          }
-          
-          // Verificar se precisa transferir para humano
-          if (stateResult.transferToHuman) {
-            console.log(`[BotIntercept] 👤 TRANSFER TO HUMAN requested`);
-            updatedContext.support_requested = true;
-            updatedContext.support_message = updatedContext.support_message || message_text;
-            newState = 'AGUARDANDO_HUMANO';
             
-            // Gerar ticket ID simples
-            const ticketId = Date.now().toString(36).toUpperCase();
-            responseMessage = responseMessage?.replace('{ticket_id}', ticketId);
+            if (stateResult.transferToHuman) {
+              console.log(`[BotIntercept] 👤 TRANSFER TO HUMAN requested`);
+              updatedContext.support_requested = true;
+              updatedContext.support_message = updatedContext.support_message || message_text;
+              newState = 'AGUARDANDO_HUMANO';
+              
+              const ticketId = Date.now().toString(36).toUpperCase();
+              responseMessage = responseMessage?.replace('{ticket_id}', ticketId);
+            }
+            
+            if (newState === 'PLANOS') {
+              const plansList = await fetchSellerPlans(supabase, sellerId);
+              responseMessage = responseMessage?.replace('{plans_list}', plansList);
+            }
+            
+            if (newState !== currentState && currentState !== 'START' && !['ENCERRADO', 'AGUARDANDO_HUMANO'].includes(newState)) {
+              currentStack.push(currentState);
+            }
+            
+            await supabase
+              .from('bot_sessions')
+              .update({
+                state: newState,
+                previous_state: currentState,
+                context: updatedContext,
+                last_interaction: now.toISOString(),
+                stack: currentStack,
+              })
+              .eq('user_id', userId)
+              .eq('seller_id', sellerId);
           }
-          
-          // Verificar se precisamos mostrar planos
-          if (newState === 'PLANOS') {
-            const plansList = await fetchSellerPlans(supabase, sellerId);
-            responseMessage = responseMessage?.replace('{plans_list}', plansList);
-          }
-          
-          // Atualizar stack para navegação
-          if (newState !== currentState && currentState !== 'START' && !['ENCERRADO', 'AGUARDANDO_HUMANO'].includes(newState)) {
-            currentStack.push(currentState);
-          }
-          
-          // Atualizar sessão
-          await supabase
-            .from('bot_sessions')
-            .update({
-              state: newState,
-              previous_state: currentState,
-              context: updatedContext,
-              last_interaction: now.toISOString(),
-              stack: currentStack,
-            })
-            .eq('user_id', userId)
-            .eq('seller_id', sellerId);
         }
       }
 
