@@ -127,6 +127,8 @@ export default function BotEngine() {
 
   // Save flow handler
   const handleSaveFlow = async () => {
+    console.log('[BotEngine] handleSaveFlow called', { flowName, flowTriggerType, flowKeywords });
+    
     if (!flowName.trim()) {
       toast.error('Nome do fluxo é obrigatório');
       return;
@@ -134,11 +136,19 @@ export default function BotEngine() {
     
     setIsSaving(true);
     try {
-      const keywords = flowTriggerType === 'keyword' 
+      const keywords = flowTriggerType === 'keyword' && flowKeywords.trim()
         ? flowKeywords.split(',').map(k => k.trim()).filter(Boolean)
         : [];
       
+      console.log('[BotEngine] Prepared data:', {
+        name: flowName.trim(),
+        trigger_type: flowTriggerType,
+        keywords,
+        editingFlow: !!editingFlow
+      });
+      
       if (editingFlow) {
+        console.log('[BotEngine] Calling updateFlow...');
         await updateFlow({
           id: editingFlow.id,
           updates: {
@@ -148,20 +158,26 @@ export default function BotEngine() {
             trigger_keywords: keywords,
           }
         });
+        console.log('[BotEngine] updateFlow completed');
       } else {
+        console.log('[BotEngine] Calling createFlow...');
         await createFlow({
           name: flowName.trim(),
-          description: flowDescription.trim() || undefined,
+          description: flowDescription.trim() || null,
           trigger_type: flowTriggerType,
           trigger_keywords: keywords,
         });
+        console.log('[BotEngine] createFlow completed');
       }
       
+      console.log('[BotEngine] Flow saved successfully, closing dialog');
       setIsFlowDialogOpen(false);
       setEditingFlow(null);
       resetFlowForm();
     } catch (error) {
-      console.error('Error saving flow:', error);
+      console.error('[BotEngine] Error saving flow:', error);
+      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+      toast.error(`Erro ao salvar fluxo: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
