@@ -716,7 +716,16 @@ Deno.serve(async (req: Request) => {
             // CRITICAL: Pass the instance's connected_phone to avoid returning it
             // (which would cause bot to respond to itself instead of the client)
             const instancePhone = instance.connected_phone ? String(instance.connected_phone).replace(/\D/g, '') : undefined;
-            const senderPhone = getSenderPhoneFromWebhook(msg, eventData, body, instancePhone);
+            let senderPhone = getSenderPhoneFromWebhook(msg, eventData, body, instancePhone);
+            
+            // Se não conseguiu extrair, tentar normalizar remoteJid diretamente
+            if (!senderPhone && remoteJid) {
+              const digits = remoteJid.replace(/\D/g, '');
+              if (digits.length >= 10 && digits.length <= 15) {
+                senderPhone = digits;
+                console.log(`[Webhook] ✅ Extracted phone from remoteJid fallback: ${senderPhone}`);
+              }
+            }
             
             console.log(`[Webhook] Processing DIRECT message from ${senderPhone}`);
 
@@ -742,17 +751,7 @@ Deno.serve(async (req: Request) => {
               const msgMessageKeys = msg?.message && typeof msg.message === 'object' ? Object.keys(msg.message) : [];
               console.log('[Webhook] Empty messageText extracted. msg keys:', msgKeys.join(','));
               console.log('[Webhook] Empty messageText extracted. msg.message keys:', msgMessageKeys.join(','));
-              
-              // CRÍTICO: Não processar mensagens sem conteúdo
-              console.error(`[Webhook] ❌ BLOCKED: Empty message text, skipping processing`);
-              continue;
-            }
-            
-            // CRÍTICO: Validar que temos um sender phone válido antes de processar
-            if (!senderPhone || senderPhone.length < 10) {
-              console.error(`[Webhook] ❌ BLOCKED: Invalid sender phone (${senderPhone || 'empty'}), skipping processing`);
-              console.error(`[Webhook] remoteJid was: ${remoteJid}`);
-              continue;
+              console.warn(`[Webhook] ⚠️ Empty messageText - will skip non-bot processing`);
             }
             
             // ===============================================================
@@ -939,8 +938,24 @@ Deno.serve(async (req: Request) => {
                   console.log(`[Webhook] Has API Token: ${!!globalConfig?.api_token}`);
 
                   if (globalConfig?.api_url && globalConfig?.api_token) {
+                    // CRÍTICO: Validar que temos um telefone válido para envio
+                    if (!senderPhone) {
+                      console.error(`[Webhook] ❌ CANNOT SEND: senderPhone is empty`);
+                      console.error(`[Webhook] remoteJid was: ${remoteJid}`);
+                      console.error(`[Webhook] Bot response will not be delivered`);
+                      continue;
+                    }
+                    
                     // Normalizar telefone (mesma lógica do send-test-message)
                     let cleanPhone = senderPhone.replace(/\D/g, '');
+                    
+                    if (cleanPhone.length < 10) {
+                      console.error(`[Webhook] ❌ CANNOT SEND: cleanPhone too short (${cleanPhone.length} digits): ${cleanPhone}`);
+                      console.error(`[Webhook] Original senderPhone: ${senderPhone}`);
+                      console.error(`[Webhook] Bot response will not be delivered`);
+                      continue;
+                    }
+                    
                     if (!cleanPhone.startsWith('55') && cleanPhone.length >= 10 && cleanPhone.length <= 11) {
                       cleanPhone = '55' + cleanPhone;
                     }
