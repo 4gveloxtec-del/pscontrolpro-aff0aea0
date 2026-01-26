@@ -80,8 +80,12 @@ export interface BotEngineConfig {
   business_hours_enabled: boolean;
   business_hours_start: string; // TIME format "HH:MM"
   business_hours_end: string;   // TIME format "HH:MM"
-  business_days: number[];      // 1=Seg, 2=Ter, ..., 7=Dom
+  business_days: number[];      // 0=Dom, 1=Seg, 2=Ter, ..., 6=Sáb
   timezone: string;
+  
+  // Comportamento de primeiro contato
+  welcome_cooldown_hours: number;         // Horas antes de reenviar boas-vindas (default 24)
+  suppress_fallback_first_contact: boolean; // Não enviar erro no primeiro contato
   
   // Comportamento
   typing_simulation: boolean;

@@ -427,9 +427,11 @@ export type Database = {
           outside_hours_message: string | null
           seller_id: string
           session_expire_minutes: number | null
+          suppress_fallback_first_contact: boolean | null
           timezone: string | null
           typing_simulation: boolean | null
           updated_at: string | null
+          welcome_cooldown_hours: number | null
           welcome_media_type: string | null
           welcome_media_url: string | null
           welcome_message: string | null
@@ -456,9 +458,11 @@ export type Database = {
           outside_hours_message?: string | null
           seller_id: string
           session_expire_minutes?: number | null
+          suppress_fallback_first_contact?: boolean | null
           timezone?: string | null
           typing_simulation?: boolean | null
           updated_at?: string | null
+          welcome_cooldown_hours?: number | null
           welcome_media_type?: string | null
           welcome_media_url?: string | null
           welcome_message?: string | null
@@ -485,9 +489,11 @@ export type Database = {
           outside_hours_message?: string | null
           seller_id?: string
           session_expire_minutes?: number | null
+          suppress_fallback_first_contact?: boolean | null
           timezone?: string | null
           typing_simulation?: boolean | null
           updated_at?: string | null
+          welcome_cooldown_hours?: number | null
           welcome_media_type?: string | null
           welcome_media_url?: string | null
           welcome_message?: string | null

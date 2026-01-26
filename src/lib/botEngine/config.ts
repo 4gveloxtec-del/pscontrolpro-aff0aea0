@@ -96,6 +96,10 @@ function normalizeConfig(data: Record<string, unknown>): BotEngineConfig {
     business_days: data.business_days as number[] ?? [1, 2, 3, 4, 5, 6],
     timezone: data.timezone as string ?? 'America/Sao_Paulo',
     
+    // Comportamento de primeiro contato
+    welcome_cooldown_hours: data.welcome_cooldown_hours as number ?? 24,
+    suppress_fallback_first_contact: data.suppress_fallback_first_contact as boolean ?? true,
+    
     // Comportamento
     typing_simulation: data.typing_simulation as boolean ?? true,
     human_takeover_enabled: data.human_takeover_enabled as boolean ?? true,
@@ -227,6 +231,8 @@ export function getDefaultConfig(sellerId: string): Partial<BotEngineConfig> {
     business_hours_end: '22:00',
     business_days: [1, 2, 3, 4, 5, 6], // Seg-Sáb
     timezone: 'America/Sao_Paulo',
+    welcome_cooldown_hours: 24,
+    suppress_fallback_first_contact: true,
     auto_reply_delay_ms: 500,
     typing_simulation: true,
     max_inactivity_minutes: 30,

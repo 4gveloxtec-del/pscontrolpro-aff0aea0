@@ -71,6 +71,10 @@ export default function BotEngine() {
   const [businessDays, setBusinessDays] = useState<number[]>(config?.business_days || [1, 2, 3, 4, 5, 6]);
   const [outsideHoursMessage, setOutsideHoursMessage] = useState(config?.outside_hours_message || '');
 
+  // Advanced settings states
+  const [welcomeCooldownHours, setWelcomeCooldownHours] = useState(config?.welcome_cooldown_hours ?? 24);
+  const [suppressFallbackFirstContact, setSuppressFallbackFirstContact] = useState(config?.suppress_fallback_first_contact ?? true);
+
   // Update form when config loads
   useEffect(() => {
     if (config) {
@@ -82,6 +86,8 @@ export default function BotEngine() {
       setBusinessHoursEnd(config.business_hours_end || '22:00');
       setBusinessDays(config.business_days || [1, 2, 3, 4, 5, 6]);
       setOutsideHoursMessage(config.outside_hours_message || '');
+      setWelcomeCooldownHours(config.welcome_cooldown_hours ?? 24);
+      setSuppressFallbackFirstContact(config.suppress_fallback_first_contact ?? true);
     }
   }, [config]);
 
@@ -107,6 +113,8 @@ export default function BotEngine() {
         business_hours_end: businessHoursEnd,
         business_days: businessDays,
         outside_hours_message: outsideHoursMessage,
+        welcome_cooldown_hours: welcomeCooldownHours,
+        suppress_fallback_first_contact: suppressFallbackFirstContact,
       });
       toast.success('Configurações salvas com sucesso!');
     } catch (error: any) {
@@ -304,7 +312,7 @@ export default function BotEngine() {
                         <HelpCircle className="h-4 w-4 text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Enviada quando um cliente inicia a conversa</p>
+                        <p>Enviada quando um cliente inicia a conversa (uma vez a cada {welcomeCooldownHours}h)</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -316,6 +324,23 @@ export default function BotEngine() {
                   onChange={(e) => setWelcomeMessage(e.target.value)}
                   rows={4}
                 />
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="cooldown-hours" className="text-sm text-muted-foreground">
+                      Enviar a cada
+                    </Label>
+                    <Input
+                      id="cooldown-hours"
+                      type="number"
+                      min={1}
+                      max={168}
+                      value={welcomeCooldownHours}
+                      onChange={(e) => setWelcomeCooldownHours(Number(e.target.value))}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">horas</span>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -326,8 +351,8 @@ export default function BotEngine() {
                       <TooltipTrigger>
                         <HelpCircle className="h-4 w-4 text-muted-foreground" />
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Enviada quando o bot não entende a mensagem</p>
+                      <TooltipContent className="max-w-xs">
+                        <p>Enviada quando o bot não entende a mensagem do cliente</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -339,6 +364,26 @@ export default function BotEngine() {
                   onChange={(e) => setFallbackMessage(e.target.value)}
                   rows={3}
                 />
+                <div className="flex items-center gap-2 mt-2">
+                  <Switch
+                    id="suppress-fallback"
+                    checked={suppressFallbackFirstContact}
+                    onCheckedChange={setSuppressFallbackFirstContact}
+                  />
+                  <Label htmlFor="suppress-fallback" className="text-sm">
+                    Não enviar erro no primeiro contato
+                  </Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Se ativado, a mensagem de erro só será enviada após o cliente já ter interagido pelo menos uma vez com o bot</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
 
               <div className="flex justify-end">
