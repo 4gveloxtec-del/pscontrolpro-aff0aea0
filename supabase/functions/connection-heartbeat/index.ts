@@ -855,41 +855,67 @@ Deno.serve(async (req: Request) => {
             // BOT ENGINE INTERCEPT - Verificar se BotEngine deve processar
             // ===============================================================
             // O BotEngine processa apenas mensagens diretas (grupos são filtrados acima)
-            console.log(`[Webhook] Attempting BotEngine intercept for seller ${instance.seller_id}, phone: ${senderPhone}`);
+            console.log(`[Webhook] ===============================================`);
+            console.log(`[Webhook] BOTENGINE INTERCEPT ATTEMPT`);
+            console.log(`[Webhook] Seller ID: ${instance.seller_id}`);
+            console.log(`[Webhook] Sender Phone: ${senderPhone}`);
+            console.log(`[Webhook] Instance Name: ${instanceName}`);
+            console.log(`[Webhook] Message: "${messageText?.substring(0, 100)}"`);
+            console.log(`[Webhook] ===============================================`);
             
             try {
               const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+              const payload = {
+                seller_id: instance.seller_id,
+                sender_phone: senderPhone,
+                message_text: messageText,
+                instance_name: instanceName,
+              };
+              
+              console.log(`[Webhook] Calling bot-engine-intercept with payload:`, JSON.stringify(payload));
+              
               const botInterceptResponse = await fetch(`${supabaseUrl}/functions/v1/bot-engine-intercept`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                 },
-                body: JSON.stringify({
-                  seller_id: instance.seller_id,
-                  sender_phone: senderPhone,
-                  message_text: messageText,
-                  instance_name: instanceName,
-                }),
+                body: JSON.stringify(payload),
               });
 
-              console.log(`[Webhook] BotEngine intercept response status: ${botInterceptResponse.status}`);
+              console.log(`[Webhook] ===============================================`);
+              console.log(`[Webhook] BOTENGINE INTERCEPT RESPONSE`);
+              console.log(`[Webhook] Status: ${botInterceptResponse.status}`);
+              console.log(`[Webhook] OK: ${botInterceptResponse.ok}`);
+              console.log(`[Webhook] ===============================================`);
               
               if (botInterceptResponse.ok) {
                 const botResult = await botInterceptResponse.json();
-                console.log(`[Webhook] BotEngine result:`, JSON.stringify(botResult));
+                console.log(`[Webhook] ===============================================`);
+                console.log(`[Webhook] BOTENGINE RESULT`);
+                console.log(`[Webhook] Intercepted: ${botResult.intercepted}`);
+                console.log(`[Webhook] Has Response: ${!!botResult.response}`);
+                console.log(`[Webhook] Response: "${botResult.response?.substring(0, 100)}"`);
+                console.log(`[Webhook] New State: ${botResult.new_state}`);
+                console.log(`[Webhook] ===============================================`);
                 
                 if (botResult.intercepted && botResult.response) {
-                  console.log(`[Webhook] BotEngine intercepted message, state: ${botResult.new_state}`);
-                  
                   // ===============================================================
                   // ENVIAR RESPOSTA DO BOTENGINE VIA WHATSAPP (LÓGICA ROBUSTA)
                   // ===============================================================
+                  console.log(`[Webhook] ===============================================`);
+                  console.log(`[Webhook] PREPARING TO SEND RESPONSE VIA WHATSAPP`);
+                  console.log(`[Webhook] ===============================================`);
+                  
                   const { data: globalConfig } = await supabase
                     .from('whatsapp_global_config')
                     .select('api_url, api_token')
                     .eq('is_active', true)
                     .maybeSingle();
+                  
+                  console.log(`[Webhook] Global config found: ${!!globalConfig}`);
+                  console.log(`[Webhook] API URL: ${globalConfig?.api_url}`);
+                  console.log(`[Webhook] Has API Token: ${!!globalConfig?.api_token}`);
 
                   if (globalConfig?.api_url && globalConfig?.api_token) {
                     // Normalizar telefone (mesma lógica do send-test-message)
@@ -901,7 +927,12 @@ Deno.serve(async (req: Request) => {
                     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
                     const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
                     
-                    console.log(`[Webhook] Sending BotEngine response to ${cleanPhone}`);
+                    console.log(`[Webhook] ===============================================`);
+                    console.log(`[Webhook] SENDING MESSAGE VIA EVOLUTION API`);
+                    console.log(`[Webhook] URL: ${sendUrl}`);
+                    console.log(`[Webhook] To: ${cleanPhone}`);
+                    console.log(`[Webhook] Message: "${botResult.response}"`);
+                    console.log(`[Webhook] ===============================================`);
                     
                     try {
                       const sendResponse = await fetch(sendUrl, {
@@ -915,9 +946,13 @@ Deno.serve(async (req: Request) => {
                           text: botResult.response,
                         }),
                       });
+                      
+                      const responseText = await sendResponse.text();
+                      console.log(`[Webhook] Evolution API response status: ${sendResponse.status}`);
+                      console.log(`[Webhook] Evolution API response body: ${responseText}`);
 
                       if (!sendResponse.ok) {
-                        console.log(`[Webhook] First attempt failed (${sendResponse.status}), trying alternative formats...`);
+                        console.log(`[Webhook] ⚠️ First attempt failed, trying alternative phone formats...`);
                         
                         // Tentar formatos alternativos (mesma lógica do send-test-message)
                         const alternativeFormats = [
@@ -930,7 +965,7 @@ Deno.serve(async (req: Request) => {
                         for (const altPhone of alternativeFormats) {
                           if (altPhone === cleanPhone) continue; // Skip já testado
                           
-                          console.log(`[Webhook] Retrying with: ${altPhone}`);
+                          console.log(`[Webhook] 🔄 Retry attempt with phone: ${altPhone}`);
                           const retryResponse = await fetch(sendUrl, {
                             method: 'POST',
                             headers: {
@@ -942,31 +977,63 @@ Deno.serve(async (req: Request) => {
                               text: botResult.response,
                             }),
                           });
+                          
+                          const retryText = await retryResponse.text();
+                          console.log(`[Webhook] Retry response status: ${retryResponse.status}`);
+                          console.log(`[Webhook] Retry response body: ${retryText}`);
 
                           if (retryResponse.ok) {
                             console.log(`[Webhook] ✅ BotEngine response sent successfully with ${altPhone}`);
                             sent = true;
                             break;
+                          } else {
+                            console.log(`[Webhook] ❌ Retry failed with ${altPhone}`);
                           }
                         }
                         
                         if (!sent) {
-                          console.error(`[Webhook] ❌ Failed to send BotEngine response after all retries`);
+                          console.error(`[Webhook] ===============================================`);
+                          console.error(`[Webhook] ❌ FAILED TO SEND RESPONSE AFTER ALL RETRIES`);
+                          console.error(`[Webhook] Original phone: ${senderPhone}`);
+                          console.error(`[Webhook] Normalized phone: ${cleanPhone}`);
+                          console.error(`[Webhook] All attempts failed`);
+                          console.error(`[Webhook] ===============================================`);
                         }
                       } else {
                         console.log(`[Webhook] ✅ BotEngine response sent successfully to ${cleanPhone}`);
                       }
                     } catch (sendErr) {
-                      console.error(`[Webhook] Error sending BotEngine response:`, sendErr);
+                      console.error(`[Webhook] ===============================================`);
+                      console.error(`[Webhook] ❌ EXCEPTION SENDING BOTENGINE RESPONSE`);
+                      console.error(`[Webhook] Error:`, sendErr);
+                      console.error(`[Webhook] ===============================================`);
                     }
+                  } else {
+                    console.error(`[Webhook] ===============================================`);
+                    console.error(`[Webhook] ❌ NO WHATSAPP GLOBAL CONFIG FOUND`);
+                    console.error(`[Webhook] Cannot send BotEngine response - missing Evolution API config`);
+                    console.error(`[Webhook] ===============================================`);
                   }
                   
                   continue; // Mensagem processada pelo BotEngine, não continuar
+                } else {
+                  console.log(`[Webhook] ℹ️ BotEngine did not intercept - continuing to normal flow`);
                 }
+              } else {
+                const errorText = await botInterceptResponse.text();
+                console.error(`[Webhook] ===============================================`);
+                console.error(`[Webhook] ❌ BOTENGINE INTERCEPT FAILED`);
+                console.error(`[Webhook] Status: ${botInterceptResponse.status}`);
+                console.error(`[Webhook] Response: ${errorText}`);
+                console.error(`[Webhook] ===============================================`);
               }
             } catch (botErr) {
               // Se BotEngine falhar, continuar com fluxo normal
-              console.log(`[Webhook] BotEngine intercept skipped:`, botErr instanceof Error ? botErr.message : String(botErr));
+              console.error(`[Webhook] ===============================================`);
+              console.error(`[Webhook] ❌ BOTENGINE INTERCEPT EXCEPTION`);
+              console.error(`[Webhook] Error:`, botErr instanceof Error ? botErr.message : String(botErr));
+              console.error(`[Webhook] Stack:`, botErr instanceof Error ? botErr.stack : 'N/A');
+              console.error(`[Webhook] ===============================================`);
             }
 
             // ===============================================================
