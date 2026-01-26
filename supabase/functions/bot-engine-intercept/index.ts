@@ -844,7 +844,15 @@ Deno.serve(async (req) => {
     console.log(`[BotIntercept] Config found - is_enabled: ${config.is_enabled}, welcome_message: "${config.welcome_message?.substring(0, 30)}..."`);
 
     // Extrair configurações COM FALLBACKS ROBUSTOS
-    const welcomeMessage = config.welcome_message || 'Olá! 👋 Seja bem-vindo(a)! Como posso ajudar você hoje?';
+    // Mensagem padrão de boas-vindas com menu de opções
+    const defaultWelcomeMessage = `Olá! 👋 Seja bem-vindo!
+
+Escolha uma opção:
+1️⃣ Testar IPTV
+2️⃣ Ver Planos
+3️⃣ Suporte`;
+    
+    const welcomeMessage = config.welcome_message || defaultWelcomeMessage;
     const fallbackMessage = config.fallback_message || 'Desculpe, não entendi. Digite *menu* para ver as opções.';
     const welcomeCooldownHours = config.welcome_cooldown_hours ?? 24;
     const suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;

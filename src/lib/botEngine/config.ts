@@ -217,12 +217,18 @@ export function replaceCustomVariables(
 
 /**
  * Retorna configuração padrão para novos sellers
+ * Mensagem de boas-vindas com menu de opções padrão
  */
 export function getDefaultConfig(sellerId: string): Partial<BotEngineConfig> {
   return {
     seller_id: sellerId,
     is_enabled: false,
-    welcome_message: 'Olá! 👋 Seja bem-vindo(a)! Como posso ajudar você hoje?',
+    welcome_message: `Olá! 👋 Seja bem-vindo!
+
+Escolha uma opção:
+1️⃣ Testar IPTV
+2️⃣ Ver Planos
+3️⃣ Suporte`,
     welcome_media_type: 'none',
     fallback_message: 'Desculpe, não entendi. Digite *menu* para ver as opções.',
     main_menu_key: 'main',
