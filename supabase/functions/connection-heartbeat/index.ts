@@ -505,17 +505,50 @@ Deno.serve(async (req: Request) => {
     const { action, seller_id, webhook_event } = body;
 
     // ============================================================
+    // 🚫 BLOQUEIO TOTAL DE GRUPOS - PRIMEIRA VERIFICAÇÃO
+    // Bot é EXCLUSIVO para conversas privadas (PV)
+    // ============================================================
+    const checkRemoteJid = 
+      body.data?.key?.remoteJid || 
+      body.key?.remoteJid || 
+      body.data?.remoteJid ||
+      body.remoteJid ||
+      body.data?.message?.key?.remoteJid ||
+      '';
+    
+    if (checkRemoteJid.includes('@g.us')) {
+      // Grupo detectado - retornar OK silenciosamente sem processar NADA
+      return new Response(
+        JSON.stringify({ status: "ignored", reason: "group_message" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ============================================================
     // WEBHOOK HANDLER - Receive events from Evolution API
     // IMPORTANT: Evolution sends webhooks with { event, instance, data } (no action/webhook_event)
     // ============================================================
     const isWebhookRequest = action === 'webhook' || !!webhook_event || !!(body && typeof body === 'object' && 'event' in body);
 
     if (isWebhookRequest) {
-      // Log full payload for debugging - ENHANCED
+      // Segunda verificação de grupo (para mensagens em array)
+      const messagesArray = body.data?.messages || body.messages || [];
+      if (Array.isArray(messagesArray) && messagesArray.length > 0) {
+        const allGroups = messagesArray.every((m: any) => {
+          const jid = m.key?.remoteJid || m.remoteJid || '';
+          return jid.includes('@g.us');
+        });
+        if (allGroups) {
+          return new Response(
+            JSON.stringify({ status: "ignored", reason: "all_group_messages" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
       const fullPayloadStr = JSON.stringify(body);
-      console.log('[Webhook] ===== INCOMING WEBHOOK =====');
+      console.log('[Webhook] ===== INCOMING WEBHOOK (PV ONLY) =====');
       console.log('[Webhook] Raw payload length:', fullPayloadStr.length);
-      console.log('[Webhook] Raw payload (first 3000 chars):', fullPayloadStr.substring(0, 3000));
       
       const rawEvent = webhook_event || body.event;
       const event = normalizeWebhookEvent(rawEvent);
@@ -543,9 +576,6 @@ Deno.serve(async (req: Request) => {
       console.log('[Webhook] Parsed - rawEvent:', rawEvent || 'NOT_SET', '=>', event || 'EMPTY');
       console.log('[Webhook] Parsed - instanceName:', instanceName || 'NOT_FOUND');
       console.log('[Webhook] Available keys:', Object.keys(body).join(', '));
-      if (body.data) {
-        console.log('[Webhook] body.data keys:', Object.keys(body.data).join(', '));
-      }
       
       if (!instanceName) {
         console.error('[Webhook] CRITICAL: Could not extract instance name from payload!');
