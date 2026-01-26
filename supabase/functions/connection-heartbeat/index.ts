@@ -740,15 +740,42 @@ Deno.serve(async (req: Request) => {
             console.log(`[Webhook] 🔍 PROCESSING MESSAGE`);
             console.log(`[Webhook] remoteJid: ${remoteJid}`);
             console.log(`[Webhook] fromMe: ${msg.key?.fromMe}`);
+           console.log(`[Webhook] messageId: ${msg.key?.id || 'N/A'}`);
+           console.log(`[Webhook] pushName: ${msg.pushName || 'N/A'}`);
             console.log(`[Webhook] ===============================================`);
             
-            // Ignorar mensagens de grupos - apenas conversas individuais
-            if (remoteJid.includes('@g.us')) {
-              console.log(`[Webhook] Ignoring group message from: ${remoteJid}`);
-              continue;
-            }
+           // Verificar se é grupo e se deve ignorar baseado na configuração
+           const isGroupMessage = remoteJid.includes('@g.us');
+           console.log(`[Webhook] 📊 Message Type Analysis:`);
+           console.log(`[Webhook]   - Is Group: ${isGroupMessage}`);
+           console.log(`[Webhook]   - Is Private: ${!isGroupMessage}`);
             
-            console.log(`[Webhook] ✅ NOT A GROUP - continuing processing`);
+           if (isGroupMessage) {
+             console.log(`[Webhook] ⚠️ GROUP MESSAGE DETECTED - Checking bot config...`);
+             
+             // Buscar config do bot para verificar se deve ignorar grupos
+             const { data: botConfig } = await supabase
+               .from('bot_engine_config')
+               .select('ignore_groups, is_enabled')
+               .eq('seller_id', instance.seller_id)
+               .maybeSingle();
+             
+             const shouldIgnoreGroups = botConfig?.ignore_groups ?? true;
+             const botEnabled = botConfig?.is_enabled ?? false;
+             
+             console.log(`[Webhook]   - Bot Enabled: ${botEnabled}`);
+             console.log(`[Webhook]   - Ignore Groups Config: ${shouldIgnoreGroups}`);
+             
+             if (shouldIgnoreGroups) {
+               console.log(`[Webhook] ❌ IGNORED: Group messages disabled in config`);
+               console.log(`[Webhook]    Group ID: ${remoteJid}`);
+               continue;
+             } else {
+               console.log(`[Webhook] ✅ ALLOWED: Group messages enabled in config`);
+             }
+           } else {
+             console.log(`[Webhook] ✅ PRIVATE MESSAGE - continuing processing`);
+           }
             
             // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
             const messageText = extractWhatsAppMessageText(msg);
