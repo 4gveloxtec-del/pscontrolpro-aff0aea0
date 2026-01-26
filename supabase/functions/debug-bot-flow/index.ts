@@ -233,14 +233,43 @@ Deno.serve(async (req) => {
         status: interceptResponse.status,
         result: interceptResult,
       };
+      
+      // PASSO 8: Verificar se bot gerou resposta e simular envio
+      diagnostics.steps.push("8. Checking bot response and simulating WhatsApp send...");
+      
+      if (!interceptResult.intercepted) {
+        diagnostics.final_verdict = "❌ BOT DID NOT INTERCEPT - Check bot_engine_config.is_enabled and flow triggers";
+      } else if (!interceptResult.response) {
+        diagnostics.final_verdict = "❌ BOT INTERCEPTED BUT NO RESPONSE - Check welcome_message or flow nodes";
+      } else {
+        diagnostics.final_verdict = `✅ BOT GENERATED RESPONSE: "${interceptResult.response}"`;
+        
+        // Tentar buscar config global e simular envio
+        const { data: whatsappConfig } = await supabase
+          .from('whatsapp_global_config')
+          .select('api_url, api_token')
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        diagnostics.whatsapp_config_available = !!whatsappConfig;
+        
+        if (whatsappConfig?.api_url && whatsappConfig?.api_token) {
+          diagnostics.steps.push("9. WhatsApp config found - Would send message now!");
+          diagnostics.would_send_to = testPhone;
+          diagnostics.would_send_message = interceptResult.response;
+        } else {
+          diagnostics.final_verdict += " (⚠️ BUT WhatsApp global config NOT FOUND - message won't be sent)";
+        }
+      }
     } catch (error: any) {
       diagnostics.bot_intercept_response = {
         error: error.message,
       };
+      diagnostics.final_verdict = `❌ BOT INTERCEPT FAILED: ${error.message}`;
     }
 
     // CONCLUSÃO
-    diagnostics.steps.push("8. Diagnosis complete!");
+    diagnostics.steps.push("10. Diagnosis complete!");
 
     return new Response(JSON.stringify(diagnostics, null, 2), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
