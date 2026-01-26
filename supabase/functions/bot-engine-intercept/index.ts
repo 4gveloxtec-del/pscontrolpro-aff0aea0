@@ -841,7 +841,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      // Buscar sessão atual
+      // Buscar sessão atual (pode ter sido criada por lockSession)
       const { data: session } = await supabase
         .from('bot_sessions')
         .select('*')
@@ -849,21 +849,28 @@ Deno.serve(async (req) => {
         .eq('seller_id', sellerId)
         .maybeSingle();
 
-      const isFirstContact = !session;
+      // Contador de interações para determinar se é REALMENTE o primeiro contato
+      // interactionCount = 0 significa que lockSession acabou de criar a sessão
+      const interactionCount = (session?.context as Record<string, unknown>)?.interaction_count as number || 0;
+      
+      // isFirstContact: sessão não existe OU foi criada agora (interaction_count = 0)
+      const isFirstContact = !session || interactionCount === 0;
+      
       const lastInteraction = session?.last_interaction ? new Date(session.last_interaction) : null;
       const cooldownMs = welcomeCooldownHours * 60 * 60 * 1000;
       const now = new Date();
       
-      // Verificar se deve enviar boas-vindas (primeira vez ou cooldown expirado)
-      const shouldSendWelcome = isFirstContact || 
-        (lastInteraction && (now.getTime() - lastInteraction.getTime() > cooldownMs));
+      // Verificar se deve enviar boas-vindas:
+      // 1. É primeiro contato (sessão nova OU interaction_count = 0)
+      // 2. OU cooldown expirou (última interação foi há mais de X horas)
+      const cooldownExpired = lastInteraction && (now.getTime() - lastInteraction.getTime() > cooldownMs);
+      const shouldSendWelcome = isFirstContact || cooldownExpired;
+      
+      console.log(`[BotIntercept] isFirstContact: ${isFirstContact}, interactionCount: ${interactionCount}, cooldownExpired: ${cooldownExpired}, shouldSendWelcome: ${shouldSendWelcome}`);
 
       const currentState = session?.state || 'START';
       const previousState = session?.previous_state || 'START';
       let currentStack: string[] = (session?.stack as string[]) || [];
-      
-      // Contador de interações para saber se é primeira mensagem
-      const interactionCount = (session?.context as Record<string, unknown>)?.interaction_count as number || 0;
 
       // =========================================================
       // PASSO 2: parseInput
