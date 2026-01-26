@@ -847,6 +847,8 @@ Deno.serve(async (req: Request) => {
             // ===============================================================
             // BOT ENGINE INTERCEPT - Verificar se BotEngine deve processar
             // ===============================================================
+            console.log(`[Webhook] Attempting BotEngine intercept for seller ${instance.seller_id}, phone: ${senderPhone}`);
+            
             try {
               const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
               const botInterceptResponse = await fetch(`${supabaseUrl}/functions/v1/bot-engine-intercept`, {
@@ -863,8 +865,11 @@ Deno.serve(async (req: Request) => {
                 }),
               });
 
+              console.log(`[Webhook] BotEngine intercept response status: ${botInterceptResponse.status}`);
+              
               if (botInterceptResponse.ok) {
                 const botResult = await botInterceptResponse.json();
+                console.log(`[Webhook] BotEngine result:`, JSON.stringify(botResult));
                 
                 if (botResult.intercepted && botResult.response) {
                   console.log(`[Webhook] BotEngine intercepted message, state: ${botResult.new_state}`);
