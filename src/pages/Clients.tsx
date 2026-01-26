@@ -359,8 +359,18 @@ export default function Clients() {
           `app_name.ilike.${like}`,
           `login.ilike.${like}`,
         ];
+        // Phone search with variants (with/without 55 prefix)
         if (digits.length >= 4) {
           orParts.push(`phone.ilike.%${digits}%`);
+          // If user typed without 55, also search with 55 prefix
+          if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+            orParts.push(`phone.ilike.%55${digits}%`);
+          }
+          // If user typed with 55, also search without it
+          if (digits.startsWith('55') && digits.length >= 12) {
+            const withoutPrefix = digits.substring(2);
+            orParts.push(`phone.ilike.%${withoutPrefix}%`);
+          }
         }
         query = query.or(orParts.join(','));
       }
@@ -418,8 +428,18 @@ export default function Clients() {
           `app_name.ilike.${like}`,
           `login.ilike.${like}`,
         ];
+        // Phone search with variants (with/without 55 prefix)
         if (digits.length >= 4) {
           orParts.push(`phone.ilike.%${digits}%`);
+          // If user typed without 55, also search with 55 prefix
+          if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+            orParts.push(`phone.ilike.%55${digits}%`);
+          }
+          // If user typed with 55, also search without it
+          if (digits.startsWith('55') && digits.length >= 12) {
+            const withoutPrefix = digits.substring(2);
+            orParts.push(`phone.ilike.%${withoutPrefix}%`);
+          }
         }
         query = query.or(orParts.join(','));
       }
@@ -675,11 +695,35 @@ export default function Clients() {
     queryFn: async () => {
       if (!user?.id || lookupSearchQuery.length < 2) return [];
       const normalizedQuery = lookupSearchQuery.toLowerCase().trim();
+      const digits = normalizedQuery.replace(/\D/g, '');
+      
+      // Build phone search variants
+      const phoneVariants: string[] = [];
+      if (digits.length >= 4) {
+        phoneVariants.push(`phone.ilike.%${digits}%`);
+        // If user typed without 55, also search with 55 prefix
+        if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+          phoneVariants.push(`phone.ilike.%55${digits}%`);
+        }
+        // If user typed with 55, also search without it
+        if (digits.startsWith('55') && digits.length >= 12) {
+          const withoutPrefix = digits.substring(2);
+          phoneVariants.push(`phone.ilike.%${withoutPrefix}%`);
+        }
+      }
+      
+      const orParts = [
+        `name.ilike.%${normalizedQuery}%`,
+        `email.ilike.%${normalizedQuery}%`,
+        `login.ilike.%${normalizedQuery}%`,
+        ...phoneVariants
+      ];
+      
       const { data, error } = await supabase
         .from('clients')
         .select('id, name, phone, email, login, expiration_date, plan_name, is_archived, created_at')
         .eq('seller_id', user.id)
-        .or(`name.ilike.%${normalizedQuery}%,phone.ilike.%${normalizedQuery}%,email.ilike.%${normalizedQuery}%,login.ilike.%${normalizedQuery}%`)
+        .or(orParts.join(','))
         .order('expiration_date', { ascending: false })
         .limit(50); // Increase limit to allow grouping
       if (error) throw error;
