@@ -500,6 +500,99 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_engine_dynamic_menus: {
+        Row: {
+          back_button_text: string | null
+          created_at: string
+          description: string | null
+          display_order: number
+          emoji: string | null
+          footer_message: string | null
+          header_message: string | null
+          id: string
+          is_active: boolean
+          is_root: boolean
+          menu_key: string
+          menu_type: string
+          parent_menu_id: string | null
+          section_title: string | null
+          seller_id: string
+          show_back_button: boolean
+          target_command: string | null
+          target_flow_id: string | null
+          target_menu_key: string | null
+          target_message: string | null
+          target_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          back_button_text?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          emoji?: string | null
+          footer_message?: string | null
+          header_message?: string | null
+          id?: string
+          is_active?: boolean
+          is_root?: boolean
+          menu_key: string
+          menu_type?: string
+          parent_menu_id?: string | null
+          section_title?: string | null
+          seller_id: string
+          show_back_button?: boolean
+          target_command?: string | null
+          target_flow_id?: string | null
+          target_menu_key?: string | null
+          target_message?: string | null
+          target_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          back_button_text?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          emoji?: string | null
+          footer_message?: string | null
+          header_message?: string | null
+          id?: string
+          is_active?: boolean
+          is_root?: boolean
+          menu_key?: string
+          menu_type?: string
+          parent_menu_id?: string | null
+          section_title?: string | null
+          seller_id?: string
+          show_back_button?: boolean
+          target_command?: string | null
+          target_flow_id?: string | null
+          target_menu_key?: string | null
+          target_message?: string | null
+          target_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_engine_dynamic_menus_parent_menu_id_fkey"
+            columns: ["parent_menu_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_dynamic_menus"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_engine_dynamic_menus_target_flow_id_fkey"
+            columns: ["target_flow_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_engine_edges: {
         Row: {
           condition_type: string | null
@@ -3853,6 +3946,10 @@ export type Database = {
         }[]
       }
       get_global_api_status: { Args: never; Returns: boolean }
+      get_menu_tree: {
+        Args: { p_parent_id?: string; p_seller_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -27,6 +27,7 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
+  FolderTree,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -49,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DynamicMenuManager } from '@/components/botEngine/DynamicMenuManager';
 
 export default function BotEngine() {
   const { user } = useAuth();
@@ -405,8 +407,8 @@ export default function BotEngine() {
             Fluxos
           </TabsTrigger>
           <TabsTrigger value="menus" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Menus
+            <FolderTree className="h-4 w-4" />
+            Menus Dinâmicos
           </TabsTrigger>
         </TabsList>
 
@@ -693,22 +695,7 @@ export default function BotEngine() {
 
         {/* Menus Tab */}
         <TabsContent value="menus" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Menus Dinâmicos</CardTitle>
-              <CardDescription>
-                Configure os menus de navegação do bot (em desenvolvimento)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Em breve!</h3>
-              <p className="text-sm text-muted-foreground text-center max-w-md">
-                O editor visual de menus estará disponível em breve. Por enquanto, 
-                você pode configurar os fluxos básicos na aba "Fluxos".
-              </p>
-            </CardContent>
-          </Card>
+          <DynamicMenuManager />
         </TabsContent>
       </Tabs>
 
