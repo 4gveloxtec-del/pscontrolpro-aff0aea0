@@ -960,213 +960,19 @@ Deno.serve(async (req: Request) => {
             }
             
             // ===============================================================
-            // BOT ENGINE INTERCEPT - Verificar se BotEngine deve processar
-            // ===============================================================
-            // O BotEngine processa apenas mensagens diretas (grupos são filtrados acima)
-            console.log(`[Webhook] ===============================================`);
-            console.log(`[Webhook] BOTENGINE INTERCEPT ATTEMPT`);
-            console.log(`[Webhook] Seller ID: ${instance.seller_id}`);
-            console.log(`[Webhook] Sender Phone: ${senderPhone}`);
-            console.log(`[Webhook] Instance Name: ${instanceName}`);
-            console.log(`[Webhook] Message: "${messageText?.substring(0, 100)}"`);
-            console.log(`[Webhook] ===============================================`);
-            
-            try {
-              const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-              const payload = {
-                seller_id: instance.seller_id,
-                sender_phone: senderPhone,
-                message_text: messageText,
-                instance_name: instanceName,
-              };
-              
-              console.log(`[Webhook] Calling bot-engine-intercept with payload:`, JSON.stringify(payload));
-              
-              const botInterceptResponse = await fetch(`${supabaseUrl}/functions/v1/bot-engine-intercept`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                },
-                body: JSON.stringify(payload),
-              });
-
-              console.log(`[Webhook] ===============================================`);
-              console.log(`[Webhook] BOTENGINE INTERCEPT RESPONSE`);
-              console.log(`[Webhook] Status: ${botInterceptResponse.status}`);
-              console.log(`[Webhook] OK: ${botInterceptResponse.ok}`);
-              console.log(`[Webhook] ===============================================`);
-              
-              if (botInterceptResponse.ok) {
-                const botResult = await botInterceptResponse.json();
-                console.log(`[Webhook] ===============================================`);
-                console.log(`[Webhook] BOTENGINE RESULT`);
-                console.log(`[Webhook] Intercepted: ${botResult.intercepted}`);
-                console.log(`[Webhook] Has Response: ${!!botResult.response}`);
-                console.log(`[Webhook] Response: "${botResult.response?.substring(0, 100)}"`);
-                console.log(`[Webhook] New State: ${botResult.new_state}`);
-                console.log(`[Webhook] ===============================================`);
-                
-                if (botResult.intercepted && botResult.response) {
-                  // ===============================================================
-                  // ENVIAR RESPOSTA DO BOTENGINE VIA WHATSAPP (LÓGICA ROBUSTA)
-                  // ===============================================================
-                  console.log(`[Webhook] ===============================================`);
-                  console.log(`[Webhook] PREPARING TO SEND RESPONSE VIA WHATSAPP`);
-                  console.log(`[Webhook] ===============================================`);
-                  
-                  const { data: globalConfig } = await supabase
-                    .from('whatsapp_global_config')
-                    .select('api_url, api_token')
-                    .eq('is_active', true)
-                    .maybeSingle();
-                  
-                  console.log(`[Webhook] Global config found: ${!!globalConfig}`);
-                  console.log(`[Webhook] API URL: ${globalConfig?.api_url}`);
-                  console.log(`[Webhook] Has API Token: ${!!globalConfig?.api_token}`);
-
-                  if (globalConfig?.api_url && globalConfig?.api_token) {
-                    // CRÍTICO: Validar que temos um telefone válido para envio
-                    if (!senderPhone) {
-                      console.error(`[Webhook] ❌ CANNOT SEND: senderPhone is empty`);
-                      console.error(`[Webhook] remoteJid was: ${remoteJid}`);
-                      console.error(`[Webhook] Bot response will not be delivered`);
-                      continue;
-                    }
-                    
-                    // Normalizar telefone (mesma lógica do send-test-message)
-                    let cleanPhone = senderPhone.replace(/\D/g, '');
-                    
-                    if (cleanPhone.length < 10) {
-                      console.error(`[Webhook] ❌ CANNOT SEND: cleanPhone too short (${cleanPhone.length} digits): ${cleanPhone}`);
-                      console.error(`[Webhook] Original senderPhone: ${senderPhone}`);
-                      console.error(`[Webhook] Bot response will not be delivered`);
-                      continue;
-                    }
-                    
-                    if (!cleanPhone.startsWith('55') && cleanPhone.length >= 10 && cleanPhone.length <= 11) {
-                      cleanPhone = '55' + cleanPhone;
-                    }
-
-                    const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-                    const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
-                    
-                    console.log(`[Webhook] ===============================================`);
-                    console.log(`[Webhook] SENDING MESSAGE VIA EVOLUTION API`);
-                    console.log(`[Webhook] URL: ${sendUrl}`);
-                    console.log(`[Webhook] To: ${cleanPhone}`);
-                    console.log(`[Webhook] Message: "${botResult.response}"`);
-                    console.log(`[Webhook] ===============================================`);
-                    
-                    try {
-                      const sendResponse = await fetch(sendUrl, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'apikey': globalConfig.api_token,
-                        },
-                        body: JSON.stringify({
-                          number: cleanPhone,
-                          text: botResult.response,
-                        }),
-                      });
-                      
-                      const responseText = await sendResponse.text();
-                      console.log(`[Webhook] Evolution API response status: ${sendResponse.status}`);
-                      console.log(`[Webhook] Evolution API response body: ${responseText}`);
-
-                      if (!sendResponse.ok) {
-                        console.log(`[Webhook] ⚠️ First attempt failed, trying alternative phone formats...`);
-                        
-                        // Tentar formatos alternativos (mesma lógica do send-test-message)
-                        const alternativeFormats = [
-                          cleanPhone.replace(/^55/, ''),
-                          cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone,
-                          cleanPhone.length === 10 ? `55${cleanPhone.substring(0, 2)}9${cleanPhone.substring(2)}` : cleanPhone
-                        ];
-
-                        let sent = false;
-                        for (const altPhone of alternativeFormats) {
-                          if (altPhone === cleanPhone) continue; // Skip já testado
-                          
-                          console.log(`[Webhook] 🔄 Retry attempt with phone: ${altPhone}`);
-                          const retryResponse = await fetch(sendUrl, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'apikey': globalConfig.api_token,
-                            },
-                            body: JSON.stringify({
-                              number: altPhone,
-                              text: botResult.response,
-                            }),
-                          });
-                          
-                          const retryText = await retryResponse.text();
-                          console.log(`[Webhook] Retry response status: ${retryResponse.status}`);
-                          console.log(`[Webhook] Retry response body: ${retryText}`);
-
-                          if (retryResponse.ok) {
-                            console.log(`[Webhook] ✅ BotEngine response sent successfully with ${altPhone}`);
-                            sent = true;
-                            break;
-                          } else {
-                            console.log(`[Webhook] ❌ Retry failed with ${altPhone}`);
-                          }
-                        }
-                        
-                        if (!sent) {
-                          console.error(`[Webhook] ===============================================`);
-                          console.error(`[Webhook] ❌ FAILED TO SEND RESPONSE AFTER ALL RETRIES`);
-                          console.error(`[Webhook] Original phone: ${senderPhone}`);
-                          console.error(`[Webhook] Normalized phone: ${cleanPhone}`);
-                          console.error(`[Webhook] All attempts failed`);
-                          console.error(`[Webhook] ===============================================`);
-                        }
-                      } else {
-                        console.log(`[Webhook] ✅ BotEngine response sent successfully to ${cleanPhone}`);
-                      }
-                    } catch (sendErr) {
-                      console.error(`[Webhook] ===============================================`);
-                      console.error(`[Webhook] ❌ EXCEPTION SENDING BOTENGINE RESPONSE`);
-                      console.error(`[Webhook] Error:`, sendErr);
-                      console.error(`[Webhook] ===============================================`);
-                    }
-                  } else {
-                    console.error(`[Webhook] ===============================================`);
-                    console.error(`[Webhook] ❌ NO WHATSAPP GLOBAL CONFIG FOUND`);
-                    console.error(`[Webhook] Cannot send BotEngine response - missing Evolution API config`);
-                    console.error(`[Webhook] ===============================================`);
-                  }
-                  
-                  continue; // Mensagem processada pelo BotEngine, não continuar
-                } else {
-                  console.log(`[Webhook] ℹ️ BotEngine did not intercept - continuing to normal flow`);
-                }
-              } else {
-                const errorText = await botInterceptResponse.text();
-                console.error(`[Webhook] ===============================================`);
-                console.error(`[Webhook] ❌ BOTENGINE INTERCEPT FAILED`);
-                console.error(`[Webhook] Status: ${botInterceptResponse.status}`);
-                console.error(`[Webhook] Response: ${errorText}`);
-                console.error(`[Webhook] ===============================================`);
-              }
-            } catch (botErr) {
-              // Se BotEngine falhar, continuar com fluxo normal
-              console.error(`[Webhook] ===============================================`);
-              console.error(`[Webhook] ❌ BOTENGINE INTERCEPT EXCEPTION`);
-              console.error(`[Webhook] Error:`, botErr instanceof Error ? botErr.message : String(botErr));
-              console.error(`[Webhook] Stack:`, botErr instanceof Error ? botErr.stack : 'N/A');
-              console.error(`[Webhook] ===============================================`);
-            }
-
-            // ===============================================================
-            // MENSAGENS RECEBIDAS - Verificar se é comando
+            // MENSAGENS RECEBIDAS - PRIORIDADE 1: Verificar se é comando "/"
+            // Comandos de teste (/teste, /plano, /renovar) TÊM PRIORIDADE
+            // sobre o chatbot e devem ser processados PRIMEIRO
             // ===============================================================
             
             const trimmedForCommand = String(messageText || '').trimStart();
+            
             if (trimmedForCommand.startsWith('/')) {
-              console.log(`[Webhook] Command detected: "${trimmedForCommand}" from ${senderPhone}`);
+              console.log(`[Webhook] ===============================================`);
+              console.log(`[Webhook] COMMAND "/" DETECTED (PRIORITY OVER BOT)`);
+              console.log(`[Webhook] Command: "${trimmedForCommand}"`);
+              console.log(`[Webhook] From: ${senderPhone}`);
+              console.log(`[Webhook] ===============================================`);
               
               // Buscar configuração de logs do seller
               const { data: configData } = await supabase
@@ -1206,7 +1012,6 @@ Deno.serve(async (req: Request) => {
                 console.log(`[Webhook] Command result for seller ${instance.seller_id}:`, JSON.stringify(cmdResult));
 
                 if (!commandResponse.ok) {
-                  // Log HTTP-level failures explicitly
                   try {
                     await supabase.from('command_logs').insert({
                       owner_id: instance.seller_id,
@@ -1218,36 +1023,26 @@ Deno.serve(async (req: Request) => {
                   } catch { /* ignore */ }
                 }
                 
-                // Enviar resposta via WhatsApp:
-                // - em sucesso: usa cmdResult.response
-                // - em validação/erro controlado: usa cmdResult.user_message (sem alterar fluxo principal)
                 const textToSend = (cmdResult && (cmdResult.response || cmdResult.user_message))
                   ? String(cmdResult.response || cmdResult.user_message)
                   : '';
 
                 if (textToSend) {
-                  // =====================================================================
-                  // CRITICAL VALIDATION: Never send response to the instance's own number
-                  // This would cause the bot to message itself!
-                  // =====================================================================
                   const cleanSenderPhone = senderPhone.replace(/\D/g, '');
                   const cleanInstancePhone = instancePhone || '';
                   
                   if (cleanInstancePhone && cleanSenderPhone === cleanInstancePhone) {
                     console.error(`[Webhook] BLOCKED: Attempted to send response to instance's own number: ${cleanSenderPhone}`);
-                    console.error(`[Webhook] This indicates senderPhone extraction failed - the bot was about to message itself!`);
                     try {
                       await supabase.from('command_logs').insert({
                         owner_id: instance.seller_id,
                         command_text: trimmedForCommand,
                         sender_phone: senderPhone,
                         success: false,
-                        error_message: `BLOCKED: Would send to instance own number (${cleanSenderPhone}). Check webhook payload extraction.`,
+                        error_message: `BLOCKED: Would send to instance own number (${cleanSenderPhone}).`,
                       });
                     } catch { /* ignore */ }
-                    // Skip sending - this is a critical error in phone extraction
                   } else {
-                    // Buscar config global para enviar resposta
                     const { data: globalConfig } = await supabase
                       .from('whatsapp_global_config')
                       .select('api_url, api_token')
@@ -1256,29 +1051,17 @@ Deno.serve(async (req: Request) => {
                     
                     if (globalConfig?.api_url && globalConfig?.api_token) {
                       const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-                      // IMPORTANTE: usar sempre o nome REAL salvo no banco (pode diferir do payload em casos de rename/original_instance_name)
                       const sendUrl = `${apiUrl}/message/sendText/${instance.instance_name}`;
                       
-                      // Normalização robusta do número com variações para retry
                       const cleanPhone = senderPhone.replace(/\D/g, '');
+                      const phoneVariants: string[] = [cleanPhone];
                       
-                      // Gerar variações do número para tentar múltiplos formatos
-                      const phoneVariants: string[] = [];
-                    
-                      // Formato original
-                      phoneVariants.push(cleanPhone);
-                      
-                      // Com DDI 55 se não tiver
                       if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
                         phoneVariants.push(`55${cleanPhone}`);
                       }
-                      
-                      // Sem DDI se tiver
                       if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
                         phoneVariants.push(cleanPhone.substring(2));
                       }
-                      
-                      // Com 9º dígito (celular brasileiro)
                       if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
                         const ddd = cleanPhone.substring(2, 4);
                         const num = cleanPhone.substring(4);
@@ -1286,16 +1069,13 @@ Deno.serve(async (req: Request) => {
                           phoneVariants.push(`55${ddd}9${num}`);
                         }
                       }
-                      
-                      // Sem 9º dígito
                       if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
                         const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
                         phoneVariants.push(without9);
                       }
                       
-                      // Dedupe
                       const uniqueVariants = [...new Set(phoneVariants)];
-                      console.log(`[Webhook] Sending response to ${senderPhone}, trying ${uniqueVariants.length} format(s): ${uniqueVariants.join(', ')}`);
+                      console.log(`[Webhook] Sending command response to ${senderPhone}, trying ${uniqueVariants.length} format(s)`);
                       
                       let messageSent = false;
                       for (const phoneVariant of uniqueVariants) {
@@ -1312,74 +1092,43 @@ Deno.serve(async (req: Request) => {
                         });
                         
                         if (sendResponse.ok) {
-                          console.log(`[Webhook] Command response sent successfully with format: ${phoneVariant}`);
+                          console.log(`[Webhook] ✅ Command response sent with format: ${phoneVariant}`);
                           messageSent = true;
                           break;
                         } else {
                           const errText = await sendResponse.text();
-                          console.log(`[Webhook] Format ${phoneVariant} failed (${sendResponse.status}): ${errText.substring(0, 100)}`);
+                          console.log(`[Webhook] ❌ Format ${phoneVariant} failed: ${errText.substring(0, 100)}`);
                         }
                       }
                       
                       if (!messageSent) {
-                        console.error(`[Webhook] All ${uniqueVariants.length} phone formats failed for ${senderPhone}`);
-                        // Log failure for debugging - fire and forget
-                        try {
-                          await supabase.from('command_logs').insert({
-                            owner_id: instance.seller_id,
-                            command_text: trimmedForCommand,
-                            sender_phone: senderPhone,
-                            success: false,
-                            error_message: `Failed to send response - all ${uniqueVariants.length} phone formats failed`,
-                          });
-                        } catch { /* ignore logging errors */ }
+                        console.error(`[Webhook] All phone formats failed for ${senderPhone}`);
                       }
-                    } else {
-                      console.error(`[Webhook] Global config not found or inactive - cannot send response`);
-                      // Log this critical issue
-                      try {
-                        await supabase.from('command_logs').insert({
-                          owner_id: instance.seller_id,
-                          command_text: trimmedForCommand,
-                          sender_phone: senderPhone,
-                          success: false,
-                          error_message: 'Global WhatsApp config not found or inactive',
-                        });
-                      } catch { /* ignore logging errors */ }
                     }
-                  } // End of else block (sender not instance phone)
+                  }
                 } else if (cmdResult.not_found) {
-                  // Comando não encontrado - não fazer nada (fluxo normal continua)
-                  console.log(`[Webhook] Command "${trimmedForCommand}" not found for seller ${instance.seller_id}, ignoring`);
+                  console.log(`[Webhook] Command "${trimmedForCommand}" not found, ignoring`);
                 } else if (cmdResult.error) {
                   console.error(`[Webhook] Command error: ${cmdResult.error}`);
-                  // Log command errors
-                  try {
-                    await supabase.from('command_logs').insert({
-                      owner_id: instance.seller_id,
-                      command_text: trimmedForCommand,
-                      sender_phone: senderPhone,
-                      success: false,
-                      error_message: cmdResult.error,
-                    });
-                  } catch { /* ignore logging errors */ }
                 }
               } catch (cmdError) {
-                const errMsg = cmdError instanceof Error ? cmdError.message : String(cmdError);
-                console.error(`[Webhook] Command processing error:`, errMsg);
-                // Log processing errors
-                try {
-                  await supabase.from('command_logs').insert({
-                    owner_id: instance.seller_id,
-                    command_text: trimmedForCommand,
-                    sender_phone: senderPhone,
-                    success: false,
-                    error_message: `Processing error: ${errMsg}`,
-                  });
-                } catch { /* ignore logging errors */ }
+                console.error(`[Webhook] Command processing error:`, cmdError instanceof Error ? cmdError.message : String(cmdError));
               }
+              
+              // COMANDO PROCESSADO - NÃO CONTINUAR PARA O BOT
+              continue;
             }
-            // Se não for comando, deixar o fluxo normal do chatbot/automação
+            
+            // ===============================================================
+            // BOT ENGINE INTERCEPT - Apenas se NÃO for comando "/"
+            // ===============================================================
+            console.log(`[Webhook] ===============================================`);
+            console.log(`[Webhook] BOTENGINE INTERCEPT ATTEMPT (no "/" command)`);
+            console.log(`[Webhook] Seller ID: ${instance.seller_id}`);
+            console.log(`[Webhook] Sender Phone: ${senderPhone}`);
+            console.log(`[Webhook] Instance Name: ${instanceName}`);
+            console.log(`[Webhook] Message: "${messageText?.substring(0, 100)}"`);
+            console.log(`[Webhook] ===============================================`);
           }
           
           // Resumo de filtragem
