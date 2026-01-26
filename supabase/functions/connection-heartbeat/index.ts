@@ -693,14 +693,24 @@ Deno.serve(async (req: Request) => {
           for (const msg of messages) {
             const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
             
+            console.log(`[Webhook] ===============================================`);
+            console.log(`[Webhook] 🔍 PROCESSING MESSAGE`);
+            console.log(`[Webhook] remoteJid: ${remoteJid}`);
+            console.log(`[Webhook] fromMe: ${msg.key?.fromMe}`);
+            console.log(`[Webhook] ===============================================`);
+            
             // Ignorar mensagens de grupos - apenas conversas individuais
             if (remoteJid.includes('@g.us')) {
               console.log(`[Webhook] Ignoring group message from: ${remoteJid}`);
               continue;
             }
             
+            console.log(`[Webhook] ✅ NOT A GROUP - continuing processing`);
+            
             // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
             const messageText = extractWhatsAppMessageText(msg);
+            console.log(`[Webhook] Extracted text length: ${String(messageText).length}`);
+            console.log(`[Webhook] Extracted text: "${String(messageText).substring(0, 100)}"`);
 
             // Extração robusta do telefone do remetente
             // CRITICAL: Pass the instance's connected_phone to avoid returning it
@@ -732,6 +742,17 @@ Deno.serve(async (req: Request) => {
               const msgMessageKeys = msg?.message && typeof msg.message === 'object' ? Object.keys(msg.message) : [];
               console.log('[Webhook] Empty messageText extracted. msg keys:', msgKeys.join(','));
               console.log('[Webhook] Empty messageText extracted. msg.message keys:', msgMessageKeys.join(','));
+              
+              // CRÍTICO: Não processar mensagens sem conteúdo
+              console.error(`[Webhook] ❌ BLOCKED: Empty message text, skipping processing`);
+              continue;
+            }
+            
+            // CRÍTICO: Validar que temos um sender phone válido antes de processar
+            if (!senderPhone || senderPhone.length < 10) {
+              console.error(`[Webhook] ❌ BLOCKED: Invalid sender phone (${senderPhone || 'empty'}), skipping processing`);
+              console.error(`[Webhook] remoteJid was: ${remoteJid}`);
+              continue;
             }
             
             // ===============================================================
