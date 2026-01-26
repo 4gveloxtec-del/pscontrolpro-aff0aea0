@@ -5,6 +5,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// =====================================================================
+// WHITELIST DE TELEFONES PARA TESTES ILIMITADOS
+// Números nesta lista podem gerar testes sem limite de duplicidade
+// Para desativar: remova o número da lista ou deixe vazia
+// =====================================================================
+const TEST_WHITELIST_PHONES: string[] = [
+  '5531998518865',  // Número de desenvolvimento/teste
+];
+
+/**
+ * Verifica se um telefone está na whitelist de testes ilimitados
+ */
+function isPhoneWhitelisted(phone: string): boolean {
+  const normalized = phone.replace(/\D/g, '');
+  return TEST_WHITELIST_PHONES.some(whitelisted => {
+    const normalizedWhitelisted = whitelisted.replace(/\D/g, '');
+    return normalized === normalizedWhitelisted || 
+           normalized.endsWith(normalizedWhitelisted.slice(-11)) ||
+           normalizedWhitelisted.endsWith(normalized.slice(-11));
+  });
+}
+
 interface CommandResult {
   success: boolean;
   response?: string;
@@ -624,29 +646,45 @@ Deno.serve(async (req) => {
       }
       
       // =====================================================================
+      // BYPASS PARA NÚMEROS NA WHITELIST DE TESTES
+      // =====================================================================
+      const isWhitelisted = isPhoneWhitelisted(normalizedPhoneForDB);
+      if (isWhitelisted) {
+        console.log(`[process-command] ✅ WHITELIST BYPASS: Phone ${normalizedPhoneForDB} is whitelisted for unlimited tests`);
+      }
+
+      // =====================================================================
       // BLOQUEIO DE DUPLICIDADE LOCAL - PS CONTROL
       // Verificar em AMBAS as tabelas: clients E test_generation_log
       // Isso garante bloqueio mesmo se o cliente não foi criado
+      // NOTA: Números na whitelist ignoram este bloqueio
       // =====================================================================
       
-      // Verificar na tabela de clientes
-      const { data: existingTestClient } = await supabase
-        .from('clients')
-        .select('id, name, created_at, is_test')
-        .eq('seller_id', seller_id)
-        .eq('phone', normalizedPhoneForDB)
-        .eq('is_test', true)
-        .maybeSingle();
+      // Verificar na tabela de clientes (skip se whitelisted)
+      let existingTestClient = null;
+      let existingTestLog = null;
       
-      // Verificar também no log de testes (mais confiável)
-      const { data: existingTestLog } = await supabase
-        .from('test_generation_log')
-        .select('id, username, created_at')
-        .eq('seller_id', seller_id)
-        .eq('sender_phone', normalizedPhoneForDB)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      if (!isWhitelisted) {
+        const { data: testClient } = await supabase
+          .from('clients')
+          .select('id, name, created_at, is_test')
+          .eq('seller_id', seller_id)
+          .eq('phone', normalizedPhoneForDB)
+          .eq('is_test', true)
+          .maybeSingle();
+        existingTestClient = testClient;
+        
+        // Verificar também no log de testes (mais confiável)
+        const { data: testLog } = await supabase
+          .from('test_generation_log')
+          .select('id, username, created_at')
+          .eq('seller_id', seller_id)
+          .eq('sender_phone', normalizedPhoneForDB)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existingTestLog = testLog;
+      }
       
       // Bloquear se encontrar em QUALQUER uma das tabelas
       if (existingTestClient || existingTestLog) {
