@@ -17,16 +17,36 @@ const corsHeaders = {
 // =====================================================================
 const TEST_WHITELIST_PHONES: string[] = [
   '5531998518865',  // Número de desenvolvimento/teste
+  '31998518865',    // Mesmo número sem DDI (para garantir match)
 ];
 
 function isPhoneWhitelistedForTest(phone: string): boolean {
+  if (!phone) return false;
   const normalized = phone.replace(/\D/g, '');
-  return TEST_WHITELIST_PHONES.some(w => {
+  if (!normalized) return false;
+  
+  // Log para debug
+  console.log(`[WHITELIST] Checking phone: ${normalized}`);
+  
+  const isWhitelisted = TEST_WHITELIST_PHONES.some(w => {
     const wNorm = w.replace(/\D/g, '');
-    return normalized === wNorm || 
+    const match = normalized === wNorm || 
            normalized.endsWith(wNorm.slice(-11)) ||
-           wNorm.endsWith(normalized.slice(-11));
+           wNorm.endsWith(normalized.slice(-11)) ||
+           // Match adicional: comparar apenas últimos 10-11 dígitos (número sem DDI)
+           normalized.slice(-11) === wNorm.slice(-11) ||
+           normalized.slice(-10) === wNorm.slice(-10);
+    if (match) {
+      console.log(`[WHITELIST] ✅ MATCH found: ${normalized} matches ${wNorm}`);
+    }
+    return match;
   });
+  
+  if (isWhitelisted) {
+    console.log(`[WHITELIST] ✅ Phone ${normalized} IS WHITELISTED for unlimited testing`);
+  }
+  
+  return isWhitelisted;
 }
 
 // Default renewal keywords
@@ -836,6 +856,13 @@ Deno.serve(async (req: Request) => {
             // CRITICAL: Pass the instance's connected_phone to avoid returning it
             // (which would cause bot to respond to itself instead of the client)
             const instancePhone = instance.connected_phone ? String(instance.connected_phone).replace(/\D/g, '') : undefined;
+            
+            // 🔍 DEBUG: Log para investigar problema com número de teste
+            console.log(`[Webhook] 🔍 DEBUG instancePhone: ${instancePhone}`);
+            console.log(`[Webhook] 🔍 DEBUG instance.connected_phone raw: ${instance.connected_phone}`);
+            console.log(`[Webhook] 🔍 DEBUG remoteJid: ${remoteJid}`);
+            console.log(`[Webhook] 🔍 DEBUG fromMe: ${msg.key?.fromMe}`);
+            
             let senderPhone = getSenderPhoneFromWebhook(msg, eventData, body, instancePhone);
             
             // Se não conseguiu extrair, tentar normalizar remoteJid diretamente
@@ -846,6 +873,11 @@ Deno.serve(async (req: Request) => {
                 console.log(`[Webhook] ✅ Extracted phone from remoteJid fallback: ${senderPhone}`);
               }
             }
+            
+            // 🔍 DEBUG: Verificar se o sender é whitelist
+            const isSenderInWhitelist = senderPhone && isPhoneWhitelistedForTest(senderPhone);
+            console.log(`[Webhook] 🔍 DEBUG senderPhone: ${senderPhone}`);
+            console.log(`[Webhook] 🔍 DEBUG isSenderInWhitelist: ${isSenderInWhitelist}`);
             
             console.log(`[Webhook] Processing DIRECT message from ${senderPhone}`);
 
