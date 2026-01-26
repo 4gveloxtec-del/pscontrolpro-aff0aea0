@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useBotEngineConfig } from '@/hooks/useBotEngineConfig';
 import { useBotEngineFlows } from '@/hooks/useBotEngineFlows';
@@ -64,14 +64,34 @@ export default function BotEngine() {
   const [fallbackMessage, setFallbackMessage] = useState(config?.fallback_message || '');
   const [isEnabled, setIsEnabled] = useState(config?.is_enabled ?? true);
 
+  // Business hours states
+  const [businessHoursEnabled, setBusinessHoursEnabled] = useState(config?.business_hours_enabled ?? false);
+  const [businessHoursStart, setBusinessHoursStart] = useState(config?.business_hours_start || '08:00');
+  const [businessHoursEnd, setBusinessHoursEnd] = useState(config?.business_hours_end || '22:00');
+  const [businessDays, setBusinessDays] = useState<number[]>(config?.business_days || [1, 2, 3, 4, 5, 6]);
+  const [outsideHoursMessage, setOutsideHoursMessage] = useState(config?.outside_hours_message || '');
+
   // Update form when config loads
-  useState(() => {
+  useEffect(() => {
     if (config) {
       setWelcomeMessage(config.welcome_message || '');
       setFallbackMessage(config.fallback_message || '');
       setIsEnabled(config.is_enabled ?? true);
+      setBusinessHoursEnabled(config.business_hours_enabled ?? false);
+      setBusinessHoursStart(config.business_hours_start || '08:00');
+      setBusinessHoursEnd(config.business_hours_end || '22:00');
+      setBusinessDays(config.business_days || [1, 2, 3, 4, 5, 6]);
+      setOutsideHoursMessage(config.outside_hours_message || '');
     }
-  });
+  }, [config]);
+
+  const toggleDay = (day: number) => {
+    setBusinessDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day) 
+        : [...prev, day].sort()
+    );
+  };
 
   const handleSaveConfig = async () => {
     if (!user?.id) return;
@@ -82,6 +102,11 @@ export default function BotEngine() {
         is_enabled: isEnabled,
         welcome_message: welcomeMessage,
         fallback_message: fallbackMessage,
+        business_hours_enabled: businessHoursEnabled,
+        business_hours_start: businessHoursStart,
+        business_hours_end: businessHoursEnd,
+        business_days: businessDays,
+        outside_hours_message: outsideHoursMessage,
       });
       toast.success('Configurações salvas com sucesso!');
     } catch (error: any) {
@@ -334,7 +359,11 @@ export default function BotEngine() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Switch id="business-hours" />
+                  <Switch 
+                    id="business-hours" 
+                    checked={businessHoursEnabled}
+                    onCheckedChange={setBusinessHoursEnabled}
+                  />
                   <Label htmlFor="business-hours">Ativar horário comercial</Label>
                 </div>
               </div>
@@ -342,11 +371,47 @@ export default function BotEngine() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Horário de Início</Label>
-                  <Input type="time" defaultValue="08:00" />
+                  <Input 
+                    type="time" 
+                    value={businessHoursStart}
+                    onChange={(e) => setBusinessHoursStart(e.target.value)}
+                    disabled={!businessHoursEnabled}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Horário de Término</Label>
-                  <Input type="time" defaultValue="22:00" />
+                  <Input 
+                    type="time" 
+                    value={businessHoursEnd}
+                    onChange={(e) => setBusinessHoursEnd(e.target.value)}
+                    disabled={!businessHoursEnabled}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Dias de Funcionamento</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 1, label: 'Seg' },
+                    { value: 2, label: 'Ter' },
+                    { value: 3, label: 'Qua' },
+                    { value: 4, label: 'Qui' },
+                    { value: 5, label: 'Sex' },
+                    { value: 6, label: 'Sáb' },
+                    { value: 0, label: 'Dom' },
+                  ].map(day => (
+                    <Button 
+                      key={day.value}
+                      type="button"
+                      variant={businessDays.includes(day.value) ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleDay(day.value)}
+                      disabled={!businessHoursEnabled}
+                    >
+                      {day.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
 
@@ -354,8 +419,17 @@ export default function BotEngine() {
                 <Label>Mensagem Fora do Horário</Label>
                 <Textarea
                   placeholder="No momento estamos fora do horário de atendimento..."
+                  value={outsideHoursMessage}
+                  onChange={(e) => setOutsideHoursMessage(e.target.value)}
                   rows={2}
+                  disabled={!businessHoursEnabled}
                 />
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSaveConfig} disabled={isSaving}>
+                  {isSaving ? 'Salvando...' : 'Salvar Configurações'}
+                </Button>
               </div>
             </CardContent>
           </Card>
