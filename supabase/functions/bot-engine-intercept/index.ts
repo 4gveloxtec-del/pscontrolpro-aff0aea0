@@ -1034,10 +1034,31 @@ Deno.serve(async (req) => {
     const input: BotInterceptRequest = await req.json();
     const { seller_id, sender_phone, message_text } = input;
 
-    if (!seller_id || !sender_phone || !message_text) {
+    // ═══════════════════════════════════════════════════════════════════
+    // VALIDAÇÃO CRÍTICA - ISOLAMENTO MULTI-REVENDEDOR
+    // ═══════════════════════════════════════════════════════════════════
+    // seller_id é OBRIGATÓRIO para garantir que cada revendedor tenha
+    // seu próprio fluxo de chatbot isolado. Sem seller_id, a mensagem
+    // DEVE ser rejeitada para evitar cruzamento de dados.
+    // ═══════════════════════════════════════════════════════════════════
+    
+    if (!seller_id) {
+      console.error(`[BotIntercept] ❌ REJEITADO: seller_id OBRIGATÓRIO para isolamento multi-tenant`);
       return new Response(
-        JSON.stringify({ intercepted: false, should_continue: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          intercepted: false, 
+          error: 'seller_id is required for multi-tenant isolation',
+          should_continue: false 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!sender_phone || !message_text) {
+      console.error(`[BotIntercept] ❌ REJEITADO: sender_phone e message_text são obrigatórios`);
+      return new Response(
+        JSON.stringify({ intercepted: false, error: 'Missing required parameters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -1051,13 +1072,23 @@ Deno.serve(async (req) => {
     userId = phone;
     sellerId = seller_id;
     
-    console.log(`[BotIntercept] ===============================================`);
-    console.log(`[BotIntercept] NEW MESSAGE RECEIVED`);
-    console.log(`[BotIntercept] Seller ID: ${sellerId}`);
-    console.log(`[BotIntercept] Original phone: ${sender_phone}`);
-    console.log(`[BotIntercept] Normalized phone: ${phone}`);
+    // Validar formato UUID do seller_id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(sellerId)) {
+      console.error(`[BotIntercept] ❌ REJEITADO: seller_id inválido: ${sellerId}`);
+      return new Response(
+        JSON.stringify({ intercepted: false, error: 'Invalid seller_id format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
+    console.log(`[BotIntercept] 🔒 MULTI-TENANT MESSAGE - ISOLATED PROCESSING`);
+    console.log(`[BotIntercept] Seller ID (partition key): ${sellerId}`);
+    console.log(`[BotIntercept] Instance Name: ${input.instance_name || 'not provided'}`);
+    console.log(`[BotIntercept] Sender Phone: ${phone}`);
     console.log(`[BotIntercept] Message: "${message_text?.substring(0, 100)}"`);
-    console.log(`[BotIntercept] ===============================================`);
+    console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
 
     // =========================================================
     // PASSO 0: VERIFICAÇÃO DE DUPLICAÇÃO EM MEMÓRIA (mais rápido)

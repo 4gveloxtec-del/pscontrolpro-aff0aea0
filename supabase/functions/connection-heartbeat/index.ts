@@ -1119,21 +1119,41 @@ Deno.serve(async (req: Request) => {
               continue;
             }
             
-            // ===============================================================
-            // BOT ENGINE INTERCEPT - Apenas se NÃO for comando "/"
-            // ÚNICA CHAMADA ao bot - garantindo UMA RESPOSTA por mensagem
-            // ===============================================================
-            console.log(`[Webhook] ===============================================`);
-            console.log(`[Webhook] BOTENGINE INTERCEPT (single response mode)`);
-            console.log(`[Webhook] Seller ID: ${instance.seller_id}`);
+            // ═══════════════════════════════════════════════════════════════════
+            // BOT ENGINE INTERCEPT - ISOLAMENTO MULTI-REVENDEDOR
+            // ═══════════════════════════════════════════════════════════════════
+            // 
+            // FLUXO DE ISOLAMENTO:
+            // 1. instanceName → Busca seller_id via whatsapp_seller_instances
+            // 2. seller_id → Usado como CHAVE DE PARTIÇÃO em TODAS as queries
+            // 3. Cada revendedor tem fluxos, sessões e configs ISOLADOS via RLS
+            //
+            // GARANTIAS:
+            // ✅ Sem seller_id = mensagem REJEITADA (não processada)
+            // ✅ Sessões particionadas por (phone + seller_id)
+            // ✅ Configs/fluxos/menus filtrados por seller_id
+            // ✅ RLS ativo em todas as tabelas bot_engine_*
+            // ═══════════════════════════════════════════════════════════════════
+            
+            // Validação crítica: seller_id DEVE existir
+            if (!instance.seller_id) {
+              console.error(`[Webhook] ❌ CRITICAL: No seller_id for instance ${instanceName} - cannot process bot`);
+              continue;
+            }
+            
+            console.log(`[Webhook] ═══════════════════════════════════════════════════`);
+            console.log(`[Webhook] 🤖 BOT ENGINE - MULTI-TENANT ISOLATION`);
+            console.log(`[Webhook] Instance: ${instanceName}`);
+            console.log(`[Webhook] Seller ID (partition): ${instance.seller_id}`);
             console.log(`[Webhook] Sender Phone: ${senderPhone}`);
             console.log(`[Webhook] Message: "${messageText?.substring(0, 100)}"`);
-            console.log(`[Webhook] ===============================================`);
+            console.log(`[Webhook] ═══════════════════════════════════════════════════`);
             
             try {
               const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
               
-              // CHAMADA ÚNICA ao bot-engine-intercept
+              // CHAMADA ÚNICA ao bot-engine-intercept COM seller_id OBRIGATÓRIO
+              // O seller_id garante isolamento total entre revendedores
               const botResponse = await fetch(`${supabaseUrl}/functions/v1/bot-engine-intercept`, {
                 method: 'POST',
                 headers: {
@@ -1141,15 +1161,15 @@ Deno.serve(async (req: Request) => {
                   'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                 },
                 body: JSON.stringify({
-                  seller_id: instance.seller_id,
+                  seller_id: instance.seller_id,  // CHAVE DE ISOLAMENTO
                   sender_phone: senderPhone,
                   message_text: messageText,
-                  instance_name: instanceName,
+                  instance_name: instanceName,    // Para auditoria/logs
                 }),
               });
               
               const botResult = await botResponse.json();
-              console.log(`[Webhook] Bot response:`, JSON.stringify(botResult));
+              console.log(`[Webhook] Bot response for seller ${instance.seller_id}:`, JSON.stringify(botResult));
               
               // Se o bot interceptou e tem resposta, enviar via Evolution API
               if (botResult.intercepted && botResult.response) {
