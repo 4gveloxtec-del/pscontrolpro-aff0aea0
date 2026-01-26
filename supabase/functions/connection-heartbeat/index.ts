@@ -874,7 +874,9 @@ Deno.serve(async (req: Request) => {
                 if (botResult.intercepted && botResult.response) {
                   console.log(`[Webhook] BotEngine intercepted message, state: ${botResult.new_state}`);
                   
-                  // Enviar resposta do BotEngine via WhatsApp
+                  // ===============================================================
+                  // ENVIAR RESPOSTA DO BOTENGINE VIA WHATSAPP (LÓGICA ROBUSTA)
+                  // ===============================================================
                   const { data: globalConfig } = await supabase
                     .from('whatsapp_global_config')
                     .select('api_url, api_token')
@@ -882,21 +884,73 @@ Deno.serve(async (req: Request) => {
                     .maybeSingle();
 
                   if (globalConfig?.api_url && globalConfig?.api_token) {
+                    // Normalizar telefone (mesma lógica do send-test-message)
+                    let cleanPhone = senderPhone.replace(/\D/g, '');
+                    if (!cleanPhone.startsWith('55') && cleanPhone.length >= 10 && cleanPhone.length <= 11) {
+                      cleanPhone = '55' + cleanPhone;
+                    }
+
                     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
                     const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
                     
-                    await fetch(sendUrl, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': globalConfig.api_token,
-                      },
-                      body: JSON.stringify({
-                        number: senderPhone.replace(/\D/g, ''),
-                        text: botResult.response,
-                      }),
-                    });
-                    console.log(`[Webhook] BotEngine response sent to ${senderPhone}`);
+                    console.log(`[Webhook] Sending BotEngine response to ${cleanPhone}`);
+                    
+                    try {
+                      const sendResponse = await fetch(sendUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'apikey': globalConfig.api_token,
+                        },
+                        body: JSON.stringify({
+                          number: cleanPhone,
+                          text: botResult.response,
+                        }),
+                      });
+
+                      if (!sendResponse.ok) {
+                        console.log(`[Webhook] First attempt failed (${sendResponse.status}), trying alternative formats...`);
+                        
+                        // Tentar formatos alternativos (mesma lógica do send-test-message)
+                        const alternativeFormats = [
+                          cleanPhone.replace(/^55/, ''),
+                          cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone,
+                          cleanPhone.length === 10 ? `55${cleanPhone.substring(0, 2)}9${cleanPhone.substring(2)}` : cleanPhone
+                        ];
+
+                        let sent = false;
+                        for (const altPhone of alternativeFormats) {
+                          if (altPhone === cleanPhone) continue; // Skip já testado
+                          
+                          console.log(`[Webhook] Retrying with: ${altPhone}`);
+                          const retryResponse = await fetch(sendUrl, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'apikey': globalConfig.api_token,
+                            },
+                            body: JSON.stringify({
+                              number: altPhone,
+                              text: botResult.response,
+                            }),
+                          });
+
+                          if (retryResponse.ok) {
+                            console.log(`[Webhook] ✅ BotEngine response sent successfully with ${altPhone}`);
+                            sent = true;
+                            break;
+                          }
+                        }
+                        
+                        if (!sent) {
+                          console.error(`[Webhook] ❌ Failed to send BotEngine response after all retries`);
+                        }
+                      } else {
+                        console.log(`[Webhook] ✅ BotEngine response sent successfully to ${cleanPhone}`);
+                      }
+                    } catch (sendErr) {
+                      console.error(`[Webhook] Error sending BotEngine response:`, sendErr);
+                    }
                   }
                   
                   continue; // Mensagem processada pelo BotEngine, não continuar
