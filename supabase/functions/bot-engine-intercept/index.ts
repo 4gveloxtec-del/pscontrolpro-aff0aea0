@@ -1011,16 +1011,18 @@ Deno.serve(async (req) => {
               currentStack.push(currentState);
             }
           } else {
-            // Nenhum fluxo respondeu - verificar se deve enviar fallback
-            // Só envia fallback se NÃO for primeiro contato OU se suppress está desativado
-            const shouldSendFallback = !suppressFallbackFirstContact || interactionCount > 0;
-            
-            if (shouldSendFallback) {
+            // Nenhum fluxo respondeu
+            // CORREÇÃO: Se estamos no START e não há menu/fluxo, enviar boas-vindas como fallback
+            // Isso garante que o bot SEMPRE responda quando habilitado
+            if (currentState === 'START' && interactionCount <= 1) {
+              console.log(`[BotIntercept] ⚠️ NO FLOW AT START - SENDING WELCOME AS FALLBACK`);
+              console.log(`[BotIntercept] Welcome: "${welcomeMessage}"`);
+              responseMessage = welcomeMessage;
+            } else {
+              // Envia fallback para interações subsequentes
               console.log(`[BotIntercept] ⚠️ NO FLOW MATCHED - SENDING FALLBACK`);
               console.log(`[BotIntercept] Fallback: "${fallbackMessage}"`);
               responseMessage = fallbackMessage;
-            } else {
-              console.log(`[BotIntercept] 🔇 FIRST CONTACT - SUPPRESSING FALLBACK`);
             }
           }
           
