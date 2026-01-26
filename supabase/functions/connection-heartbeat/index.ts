@@ -669,8 +669,11 @@ Deno.serve(async (req: Request) => {
 
         case 'messages.upsert':
           // Processar mensagens recebidas/enviadas
-          // Evolution API pode enviar em diferentes formatos dependendo da versão
+          // Evolution API envia em diferentes formatos:
+          // - Formato v2 padrão: body.data é a mensagem completa com .key, .message, etc
+          // - Formato alternativo: body.data.messages ou body.data.message
           const messagesRaw =
+            (eventData?.key ? [eventData] : null) || // Se eventData tem .key, já é a mensagem
             eventData.messages ||
             eventData.data?.messages ||
             eventData.message ||
@@ -680,6 +683,8 @@ Deno.serve(async (req: Request) => {
             [];
           const messages = Array.isArray(messagesRaw) ? messagesRaw : [messagesRaw].filter(Boolean);
           
+          console.log(`[Webhook] messagesRaw extraction - has key: ${!!eventData?.key}, messagesRaw type: ${Array.isArray(messagesRaw) ? 'array' : typeof messagesRaw}`);
+          
           console.log(`[Webhook] messages.upsert received, message count: ${messages.length}`);
           if (messages.length === 0) {
             console.log(`[Webhook] No messages found in payload. eventData keys: ${Object.keys(eventData).join(',')}`);
@@ -687,12 +692,7 @@ Deno.serve(async (req: Request) => {
           
           for (const msg of messages) {
             const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
-            
-            // Ignorar mensagens de grupos - apenas conversas individuais
-            if (remoteJid.includes('@g.us')) {
-              console.log(`[Webhook] Ignoring group message from: ${remoteJid}`);
-              continue;
-            }
+            const isGroupMessage = remoteJid.includes('@g.us');
             
             // Extração robusta do texto (inclui wrappers como ephemeral/viewOnce e respostas interativas)
             const messageText = extractWhatsAppMessageText(msg);
@@ -702,6 +702,8 @@ Deno.serve(async (req: Request) => {
             // (which would cause bot to respond to itself instead of the client)
             const instancePhone = instance.connected_phone ? String(instance.connected_phone).replace(/\D/g, '') : undefined;
             const senderPhone = getSenderPhoneFromWebhook(msg, eventData, body, instancePhone);
+            
+            console.log(`[Webhook] Processing ${isGroupMessage ? 'GROUP' : 'DIRECT'} message from ${senderPhone}`);
 
             if (!senderPhone) {
               const keyObj = msg?.key && typeof msg.key === 'object' ? msg.key : {};
@@ -847,7 +849,8 @@ Deno.serve(async (req: Request) => {
             // ===============================================================
             // BOT ENGINE INTERCEPT - Verificar se BotEngine deve processar
             // ===============================================================
-            console.log(`[Webhook] Attempting BotEngine intercept for seller ${instance.seller_id}, phone: ${senderPhone}`);
+            // O BotEngine processa tanto mensagens diretas quanto de grupo
+            console.log(`[Webhook] Attempting BotEngine intercept for seller ${instance.seller_id}, phone: ${senderPhone}, type: ${isGroupMessage ? 'group' : 'direct'}`);
             
             try {
               const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -964,6 +967,12 @@ Deno.serve(async (req: Request) => {
             // ===============================================================
             // MENSAGENS RECEBIDAS - Verificar se é comando
             // ===============================================================
+            // Comandos IPTV (/) não funcionam em grupos - apenas conversas diretas
+            if (isGroupMessage && String(messageText || '').trimStart().startsWith('/')) {
+              console.log(`[Webhook] Ignoring IPTV command in group from ${senderPhone}`);
+              continue;
+            }
+            
             const trimmedForCommand = String(messageText || '').trimStart();
             if (trimmedForCommand.startsWith('/')) {
               console.log(`[Webhook] Command detected: "${trimmedForCommand}" from ${senderPhone}`);
