@@ -805,26 +805,33 @@ Deno.serve(async (req) => {
     sellerId = seller_id;
     
     console.log(`[BotIntercept] Processing message from ${phone} for seller ${sellerId}`);
+    console.log(`[BotIntercept] Message text: "${message_text?.substring(0, 50)}..."`);
 
     // Verificar se BotEngine está habilitado e buscar config completa
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('bot_engine_config')
       .select('*')
       .eq('seller_id', sellerId)
       .eq('is_enabled', true)
       .maybeSingle();
 
+    if (configError) {
+      console.error(`[BotIntercept] Error fetching config:`, configError);
+    }
+
     if (!config) {
-      console.log(`[BotIntercept] BotEngine disabled for seller ${sellerId}`);
+      console.log(`[BotIntercept] BotEngine disabled or no config for seller ${sellerId}`);
       return new Response(
         JSON.stringify({ intercepted: false, should_continue: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Extrair configurações
-    const welcomeMessage = config.welcome_message || 'Olá! 👋 Seja bem-vindo(a)!';
-    const fallbackMessage = config.fallback_message || 'Não entendi 😕 Digite *MENU* para ver as opções.';
+    console.log(`[BotIntercept] Config found - is_enabled: ${config.is_enabled}, welcome_message: "${config.welcome_message?.substring(0, 30)}..."`);
+
+    // Extrair configurações COM FALLBACKS ROBUSTOS
+    const welcomeMessage = config.welcome_message || 'Olá! 👋 Seja bem-vindo(a)! Como posso ajudar você hoje?';
+    const fallbackMessage = config.fallback_message || 'Desculpe, não entendi. Digite *menu* para ver as opções.';
     const welcomeCooldownHours = config.welcome_cooldown_hours ?? 24;
     const suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;
 
