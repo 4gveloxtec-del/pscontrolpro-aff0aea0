@@ -556,12 +556,13 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Find seller by instance name - try exact match first, then original_instance_name
-      console.log(`[Webhook] Looking for instance: "${instanceName}"`);
+      // Find seller by instance name - robust multi-step search
+      const normalizedInstanceName = instanceName.trim().toLowerCase();
+      console.log(`[Webhook] Looking for instance: "${instanceName}" (normalized: "${normalizedInstanceName}")`);
       
       let instance = null;
       
-      // First try instance_name - include connected_phone to avoid responding to ourselves
+      // Strategy 1: Exact match on instance_name
       const { data: inst1 } = await supabase
         .from('whatsapp_seller_instances')
         .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
@@ -570,20 +571,62 @@ Deno.serve(async (req: Request) => {
       
       if (inst1) {
         instance = inst1;
+        console.log(`[Webhook] ✓ Found by exact instance_name match`);
       } else {
-        // Try original_instance_name
+        // Strategy 2: Case-insensitive match on instance_name
         const { data: inst2 } = await supabase
           .from('whatsapp_seller_instances')
           .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
-          .eq('original_instance_name', instanceName)
+          .ilike('instance_name', instanceName)
           .maybeSingle();
-        instance = inst2;
+        
+        if (inst2) {
+          instance = inst2;
+          console.log(`[Webhook] ✓ Found by case-insensitive instance_name match`);
+        } else {
+          // Strategy 3: Exact match on original_instance_name
+          const { data: inst3 } = await supabase
+            .from('whatsapp_seller_instances')
+            .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
+            .eq('original_instance_name', instanceName)
+            .maybeSingle();
+          
+          if (inst3) {
+            instance = inst3;
+            console.log(`[Webhook] ✓ Found by original_instance_name match`);
+          } else {
+            // Strategy 4: Case-insensitive match on original_instance_name
+            const { data: inst4 } = await supabase
+              .from('whatsapp_seller_instances')
+              .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
+              .ilike('original_instance_name', instanceName)
+              .maybeSingle();
+            
+            if (inst4) {
+              instance = inst4;
+              console.log(`[Webhook] ✓ Found by case-insensitive original_instance_name match`);
+            } else {
+              // Strategy 5: Partial match (contains) - last resort
+              const { data: inst5 } = await supabase
+                .from('whatsapp_seller_instances')
+                .select('seller_id, instance_name, is_connected, connected_phone, last_evolution_state')
+                .or(`instance_name.ilike.%${normalizedInstanceName}%,original_instance_name.ilike.%${normalizedInstanceName}%`)
+                .limit(1)
+                .maybeSingle();
+              
+              if (inst5) {
+                instance = inst5;
+                console.log(`[Webhook] ✓ Found by partial match (contains)`);
+              }
+            }
+          }
+        }
       }
 
       if (!instance) {
-        console.log('[Webhook] Instance not found for:', instanceName);
+        console.log(`[Webhook] ✗ Instance not found for: "${instanceName}" after all strategies`);
         return new Response(
-          JSON.stringify({ error: 'Instance not found', instance_name: instanceName }),
+          JSON.stringify({ error: 'Instance not found', instance_name: instanceName, searched_strategies: ['exact', 'ilike', 'original', 'original_ilike', 'partial'] }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
