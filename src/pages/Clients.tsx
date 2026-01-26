@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCrypto } from '@/hooks/useCrypto';
 import { useFingerprint } from '@/hooks/useFingerprint';
@@ -169,6 +170,7 @@ const DEVICE_OPTIONS = [
 ] as const;
 
 export default function Clients() {
+  const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const { encrypt, decrypt } = useCrypto();
   const { generateFingerprint } = useFingerprint();
@@ -4033,12 +4035,18 @@ export default function Clients() {
                           const hasPanel = server1?.panel_url;
                           return (
                             <span 
-                              className={cn(
-                                "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20",
-                                hasPanel && "cursor-pointer hover:bg-primary/20 transition-colors"
-                              )}
-                              onClick={() => hasPanel && window.open(server1.panel_url!, '_blank')}
-                              title={hasPanel ? `Abrir painel ${client.server_name}` : client.server_name}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasPanel) {
+                                  window.open(server1.panel_url!, '_blank', 'noopener,noreferrer');
+                                  toast.success(`Abrindo painel: ${client.server_name}`);
+                                } else {
+                                  navigate('/servers');
+                                  toast.info(`Servidor: ${client.server_name}`);
+                                }
+                              }}
+                              title={hasPanel ? `Clique para abrir o painel` : 'Clique para ver servidores'}
                             >
                               {server1?.icon_url ? (
                                 <img src={server1.icon_url} alt={client.server_name} className="h-4 w-4 rounded-sm object-cover" />
@@ -4046,7 +4054,7 @@ export default function Clients() {
                                 <Server className="h-3 w-3" />
                               )}
                               {client.server_name}
-                              {hasPanel && <ExternalLink className="h-3 w-3 opacity-60" />}
+                              <ExternalLink className="h-3 w-3 opacity-60" />
                             </span>
                           );
                         })()}
@@ -4055,12 +4063,18 @@ export default function Clients() {
                           const hasPanel = server2?.panel_url;
                           return (
                             <span 
-                              className={cn(
-                                "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
-                                hasPanel && "cursor-pointer hover:bg-amber-500/20 transition-colors"
-                              )}
-                              onClick={() => hasPanel && window.open(server2.panel_url!, '_blank')}
-                              title={hasPanel ? `Abrir painel ${client.server_name_2}` : client.server_name_2}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasPanel) {
+                                  window.open(server2.panel_url!, '_blank', 'noopener,noreferrer');
+                                  toast.success(`Abrindo painel: ${client.server_name_2}`);
+                                } else {
+                                  navigate('/servers');
+                                  toast.info(`Servidor: ${client.server_name_2}`);
+                                }
+                              }}
+                              title={hasPanel ? `Clique para abrir o painel` : 'Clique para ver servidores'}
                             >
                               {server2?.icon_url ? (
                                 <img src={server2.icon_url} alt={client.server_name_2} className="h-4 w-4 rounded-sm object-cover" />
@@ -4068,7 +4082,7 @@ export default function Clients() {
                                 <Server className="h-3 w-3" />
                               )}
                               {client.server_name_2}
-                              {hasPanel && <ExternalLink className="h-3 w-3 opacity-60" />}
+                              <ExternalLink className="h-3 w-3 opacity-60" />
                             </span>
                           );
                         })()}

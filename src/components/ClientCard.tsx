@@ -1,4 +1,5 @@
 import { memo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,7 @@ import {
   Copy, DollarSign, Globe, Server, 
   MessageCircle, RefreshCw, Edit, Archive, Trash2,
   Lock, Loader2, Tv, AppWindow,
-  CheckCircle2, AlertCircle, XCircle
+  CheckCircle2, AlertCircle, XCircle, ExternalLink
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -56,6 +57,12 @@ interface DecryptedCredentials {
 
 type ClientStatus = 'active' | 'expiring' | 'expired';
 
+interface ServerInfo {
+  id: string;
+  name: string;
+  panel_url?: string | null;
+}
+
 interface ClientCardProps {
   client: Client;
   status: ClientStatus;
@@ -65,6 +72,7 @@ interface ClientCardProps {
   isPrivacyMode: boolean;
   isAdmin: boolean;
   isSent: boolean;
+  servers?: ServerInfo[];
   onEdit: (client: Client) => void;
   onMessage: (client: Client) => void;
   onRenew: (client: Client) => void;
@@ -91,6 +99,7 @@ export const ClientCard = memo(function ClientCard({
   isPrivacyMode,
   isAdmin,
   isSent,
+  servers = [],
   onEdit,
   onMessage,
   onRenew,
@@ -101,6 +110,7 @@ export const ClientCard = memo(function ClientCard({
   maskData,
   statusLabels,
 }: ClientCardProps) {
+  const navigate = useNavigate();
   const today = new Date();
   today.setHours(12, 0, 0, 0);
   const expirationDate = new Date(client.expiration_date + 'T12:00:00');
@@ -125,6 +135,27 @@ export const ClientCard = memo(function ClientCard({
     navigator.clipboard.writeText(text);
     toast.success(`${type} copiado!`);
   }, []);
+
+  // Find server info by name to get panel_url
+  const getServerByName = useCallback((serverName: string): ServerInfo | undefined => {
+    return servers.find(s => s.name === serverName);
+  }, [servers]);
+
+  // Handle server badge click - opens panel URL or navigates to servers page
+  const handleServerClick = useCallback((e: React.MouseEvent, serverName: string) => {
+    e.stopPropagation();
+    const server = getServerByName(serverName);
+    
+    if (server?.panel_url) {
+      // Open panel URL in new tab
+      window.open(server.panel_url, '_blank', 'noopener,noreferrer');
+      toast.success(`Abrindo painel: ${serverName}`);
+    } else {
+      // Navigate to servers page
+      navigate('/servers');
+      toast.info(`Servidor: ${serverName}`);
+    }
+  }, [getServerByName, navigate]);
 
   return (
     <Card
@@ -296,16 +327,28 @@ export const ClientCard = memo(function ClientCard({
           )}
           
           {client.server_name && (
-            <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-accent/50">
+            <Badge 
+              variant="outline" 
+              className="text-[10px] gap-1 font-normal bg-accent/50 cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors group/server"
+              onClick={(e) => handleServerClick(e, client.server_name!)}
+              title={getServerByName(client.server_name)?.panel_url ? 'Clique para abrir o painel' : 'Clique para ver servidores'}
+            >
               <Server className="h-3 w-3" />
               {client.server_name}
+              <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
             </Badge>
           )}
           
           {client.server_name_2 && (
-            <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-accent/50">
+            <Badge 
+              variant="outline" 
+              className="text-[10px] gap-1 font-normal bg-accent/50 cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors group/server"
+              onClick={(e) => handleServerClick(e, client.server_name_2!)}
+              title={getServerByName(client.server_name_2)?.panel_url ? 'Clique para abrir o painel' : 'Clique para ver servidores'}
+            >
               <Server className="h-3 w-3" />
               {client.server_name_2}
+              <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
             </Badge>
           )}
 
@@ -315,10 +358,13 @@ export const ClientCard = memo(function ClientCard({
               <Badge 
                 key={server.server_id || index} 
                 variant="outline" 
-                className="text-[10px] gap-1 font-normal bg-accent/50"
+                className="text-[10px] gap-1 font-normal bg-accent/50 cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors group/server"
+                onClick={(e) => handleServerClick(e, server.server_name)}
+                title={getServerByName(server.server_name)?.panel_url ? 'Clique para abrir o painel' : 'Clique para ver servidores'}
               >
                 <Server className="h-3 w-3" />
                 {server.server_name}
+                <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
               </Badge>
             ))
           )}
