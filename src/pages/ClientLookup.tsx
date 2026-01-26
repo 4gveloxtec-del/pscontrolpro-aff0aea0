@@ -285,6 +285,16 @@ function ClientLookup() {
   // Auto-decrypt all credentials when client data loads
   useEffect(() => {
     if (!clientFullData || autoDecryptDone) return;
+    
+    // CRITICAL FIX: Verify the loaded data matches the currently selected client
+    // This prevents race conditions where old client data gets decrypted for a new selection
+    if (clientFullData.id !== selectedClientId) {
+      console.log('[ClientLookup] Skipping decrypt - data mismatch:', {
+        dataId: clientFullData.id,
+        selectedId: selectedClientId
+      });
+      return;
+    }
 
     // Clear any pending retry when new data arrives or we re-run
     if (retryTimeoutRef.current) {
@@ -434,7 +444,7 @@ function ClientLookup() {
         retryTimeoutRef.current = null;
       }
     };
-  }, [clientFullData, autoDecryptDone, decrypt, decryptAttempt, looksEncrypted]);
+  }, [clientFullData, autoDecryptDone, decrypt, decryptAttempt, looksEncrypted, selectedClientId]);
 
   const getStatusBadge = (expirationDate: string) => {
     const expDate = parseISO(expirationDate);
@@ -556,7 +566,7 @@ function ClientLookup() {
                       onClick={() => handleClientSelect(client.id)}
                       className={cn(
                         "w-full text-left p-3 hover:bg-muted/50 transition-colors border-b last:border-b-0",
-                        selectedClientId === client.id && "bg-primary/5"
+                        selectedClientId === client.id && "bg-primary/5 ring-1 ring-primary/20"
                       )}
                     >
                       <div className="flex items-center justify-between">
@@ -569,14 +579,19 @@ function ClientLookup() {
                               {client.name}
                               {client.is_archived && <Badge variant="secondary" className="text-xs">Arquivado</Badge>}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              {client.phone || client.email || client.login || 'Sem contato'}
-                            </p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                              {client.phone && <span>📱 {client.phone}</span>}
+                              {client.login && <span className="font-mono">👤 {client.login}</span>}
+                              {!client.phone && !client.login && client.email && <span>📧 {client.email}</span>}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col items-end gap-1">
                           {getStatusBadge(client.expiration_date)}
-                          <p className="text-xs text-muted-foreground mt-1">{client.plan_name || 'Sem plano'}</p>
+                          <p className="text-xs text-muted-foreground">{client.plan_name || 'Sem plano'}</p>
+                          <p className="text-[10px] text-muted-foreground/70">
+                            Venc: {format(parseISO(client.expiration_date), 'dd/MM/yy')}
+                          </p>
                         </div>
                       </div>
                     </button>
