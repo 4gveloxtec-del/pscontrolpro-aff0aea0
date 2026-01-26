@@ -474,6 +474,13 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // 🔍 LOG CRÍTICO: Toda requisição que chega aqui
+  console.log('[WEBHOOK] ============================================');
+  console.log('[WEBHOOK] 🚀 REQUISIÇÃO RECEBIDA:', new Date().toISOString());
+  console.log('[WEBHOOK] Method:', req.method);
+  console.log('[WEBHOOK] URL:', req.url);
+  console.log('[WEBHOOK] ============================================');
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -501,6 +508,10 @@ Deno.serve(async (req: Request) => {
     } catch {
       body = {};
     }
+
+    // 🔍 LOG CRÍTICO: Payload recebido ANTES de qualquer filtro
+    console.log('[WEBHOOK] 📦 PAYLOAD COMPLETO (primeiros 2000 chars):', rawText.substring(0, 2000));
+    console.log('[WEBHOOK] 📋 Body keys:', Object.keys(body).join(', '));
 
     const { action, seller_id, webhook_event } = body;
 
