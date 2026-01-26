@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ExternalLink, Server, Search, Globe, Tv, Copy, CheckCircle2, Smartphone, UserPlus } from 'lucide-react';
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { toast } from 'sonner';
 
 
@@ -21,7 +21,7 @@ interface ServerPanel {
   used_credits: number | null;
 }
 
-const Panels = () => {
+const Panels = forwardRef<HTMLDivElement>((_, ref) => {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -106,7 +106,7 @@ const Panels = () => {
   const hasGerenciaApp = gerenciaAppSettings?.registerUrl && gerenciaAppSettings.registerUrl.trim() !== '';
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div ref={ref} className="p-4 md:p-6 space-y-6">
       {/* GerenciaApp Card - PRIMEIRO NO TOPO */}
       {hasGerenciaApp && (
         <Card className="border-2 border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 overflow-hidden relative shadow-lg shadow-primary/20">
@@ -325,6 +325,8 @@ const Panels = () => {
       )}
     </div>
   );
-};
+});
+
+Panels.displayName = 'Panels';
 
 export default Panels;
