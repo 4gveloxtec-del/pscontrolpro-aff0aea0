@@ -1,5 +1,4 @@
 import { memo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -110,7 +109,6 @@ export const ClientCard = memo(function ClientCard({
   maskData,
   statusLabels,
 }: ClientCardProps) {
-  const navigate = useNavigate();
   const today = new Date();
   today.setHours(12, 0, 0, 0);
   const expirationDate = new Date(client.expiration_date + 'T12:00:00');
@@ -141,7 +139,7 @@ export const ClientCard = memo(function ClientCard({
     return servers.find(s => s.name === serverName);
   }, [servers]);
 
-  // Handle server badge click - opens panel URL or navigates to servers page
+  // Handle server badge click - opens panel URL if available
   const handleServerClick = useCallback((e: React.MouseEvent, serverName: string) => {
     e.stopPropagation();
     const server = getServerByName(serverName);
@@ -151,11 +149,14 @@ export const ClientCard = memo(function ClientCard({
       window.open(server.panel_url, '_blank', 'noopener,noreferrer');
       toast.success(`Abrindo painel: ${serverName}`);
     } else {
-      // Navigate to servers page
-      navigate('/servers');
-      toast.info(`Servidor: ${serverName}`);
+      toast.info(`Servidor "${serverName}" não possui link de painel cadastrado`);
     }
-  }, [getServerByName, navigate]);
+  }, [getServerByName]);
+  
+  // Check if server has panel URL
+  const serverHasPanel = useCallback((serverName: string): boolean => {
+    return !!getServerByName(serverName)?.panel_url;
+  }, [getServerByName]);
 
   return (
     <Card
@@ -329,26 +330,40 @@ export const ClientCard = memo(function ClientCard({
           {client.server_name && (
             <Badge 
               variant="outline" 
-              className="text-[10px] gap-1 font-normal bg-accent/50 cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors group/server"
+              className={cn(
+                "text-[10px] gap-1 font-normal bg-accent/50 transition-colors group/server",
+                serverHasPanel(client.server_name) 
+                  ? "cursor-pointer hover:bg-primary/20 hover:border-primary/50" 
+                  : "cursor-default opacity-70"
+              )}
               onClick={(e) => handleServerClick(e, client.server_name!)}
-              title={getServerByName(client.server_name)?.panel_url ? 'Clique para abrir o painel' : 'Clique para ver servidores'}
+              title={serverHasPanel(client.server_name) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
             >
               <Server className="h-3 w-3" />
               {client.server_name}
-              <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+              {serverHasPanel(client.server_name) && (
+                <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+              )}
             </Badge>
           )}
           
           {client.server_name_2 && (
             <Badge 
               variant="outline" 
-              className="text-[10px] gap-1 font-normal bg-accent/50 cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors group/server"
+              className={cn(
+                "text-[10px] gap-1 font-normal bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 transition-colors group/server",
+                serverHasPanel(client.server_name_2) 
+                  ? "cursor-pointer hover:bg-amber-500/20" 
+                  : "cursor-default opacity-70"
+              )}
               onClick={(e) => handleServerClick(e, client.server_name_2!)}
-              title={getServerByName(client.server_name_2)?.panel_url ? 'Clique para abrir o painel' : 'Clique para ver servidores'}
+              title={serverHasPanel(client.server_name_2) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
             >
               <Server className="h-3 w-3" />
               {client.server_name_2}
-              <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+              {serverHasPanel(client.server_name_2) && (
+                <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+              )}
             </Badge>
           )}
 
@@ -358,13 +373,20 @@ export const ClientCard = memo(function ClientCard({
               <Badge 
                 key={server.server_id || index} 
                 variant="outline" 
-                className="text-[10px] gap-1 font-normal bg-accent/50 cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors group/server"
+                className={cn(
+                  "text-[10px] gap-1 font-normal bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 transition-colors group/server",
+                  serverHasPanel(server.server_name) 
+                    ? "cursor-pointer hover:bg-emerald-500/20" 
+                    : "cursor-default opacity-70"
+                )}
                 onClick={(e) => handleServerClick(e, server.server_name)}
-                title={getServerByName(server.server_name)?.panel_url ? 'Clique para abrir o painel' : 'Clique para ver servidores'}
+                title={serverHasPanel(server.server_name) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
               >
                 <Server className="h-3 w-3" />
                 {server.server_name}
-                <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+                {serverHasPanel(server.server_name) && (
+                  <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+                )}
               </Badge>
             ))
           )}
