@@ -269,10 +269,10 @@ export function deserializeResponse(data: string): BotStructuredResponse | null 
 /**
  * Converte lista interativa para payload da Evolution API (sendList)
  * 
- * IMPORTANTE: A Evolution API LATEST espera:
- * - Campo "values" (não "sections") para as opções
- * - Campo "description" é OBRIGATÓRIO (não pode ser undefined)
- * - Campo "footerText" é OBRIGATÓRIO (não pode ser undefined)
+ * FORMATO CORRETO Evolution API:
+ * - Usa estrutura aninhada com "interactive"
+ * - sections ficam dentro de interactive.action.sections
+ * - rows usam "id" (não "rowId")
  * 
  * Documentação: POST /message/sendList/{instance}
  */
@@ -281,38 +281,53 @@ export function toEvolutionApiPayload(
   phoneNumber: string
 ): {
   number: string;
-  title: string;
-  description: string;
-  buttonText: string;
-  footerText: string;
-  values: Array<{
-    title: string;
-    rows: Array<{
-      title: string;
-      description: string;
-      rowId: string;
-    }>;
-  }>;
+  type: string;
+  interactive: {
+    type: string;
+    body: { text: string };
+    footer?: { text: string };
+    action: {
+      button: string;
+      sections: Array<{
+        title: string;
+        rows: Array<{
+          id: string;
+          title: string;
+          description: string;
+        }>;
+      }>;
+    };
+  };
 } {
-  const values = list.sections.map(section => ({
+  const sections = list.sections.map(section => ({
     title: section.title.substring(0, 24), // Max 24 chars
     rows: section.rows.map(row => ({
+      id: row.rowId, // Evolution API espera "id", não "rowId"
       title: row.title.substring(0, 24), // Max 24 chars
-      // Evolution API LATEST: description é OBRIGATÓRIO
-      description: (row.description || ' ').substring(0, 72), // Max 72 chars, fallback to space
-      rowId: row.rowId,
+      description: (row.description || ' ').substring(0, 72), // Max 72 chars
     })),
   }));
 
+  // Construir body text com título e descrição
+  let bodyText = list.title;
+  if (list.description) {
+    bodyText += `\n\n${list.description}`;
+  }
+
   return {
     number: phoneNumber,
-    title: list.title.substring(0, 60), // Max 60 chars
-    // Evolution API LATEST: description é OBRIGATÓRIO
-    description: (list.description || 'Selecione uma opção').substring(0, 1024),
-    buttonText: list.buttonText.substring(0, 20), // Max 20 chars
-    // Evolution API LATEST: footerText é OBRIGATÓRIO
-    footerText: (list.footerText || ' ').substring(0, 60), // Max 60 chars
-    values,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: {
+        text: bodyText.substring(0, 1024), // Max 1024 chars
+      },
+      ...(list.footerText ? { footer: { text: list.footerText.substring(0, 60) } } : {}),
+      action: {
+        button: list.buttonText.substring(0, 20), // Max 20 chars
+        sections,
+      },
+    },
   };
 }
 
