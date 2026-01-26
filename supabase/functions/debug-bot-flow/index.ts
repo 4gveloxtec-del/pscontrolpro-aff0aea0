@@ -237,6 +237,18 @@ Deno.serve(async (req) => {
       // PASSO 8: Verificar se bot gerou resposta e simular envio
       diagnostics.steps.push("8. Checking bot response and simulating WhatsApp send...");
       
+      // IMPORTANTE: Desbloquear a sessão após o teste para não deixar travada!
+      try {
+        await supabase
+          .from('bot_sessions')
+          .update({ locked: false, updated_at: new Date().toISOString() })
+          .eq('user_id', testPhone)
+          .eq('seller_id', sellerId);
+        diagnostics.steps.push("8.1. Session unlocked after test");
+      } catch (unlockErr) {
+        console.error('[debug-bot-flow] Failed to unlock session:', unlockErr);
+      }
+      
       if (!interceptResult.intercepted) {
         diagnostics.final_verdict = "❌ BOT DID NOT INTERCEPT - Check bot_engine_config.is_enabled and flow triggers";
       } else if (!interceptResult.response) {
@@ -262,6 +274,15 @@ Deno.serve(async (req) => {
         }
       }
     } catch (error: any) {
+      // Em caso de erro, também tentar desbloquear
+      try {
+        await supabase
+          .from('bot_sessions')
+          .update({ locked: false, updated_at: new Date().toISOString() })
+          .eq('user_id', testPhone)
+          .eq('seller_id', sellerId);
+      } catch {}
+      
       diagnostics.bot_intercept_response = {
         error: error.message,
       };
