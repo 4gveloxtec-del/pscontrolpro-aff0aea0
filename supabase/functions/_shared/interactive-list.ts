@@ -281,6 +281,16 @@ export function toEvolutionApiPayload(
   description?: string;
   buttonText: string;
   footerText?: string;
+  // Alguns provedores esperam "sections" (formato antigo)
+  sections?: Array<{
+    title: string;
+    rows: Array<{
+      title: string;
+      description?: string;
+      rowId: string;
+    }>;
+  }>;
+  // Outros esperam "values" (formato alternativo)
   values: Array<{
     title: string;
     rows: Array<{
@@ -290,21 +300,24 @@ export function toEvolutionApiPayload(
     }>;
   }>;
 } {
+  const mapped = list.sections.map(section => ({
+    title: section.title,
+    rows: section.rows.map(row => ({
+      title: row.title,
+      description: row.description,
+      rowId: row.rowId,
+    })),
+  }));
+
   return {
     number: phoneNumber,
     title: list.title,
     description: list.description,
     buttonText: list.buttonText,
     footerText: list.footerText,
-    // Evolution API usa "values" ao invés de "sections"
-    values: list.sections.map(section => ({
-      title: section.title,
-      rows: section.rows.map(row => ({
-        title: row.title,
-        description: row.description,
-        rowId: row.rowId,
-      })),
-    })),
+    // Compatibilidade: enviar ambos. A API do seu ambiente está reclamando de falta de "sections".
+    sections: mapped,
+    values: mapped,
   };
 }
 

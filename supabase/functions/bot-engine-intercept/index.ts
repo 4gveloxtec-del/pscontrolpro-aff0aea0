@@ -212,7 +212,10 @@ const GLOBAL_COMMANDS = [
  * Timeout máximo para considerar um lock como "stale" (abandonado)
  * Se o lock existir há mais tempo que isso, considera como abandonado
  */
-const LOCK_TIMEOUT_MS = 30000; // 30 segundos
+// Timeout do lock de sessão.
+// IMPORTANTE: este lock existe para evitar processamento paralelo/duplicado.
+// Não deve bloquear o usuário por muito tempo entre mensagens.
+const LOCK_TIMEOUT_MS = 5000; // 5 segundos
 
 /**
  * Janela de deduplicação para evitar processar a mesma mensagem múltiplas vezes
@@ -282,7 +285,7 @@ async function lockSession(
   // Primeiro, verificar se já existe uma sessão
   const { data: existing } = await supabase
     .from('bot_sessions')
-    .select('locked, updated_at')
+    .select('locked, last_interaction, updated_at')
     .eq('user_id', userId)
     .eq('seller_id', sellerId)
     .maybeSingle();
@@ -290,7 +293,9 @@ async function lockSession(
   if (existing) {
     // Sessão existe - verificar se está bloqueada
     if (existing.locked) {
-      const lockTime = new Date(existing.updated_at);
+      // CRITICAL: usar last_interaction como referência do lock.
+      // updated_at pode ser atualizado por outras rotinas sem liberar o lock.
+      const lockTime = new Date((existing.last_interaction || existing.updated_at) as string);
       
       // Se lock não expirou, ignorar mensagem (anti-duplicação)
       if (lockTime > lockExpiry) {
@@ -313,7 +318,8 @@ async function lockSession(
       })
       .eq('user_id', userId)
       .eq('seller_id', sellerId)
-      .or(`locked.eq.false,updated_at.lt.${lockExpiry.toISOString()}`)
+      // Expira o lock por last_interaction (e permite se estiver null)
+      .or(`locked.eq.false,last_interaction.lt.${lockExpiry.toISOString()},last_interaction.is.null`)
       .select('id')
       .maybeSingle();
 
@@ -363,6 +369,33 @@ async function lockSession(
 
   console.log(`[BotIntercept] ✅ Nova sessão criada e bloqueada para ${userId}`);
   return true;
+}
+
+/**
+ * Wrapper resiliente: tenta adquirir o lock algumas vezes antes de desistir.
+ * Isso reduz casos de "already_processing" quando chegam eventos muito próximos.
+ */
+async function lockSessionWithRetry(
+  supabase: SupabaseClient,
+  userId: string,
+  sellerId: string,
+  options: { retries?: number; baseDelayMs?: number } = {}
+): Promise<boolean> {
+  const retries = options.retries ?? 2;
+  const baseDelayMs = options.baseDelayMs ?? 250;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const locked = await lockSession(supabase, userId, sellerId);
+    if (locked) return true;
+
+    if (attempt < retries) {
+      const delay = baseDelayMs * (attempt + 1);
+      console.log(`[BotIntercept] ⏳ Lock retry in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -1777,14 +1810,20 @@ Deno.serve(async (req) => {
     // =========================================================
     // PASSO 1: lockSession (ATÔMICO - previne processamento paralelo)
     // =========================================================
-    const locked = await lockSession(supabase, userId, sellerId);
+    const locked = await lockSessionWithRetry(supabase, userId, sellerId);
     if (!locked) {
-      // Sessão já está sendo processada por outra instância
-      console.log(`[BotIntercept] 🚫 Sessão já em processamento, ignorando para evitar resposta dupla`);
-      return new Response(
-        JSON.stringify({ intercepted: true, should_continue: false, already_processing: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Em vez de ficar “mudo” (sem resposta), fazemos best-effort para destravar e seguir.
+      // Dedup em memória já reduz o risco de duplicidade; aqui priorizamos responder ao usuário.
+      console.warn(`[BotIntercept] ⚠️ Could not acquire lock for ${userId}. Forcing best-effort unlock and continuing.`);
+      try {
+        await supabase
+          .from('bot_sessions')
+          .update({ locked: false, updated_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .eq('seller_id', sellerId);
+      } catch (unlockErr) {
+        console.error(`[BotIntercept] ⚠️ best-effort unlock failed:`, unlockErr);
+      }
     }
 
     try {
