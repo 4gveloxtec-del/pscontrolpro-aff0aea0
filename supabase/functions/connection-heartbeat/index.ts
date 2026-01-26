@@ -5,6 +5,8 @@ import {
   toEvolutionApiPayload,
 } from "../_shared/interactive-list.ts";
 
+import { buildSendListPayloadVariants } from "../_shared/evolution-sendlist.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -1351,65 +1353,106 @@ Deno.serve(async (req: Request) => {
                     // ENVIAR COMO LISTA INTERATIVA (sendList)
                     // ═════════════════════════════════════════════════════
                     console.log(`[Webhook] 📋 Sending INTERACTIVE LIST`);
-                    const sendListUrl = `${apiUrl}/message/sendList/${instanceName}`;
+
+                    const baseUrl = normalizeApiUrl(apiUrl);
+                    const baseUrlV1 = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+                    const sendListUrls = [
+                      `${baseUrl}/message/sendList/${instanceName}`,
+                      `${baseUrl}/message/sendList`,
+                      `${baseUrlV1}/message/sendList/${instanceName}`,
+                      `${baseUrlV1}/message/sendList`,
+                    ];
 
                     if (messageDebug) {
                       messageDebug.send.mode = 'list';
-                      messageDebug.send.send_url = sendListUrl;
+                      messageDebug.send.send_url = sendListUrls[0];
                     }
                     
                     let listSendAttempts = 0;
                     let listSendSuccess = false;
                     
-                    for (const phoneVariant of uniqueVariants) {
-                      listSendAttempts++;
-                      try {
-                        const listPayload = toEvolutionApiPayload(structuredResponse.list, phoneVariant);
-                        
-                        console.log(`[Webhook] List payload:`, JSON.stringify(listPayload).substring(0, 800));
-                        
-                        const sendResponse = await fetch(sendListUrl, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'apikey': globalConfig.api_token,
-                          },
-                          body: JSON.stringify(listPayload),
-                        });
-                        
-                        if (sendResponse.ok) {
-                          console.log(`[Webhook] ✅ Interactive list sent to ${phoneVariant}`);
-                          if (messageDebug) {
-                            messageDebug.send.attempts.push({
-                              phone: phoneVariant,
-                              ok: true,
-                              status: sendResponse.status,
+                    outerListSend: for (const phoneVariant of uniqueVariants) {
+                      const variants = buildSendListPayloadVariants(structuredResponse.list, phoneVariant);
+
+                      // Keep the original payload for logging/debug (but we won't rely on it)
+                      // This preserves existing behavior in case a downstream depends on it.
+                      const legacyPayload = toEvolutionApiPayload(structuredResponse.list, phoneVariant);
+
+                      for (const sendListUrl of sendListUrls) {
+                        for (const v of variants) {
+                          listSendAttempts++;
+                          try {
+                            const payloadToSend = v.payload;
+
+                            console.log(`[Webhook] List attempt url=${sendListUrl} variant=${v.name} phone=${phoneVariant}`);
+                            console.log(`[Webhook] List payload preview:`, JSON.stringify(payloadToSend).substring(0, 800));
+
+                            const headers: Record<string, string> = {
+                              'Content-Type': 'application/json',
+                              'apikey': globalConfig.api_token,
+                              // Some Evolution setups require Authorization Bearer
+                              'Authorization': `Bearer ${globalConfig.api_token}`,
+                            };
+
+                            let sendResponse = await fetch(sendListUrl, {
+                              method: 'POST',
+                              headers,
+                              body: JSON.stringify(payloadToSend),
                             });
+
+                            // Some setups might only accept the legacy payload generator.
+                            // If we get a 400 on all new variants, we still try the original payload once.
+                            if (!sendResponse.ok && sendResponse.status === 400 && v.name === 'flat.values.rowId') {
+                              console.log(`[Webhook] Trying legacy generator payload as last resort (same URL)`);
+                              sendResponse = await fetch(sendListUrl, {
+                                method: 'POST',
+                                headers,
+                                body: JSON.stringify(legacyPayload),
+                              });
+                            }
+
+                            if (sendResponse.ok) {
+                              console.log(`[Webhook] ✅ Interactive list sent to ${phoneVariant} via ${sendListUrl} (${v.name})`);
+                              if (messageDebug) {
+                                messageDebug.send.send_url = sendListUrl;
+                                messageDebug.send.attempts.push({
+                                  phone: phoneVariant,
+                                  ok: true,
+                                  status: sendResponse.status,
+                                  url: sendListUrl,
+                                  variant: v.name,
+                                });
+                              }
+                              messageSent = true;
+                              listSendSuccess = true;
+                              break outerListSend;
+                            }
+
+                            const errText = await sendResponse.text().catch(() => '');
+                            console.log(`[Webhook] ❌ List failed url=${sendListUrl} variant=${v.name} status=${sendResponse.status}: ${String(errText).substring(0, 300)}`);
+                            if (messageDebug) {
+                              messageDebug.send.attempts.push({
+                                phone: phoneVariant,
+                                ok: false,
+                                status: sendResponse.status,
+                                url: sendListUrl,
+                                variant: v.name,
+                                error_preview: String(errText || '').substring(0, 300),
+                              });
+                            }
+                          } catch (sendErr) {
+                            console.error(`[Webhook] List send error url=${sendListUrl} variant=${v.name} for ${phoneVariant}:`, sendErr);
+                            if (messageDebug) {
+                              messageDebug.send.attempts.push({
+                                phone: phoneVariant,
+                                ok: false,
+                                status: null,
+                                url: sendListUrl,
+                                variant: v.name,
+                                error_preview: sendErr instanceof Error ? sendErr.message : String(sendErr),
+                              });
+                            }
                           }
-                          messageSent = true;
-                          listSendSuccess = true;
-                          break;
-                        } else {
-                          const errText = await sendResponse.text();
-                          console.log(`[Webhook] ❌ List format ${phoneVariant} failed: ${errText.substring(0, 300)}`);
-                          if (messageDebug) {
-                            messageDebug.send.attempts.push({
-                              phone: phoneVariant,
-                              ok: false,
-                              status: sendResponse.status,
-                              error_preview: String(errText || '').substring(0, 300),
-                            });
-                          }
-                        }
-                      } catch (sendErr) {
-                        console.error(`[Webhook] List send error for ${phoneVariant}:`, sendErr);
-                        if (messageDebug) {
-                          messageDebug.send.attempts.push({
-                            phone: phoneVariant,
-                            ok: false,
-                            status: null,
-                            error_preview: sendErr instanceof Error ? sendErr.message : String(sendErr),
-                          });
                         }
                       }
                     }
