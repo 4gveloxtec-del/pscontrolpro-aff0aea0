@@ -1769,8 +1769,20 @@ Deno.serve(async (req) => {
           if (shouldSendWelcome) {
             console.log(`[BotIntercept] ✅ SENDING DYNAMIC MENU V2 (first contact/cooldown)`);
             
-            // Buscar itens do menu raiz
+            // Buscar itens do menu raiz (filhos diretos com parent_menu_id = rootMenuV2.id)
             const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
+            
+            console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
+            console.log(`[BotIntercept] ROOT MENU V2 ITEMS FETCH`);
+            console.log(`[BotIntercept] - Root menu ID: ${rootMenuV2!.id}`);
+            console.log(`[BotIntercept] - Root menu key: ${rootMenuV2!.menu_key}`);
+            console.log(`[BotIntercept] - Items found: ${rootItems.length}`);
+            if (rootItems.length > 0) {
+              console.log(`[BotIntercept] - First 5 items:`, rootItems.slice(0, 5).map(i => `${i.menu_key}: ${i.title}`).join(', '));
+            } else {
+              console.log(`[BotIntercept] ⚠️ NO ITEMS FOUND - menu will be empty!`);
+            }
+            console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
             
             // Renderizar menu
             responseMessage = renderMenuAsTextV2(
@@ -1780,6 +1792,8 @@ Deno.serve(async (req) => {
               false, // Não mostrar voltar no menu raiz
               rootMenuV2!.back_button_text || '⬅️ Voltar'
             );
+            
+            console.log(`[BotIntercept] Generated response (first 200 chars): "${responseMessage.substring(0, 200)}"`);
             
             newState = 'MENU_V2';
             
