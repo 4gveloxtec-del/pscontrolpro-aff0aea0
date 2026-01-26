@@ -1358,11 +1358,15 @@ Deno.serve(async (req: Request) => {
                       messageDebug.send.send_url = sendListUrl;
                     }
                     
+                    let listSendAttempts = 0;
+                    let listSendSuccess = false;
+                    
                     for (const phoneVariant of uniqueVariants) {
+                      listSendAttempts++;
                       try {
                         const listPayload = toEvolutionApiPayload(structuredResponse.list, phoneVariant);
                         
-                        console.log(`[Webhook] List payload:`, JSON.stringify(listPayload).substring(0, 500));
+                        console.log(`[Webhook] List payload:`, JSON.stringify(listPayload).substring(0, 800));
                         
                         const sendResponse = await fetch(sendListUrl, {
                           method: 'POST',
@@ -1383,10 +1387,11 @@ Deno.serve(async (req: Request) => {
                             });
                           }
                           messageSent = true;
+                          listSendSuccess = true;
                           break;
                         } else {
                           const errText = await sendResponse.text();
-                          console.log(`[Webhook] ❌ List format ${phoneVariant} failed: ${errText.substring(0, 200)}`);
+                          console.log(`[Webhook] ❌ List format ${phoneVariant} failed: ${errText.substring(0, 300)}`);
                           if (messageDebug) {
                             messageDebug.send.attempts.push({
                               phone: phoneVariant,
@@ -1405,6 +1410,71 @@ Deno.serve(async (req: Request) => {
                             status: null,
                             error_preview: sendErr instanceof Error ? sendErr.message : String(sendErr),
                           });
+                        }
+                      }
+                    }
+                    
+                    // ═════════════════════════════════════════════════════
+                    // FALLBACK: Se lista falhou, enviar como texto
+                    // ═════════════════════════════════════════════════════
+                    if (!listSendSuccess) {
+                      console.log(`[Webhook] ⚠️ List send failed after ${listSendAttempts} attempts, falling back to TEXT`);
+                      
+                      // Converter lista para texto formatado
+                      const list = structuredResponse.list;
+                      let textFallback = `📋 *${list.title}*\n`;
+                      if (list.description) {
+                        textFallback += `${list.description}\n`;
+                      }
+                      textFallback += `\n`;
+                      
+                      for (const section of list.sections) {
+                        textFallback += `*${section.title}*\n`;
+                        for (const row of section.rows) {
+                          textFallback += `• ${row.title}`;
+                          if (row.description) {
+                            textFallback += ` - ${row.description}`;
+                          }
+                          textFallback += `\n`;
+                        }
+                        textFallback += `\n`;
+                      }
+                      
+                      if (list.footerText) {
+                        textFallback += `_${list.footerText}_`;
+                      }
+                      
+                      const sendTextUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                      
+                      for (const phoneVariant of uniqueVariants) {
+                        try {
+                          const sendResponse = await fetch(sendTextUrl, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'apikey': globalConfig.api_token,
+                            },
+                            body: JSON.stringify({
+                              number: phoneVariant,
+                              text: textFallback,
+                            }),
+                          });
+                          
+                          if (sendResponse.ok) {
+                            console.log(`[Webhook] ✅ Text fallback sent to ${phoneVariant}`);
+                            if (messageDebug) {
+                              messageDebug.send.mode = 'text_fallback';
+                              messageDebug.send.attempts.push({
+                                phone: phoneVariant,
+                                ok: true,
+                                status: sendResponse.status,
+                              });
+                            }
+                            messageSent = true;
+                            break;
+                          }
+                        } catch (textErr) {
+                          console.error(`[Webhook] Text fallback error for ${phoneVariant}:`, textErr);
                         }
                       }
                     }
