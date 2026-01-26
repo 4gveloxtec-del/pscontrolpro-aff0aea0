@@ -1320,6 +1320,77 @@ async function logMessage(
 }
 
 // =====================================================================
+// SESSÃO OPERACIONAL (bot_engine_sessions)
+// =====================================================================
+
+/**
+ * Garante que exista uma sessão ativa em bot_engine_sessions para o contato.
+ * Isso alimenta a tela de “Sessões” do BotEngine (separada do bot_sessions que guarda navegação/stack).
+ */
+async function touchBotEngineSession(
+  supabase: SupabaseClient,
+  sellerId: string,
+  contactPhone: string,
+  meta: Record<string, unknown> = {}
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const phone = String(contactPhone || '').replace(/\D/g, '');
+  if (!phone) return;
+
+  // Buscar sessão ativa mais recente
+  const { data: existing, error: selErr } = await supabase
+    .from('bot_engine_sessions')
+    .select('id, variables')
+    .eq('seller_id', sellerId)
+    .eq('contact_phone', phone)
+    .eq('status', 'active')
+    .order('last_activity_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (selErr) {
+    console.error('[BotIntercept] touchBotEngineSession select error:', selErr);
+  }
+
+  if (existing?.id) {
+    const mergedVars = {
+      ...(existing.variables as Record<string, unknown> | null || {}),
+      ...meta,
+      phone,
+    };
+    const { error: updErr } = await supabase
+      .from('bot_engine_sessions')
+      .update({
+        status: 'active',
+        ended_at: null,
+        last_activity_at: nowIso,
+        variables: mergedVars,
+      })
+      .eq('id', existing.id);
+
+    if (updErr) {
+      console.error('[BotIntercept] touchBotEngineSession update error:', updErr);
+    }
+    return;
+  }
+
+  const { error: insErr } = await supabase
+    .from('bot_engine_sessions')
+    .insert({
+      seller_id: sellerId,
+      contact_phone: phone,
+      status: 'active',
+      started_at: nowIso,
+      last_activity_at: nowIso,
+      variables: { phone, ...meta },
+    });
+
+  if (insErr) {
+    console.error('[BotIntercept] touchBotEngineSession insert error:', insErr);
+  }
+}
+
+// =====================================================================
 // FUNÇÕES AUXILIARES - INTEGRAÇÃO COM SISTEMA EXISTENTE
 // =====================================================================
 
@@ -2142,6 +2213,12 @@ Precisa de algo mais?
       const processingEndTime = DEBUG_MODE ? Date.now() : 0;
       
       if (responseMessage) {
+        // Registrar/atualizar sessão operacional do BotEngine (para listagem/monitoramento)
+        await touchBotEngineSession(supabase, sellerId, userId, {
+          state: newState,
+          source: 'bot-engine-intercept',
+        });
+
         console.log(`[BotIntercept] ===============================================`);
         console.log(`[BotIntercept] FINAL RESPONSE TO SEND`);
         console.log(`[BotIntercept] Phone: ${userId}`);

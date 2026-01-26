@@ -1186,16 +1186,30 @@ Deno.serve(async (req: Request) => {
                   const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
                   const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
                   
-                  // Normalizar telefone
-                  const cleanPhone = senderPhone.replace(/\D/g, '');
-                  const phoneVariants: string[] = [cleanPhone];
-                  
-                  // Adicionar variantes de formato
-                  if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
-                    phoneVariants.push(`55${cleanPhone}`);
-                  }
-                  
-                  const uniqueVariants = [...new Set(phoneVariants)];
+                   // Normalizar telefone (usar as MESMAS variações agressivas do bloco de comandos)
+                   // Motivo: alguns webhooks chegam sem o “9” (ex: 5531XXXXXXXX), e o envio falha
+                   const cleanPhone = senderPhone.replace(/\D/g, '');
+                   const phoneVariants: string[] = [cleanPhone];
+
+                   if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+                     phoneVariants.push(`55${cleanPhone}`);
+                   }
+                   if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+                     phoneVariants.push(cleanPhone.substring(2));
+                   }
+                   if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
+                     const ddd = cleanPhone.substring(2, 4);
+                     const num = cleanPhone.substring(4);
+                     if (!num.startsWith('9') && parseInt(ddd) >= 11) {
+                       phoneVariants.push(`55${ddd}9${num}`);
+                     }
+                   }
+                   if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
+                     const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
+                     phoneVariants.push(without9);
+                   }
+
+                   const uniqueVariants = [...new Set(phoneVariants)];
                   let messageSent = false;
                   
                   for (const phoneVariant of uniqueVariants) {
