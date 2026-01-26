@@ -568,6 +568,23 @@ Deno.serve(async (req: Request) => {
     const { action, seller_id, webhook_event } = body;
 
     // ============================================================
+    // DEBUG MODE (apenas quando body.debug === true)
+    // Retorna detalhes de envio (sendList/sendText) no response HTTP
+    // Útil para diagnosticar por que o WhatsApp não recebeu botões.
+    // ============================================================
+    const debugEnabled = body?.debug === true;
+    const debugInfo: any = debugEnabled
+      ? {
+          received_at: new Date().toISOString(),
+          raw_event: webhook_event || body.event || null,
+          normalized_event: null as string | null,
+          instance_name: null as string | null,
+          seller_id: null as string | null,
+          messages: [] as any[],
+        }
+      : null;
+
+    // ============================================================
     // 🚫 BLOQUEIO TOTAL DE GRUPOS - PRIMEIRA VERIFICAÇÃO
     // Bot é EXCLUSIVO para conversas privadas (PV)
     // ============================================================
@@ -615,6 +632,10 @@ Deno.serve(async (req: Request) => {
       
       const rawEvent = webhook_event || body.event;
       const event = normalizeWebhookEvent(rawEvent);
+
+      if (debugInfo) {
+        debugInfo.normalized_event = event || null;
+      }
       
       // Enhanced instance name extraction - handle ALL possible Evolution API formats
       const instanceName = 
@@ -639,6 +660,10 @@ Deno.serve(async (req: Request) => {
       console.log('[Webhook] Parsed - rawEvent:', rawEvent || 'NOT_SET', '=>', event || 'EMPTY');
       console.log('[Webhook] Parsed - instanceName:', instanceName || 'NOT_FOUND');
       console.log('[Webhook] Available keys:', Object.keys(body).join(', '));
+
+      if (debugInfo) {
+        debugInfo.instance_name = instanceName ? String(instanceName) : null;
+      }
       
       if (!instanceName) {
         console.error('[Webhook] CRITICAL: Could not extract instance name from payload!');
@@ -725,6 +750,10 @@ Deno.serve(async (req: Request) => {
       }
       
       console.log(`[Webhook] Found seller_id: ${instance.seller_id} for instance: ${instanceName}`);
+
+      if (debugInfo) {
+        debugInfo.seller_id = instance.seller_id;
+      }
 
       // -------- LOG ALL INCOMING WEBHOOK EVENTS FOR DEBUGGING --------
       try {
@@ -1237,6 +1266,30 @@ Deno.serve(async (req: Request) => {
               
               const botResult = await botResponse.json();
               console.log(`[Webhook] Bot response for seller ${instance.seller_id}:`, JSON.stringify(botResult));
+
+              const messageDebug: any = debugInfo
+                ? {
+                    sender_phone: senderPhone,
+                    message_text_preview: String(messageText || '').substring(0, 120),
+                    bot_result: {
+                      intercepted: !!botResult?.intercepted,
+                      has_response: !!botResult?.response,
+                      deduplicated: !!botResult?.deduplicated,
+                      already_processing: !!botResult?.already_processing,
+                    },
+                    structured: null as any,
+                    send: {
+                      mode: null as string | null,
+                      instance_name: instanceName,
+                      attempts: [] as any[],
+                      sent: false,
+                    },
+                  }
+                : null;
+
+              if (debugInfo && messageDebug) {
+                debugInfo.messages.push(messageDebug);
+              }
               
               // Se o bot interceptou e tem resposta, enviar via Evolution API
               if (botResult.intercepted && botResult.response) {
@@ -1281,6 +1334,17 @@ Deno.serve(async (req: Request) => {
                   // DETECTAR TIPO DE RESPOSTA: Lista Interativa ou Texto Simples
                   // ═══════════════════════════════════════════════════════════════
                   const structuredResponse = deserializeResponse(botResult.response);
+
+                  if (messageDebug) {
+                    messageDebug.structured = structuredResponse
+                      ? {
+                          type: structuredResponse.type,
+                          has_list: !!structuredResponse.list,
+                          list_title: structuredResponse.list?.title,
+                          list_sections: structuredResponse.list?.sections?.length ?? null,
+                        }
+                      : null;
+                  }
                   
                   if (structuredResponse && structuredResponse.type === 'list' && structuredResponse.list) {
                     // ═════════════════════════════════════════════════════
@@ -1288,6 +1352,11 @@ Deno.serve(async (req: Request) => {
                     // ═════════════════════════════════════════════════════
                     console.log(`[Webhook] 📋 Sending INTERACTIVE LIST`);
                     const sendListUrl = `${apiUrl}/message/sendList/${instanceName}`;
+
+                    if (messageDebug) {
+                      messageDebug.send.mode = 'list';
+                      messageDebug.send.send_url = sendListUrl;
+                    }
                     
                     for (const phoneVariant of uniqueVariants) {
                       try {
@@ -1306,14 +1375,37 @@ Deno.serve(async (req: Request) => {
                         
                         if (sendResponse.ok) {
                           console.log(`[Webhook] ✅ Interactive list sent to ${phoneVariant}`);
+                          if (messageDebug) {
+                            messageDebug.send.attempts.push({
+                              phone: phoneVariant,
+                              ok: true,
+                              status: sendResponse.status,
+                            });
+                          }
                           messageSent = true;
                           break;
                         } else {
                           const errText = await sendResponse.text();
                           console.log(`[Webhook] ❌ List format ${phoneVariant} failed: ${errText.substring(0, 200)}`);
+                          if (messageDebug) {
+                            messageDebug.send.attempts.push({
+                              phone: phoneVariant,
+                              ok: false,
+                              status: sendResponse.status,
+                              error_preview: String(errText || '').substring(0, 300),
+                            });
+                          }
                         }
                       } catch (sendErr) {
                         console.error(`[Webhook] List send error for ${phoneVariant}:`, sendErr);
+                        if (messageDebug) {
+                          messageDebug.send.attempts.push({
+                            phone: phoneVariant,
+                            ok: false,
+                            status: null,
+                            error_preview: sendErr instanceof Error ? sendErr.message : String(sendErr),
+                          });
+                        }
                       }
                     }
                   } else {
@@ -1323,6 +1415,11 @@ Deno.serve(async (req: Request) => {
                     console.log(`[Webhook] 💬 Sending TEXT message`);
                     const sendTextUrl = `${apiUrl}/message/sendText/${instanceName}`;
                     const textContent = structuredResponse?.text || botResult.response;
+
+                    if (messageDebug) {
+                      messageDebug.send.mode = 'text';
+                      messageDebug.send.send_url = sendTextUrl;
+                    }
                     
                     for (const phoneVariant of uniqueVariants) {
                       try {
@@ -1340,20 +1437,47 @@ Deno.serve(async (req: Request) => {
                         
                         if (sendResponse.ok) {
                           console.log(`[Webhook] ✅ Text response sent to ${phoneVariant}`);
+                          if (messageDebug) {
+                            messageDebug.send.attempts.push({
+                              phone: phoneVariant,
+                              ok: true,
+                              status: sendResponse.status,
+                            });
+                          }
                           messageSent = true;
                           break;
                         } else {
                           const errText = await sendResponse.text();
                           console.log(`[Webhook] ❌ Text format ${phoneVariant} failed: ${errText.substring(0, 100)}`);
+                          if (messageDebug) {
+                            messageDebug.send.attempts.push({
+                              phone: phoneVariant,
+                              ok: false,
+                              status: sendResponse.status,
+                              error_preview: String(errText || '').substring(0, 300),
+                            });
+                          }
                         }
                       } catch (sendErr) {
                         console.error(`[Webhook] Text send error for ${phoneVariant}:`, sendErr);
+                        if (messageDebug) {
+                          messageDebug.send.attempts.push({
+                            phone: phoneVariant,
+                            ok: false,
+                            status: null,
+                            error_preview: sendErr instanceof Error ? sendErr.message : String(sendErr),
+                          });
+                        }
                       }
                     }
                   }
                   
                   if (!messageSent) {
                     console.error(`[Webhook] Failed to send bot response to any phone format`);
+                  }
+
+                  if (messageDebug) {
+                    messageDebug.send.sent = messageSent;
                   }
                 }
               } else if (botResult.deduplicated || botResult.already_processing) {
@@ -1412,7 +1536,11 @@ Deno.serve(async (req: Request) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, processed: event }),
+        JSON.stringify({
+          success: true,
+          processed: event,
+          ...(debugInfo ? { debug: debugInfo } : {}),
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
