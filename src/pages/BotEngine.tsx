@@ -127,7 +127,19 @@ export default function BotEngine() {
 
   // Save flow handler
   const handleSaveFlow = async () => {
-    console.log('[BotEngine] handleSaveFlow called', { flowName, flowTriggerType, flowKeywords });
+    console.log('[BotEngine] handleSaveFlow called', { 
+      flowName, 
+      flowTriggerType, 
+      flowKeywords,
+      userId: user?.id,
+      isAuthenticated: !!user 
+    });
+    
+    if (!user?.id) {
+      toast.error('Você precisa estar autenticado para criar fluxos');
+      console.error('[BotEngine] User not authenticated');
+      return;
+    }
     
     if (!flowName.trim()) {
       toast.error('Nome do fluxo é obrigatório');
@@ -136,15 +148,25 @@ export default function BotEngine() {
     
     setIsSaving(true);
     try {
-      const keywords = flowTriggerType === 'keyword' && flowKeywords.trim()
-        ? flowKeywords.split(',').map(k => k.trim()).filter(Boolean)
-        : [];
+      // Garantir que trigger_keywords seja sempre um array válido
+      let keywords: string[] = [];
+      if (flowTriggerType === 'keyword') {
+        if (flowKeywords.trim()) {
+          keywords = flowKeywords.split(',').map(k => k.trim()).filter(Boolean);
+        }
+        if (keywords.length === 0) {
+          toast.error('Palavras-chave são obrigatórias quando o tipo é "Palavra-chave"');
+          setIsSaving(false);
+          return;
+        }
+      }
       
       console.log('[BotEngine] Prepared data:', {
         name: flowName.trim(),
         trigger_type: flowTriggerType,
         keywords,
-        editingFlow: !!editingFlow
+        editingFlow: !!editingFlow,
+        seller_id: user.id
       });
       
       if (editingFlow) {
@@ -159,15 +181,17 @@ export default function BotEngine() {
           }
         });
         console.log('[BotEngine] updateFlow completed');
+        toast.success('Fluxo atualizado com sucesso!');
       } else {
         console.log('[BotEngine] Calling createFlow...');
-        await createFlow({
+        const result = await createFlow({
           name: flowName.trim(),
           description: flowDescription.trim() || null,
           trigger_type: flowTriggerType,
           trigger_keywords: keywords,
         });
-        console.log('[BotEngine] createFlow completed');
+        console.log('[BotEngine] createFlow completed:', result);
+        toast.success('Fluxo criado com sucesso!');
       }
       
       console.log('[BotEngine] Flow saved successfully, closing dialog');
@@ -176,8 +200,17 @@ export default function BotEngine() {
       resetFlowForm();
     } catch (error) {
       console.error('[BotEngine] Error saving flow:', error);
-      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
-      toast.error(`Erro ao salvar fluxo: ${errorMessage}`);
+      
+      // Extrair mensagem de erro mais legível
+      let errorMessage = 'Erro desconhecido';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = JSON.stringify(error, null, 2);
+      }
+      
+      console.error('[BotEngine] Detailed error:', errorMessage);
+      toast.error(`Erro ao salvar fluxo: ${errorMessage}`, { duration: 5000 });
     } finally {
       setIsSaving(false);
     }
