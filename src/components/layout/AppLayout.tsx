@@ -200,7 +200,7 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
             isIconsOnly && 'text-[8px]'
           )}
         >
-          v1.0
+          v2.0
         </div>
       </div>
     </div>

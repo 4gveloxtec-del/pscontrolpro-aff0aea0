@@ -381,7 +381,7 @@ Nunca insert direto. Sempre verificar existência primeiro.
 
 ---
 
-*Documento gerado automaticamente - PSControl v1.0*
+*Documento gerado automaticamente - PSControl v2.0*
 *Padrões de manutenção: docs/MAINTENANCE_STANDARDS.md*
 `;
 
