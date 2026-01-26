@@ -28,6 +28,90 @@ const corsHeaders = {
 };
 
 // =====================================================================
+// SISTEMA DE DEBUG - LOGS ESTRUTURADOS PARA AMBIENTE DE TESTE
+// =====================================================================
+
+/**
+ * Flag de debug - ativada via variável de ambiente BOT_DEBUG=true
+ * Em produção deve estar desativada para não impactar performance
+ */
+const DEBUG_MODE = Deno.env.get("BOT_DEBUG") === "true";
+
+/**
+ * Estrutura de log de execução do chatbot
+ * Captura o fluxo sem expor dados sensíveis
+ */
+interface DebugLogEntry {
+  timestamp: string;
+  phone_masked: string;  // Telefone mascarado (ex: 55***1234)
+  seller_id_short: string;  // Apenas primeiros 8 chars do UUID
+  current_state: string;
+  input_normalized: string;  // Input sem dados sensíveis
+  next_state: string;
+  action_executed: string | null;
+  response_preview: string;  // Apenas primeiros 50 chars
+  processing_time_ms: number;
+}
+
+/**
+ * Mascara telefone para log seguro
+ */
+function maskPhone(phone: string): string {
+  if (!phone || phone.length < 8) return '***';
+  return phone.slice(0, 2) + '***' + phone.slice(-4);
+}
+
+/**
+ * Trunca seller_id para log
+ */
+function shortSellerId(sellerId: string): string {
+  return sellerId?.substring(0, 8) || '???';
+}
+
+/**
+ * Logger de debug - só executa se DEBUG_MODE=true
+ */
+function debugLog(entry: Partial<DebugLogEntry>): void {
+  if (!DEBUG_MODE) return;
+  
+  const logEntry: DebugLogEntry = {
+    timestamp: new Date().toISOString(),
+    phone_masked: entry.phone_masked || '***',
+    seller_id_short: entry.seller_id_short || '???',
+    current_state: entry.current_state || 'UNKNOWN',
+    input_normalized: entry.input_normalized?.substring(0, 50) || '',
+    next_state: entry.next_state || entry.current_state || 'UNKNOWN',
+    action_executed: entry.action_executed || null,
+    response_preview: entry.response_preview?.substring(0, 50) || '',
+    processing_time_ms: entry.processing_time_ms || 0,
+  };
+  
+  console.log(`[BotDebug] 📊 EXECUTION LOG:`, JSON.stringify(logEntry, null, 2));
+}
+
+/**
+ * Logger de transição de estado - só executa se DEBUG_MODE=true
+ */
+function debugStateTransition(
+  phone: string,
+  sellerId: string,
+  fromState: string,
+  toState: string,
+  input: string,
+  action: string | null
+): void {
+  if (!DEBUG_MODE) return;
+  
+  console.log(`[BotDebug] 🔄 STATE TRANSITION`);
+  console.log(`[BotDebug] ├─ Phone: ${maskPhone(phone)}`);
+  console.log(`[BotDebug] ├─ Seller: ${shortSellerId(sellerId)}`);
+  console.log(`[BotDebug] ├─ From: ${fromState}`);
+  console.log(`[BotDebug] ├─ To: ${toState}`);
+  console.log(`[BotDebug] ├─ Input: "${input.substring(0, 30)}${input.length > 30 ? '...' : ''}"`);
+  console.log(`[BotDebug] └─ Action: ${action || 'none'}`);
+}
+
+// =====================================================================
 // TIPOS
 // =====================================================================
 
@@ -1101,6 +1185,9 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Timer para medir tempo de processamento (debug)
+    const processingStartTime = DEBUG_MODE ? Date.now() : 0;
+    
     // Verificar se BotEngine está habilitado e buscar config completa
     const { data: config, error: configError } = await supabase
       .from('bot_engine_config')
@@ -1295,6 +1382,17 @@ Deno.serve(async (req) => {
           
           console.log(`[BotIntercept] State transition result:`, JSON.stringify(stateResult));
           
+          // DEBUG LOG: Transição de estado
+          debugStateTransition(
+            userId,
+            sellerId,
+            currentState,
+            stateResult.newState,
+            message_text,
+            stateResult.shouldGenerateTest ? 'generate_test' : 
+              stateResult.transferToHuman ? 'transfer_human' : null
+          );
+          
           newState = stateResult.newState;
           responseMessage = stateResult.response;
           
@@ -1412,8 +1510,10 @@ Precisa de algo mais?
       }
 
       // =========================================================
-      // PASSO 6: Log da resposta
+      // PASSO 6: Log da resposta + DEBUG LOG COMPLETO
       // =========================================================
+      const processingEndTime = DEBUG_MODE ? Date.now() : 0;
+      
       if (responseMessage) {
         console.log(`[BotIntercept] ===============================================`);
         console.log(`[BotIntercept] FINAL RESPONSE TO SEND`);
@@ -1422,6 +1522,18 @@ Precisa de algo mais?
         console.log(`[BotIntercept] New state: ${newState}`);
         console.log(`[BotIntercept] ===============================================`);
         await logMessage(supabase, userId, sellerId, responseMessage, false);
+        
+        // DEBUG LOG: Resumo completo da execução
+        debugLog({
+          phone_masked: maskPhone(userId),
+          seller_id_short: shortSellerId(sellerId),
+          current_state: currentState,
+          input_normalized: message_text,
+          next_state: newState,
+          action_executed: globalCmd?.action || (newState !== currentState ? 'state_transition' : null),
+          response_preview: responseMessage,
+          processing_time_ms: processingEndTime - processingStartTime,
+        });
       }
 
       // =========================================================
