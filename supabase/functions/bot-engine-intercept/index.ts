@@ -21,6 +21,18 @@ import {
   STATE_MESSAGES,
   type StateTransitionResult 
 } from "../_shared/bot-state-machine.ts";
+import {
+  type InteractiveListMessage,
+  type DynamicMenuItemForList,
+  type BotStructuredResponse,
+  NAVIGATION_ROW_IDS,
+  renderMenuAsInteractiveList,
+  isNavigationCommand,
+  processNavigationSelection,
+  createListResponse,
+  createTextResponse,
+  serializeResponse,
+} from "../_shared/interactive-list.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -628,7 +640,45 @@ async function getParentMenuV2(
 }
 
 /**
- * Renderiza menu dinâmico como texto formatado para WhatsApp
+ * Renderiza menu dinâmico como LISTA INTERATIVA para WhatsApp
+ * Retorna resposta estruturada que será serializada para o connection-heartbeat
+ */
+function renderMenuAsListV2(
+  items: DynamicMenuItemV2[],
+  menuConfig: {
+    title?: string;
+    headerMessage?: string;
+    footerMessage?: string;
+    showBackButton?: boolean;
+    backButtonText?: string;
+    isRoot?: boolean;
+  } = {}
+): string {
+  // Converter DynamicMenuItemV2 para DynamicMenuItemForList
+  const itemsForList: DynamicMenuItemForList[] = items.map(item => ({
+    id: item.id,
+    menu_key: item.menu_key,
+    title: item.title,
+    description: item.description,
+    emoji: item.emoji,
+    section_title: item.section_title,
+    menu_type: item.menu_type,
+    is_root: item.is_root,
+    show_back_button: item.show_back_button,
+    back_button_text: item.back_button_text,
+    header_message: item.header_message,
+    footer_message: item.footer_message,
+    parent_menu_id: item.parent_menu_id,
+  }));
+  
+  const interactiveList = renderMenuAsInteractiveList(itemsForList, menuConfig);
+  const response = createListResponse(interactiveList);
+  return serializeResponse(response);
+}
+
+/**
+ * @deprecated Usar renderMenuAsListV2 para lista interativa
+ * Mantido temporariamente para compatibilidade com fluxos legados
  */
 function renderMenuAsTextV2(
   items: DynamicMenuItemV2[],
@@ -691,7 +741,10 @@ function renderMenuAsTextV2(
 
 /**
  * Processa seleção do usuário em um menu V2
- * Suporta: número, menu_key, texto parcial
+ * Suporta: rowId da lista interativa (menu_key), número, texto parcial
+ * 
+ * LISTA INTERATIVA: Quando o usuário seleciona uma opção da lista,
+ * o WhatsApp envia o rowId (que é o menu_key do item)
  */
 async function processMenuSelectionV2(
   supabase: SupabaseClient,
@@ -700,6 +753,8 @@ async function processMenuSelectionV2(
   userInput: string
 ): Promise<{
   found: boolean;
+  isNavigation?: boolean;
+  navigationAction?: 'back' | 'home';
   menuType?: 'submenu' | 'flow' | 'command' | 'link' | 'message';
   targetMenuKey?: string;
   targetFlowId?: string;
@@ -707,61 +762,83 @@ async function processMenuSelectionV2(
   targetUrl?: string;
   targetMessage?: string;
   parentMenuId?: string;
+  selectedItem?: DynamicMenuItemV2;
 }> {
+  const normalized = userInput.trim();
+  const normalizedLower = normalized.toLowerCase();
+  
+  // 0. PRIORIDADE MÁXIMA: Verificar comandos de navegação da lista interativa
+  if (isNavigationCommand(normalized)) {
+    const navResult = processNavigationSelection(normalized);
+    if (navResult.action) {
+      console.log(`[BotIntercept] Navigation command detected: ${navResult.action}`);
+      return {
+        found: true,
+        isNavigation: true,
+        navigationAction: navResult.action,
+      };
+    }
+  }
+  
   const items = await getMenuItemsV2(supabase, sellerId, parentMenuId);
   
   if (items.length === 0) {
     return { found: false };
   }
 
-  const normalized = userInput.toLowerCase().trim();
-
-  // 1. Verificar por número
-  const inputNumber = parseInt(normalized, 10);
-  if (!isNaN(inputNumber) && inputNumber >= 1 && inputNumber <= items.length) {
-    const item = items[inputNumber - 1];
-    return {
-      found: true,
-      menuType: item.menu_type,
-      targetMenuKey: item.target_menu_key || undefined,
-      targetFlowId: item.target_flow_id || undefined,
-      targetCommand: item.target_command || undefined,
-      targetUrl: item.target_url || undefined,
-      targetMessage: item.target_message || undefined,
-      parentMenuId: item.parent_menu_id || undefined,
-    };
-  }
-
-  // 2. Verificar por menu_key exato
-  const byKey = items.find(item => item.menu_key.toLowerCase() === normalized);
+  // 1. LISTA INTERATIVA: Verificar por menu_key exato (rowId da lista)
+  // Este é o formato que vem quando o usuário clica em um item da lista
+  const byKey = items.find(item => item.menu_key === normalized || item.menu_key.toLowerCase() === normalizedLower);
   if (byKey) {
+    console.log(`[BotIntercept] Selection by menu_key (list rowId): ${byKey.menu_key}`);
     return {
       found: true,
       menuType: byKey.menu_type,
-      targetMenuKey: byKey.target_menu_key || undefined,
+      targetMenuKey: byKey.target_menu_key || byKey.menu_key,
       targetFlowId: byKey.target_flow_id || undefined,
       targetCommand: byKey.target_command || undefined,
       targetUrl: byKey.target_url || undefined,
       targetMessage: byKey.target_message || undefined,
       parentMenuId: byKey.parent_menu_id || undefined,
+      selectedItem: byKey,
     };
   }
 
-  // 3. Verificar por título parcial
+  // 2. FALLBACK: Verificar por número (compatibilidade legada)
+  const inputNumber = parseInt(normalizedLower, 10);
+  if (!isNaN(inputNumber) && inputNumber >= 1 && inputNumber <= items.length) {
+    const item = items[inputNumber - 1];
+    console.log(`[BotIntercept] Selection by number: ${inputNumber} -> ${item.menu_key}`);
+    return {
+      found: true,
+      menuType: item.menu_type,
+      targetMenuKey: item.target_menu_key || item.menu_key,
+      targetFlowId: item.target_flow_id || undefined,
+      targetCommand: item.target_command || undefined,
+      targetUrl: item.target_url || undefined,
+      targetMessage: item.target_message || undefined,
+      parentMenuId: item.parent_menu_id || undefined,
+      selectedItem: item,
+    };
+  }
+
+  // 3. FALLBACK: Verificar por título parcial
   const byTitle = items.find(item => 
-    item.title.toLowerCase().includes(normalized) ||
-    normalized.includes(item.title.toLowerCase())
+    item.title.toLowerCase().includes(normalizedLower) ||
+    normalizedLower.includes(item.title.toLowerCase())
   );
   if (byTitle) {
+    console.log(`[BotIntercept] Selection by title match: ${byTitle.menu_key}`);
     return {
       found: true,
       menuType: byTitle.menu_type,
-      targetMenuKey: byTitle.target_menu_key || undefined,
+      targetMenuKey: byTitle.target_menu_key || byTitle.menu_key,
       targetFlowId: byTitle.target_flow_id || undefined,
       targetCommand: byTitle.target_command || undefined,
       targetUrl: byTitle.target_url || undefined,
       targetMessage: byTitle.target_message || undefined,
       parentMenuId: byTitle.parent_menu_id || undefined,
+      selectedItem: byTitle,
     };
   }
 
@@ -904,13 +981,14 @@ async function getFlowMessage(
   if (menuV2) {
     console.log(`[BotIntercept] Found V2 menu: ${state}`);
     const menuItems = await getMenuItemsV2(supabase, sellerId, menuV2.id);
-    return renderMenuAsTextV2(
-      menuItems,
-      menuV2.header_message || undefined,
-      menuV2.footer_message || undefined,
-      menuV2.show_back_button,
-      menuV2.back_button_text || '⬅️ Voltar'
-    );
+    return renderMenuAsListV2(menuItems, {
+      title: menuV2.title || 'Menu',
+      headerMessage: menuV2.header_message || undefined,
+      footerMessage: menuV2.footer_message || undefined,
+      showBackButton: menuV2.show_back_button,
+      backButtonText: menuV2.back_button_text || 'Voltar',
+      isRoot: menuV2.is_root,
+    });
   }
 
   // =========================================================
@@ -996,13 +1074,14 @@ async function processUserInput(
               const targetItems = await getMenuItemsV2(supabase, sellerId, targetMenuV2.id);
               return {
                 newState: selection.targetMenuKey,
-                response: renderMenuAsTextV2(
-                  targetItems,
-                  targetMenuV2.header_message || undefined,
-                  targetMenuV2.footer_message || undefined,
-                  targetMenuV2.show_back_button,
-                  targetMenuV2.back_button_text || '⬅️ Voltar'
-                ),
+                response: renderMenuAsListV2(targetItems, {
+                  title: targetMenuV2.title || 'Menu',
+                  headerMessage: targetMenuV2.header_message || undefined,
+                  footerMessage: targetMenuV2.footer_message || undefined,
+                  showBackButton: targetMenuV2.show_back_button,
+                  backButtonText: targetMenuV2.back_button_text || 'Voltar',
+                  isRoot: targetMenuV2.is_root,
+                }),
                 pushToStack: true,
               };
             }
@@ -1050,16 +1129,17 @@ async function processUserInput(
       }
     }
     
-    // Opção não reconhecida - mostrar menu novamente
+    // Opção não reconhecida - mostrar menu novamente como lista interativa
     return {
       newState: currentState,
-      response: `❌ Opção inválida. Digite o *número* da opção desejada.\n\n${renderMenuAsTextV2(
-        menuItemsV2,
-        currentMenuV2.header_message || undefined,
-        currentMenuV2.footer_message || undefined,
-        currentMenuV2.show_back_button,
-        currentMenuV2.back_button_text || '⬅️ Voltar'
-      )}`,
+      response: renderMenuAsListV2(menuItemsV2, {
+        title: currentMenuV2.title || 'Menu',
+        headerMessage: `❌ Opção inválida.\n\n${currentMenuV2.header_message || 'Escolha uma opção:'}`,
+        footerMessage: currentMenuV2.footer_message || undefined,
+        showBackButton: currentMenuV2.show_back_button,
+        backButtonText: currentMenuV2.back_button_text || 'Voltar',
+        isRoot: currentMenuV2.is_root,
+      }),
       pushToStack: false,
     };
   }
@@ -1073,13 +1153,13 @@ async function processUserInput(
       const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2.id);
       return {
         newState: rootMenuV2.menu_key,
-        response: renderMenuAsTextV2(
-          rootItems,
-          rootMenuV2.header_message || undefined,
-          rootMenuV2.footer_message || undefined,
-          rootMenuV2.show_back_button,
-          rootMenuV2.back_button_text || '⬅️ Voltar'
-        ),
+        response: renderMenuAsListV2(rootItems, {
+          title: rootMenuV2.title || 'Menu Principal',
+          headerMessage: rootMenuV2.header_message || undefined,
+          footerMessage: rootMenuV2.footer_message || undefined,
+          showBackButton: false,
+          isRoot: true,
+        }),
         pushToStack: false,
       };
     }
@@ -1855,16 +1935,16 @@ Deno.serve(async (req) => {
             }
             console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
             
-            // Renderizar menu
-            responseMessage = renderMenuAsTextV2(
-              rootItems,
-              rootMenuV2!.header_message || `Olá! 👋 Seja bem-vindo(a)!\n\nEscolha uma opção:`,
-              rootMenuV2!.footer_message || undefined,
-              false, // Não mostrar voltar no menu raiz
-              rootMenuV2!.back_button_text || '⬅️ Voltar'
-            );
+            // Renderizar menu como LISTA INTERATIVA
+            responseMessage = renderMenuAsListV2(rootItems, {
+              title: rootMenuV2!.title || 'Bem-vindo!',
+              headerMessage: rootMenuV2!.header_message || 'Olá! 👋 Seja bem-vindo(a)!\n\nEscolha uma opção:',
+              footerMessage: rootMenuV2!.footer_message || undefined,
+              showBackButton: false, // Não mostrar voltar no menu raiz
+              isRoot: true,
+            });
             
-            console.log(`[BotIntercept] Generated response (first 200 chars): "${responseMessage.substring(0, 200)}"`);
+            console.log(`[BotIntercept] Generated LIST response (structured)`);
             
             newState = 'MENU_V2';
             
@@ -1909,7 +1989,102 @@ Deno.serve(async (req) => {
             console.log(`[BotIntercept] Selection result:`, JSON.stringify(selection));
             
             if (selection.found) {
-              switch (selection.menuType) {
+              // ═════════════════════════════════════════════════════
+              // PROCESSAR NAVEGAÇÃO (Voltar / Menu Principal)
+              // ═════════════════════════════════════════════════════
+              if (selection.isNavigation && selection.navigationAction) {
+                console.log(`[BotIntercept] Navigation action: ${selection.navigationAction}`);
+                
+                if (selection.navigationAction === 'back') {
+                  // Voltar ao menu anterior (do stack)
+                  if (currentStack.length > 0) {
+                    const previousMenuKey = currentStack.pop();
+                    const prevMenu = await getMenuByKeyV2(supabase, sellerId, previousMenuKey!);
+                    
+                    if (prevMenu) {
+                      const menuItems = await getMenuItemsV2(supabase, sellerId, prevMenu.id);
+                      responseMessage = renderMenuAsListV2(menuItems, {
+                        title: prevMenu.title || 'Menu',
+                        headerMessage: prevMenu.header_message || undefined,
+                        footerMessage: prevMenu.footer_message || undefined,
+                        showBackButton: prevMenu.show_back_button,
+                        backButtonText: prevMenu.back_button_text || 'Voltar',
+                        isRoot: prevMenu.is_root,
+                      });
+                      
+                      await supabase
+                        .from('bot_sessions')
+                        .update({
+                          stack: currentStack,
+                          context: {
+                            ...(session?.context as Record<string, unknown> || {}),
+                            interaction_count: interactionCount + 1,
+                            current_menu_key: prevMenu.menu_key,
+                            current_menu_id: prevMenu.id,
+                          },
+                          last_interaction: now.toISOString(),
+                        })
+                        .eq('user_id', userId)
+                        .eq('seller_id', sellerId);
+                    }
+                  } else {
+                    // Stack vazio - ir para menu raiz
+                    const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
+                    responseMessage = renderMenuAsListV2(rootItems, {
+                      title: rootMenuV2!.title || 'Menu Principal',
+                      headerMessage: rootMenuV2!.header_message || undefined,
+                      footerMessage: rootMenuV2!.footer_message || undefined,
+                      showBackButton: false,
+                      isRoot: true,
+                    });
+                    
+                    await supabase
+                      .from('bot_sessions')
+                      .update({
+                        stack: [],
+                        context: {
+                          ...(session?.context as Record<string, unknown> || {}),
+                          interaction_count: interactionCount + 1,
+                          current_menu_key: rootMenuV2!.menu_key,
+                          current_menu_id: rootMenuV2!.id,
+                        },
+                        last_interaction: now.toISOString(),
+                      })
+                      .eq('user_id', userId)
+                      .eq('seller_id', sellerId);
+                  }
+                } else if (selection.navigationAction === 'home') {
+                  // Ir para menu raiz
+                  const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
+                  responseMessage = renderMenuAsListV2(rootItems, {
+                    title: rootMenuV2!.title || 'Menu Principal',
+                    headerMessage: rootMenuV2!.header_message || undefined,
+                    footerMessage: rootMenuV2!.footer_message || undefined,
+                    showBackButton: false,
+                    isRoot: true,
+                  });
+                  
+                  // Limpar stack e resetar para raiz
+                  await supabase
+                    .from('bot_sessions')
+                    .update({
+                      stack: [],
+                      context: {
+                        ...(session?.context as Record<string, unknown> || {}),
+                        interaction_count: interactionCount + 1,
+                        current_menu_key: rootMenuV2!.menu_key,
+                        current_menu_id: rootMenuV2!.id,
+                      },
+                      last_interaction: now.toISOString(),
+                    })
+                    .eq('user_id', userId)
+                    .eq('seller_id', sellerId);
+                }
+              } else {
+                // ═════════════════════════════════════════════════════
+                // PROCESSAR SELEÇÃO DE MENU NORMAL
+                // ═════════════════════════════════════════════════════
+                switch (selection.menuType) {
                 case 'submenu':
                   // Navegar para submenu
                   if (selection.targetMenuKey) {
@@ -1917,13 +2092,14 @@ Deno.serve(async (req) => {
                     if (targetMenu) {
                       const menuItems = await getMenuItemsV2(supabase, sellerId, targetMenu.id);
                       
-                      responseMessage = renderMenuAsTextV2(
-                        menuItems,
-                        targetMenu.header_message || `📌 *${targetMenu.title}*`,
-                        targetMenu.footer_message || undefined,
-                        targetMenu.show_back_button,
-                        targetMenu.back_button_text || '⬅️ Voltar'
-                      );
+                      responseMessage = renderMenuAsListV2(menuItems, {
+                        title: targetMenu.title || 'Menu',
+                        headerMessage: targetMenu.header_message || undefined,
+                        footerMessage: targetMenu.footer_message || undefined,
+                        showBackButton: targetMenu.show_back_button,
+                        backButtonText: targetMenu.back_button_text || 'Voltar',
+                        isRoot: targetMenu.is_root,
+                      });
                       
                       newState = 'MENU_V2';
                       currentStack.push(currentMenuKey);
@@ -2000,6 +2176,7 @@ Deno.serve(async (req) => {
                   }
                   break;
               }
+              } // Fecha o else do processamento normal de seleção
             } else {
               // Opção não encontrada - mostrar menu atual novamente
               console.log(`[BotIntercept] Option not found, reshowing current menu`);
@@ -2007,23 +2184,24 @@ Deno.serve(async (req) => {
               if (currentMenuV2) {
                 const menuItems = await getMenuItemsV2(supabase, sellerId, currentMenuV2.id);
                 
-                responseMessage = `❌ Opção inválida. Escolha uma das opções:\n\n` + renderMenuAsTextV2(
-                  menuItems,
-                  currentMenuV2.header_message || undefined,
-                  currentMenuV2.footer_message || undefined,
-                  currentMenuV2.show_back_button,
-                  currentMenuV2.back_button_text || '⬅️ Voltar'
-                );
+                responseMessage = renderMenuAsListV2(menuItems, {
+                  title: currentMenuV2.title || 'Menu',
+                  headerMessage: `❌ Opção inválida.\n\n${currentMenuV2.header_message || 'Escolha uma opção:'}`,
+                  footerMessage: currentMenuV2.footer_message || undefined,
+                  showBackButton: currentMenuV2.show_back_button,
+                  backButtonText: currentMenuV2.back_button_text || 'Voltar',
+                  isRoot: currentMenuV2.is_root,
+                });
               } else {
                 // Fallback para menu raiz
                 const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
-                responseMessage = renderMenuAsTextV2(
-                  rootItems,
-                  rootMenuV2!.header_message || `Escolha uma opção:`,
-                  rootMenuV2!.footer_message || undefined,
-                  false,
-                  '⬅️ Voltar'
-                );
+                responseMessage = renderMenuAsListV2(rootItems, {
+                  title: rootMenuV2!.title || 'Menu Principal',
+                  headerMessage: rootMenuV2!.header_message || 'Escolha uma opção:',
+                  footerMessage: rootMenuV2!.footer_message || undefined,
+                  showBackButton: false,
+                  isRoot: true,
+                });
               }
             }
             

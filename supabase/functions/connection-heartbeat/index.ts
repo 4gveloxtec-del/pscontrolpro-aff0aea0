@@ -1,4 +1,9 @@
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
+import {
+  type BotStructuredResponse,
+  deserializeResponse,
+  toEvolutionApiPayload,
+} from "../_shared/interactive-list.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1184,58 +1189,104 @@ Deno.serve(async (req: Request) => {
                 
                 if (globalConfig?.api_url && globalConfig?.api_token) {
                   const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-                  const sendUrl = `${apiUrl}/message/sendText/${instanceName}`;
                   
-                   // Normalizar telefone (usar as MESMAS variações agressivas do bloco de comandos)
-                   // Motivo: alguns webhooks chegam sem o “9” (ex: 5531XXXXXXXX), e o envio falha
-                   const cleanPhone = senderPhone.replace(/\D/g, '');
-                   const phoneVariants: string[] = [cleanPhone];
+                  // Normalizar telefone
+                  const cleanPhone = senderPhone.replace(/\D/g, '');
+                  const phoneVariants: string[] = [cleanPhone];
 
-                   if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
-                     phoneVariants.push(`55${cleanPhone}`);
-                   }
-                   if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
-                     phoneVariants.push(cleanPhone.substring(2));
-                   }
-                   if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
-                     const ddd = cleanPhone.substring(2, 4);
-                     const num = cleanPhone.substring(4);
-                     if (!num.startsWith('9') && parseInt(ddd) >= 11) {
-                       phoneVariants.push(`55${ddd}9${num}`);
-                     }
-                   }
-                   if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
-                     const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
-                     phoneVariants.push(without9);
-                   }
+                  if (!cleanPhone.startsWith('55') && (cleanPhone.length === 10 || cleanPhone.length === 11)) {
+                    phoneVariants.push(`55${cleanPhone}`);
+                  }
+                  if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+                    phoneVariants.push(cleanPhone.substring(2));
+                  }
+                  if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
+                    const ddd = cleanPhone.substring(2, 4);
+                    const num = cleanPhone.substring(4);
+                    if (!num.startsWith('9') && parseInt(ddd) >= 11) {
+                      phoneVariants.push(`55${ddd}9${num}`);
+                    }
+                  }
+                  if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
+                    const without9 = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
+                    phoneVariants.push(without9);
+                  }
 
-                   const uniqueVariants = [...new Set(phoneVariants)];
+                  const uniqueVariants = [...new Set(phoneVariants)];
                   let messageSent = false;
                   
-                  for (const phoneVariant of uniqueVariants) {
-                    try {
-                      const sendResponse = await fetch(sendUrl, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'apikey': globalConfig.api_token,
-                        },
-                        body: JSON.stringify({
-                          number: phoneVariant,
-                          text: botResult.response,
-                        }),
-                      });
-                      
-                      if (sendResponse.ok) {
-                        console.log(`[Webhook] ✅ Bot response sent to ${phoneVariant}`);
-                        messageSent = true;
-                        break;
-                      } else {
-                        const errText = await sendResponse.text();
-                        console.log(`[Webhook] ❌ Format ${phoneVariant} failed: ${errText.substring(0, 100)}`);
+                  // ═══════════════════════════════════════════════════════════════
+                  // DETECTAR TIPO DE RESPOSTA: Lista Interativa ou Texto Simples
+                  // ═══════════════════════════════════════════════════════════════
+                  const structuredResponse = deserializeResponse(botResult.response);
+                  
+                  if (structuredResponse && structuredResponse.type === 'list' && structuredResponse.list) {
+                    // ═════════════════════════════════════════════════════
+                    // ENVIAR COMO LISTA INTERATIVA (sendList)
+                    // ═════════════════════════════════════════════════════
+                    console.log(`[Webhook] 📋 Sending INTERACTIVE LIST`);
+                    const sendListUrl = `${apiUrl}/message/sendList/${instanceName}`;
+                    
+                    for (const phoneVariant of uniqueVariants) {
+                      try {
+                        const listPayload = toEvolutionApiPayload(structuredResponse.list, phoneVariant);
+                        
+                        console.log(`[Webhook] List payload:`, JSON.stringify(listPayload).substring(0, 500));
+                        
+                        const sendResponse = await fetch(sendListUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': globalConfig.api_token,
+                          },
+                          body: JSON.stringify(listPayload),
+                        });
+                        
+                        if (sendResponse.ok) {
+                          console.log(`[Webhook] ✅ Interactive list sent to ${phoneVariant}`);
+                          messageSent = true;
+                          break;
+                        } else {
+                          const errText = await sendResponse.text();
+                          console.log(`[Webhook] ❌ List format ${phoneVariant} failed: ${errText.substring(0, 200)}`);
+                        }
+                      } catch (sendErr) {
+                        console.error(`[Webhook] List send error for ${phoneVariant}:`, sendErr);
                       }
-                    } catch (sendErr) {
-                      console.error(`[Webhook] Send error for ${phoneVariant}:`, sendErr);
+                    }
+                  } else {
+                    // ═════════════════════════════════════════════════════
+                    // ENVIAR COMO TEXTO SIMPLES (sendText) - Fallback
+                    // ═════════════════════════════════════════════════════
+                    console.log(`[Webhook] 💬 Sending TEXT message`);
+                    const sendTextUrl = `${apiUrl}/message/sendText/${instanceName}`;
+                    const textContent = structuredResponse?.text || botResult.response;
+                    
+                    for (const phoneVariant of uniqueVariants) {
+                      try {
+                        const sendResponse = await fetch(sendTextUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': globalConfig.api_token,
+                          },
+                          body: JSON.stringify({
+                            number: phoneVariant,
+                            text: textContent,
+                          }),
+                        });
+                        
+                        if (sendResponse.ok) {
+                          console.log(`[Webhook] ✅ Text response sent to ${phoneVariant}`);
+                          messageSent = true;
+                          break;
+                        } else {
+                          const errText = await sendResponse.text();
+                          console.log(`[Webhook] ❌ Text format ${phoneVariant} failed: ${errText.substring(0, 100)}`);
+                        }
+                      } catch (sendErr) {
+                        console.error(`[Webhook] Text send error for ${phoneVariant}:`, sendErr);
+                      }
                     }
                   }
                   
