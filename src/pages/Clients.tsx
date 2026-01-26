@@ -4032,25 +4032,24 @@ export default function Clients() {
                         )}
                         {client.server_name && (() => {
                           const server1 = getClientServer(client);
-                          const hasPanel = server1?.panel_url;
+                          const hasPanel = !!server1?.panel_url;
                           const handleServerClick = (e: React.MouseEvent | React.KeyboardEvent) => {
                             e.stopPropagation();
-                            if (hasPanel) {
-                              window.open(server1.panel_url!, '_blank', 'noopener,noreferrer');
+                            if (hasPanel && server1?.panel_url) {
+                              window.open(server1.panel_url, '_blank', 'noopener,noreferrer');
                               toast.success(`Abrindo painel: ${client.server_name}`);
                             } else {
-                              navigate('/servers');
-                              toast.info(`Servidor: ${client.server_name}`);
+                              toast.info(`Servidor "${client.server_name}" não possui link de painel cadastrado`);
                             }
                           };
                           return (
                             <span 
                               role="button"
                               tabIndex={0}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 cursor-pointer hover:bg-primary/20 hover:scale-105 active:scale-95 transition-all select-none"
+                              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 ${hasPanel ? 'cursor-pointer hover:bg-primary/20 hover:scale-105 active:scale-95' : 'cursor-default opacity-70'} transition-all select-none`}
                               onClick={handleServerClick}
                               onKeyDown={(e) => e.key === 'Enter' && handleServerClick(e)}
-                              title={hasPanel ? `Clique para abrir o painel` : 'Clique para ver servidores'}
+                              title={hasPanel ? `Clique para abrir o painel` : 'Sem link de painel cadastrado'}
                             >
                               {server1?.icon_url ? (
                                 <img src={server1.icon_url} alt={client.server_name} className="h-4 w-4 rounded-sm object-cover pointer-events-none" />
@@ -4058,31 +4057,30 @@ export default function Clients() {
                                 <Server className="h-3 w-3 pointer-events-none" />
                               )}
                               <span className="pointer-events-none">{client.server_name}</span>
-                              <ExternalLink className="h-3 w-3 opacity-60 pointer-events-none" />
+                              {hasPanel && <ExternalLink className="h-3 w-3 opacity-60 pointer-events-none" />}
                             </span>
                           );
                         })()}
                         {client.server_name_2 && (() => {
                           const server2 = servers.find(s => s.id === client.server_id_2);
-                          const hasPanel = server2?.panel_url;
+                          const hasPanel = !!server2?.panel_url;
                           const handleServer2Click = (e: React.MouseEvent | React.KeyboardEvent) => {
                             e.stopPropagation();
-                            if (hasPanel) {
-                              window.open(server2!.panel_url!, '_blank', 'noopener,noreferrer');
+                            if (hasPanel && server2?.panel_url) {
+                              window.open(server2.panel_url, '_blank', 'noopener,noreferrer');
                               toast.success(`Abrindo painel: ${client.server_name_2}`);
                             } else {
-                              navigate('/servers');
-                              toast.info(`Servidor: ${client.server_name_2}`);
+                              toast.info(`Servidor "${client.server_name_2}" não possui link de painel cadastrado`);
                             }
                           };
                           return (
                             <span 
                               role="button"
                               tabIndex={0}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 hover:scale-105 active:scale-95 transition-all select-none"
+                              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 ${hasPanel ? 'cursor-pointer hover:bg-amber-500/20 hover:scale-105 active:scale-95' : 'cursor-default opacity-70'} transition-all select-none`}
                               onClick={handleServer2Click}
                               onKeyDown={(e) => e.key === 'Enter' && handleServer2Click(e)}
-                              title={hasPanel ? `Clique para abrir o painel` : 'Clique para ver servidores'}
+                              title={hasPanel ? `Clique para abrir o painel` : 'Sem link de painel cadastrado'}
                             >
                               {server2?.icon_url ? (
                                 <img src={server2.icon_url} alt={client.server_name_2} className="h-4 w-4 rounded-sm object-cover pointer-events-none" />
@@ -4090,7 +4088,7 @@ export default function Clients() {
                                 <Server className="h-3 w-3 pointer-events-none" />
                               )}
                               <span className="pointer-events-none">{client.server_name_2}</span>
-                              <ExternalLink className="h-3 w-3 opacity-60 pointer-events-none" />
+                              {hasPanel && <ExternalLink className="h-3 w-3 opacity-60 pointer-events-none" />}
                             </span>
                           );
                         })()}
