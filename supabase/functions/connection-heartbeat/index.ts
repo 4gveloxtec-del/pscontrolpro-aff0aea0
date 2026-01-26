@@ -733,12 +733,19 @@ Deno.serve(async (req: Request) => {
             console.log(`[Webhook] No messages found in payload. eventData keys: ${Object.keys(eventData).join(',')}`);
           }
           
+          let groupCount = 0;
+          let privateCount = 0;
+          
           for (const msg of messages) {
             const remoteJid = msg.key?.remoteJid || msg.remoteJid || '';
             
             // Ignorar grupos silenciosamente - bot exclusivo para conversas privadas
-            if (remoteJid.includes('@g.us')) continue;
+            if (remoteJid.includes('@g.us')) {
+              groupCount++;
+              continue;
+            }
             
+            privateCount++;
             console.log(`[Webhook] ===============================================`);
             console.log(`[Webhook] 🔍 PROCESSING PRIVATE MESSAGE`);
             console.log(`[Webhook] remoteJid: ${remoteJid}`);
@@ -1333,6 +1340,12 @@ Deno.serve(async (req: Request) => {
             }
             // Se não for comando, deixar o fluxo normal do chatbot/automação
           }
+          
+          // Resumo de filtragem
+          if (groupCount > 0 || messages.length > 0) {
+            console.log(`[Webhook] 📊 PROCESSING SUMMARY: Total=${messages.length}, Groups ignored=${groupCount}, Private processed=${privateCount}`);
+          }
+          
           break;
       }
 
