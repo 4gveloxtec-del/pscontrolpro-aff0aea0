@@ -77,7 +77,7 @@ export const navGroups: NavGroup[] = [
   {
     title: 'Mensagens',
     items: [
-      { title: 'Automação WhatsApp', href: '/whatsapp-automation', icon: Bot },
+      { title: 'Conectar WhatsApp', href: '/whatsapp-automation', icon: Bot },
       { title: 'Chatbot', href: '/bot-engine', icon: MessageSquare, sellerOnly: true },
       { title: 'Comandos de Teste', href: '/test-commands', icon: Terminal, sellerOnly: true },
       { title: 'Templates', href: '/templates', icon: MessageSquare },
