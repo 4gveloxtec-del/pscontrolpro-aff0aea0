@@ -75,6 +75,7 @@ interface ResellerDeviceApp {
   device_types: string[];
   app_source: 'play_store' | 'app_store' | 'direct';
   download_url: string | null;
+  downloader_code: string | null;
   server_id: string | null;
   is_gerencia_app: boolean;
   is_active: boolean;
@@ -89,6 +90,7 @@ interface FormData {
   device_types: string[];
   app_source: 'play_store' | 'app_store' | 'direct';
   download_url: string;
+  downloader_code: string;
   server_id: string;
   is_gerencia_app: boolean;
   is_active: boolean;
@@ -101,6 +103,7 @@ const defaultFormData: FormData = {
   device_types: [],
   app_source: 'play_store',
   download_url: '',
+  downloader_code: '',
   server_id: '',
   is_gerencia_app: false,
   is_active: true,
@@ -166,6 +169,7 @@ export default function MyApps() {
           device_types: data.device_types,
           app_source: data.app_source,
           download_url: data.download_url || null,
+          downloader_code: data.downloader_code || null,
           server_id: data.server_id || null,
           is_gerencia_app: data.is_gerencia_app,
           is_active: data.is_active,
@@ -194,6 +198,7 @@ export default function MyApps() {
           device_types: data.device_types,
           app_source: data.app_source,
           download_url: data.download_url || null,
+          downloader_code: data.downloader_code || null,
           server_id: data.server_id || null,
           is_gerencia_app: data.is_gerencia_app,
           is_active: data.is_active,
@@ -244,6 +249,7 @@ export default function MyApps() {
       device_types: app.device_types,
       app_source: app.app_source,
       download_url: app.download_url || '',
+      downloader_code: app.downloader_code || '',
       server_id: app.server_id || '',
       is_gerencia_app: app.is_gerencia_app,
       is_active: app.is_active,
@@ -483,6 +489,20 @@ export default function MyApps() {
                       : 'https://exemplo.com/download.apk'
                   }
                 />
+              </div>
+
+              {/* Downloader Code */}
+              <div className="space-y-2">
+                <Label htmlFor="downloader_code">Código Downloader (opcional)</Label>
+                <Input
+                  id="downloader_code"
+                  value={formData.downloader_code}
+                  onChange={(e) => setFormData(prev => ({ ...prev, downloader_code: e.target.value }))}
+                  placeholder="Ex: 12345"
+                />
+                <p className="text-xs text-muted-foreground">
+                  🔢 Código para baixar via app Downloader
+                </p>
               </div>
 
               {/* Server Association - Only show if not Gerencia App */}
