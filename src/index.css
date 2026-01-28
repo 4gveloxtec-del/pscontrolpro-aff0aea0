@@ -928,6 +928,39 @@ main, [role="main"] {
 }
 
 /* =============================================================================
+   Scroll Prevention for Buttons and Forms
+   Prevents automatic scroll after button clicks and form submissions
+   ============================================================================= */
+button,
+input[type="submit"],
+.btn,
+[role="button"] {
+  touch-action: manipulation !important;
+  overscroll-behavior: none !important;
+}
+
+button:active,
+input[type="submit"]:active,
+.btn:active,
+[role="button"]:active {
+  position: relative;
+  transform: translateZ(0);
+}
+
+/* Maintain position after clicks */
+.action-button::after,
+[data-action-button]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overscroll-behavior: none;
+  pointer-events: none;
+}
+
+/* =============================================================================
    Hide Lovable Edit Badge
    ============================================================================= */
 #lovable-badge,

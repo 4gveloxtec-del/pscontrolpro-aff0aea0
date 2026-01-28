@@ -16,6 +16,7 @@ import { SystemAccessRequired, AdminOnly, SellerOnly } from "@/components/Protec
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { OnlineRequired } from "@/components/OnlineRequired";
 import { useClearOfflineData } from "@/hooks/useClearOfflineData";
+import { useScrollPreservation } from "@/hooks/useScrollPreservation";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -244,9 +245,10 @@ const AppRoutes = () => {
   );
 };
 
-// App initialization hook for clearing offline data
+// App initialization hook for clearing offline data and scroll preservation
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useClearOfflineData();
+  useScrollPreservation();
   return <>{children}</>;
 }
 
