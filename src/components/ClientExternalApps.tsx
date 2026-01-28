@@ -25,6 +25,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { ExternalApp } from './ExternalAppsManager';
 import { InlineExternalAppCreator, InlineResellerAppCreator } from './InlineAppCreator';
+import { RESELLER_DEVICE_APPS_QUERY_KEY } from '@/hooks/useResellerDeviceApps';
 
 // Apps fixos visíveis para todos os revendedores
 const FIXED_EXTERNAL_APPS: ExternalApp[] = [
@@ -107,7 +108,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
 
   // Fetch reseller apps from reseller_device_apps table (UNIFIED source)
   const { data: resellerApps = [] } = useQuery({
-    queryKey: ['reseller-device-apps', sellerId],
+    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
@@ -274,7 +275,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
           <InlineResellerAppCreator
             sellerId={sellerId}
             onCreated={(_id) => {
-              queryClient.invalidateQueries({ queryKey: ['reseller-device-apps', sellerId] });
+              queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId] });
             }}
           />
           <InlineExternalAppCreator 
