@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { seller_id, phone, buttons, title, description, lookup_by_phone } = await req.json();
+    const { seller_id, phone, buttons, title, description, lookup_by_phone, force_text } = await req.json();
 
     let instance = null;
 
@@ -110,14 +110,45 @@ Deno.serve(async (req) => {
 
     console.log('[test-send-buttons] Sending buttons:', buttonsMessage);
 
+    // Se force_text, pular direto para fallback de texto
+    if (force_text) {
+      console.log('[test-send-buttons] force_text=true, sending as text');
+      
+      const textFallback = buttonsToTextFallback(buttonsMessage);
+      const sendTextUrl = `${globalConfig.api_url.replace(/\/+$/, '')}/message/sendText/${instance.instance_name}`;
+      
+      const textResponse = await fetch(sendTextUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': globalConfig.api_token,
+        },
+        body: JSON.stringify({
+          number: cleanPhone,
+          text: textFallback,
+        }),
+      });
+
+      const textResponseText = await textResponse.text();
+      
+      return new Response(
+        JSON.stringify({
+          success: textResponse.ok,
+          mode: 'text_forced',
+          message: textFallback,
+          phone: cleanPhone,
+          instance: instance.instance_name,
+          response: textResponseText.substring(0, 500),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const apiUrl = globalConfig.api_url.replace(/\/+$/, '');
-    const apiUrlV1 = apiUrl.endsWith('/api/v1') ? apiUrl : `${apiUrl}/api/v1`;
     
-    const sendButtonsUrls = [
+    // URLs a testar
+    const urlsToTry = [
       `${apiUrl}/message/sendButtons/${instance.instance_name}`,
-      `${apiUrl}/message/sendButtons`,
-      `${apiUrlV1}/message/sendButtons/${instance.instance_name}`,
-      `${apiUrlV1}/message/sendButtons`,
     ];
 
     const attempts: any[] = [];
@@ -127,17 +158,17 @@ Deno.serve(async (req) => {
 
     const variants = buildSendButtonsPayloadVariants(buttonsMessage, cleanPhone);
 
-    outer: for (const url of sendButtonsUrls) {
+    outer: for (const url of urlsToTry) {
       for (const v of variants) {
         try {
           console.log(`[test-send-buttons] Trying url=${url} variant=${v.name}`);
+          console.log(`[test-send-buttons] Payload: ${JSON.stringify(v.payload).substring(0, 800)}`);
           
           const response = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'apikey': globalConfig.api_token,
-              'Authorization': `Bearer ${globalConfig.api_token}`,
             },
             body: JSON.stringify(v.payload),
           });
@@ -149,18 +180,36 @@ Deno.serve(async (req) => {
             variant: v.name,
             status: response.status,
             ok: response.ok,
-            response: responseText.substring(0, 500),
+            response: responseText.substring(0, 600),
           });
 
           if (response.ok) {
-            success = true;
-            successUrl = url;
-            successVariant = v.name;
-            console.log(`[test-send-buttons] ✅ Success with ${v.name} at ${url}`);
-            break outer;
+            // Verificar se os botões têm texto válido
+            // buttonParamsJson deve conter display_text ou title
+            const hasEmptyButtons = responseText.includes('"buttonParamsJson":"{}"');
+            const hasValidButtonText = responseText.includes('display_text') || 
+                                        responseText.includes('"title"') ||
+                                        responseText.includes('"id"');
+            
+            if (!hasEmptyButtons && hasValidButtonText) {
+              success = true;
+              successUrl = url;
+              successVariant = v.name;
+              console.log(`[test-send-buttons] ✅ Success with ${v.name} - buttons have text!`);
+              break outer;
+            } else if (!hasEmptyButtons) {
+              // Aceitar se não tiver buttons vazios
+              success = true;
+              successUrl = url;
+              successVariant = v.name;
+              console.log(`[test-send-buttons] ✅ Success with ${v.name} (no empty buttons)`);
+              break outer;
+            } else {
+              console.log(`[test-send-buttons] ⚠️ API returned 201 but buttonParamsJson is empty, trying next...`);
+            }
+          } else {
+            console.log(`[test-send-buttons] ❌ Failed: ${response.status} - ${responseText.substring(0, 200)}`);
           }
-          
-          console.log(`[test-send-buttons] ❌ Failed: ${response.status} - ${responseText.substring(0, 200)}`);
         } catch (err) {
           attempts.push({
             url,
