@@ -142,22 +142,22 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background landing-mesh-bg">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center landing-icon-glow">
               <Users className="h-5 w-5 text-primary" />
             </div>
             <span className="font-bold text-lg">Controle de Clientes</span>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/auth')}>
+            <Button variant="ghost" onClick={() => navigate('/auth')} className="landing-cta-secondary">
               <LogIn className="h-4 w-4 mr-2" />
               Entrar
             </Button>
-            <Button onClick={() => navigate('/auth')}>
+            <Button onClick={() => navigate('/auth')} className="landing-cta-primary">
               Criar Conta
             </Button>
           </div>
@@ -165,28 +165,29 @@ export default function Landing() {
       </header>
 
       {/* Hero Section - Updated for Automation */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden landing-hero-bg">
         {/* Background Effects */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/5 pointer-events-none" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-3xl pointer-events-none landing-float" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-accent/10 rounded-full blur-3xl pointer-events-none landing-float-delayed" />
         
         <div className="relative container mx-auto px-4 py-16 sm:py-24">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             {/* NEW Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 text-sm font-medium text-green-600 dark:text-green-400 animate-fade-in">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 text-sm font-medium text-green-600 dark:text-green-400 landing-fade-in landing-stat-glow">
               <Zap className="h-4 w-4" />
               Novo: Automação Completa via WhatsApp
             </div>
 
             {/* Main Title - Focus on Automation */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight animate-fade-in">
+            <h1 className="landing-title landing-slide-up">
               <span className="text-foreground">Esqueça de lembrar.</span>
               <br />
-              <span className="text-primary">O sistema lembra por você.</span>
+              <span className="landing-title-gradient">O sistema lembra por você.</span>
             </h1>
 
             {/* Subtitle - Clear Value Proposition */}
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-in">
+            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto landing-fade-in" style={{ animationDelay: '200ms' }}>
               Lembretes automáticos de vencimento, cobrança via WhatsApp e renovação de clientes — 
               <span className="font-semibold text-foreground"> tudo no automático</span>.
               <span className="block mt-2 text-foreground/80">
@@ -195,10 +196,10 @@ export default function Landing() {
             </p>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 landing-fade-in" style={{ animationDelay: '400ms' }}>
               <Button 
                 size="lg" 
-                className="w-full sm:w-auto text-lg px-8 py-6 gap-2"
+                className="w-full sm:w-auto text-lg px-8 py-6 gap-2 landing-cta-primary"
                 onClick={() => navigate('/auth')}
               >
                 Automatize suas Renovações
@@ -207,7 +208,7 @@ export default function Landing() {
             </div>
 
             {/* Quick Stats */}
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground animate-fade-in">
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground landing-fade-in" style={{ animationDelay: '600ms' }}>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <span>Cobrança automática</span>
@@ -241,15 +242,14 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto landing-stagger">
             {automationHighlights.map((item, index) => (
               <div 
                 key={index}
-                className="group p-5 rounded-xl bg-card border border-border hover:border-primary/50 hover:shadow-lg transition-all duration-300 animate-slide-up"
-                style={{ animationDelay: `${index * 80}ms` }}
+                className="group p-5 rounded-xl bg-card border border-border landing-card landing-slide-up"
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors landing-icon-glow">
                     <item.icon className="h-5 w-5 text-primary" />
                   </div>
                   <div>
@@ -267,7 +267,7 @@ export default function Landing() {
               variant="outline" 
               size="lg"
               onClick={() => navigate('/auth')}
-              className="gap-2"
+              className="gap-2 landing-cta-secondary"
             >
               Conhecer as Novidades
               <ArrowRight className="h-4 w-4" />
@@ -284,12 +284,14 @@ export default function Landing() {
             <div className="flex flex-wrap items-center justify-center gap-4">
               {platforms?.map((platform) => (
                 <div key={platform.id} className="flex flex-col items-center gap-1">
-                  <PlatformIcon 
-                    name={platform.display_name} 
-                    iconUrl={platform.icon_url}
-                    color={platform.color} 
-                    bgColor={platform.bg_color} 
-                  />
+                  <div className="landing-platform-icon">
+                    <PlatformIcon 
+                      name={platform.display_name} 
+                      iconUrl={platform.icon_url}
+                      color={platform.color} 
+                      bgColor={platform.bg_color} 
+                    />
+                  </div>
                   <span className="text-xs text-muted-foreground">{platform.display_name}</span>
                 </div>
               ))}
@@ -299,7 +301,7 @@ export default function Landing() {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 sm:py-24 bg-card/50">
+      <section className="py-16 sm:py-24 landing-section-gradient">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
@@ -310,15 +312,14 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto landing-stagger">
             {features.map((feature, index) => (
               <Card 
                 key={index}
-                className="group hover:shadow-lg hover:border-primary/50 transition-all duration-300 animate-slide-up"
-                style={{ animationDelay: `${index * 100}ms` }}
+                className="group landing-card landing-slide-up"
               >
                 <CardContent className="p-6 space-y-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors landing-icon-glow">
                     <feature.icon className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold">{feature.title}</h3>
@@ -340,7 +341,7 @@ export default function Landing() {
               </h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 landing-stagger">
               {[
                 'Lembretes automáticos de vencimento — nunca mais esqueça um cliente',
                 'Cobrança automática via WhatsApp API — sem envio manual',
@@ -357,8 +358,7 @@ export default function Landing() {
               ].map((benefit, index) => (
                 <div 
                   key={index}
-                  className="flex items-center gap-3 p-4 rounded-lg bg-card border border-border hover:border-primary/50 transition-colors animate-slide-up"
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  className="flex items-center gap-3 p-4 rounded-lg bg-card border border-border landing-benefit landing-slide-up"
                 >
                   <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
                   <span className="text-foreground">{benefit}</span>
@@ -370,21 +370,23 @@ export default function Landing() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="py-16 sm:py-24 bg-gradient-to-br from-primary/10 via-transparent to-primary/5">
-        <div className="container mx-auto px-4 text-center">
+      <section className="py-16 sm:py-24 landing-hero-bg relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-3xl pointer-events-none landing-float" />
+        
+        <div className="container mx-auto px-4 text-center relative z-10">
           <div className="max-w-2xl mx-auto space-y-6">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto landing-float landing-icon-glow">
               <Zap className="h-8 w-8 text-primary" />
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold">
+            <h2 className="text-3xl sm:text-4xl font-bold landing-slide-up">
               Pronto para automatizar seu negócio?
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-lg text-muted-foreground landing-fade-in" style={{ animationDelay: '200ms' }}>
               Comece agora com {trialDays} dias grátis. Sem compromisso, sem cartão de crédito.
             </p>
             <Button 
               size="lg" 
-              className="text-lg px-8 py-6 gap-2"
+              className="text-lg px-8 py-6 gap-2 landing-cta-primary"
               onClick={() => navigate('/auth')}
             >
               Criar Conta Grátis
@@ -394,7 +396,7 @@ export default function Landing() {
             {/* Pricing Badges - Both Plans */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               {/* Manual Plan */}
-              <div className="inline-flex flex-col items-center gap-1 p-4 rounded-2xl bg-card border border-border shadow-lg">
+              <div className="inline-flex flex-col items-center gap-1 p-4 rounded-2xl bg-card border border-border shadow-lg landing-card">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plano Manual</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl sm:text-3xl font-bold text-foreground">R$ {manualPlanPrice}</span>
@@ -403,7 +405,7 @@ export default function Landing() {
               </div>
               
               {/* Automatic Plan - Featured */}
-              <div className="inline-flex flex-col items-center gap-1 p-4 rounded-2xl bg-primary/5 border border-primary/30 shadow-lg">
+              <div className="inline-flex flex-col items-center gap-1 p-4 rounded-2xl bg-primary/5 border border-primary/30 landing-stat-glow landing-card landing-gradient-border">
                 <span className="text-xs font-medium text-primary uppercase tracking-wide">Plano Automático</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-2xl sm:text-3xl font-bold text-primary">R$ {automaticPlanPrice}</span>
