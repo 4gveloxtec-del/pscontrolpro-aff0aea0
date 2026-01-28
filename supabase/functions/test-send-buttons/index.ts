@@ -25,28 +25,55 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { seller_id, phone, buttons, title, description } = await req.json();
+    const { seller_id, phone, buttons, title, description, lookup_by_phone } = await req.json();
 
-    if (!seller_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing seller_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    let instance = null;
+
+    // Buscar instância por seller_id ou por telefone conectado
+    if (seller_id) {
+      const { data } = await supabase
+        .from('whatsapp_seller_instances')
+        .select('*')
+        .eq('seller_id', seller_id)
+        .maybeSingle();
+      instance = data;
+    } else if (lookup_by_phone || phone) {
+      // Buscar por telefone conectado
+      const searchPhone = String(lookup_by_phone || phone).replace(/\D/g, '');
+      const phoneVariants = [
+        searchPhone,
+        searchPhone.startsWith('55') ? searchPhone.slice(2) : `55${searchPhone}`,
+        searchPhone.length === 11 ? `55${searchPhone}` : searchPhone,
+      ];
+      
+      for (const variant of phoneVariants) {
+        const { data } = await supabase
+          .from('whatsapp_seller_instances')
+          .select('*')
+          .ilike('connected_phone', `%${variant}%`)
+          .eq('is_connected', true)
+          .maybeSingle();
+        
+        if (data) {
+          instance = data;
+          console.log(`[test-send-buttons] Found instance by phone ${variant}:`, data.instance_name);
+          break;
+        }
+      }
     }
-
-    // Buscar instância do revendedor
-    const { data: instance } = await supabase
-      .from('whatsapp_seller_instances')
-      .select('*')
-      .eq('seller_id', seller_id)
-      .maybeSingle();
 
     if (!instance) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Instance not found' }),
+        JSON.stringify({ 
+          success: false, 
+          error: 'Instance not found', 
+          hint: 'Provide seller_id or lookup_by_phone with the connected WhatsApp number'
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log(`[test-send-buttons] Using instance: ${instance.instance_name}, seller: ${instance.seller_id}`);
 
     // Buscar API global
     const { data: globalConfig } = await supabase
