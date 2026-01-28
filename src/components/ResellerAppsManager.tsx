@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash } from 'lucide-react';
+import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { 
   ResellerDeviceApp, 
@@ -74,31 +74,46 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
     enabled: !!sellerId,
   });
 
+  // Check if name already exists
+  const isNameDuplicate = (name: string, excludeId?: string): boolean => {
+    const normalizedName = name.trim().toLowerCase();
+    return resellerApps.some(
+      app => app.name.toLowerCase() === normalizedName && app.id !== excludeId
+    );
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string }) => {
+      const trimmedName = data.name.trim();
+      
       // Check if already has 10 apps
       if (resellerApps.length >= 10) {
         throw new Error('Limite de 10 apps atingido');
       }
       
+      // Check for duplicate name
+      if (isNameDuplicate(trimmedName)) {
+        throw new Error('Já existe um app com esse nome');
+      }
+      
       const { error } = await supabase
         .from('reseller_device_apps' as any)
         .insert({
-          name: data.name,
+          name: trimmedName,
           icon: data.icon,
-          download_url: data.download_url || null,
-          downloader_code: data.downloader_code || null,
-          mac_address: data.mac_address || null,
+          download_url: data.download_url.trim() || null,
+          downloader_code: data.downloader_code.trim() || null,
+          mac_address: data.mac_address.trim() || null,
           seller_id: sellerId,
           is_active: true,
           is_gerencia_app: false,
-          device_types: ['android_tv', 'celular_android', 'smart_tv'], // Default device types
+          device_types: ['android_tv', 'celular_android', 'smart_tv'],
           app_source: 'direct' as const
         });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId] });
       toast.success('App criado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
@@ -110,27 +125,34 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string } }) => {
+      const trimmedName = data.name.trim();
+      
+      // Check for duplicate name (excluding current app)
+      if (isNameDuplicate(trimmedName, id)) {
+        throw new Error('Já existe um app com esse nome');
+      }
+      
       const { error } = await supabase
         .from('reseller_device_apps' as any)
         .update({
-          name: data.name,
+          name: trimmedName,
           icon: data.icon,
-          download_url: data.download_url || null,
-          downloader_code: data.downloader_code || null,
-          mac_address: data.mac_address || null,
+          download_url: data.download_url.trim() || null,
+          downloader_code: data.downloader_code.trim() || null,
+          mac_address: data.mac_address.trim() || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId] });
       toast.success('App atualizado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
     },
-    onError: () => {
-      toast.error('Erro ao atualizar app');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao atualizar app');
     }
   });
 
@@ -143,7 +165,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId] });
       toast.success('App removido com sucesso!');
     },
     onError: () => {
@@ -390,6 +412,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleEdit(app)}
+                    disabled={updateMutation.isPending || deleteMutation.isPending}
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -397,6 +420,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive"
+                    disabled={deleteMutation.isPending}
                     onClick={() => {
                       confirm({
                         title: 'Remover app',
@@ -407,7 +431,11 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                       });
                     }}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>
