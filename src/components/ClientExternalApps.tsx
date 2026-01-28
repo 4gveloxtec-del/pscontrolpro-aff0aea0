@@ -639,6 +639,20 @@ interface ClientExternalAppsDisplayProps {
 export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDisplayProps) {
   const { decrypt } = useCrypto();
   
+  // Fetch reseller apps to get icon and download_url
+  const { data: resellerApps = [] } = useQuery({
+    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, 'display'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reseller_device_apps' as any)
+        .select('id, name, icon, download_url')
+        .eq('is_active', true);
+      if (error) throw error;
+      return (data || []) as unknown as { id: string; name: string; icon: string; download_url: string | null }[];
+    },
+    staleTime: 300000, // 5 minutes cache
+  });
+  
   const { data: linkedApps = [], isLoading } = useQuery({
     queryKey: ['client-external-apps-display', clientId],
     queryFn: async () => {
@@ -665,6 +679,13 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
 
   if (isLoading || linkedApps.length === 0) return null;
 
+  // Helper to get reseller app info by name
+  const getResellerAppInfo = (fixedName: string) => {
+    if (!fixedName?.startsWith('RESELLER:')) return null;
+    const appName = fixedName.replace('RESELLER:', '');
+    return resellerApps.find(ra => ra.name === appName) || { name: appName, icon: '📱', download_url: null };
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copiado!`);
@@ -673,15 +694,30 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
   return (
     <div className="space-y-1.5 mt-2">
       {linkedApps.map((app) => {
-        const appName = app.external_app?.name || app.fixed_app_name || 'App';
+        // Check if it's a reseller app and get its info
+        const resellerInfo = app.fixed_app_name ? getResellerAppInfo(app.fixed_app_name) : null;
+        
+        // Display name: remove RESELLER: prefix, use reseller app name, or fallback
+        let displayName = app.external_app?.name || 'App';
+        let appIcon: string | null = null;
+        let appLink = app.external_app?.website_url || app.external_app?.download_url;
+        
+        if (resellerInfo) {
+          displayName = resellerInfo.name;
+          appIcon = resellerInfo.icon;
+          appLink = resellerInfo.download_url || appLink;
+        } else if (app.fixed_app_name && !app.fixed_app_name.startsWith('RESELLER:')) {
+          // Fixed system app
+          displayName = app.fixed_app_name;
+        }
+        
         const isMacType = app.external_app?.auth_type === 'mac_key' || app.fixed_app_name;
-        const appLink = app.external_app?.website_url || app.external_app?.download_url;
         const hasLink = !!appLink;
         
         const handleAppClick = () => {
           if (hasLink && appLink) {
             window.open(appLink, '_blank', 'noopener,noreferrer');
-            toast.success(`Abrindo: ${appName}`);
+            toast.success(`Abrindo: ${displayName}`);
           }
         };
         
@@ -697,10 +733,14 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
                     ? 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer' 
                     : 'text-foreground cursor-default'
                 }`}
-                title={hasLink ? `Clique para abrir ${appName}` : appName}
+                title={hasLink ? `Clique para abrir ${displayName}` : displayName}
               >
-                <AppWindow className="h-3 w-3" />
-                {appName}
+                {appIcon ? (
+                  <span className="text-sm">{appIcon}</span>
+                ) : (
+                  <AppWindow className="h-3 w-3" />
+                )}
+                {displayName}
                 {hasLink && <ExternalLink className="h-2.5 w-2.5 opacity-70" />}
               </button>
               {app.expiration_date && (
