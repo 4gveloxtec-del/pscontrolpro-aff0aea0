@@ -44,7 +44,7 @@ export interface ExternalApp {
 }
 
 // Apps fixos visíveis para todos os revendedores - NÃO podem ser editados ou removidos
-const FIXED_EXTERNAL_APPS: ExternalApp[] = [
+export const FIXED_EXTERNAL_APPS: ExternalApp[] = [
   // Apps em destaque (principais)
   { id: 'fixed-clouddy', name: 'CLOUDDY', website_url: 'https://clouddy.online/', download_url: null, auth_type: 'mac_key', is_active: true, seller_id: 'system', price: 0, cost: 0, isFixed: true },
   { id: 'fixed-ibo-pro', name: 'IBO PRO', website_url: 'https://iboproapp.com/', download_url: null, auth_type: 'mac_key', is_active: true, seller_id: 'system', price: 0, cost: 0, isFixed: true },
