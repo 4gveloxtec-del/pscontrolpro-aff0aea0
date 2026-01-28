@@ -182,7 +182,16 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
       setLocalApps(linkedApps.map(la => {
         let appId = la.external_app_id || '';
         if (!appId && la.fixed_app_name) {
-          appId = 'fixed-' + la.fixed_app_name.toLowerCase().replace(/\s+/g, '-');
+          // Check if it's a reseller app (prefixed with "RESELLER:")
+          if (la.fixed_app_name.startsWith('RESELLER:')) {
+            const resellerAppName = la.fixed_app_name.replace('RESELLER:', '');
+            // Find the reseller app by name
+            const matchingApp = resellerApps.find(ra => ra.name === resellerAppName);
+            appId = matchingApp?.id || '';
+          } else {
+            // It's a fixed system app
+            appId = 'fixed-' + la.fixed_app_name.toLowerCase().replace(/\s+/g, '-');
+          }
         }
         return {
           appId,
@@ -193,7 +202,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         };
       }));
     }
-  }, [clientId, linkedApps]);
+  }, [clientId, linkedApps, resellerApps]);
 
   const toggleExpanded = (index: number) => {
     const newExpanded = new Set(expandedApps);

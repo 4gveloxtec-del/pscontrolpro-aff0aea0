@@ -1433,9 +1433,23 @@ export default function Clients() {
               }
             }
             
-            // Check if it's a fixed app (starts with "fixed-") or a custom app (UUID)
+            // Check if it's a fixed app (starts with "fixed-"), a reseller app, or a custom app (UUID)
             const isFixedApp = app.appId.startsWith('fixed-');
-            const fixedAppName = isFixedApp ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') : null;
+            const isResellerApp = resellerApps.some(ra => ra.id === app.appId);
+            
+            let fixedAppName: string | null = null;
+            let externalAppId: string | null = null;
+            
+            if (isFixedApp) {
+              fixedAppName = app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ');
+            } else if (isResellerApp) {
+              // For reseller apps, store the name with a prefix to identify it
+              const resellerApp = resellerApps.find(ra => ra.id === app.appId);
+              fixedAppName = resellerApp ? `RESELLER:${resellerApp.name}` : null;
+            } else {
+              // It's a custom external app - use the UUID
+              externalAppId = app.appId;
+            }
             
             // Build insert data with proper typing - use type assertion for new column
             const insertData = {
@@ -1445,7 +1459,7 @@ export default function Clients() {
               email: app.email || null,
               password: encryptedPassword,
               expiration_date: app.expirationDate || null,
-              external_app_id: isFixedApp ? null : app.appId,
+              external_app_id: externalAppId,
               fixed_app_name: fixedAppName,
             } as any;
             
@@ -1679,9 +1693,23 @@ export default function Clients() {
                   }
                 }
                 
-                // Check if it's a fixed app (starts with "fixed-") or a custom app (UUID)
+                // Check if it's a fixed app (starts with "fixed-"), a reseller app, or a custom app (UUID)
                 const isFixedApp = app.appId.startsWith('fixed-');
-                const fixedAppName = isFixedApp ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') : null;
+                const isResellerApp = resellerApps.some(ra => ra.id === app.appId);
+                
+                let fixedAppName: string | null = null;
+                let externalAppId: string | null = null;
+                
+                if (isFixedApp) {
+                  fixedAppName = app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ');
+                } else if (isResellerApp) {
+                  // For reseller apps, store the name with a prefix to identify it
+                  const resellerApp = resellerApps.find(ra => ra.id === app.appId);
+                  fixedAppName = resellerApp ? `RESELLER:${resellerApp.name}` : null;
+                } else {
+                  // It's a custom external app - use the UUID
+                  externalAppId = app.appId;
+                }
                 
                 // Build insert data with proper typing
                 const insertData = {
@@ -1691,7 +1719,7 @@ export default function Clients() {
                   email: app.email || null,
                   password: encryptedPassword,
                   expiration_date: app.expirationDate || null,
-                  external_app_id: isFixedApp ? null : app.appId,
+                  external_app_id: externalAppId,
                   fixed_app_name: fixedAppName,
                 } as any;
                 
