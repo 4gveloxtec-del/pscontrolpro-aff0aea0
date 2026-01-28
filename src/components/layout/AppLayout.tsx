@@ -24,48 +24,78 @@ import {
   RefreshCw,
   Clock,
   MessageCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { navItems, filterNavItems } from '@/config/navigation';
 
-// Banner de período de teste / assinatura
-function TrialBanner({ daysRemaining, isSeller }: { daysRemaining: number; isSeller: boolean }) {
+// Banner de vencimento de assinatura - aparece em 7, 3, 1 e 0 dias
+function SubscriptionExpirationBanner({ daysRemaining, isSeller }: { daysRemaining: number; isSeller: boolean }) {
   const openAdminWhatsApp = () => {
     const phone = '5531998518865';
     const message = isSeller 
-      ? `Olá! Minha assinatura do PSControl está vencendo em ${daysRemaining} dias e gostaria de renovar.`
-      : `Olá! Estou usando o período de teste do PSControl e gostaria de ativar minha conta como revendedor.`;
+      ? daysRemaining === 0
+        ? `Olá! Minha assinatura do PSControl venceu hoje e preciso renovar urgentemente.`
+        : `Olá! Minha assinatura do PSControl vence em ${daysRemaining} dias e gostaria de renovar.`
+      : `Olá! Estou usando o período de teste do PSControl e gostaria de ativar minha conta.`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  const isUrgent = daysRemaining <= 3;
-  const label = isSeller ? 'Assinatura:' : 'Período de teste:';
-  const buttonText = isSeller ? 'Renovar' : 'Ativar conta';
+  // Definir urgência e estilos baseado nos dias restantes
+  const getUrgencyConfig = () => {
+    if (daysRemaining === 0) {
+      return {
+        bgClass: "bg-destructive/20 text-destructive border-b border-destructive/30 animate-pulse",
+        icon: <AlertTriangle className="h-4 w-4" />,
+        message: isSeller ? "⚠️ Assinatura vencida! Renove agora" : "⚠️ Teste expirado!",
+        buttonVariant: "destructive" as const,
+        buttonText: "Renovar Agora"
+      };
+    }
+    if (daysRemaining === 1) {
+      return {
+        bgClass: "bg-destructive/15 text-destructive border-b border-destructive/25",
+        icon: <Clock className="h-4 w-4" />,
+        message: isSeller ? "🔴 Último dia! Sua assinatura vence amanhã" : "🔴 Último dia de teste!",
+        buttonVariant: "destructive" as const,
+        buttonText: "Renovar"
+      };
+    }
+    if (daysRemaining === 3) {
+      return {
+        bgClass: "bg-warning/15 text-warning border-b border-warning/25",
+        icon: <Clock className="h-4 w-4" />,
+        message: isSeller ? "🟠 Atenção: 3 dias para vencer" : "🟠 3 dias restantes no teste",
+        buttonVariant: "ghost" as const,
+        buttonText: "Renovar"
+      };
+    }
+    // 7 dias
+    return {
+      bgClass: "bg-primary/10 text-primary border-b border-primary/20",
+      icon: <Clock className="h-4 w-4" />,
+      message: isSeller ? "ℹ️ Lembrete: 7 dias para renovar" : "ℹ️ 7 dias restantes no teste",
+      buttonVariant: "ghost" as const,
+      buttonText: "Renovar"
+    };
+  };
+
+  const config = getUrgencyConfig();
 
   return (
-    <div className={cn(
-      "flex items-center justify-between gap-3 px-4 py-2 text-sm",
-      isUrgent 
-        ? "bg-destructive/10 text-destructive border-b border-destructive/20" 
-        : "bg-warning/10 text-warning border-b border-warning/20"
-    )}>
+    <div className={cn("flex items-center justify-between gap-3 px-4 py-2 text-sm", config.bgClass)}>
       <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4" />
-        <span>
-          <strong>{label}</strong> {daysRemaining} {daysRemaining === 1 ? 'dia restante' : 'dias restantes'}
-        </span>
+        {config.icon}
+        <span className="font-medium">{config.message}</span>
       </div>
       <Button
         size="sm"
-        variant={isUrgent ? "destructive" : "ghost"}
+        variant={config.buttonVariant}
         onClick={openAdminWhatsApp}
-        className={cn(
-          "gap-1 h-7 text-xs",
-          !isUrgent && "hover:bg-green-500/20"
-        )}
+        className="gap-1 h-7 text-xs"
       >
         <MessageCircle className="h-3 w-3" />
-        {buttonText}
+        {config.buttonText}
       </Button>
     </div>
   );
@@ -213,13 +243,11 @@ export function AppLayout() {
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
   
-  // Log de validação - executa apenas uma vez por sessão
-  useOnce(() => {
-    console.log('[AppLayout] Inicialização única - Seller area loaded');
-  });
-  
-  // Mostrar banner para: users em trial OU sellers com assinatura vencendo (não permanentes)
-  const showTrialBanner = !profile?.is_permanent && trialInfo.isInTrial && trialInfo.daysRemaining <= 30;
+  // Mostrar banner apenas em dias específicos: 7, 3, 1 e 0 dias
+  const notificationDays = [7, 3, 1, 0];
+  const showExpirationBanner = !profile?.is_permanent && 
+    trialInfo.isInTrial && 
+    notificationDays.includes(trialInfo.daysRemaining);
 
   const sidebarWidth = getSidebarWidth(menuStyle);
   const isIconsOnly = menuStyle === 'icons-only';
@@ -271,8 +299,8 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background w-full max-w-[100vw] overflow-x-hidden">
-      {/* Trial Banner - shows for users in trial period */}
-      {showTrialBanner && (
+      {/* Expiration Banner - shows at 7, 3, 1, 0 days */}
+      {showExpirationBanner && (
         <div 
           className="fixed right-0 z-[60] transition-smooth"
           style={!isMobile 
@@ -280,7 +308,7 @@ export function AppLayout() {
             : { left: 0, right: 0, top: 'env(safe-area-inset-top)' }
           }
         >
-          <TrialBanner daysRemaining={trialInfo.daysRemaining} isSeller={isSeller} />
+          <SubscriptionExpirationBanner daysRemaining={trialInfo.daysRemaining} isSeller={isSeller} />
         </div>
       )}
 
@@ -289,7 +317,7 @@ export function AppLayout() {
         <div 
           className={cn(
             "fixed right-0 z-50 p-2 bg-background/80 backdrop-blur-sm transition-smooth",
-            showTrialBanner ? "top-10" : "top-0"
+            showExpirationBanner ? "top-10" : "top-0"
           )}
           style={{ left: sidebarWidth }}
         >
@@ -322,7 +350,7 @@ export function AppLayout() {
       <main 
         className={cn(
           "min-h-screen transition-smooth w-full",
-          showTrialBanner ? "pt-16 sm:pt-[88px]" : "pt-12 sm:pt-12"
+          showExpirationBanner ? "pt-16 sm:pt-[88px]" : "pt-12 sm:pt-12"
         )}
         style={{
           paddingLeft: !isMobile ? sidebarWidth : undefined,
