@@ -53,7 +53,29 @@ export function buildSendListPayloadVariants(
     })),
   }));
 
+  // Sections with rowId (required by some Evolution API versions)
+  const sectionsWithRowId = list.sections.map((section) => ({
+    title: ensureNonEmpty(section.title, 'Opções').substring(0, 24),
+    rows: section.rows.map((row) => ({
+      rowId: row.rowId,
+      title: ensureNonEmpty(row.title, 'Opção').substring(0, 24),
+      description: ensureNonEmpty(row.description, ' ').substring(0, 72),
+    })),
+  }));
+
   return [
+    {
+      // Flat schema with sections + rowId (most common in Evolution v2+)
+      name: 'flat.sections.rowId',
+      payload: {
+        number: phoneNumber,
+        title: safeTitle,
+        description: stripMarkdown(safeDescription).substring(0, 1024),
+        buttonText: stripMarkdown(safeButtonText).substring(0, 20),
+        footerText: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
+        sections: sectionsWithRowId,
+      },
+    },
     {
       // Newer Evolution schema (nested interactive)
       name: 'interactive.sections.id',
@@ -72,7 +94,7 @@ export function buildSendListPayloadVariants(
       },
     },
     {
-      // Older schema seen in some instances (flat + sections)
+      // Older schema seen in some instances (flat + sections + id)
       name: 'flat.sections.id',
       payload: {
         number: phoneNumber,

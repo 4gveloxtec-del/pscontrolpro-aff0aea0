@@ -565,6 +565,145 @@ async function attemptReconnect(
 // Retry delays in milliseconds (progressive: 30s, 1min, 3min, 5min, 10min)
 const RETRY_DELAYS = [30000, 60000, 180000, 300000, 600000];
 
+/**
+ * Verifica e auto-configura settings da Evolution API antes de enviar listas/botões
+ * - GET para verificar webhookUrl e alwaysOnline
+ * - POST para configurar automaticamente se necessário
+ * Testa múltiplos endpoints conhecidos da Evolution API
+ */
+async function ensureInstanceSettings(
+  apiUrl: string,
+  apiToken: string,
+  instanceName: string,
+  expectedWebhookUrl: string
+): Promise<{ ok: boolean; configured: boolean; details?: any }> {
+  const baseUrl = normalizeApiUrl(apiUrl);
+  
+  // Múltiplos endpoints conhecidos da Evolution API para settings
+  const settingsEndpoints = [
+    `${baseUrl}/settings/find/${instanceName}`,
+    `${baseUrl}/settings/${instanceName}`,
+    `${baseUrl}/instance/settings/${instanceName}`,
+    `${baseUrl}/instance/${instanceName}/settings`,
+  ];
+  
+  const headers = { 
+    'apikey': apiToken,
+    'Authorization': `Bearer ${apiToken}`,
+    'Content-Type': 'application/json',
+  };
+  
+  try {
+    // 1. Tentar GET em múltiplos endpoints
+    let currentSettings: any = null;
+    let workingEndpoint: string | null = null;
+    
+    for (const endpoint of settingsEndpoints) {
+      try {
+        console.log(`[ensureInstanceSettings] Trying GET: ${endpoint}`);
+        const getResponse = await fetch(endpoint, {
+          method: 'GET',
+          headers,
+        });
+        
+        if (getResponse.ok) {
+          currentSettings = await getResponse.json();
+          workingEndpoint = endpoint;
+          console.log(`[ensureInstanceSettings] ✅ Found working endpoint: ${endpoint}`);
+          console.log(`[ensureInstanceSettings] Current settings:`, JSON.stringify(currentSettings).substring(0, 500));
+          break;
+        }
+      } catch (e) {
+        console.log(`[ensureInstanceSettings] Endpoint failed: ${endpoint}`);
+      }
+    }
+    
+    // Verificar se precisa configurar
+    let needsConfig = false;
+    
+    if (currentSettings) {
+      // Check if webhookUrl is empty or alwaysOnline is false
+      const webhookUrl = 
+        currentSettings?.webhook?.url || 
+        currentSettings?.webhookUrl || 
+        currentSettings?.settings?.webhook?.url ||
+        '';
+      const alwaysOnline = 
+        currentSettings?.alwaysOnline ?? 
+        currentSettings?.settings?.alwaysOnline ?? 
+        true;
+      
+      if (!webhookUrl || alwaysOnline === false) {
+        needsConfig = true;
+        console.log(`[ensureInstanceSettings] ⚠️ Settings need update: webhookUrl="${webhookUrl}", alwaysOnline=${alwaysOnline}`);
+      } else {
+        console.log(`[ensureInstanceSettings] ✅ Settings OK: webhookUrl present, alwaysOnline=${alwaysOnline}`);
+        return { ok: true, configured: false, details: { webhookUrl, alwaysOnline, endpoint: workingEndpoint } };
+      }
+    } else {
+      // Não conseguiu obter settings - tenta configurar
+      console.log(`[ensureInstanceSettings] Could not GET settings from any endpoint, will try to configure`);
+      needsConfig = true;
+    }
+    
+    // 2. POST para configurar settings se necessário
+    if (needsConfig) {
+      const newSettings = {
+        alwaysOnline: true,
+        readMessages: true,
+        readStatus: true,
+        syncFullHistory: false,
+        webhook: {
+          url: expectedWebhookUrl,
+          byEvents: false,
+          base64: false,
+          events: [
+            "messages.upsert",
+            "connection.update",
+            "qrcode.updated"
+          ],
+        },
+      };
+      
+      // Endpoints para POST (set settings)
+      const setEndpoints = [
+        `${baseUrl}/settings/set/${instanceName}`,
+        `${baseUrl}/settings/${instanceName}`,
+        `${baseUrl}/instance/settings/${instanceName}`,
+        workingEndpoint, // Se encontrou um que funcionou no GET
+      ].filter(Boolean) as string[];
+      
+      for (const endpoint of setEndpoints) {
+        try {
+          console.log(`[ensureInstanceSettings] Trying POST: ${endpoint}`);
+          const postResponse = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(newSettings),
+          });
+          
+          if (postResponse.ok) {
+            const result = await postResponse.json().catch(() => ({}));
+            console.log(`[ensureInstanceSettings] ✅ Settings configured via: ${endpoint}`);
+            return { ok: true, configured: true, details: { ...newSettings, endpoint } };
+          }
+        } catch (e) {
+          console.log(`[ensureInstanceSettings] POST failed: ${endpoint}`);
+        }
+      }
+      
+      // Nenhum endpoint funcionou
+      console.log(`[ensureInstanceSettings] ❌ Could not configure settings via any endpoint`);
+      return { ok: false, configured: false, details: { error: 'No working endpoint found' } };
+    }
+    
+    return { ok: true, configured: false };
+  } catch (error) {
+    console.error(`[ensureInstanceSettings] Error:`, error);
+    return { ok: false, configured: false, details: { error: (error as Error).message } };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1398,6 +1537,29 @@ Deno.serve(async (req: Request) => {
 
                     const baseUrl = normalizeApiUrl(apiUrl);
                     const baseUrlV1 = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
+                    
+                    // ═════════════════════════════════════════════════════
+                    // AUTO-CONFIGURAR SETTINGS ANTES DE ENVIAR LISTA
+                    // Verifica webhookUrl e alwaysOnline, configura se necessário
+                    // ═════════════════════════════════════════════════════
+                    const supabaseUrl = Deno.env.get("SUPABASE_URL") || '';
+                    const expectedWebhookUrl = `${supabaseUrl}/functions/v1/connection-heartbeat`;
+                    
+                    const settingsCheck = await ensureInstanceSettings(
+                      apiUrl,
+                      globalConfig.api_token,
+                      instanceName,
+                      expectedWebhookUrl
+                    );
+                    
+                    if (messageDebug) {
+                      messageDebug.settings_check = settingsCheck;
+                    }
+                    
+                    if (settingsCheck.configured) {
+                      console.log(`[Webhook] ⚙️ Instance settings were auto-configured before sendList`);
+                    }
+                    
                     const sendListUrls = [
                       `${baseUrl}/message/sendList/${instanceName}`,
                       `${baseUrl}/message/sendList`,
