@@ -107,11 +107,23 @@ export function ExternalAppsManager() {
   }, [customApps]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; website_url: string; auth_type: 'mac_key' | 'email_password' }) => {
+    mutationFn: async (data: { 
+      name: string; 
+      website_url: string; 
+      download_url: string;
+      auth_type: 'mac_key' | 'email_password';
+      price: number;
+      cost: number;
+    }) => {
       const { error } = await supabase.from('external_apps').insert([{
-        ...data,
+        name: data.name,
         website_url: data.website_url || null,
+        download_url: data.download_url || null,
+        auth_type: data.auth_type,
+        price: data.price || 0,
+        cost: data.cost || 0,
         seller_id: user!.id,
+        is_active: true,
       }]);
       if (error) throw error;
     },
@@ -127,8 +139,15 @@ export function ExternalAppsManager() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<ExternalApp> }) => {
-      const { error } = await supabase.from('external_apps').update(data).eq('id', id);
+    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      const { error } = await supabase.from('external_apps').update({
+        name: data.name,
+        website_url: data.website_url || null,
+        download_url: data.download_url || null,
+        auth_type: data.auth_type,
+        price: data.price || 0,
+        cost: data.cost || 0,
+      }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
