@@ -62,6 +62,15 @@ export function buildSendButtonsPayloadVariants(
   const bodyText = stripMarkdown(`${safeTitle}\n\n${safeDescription}`)
     .substring(0, 1024);
 
+  // Formato oficial WhatsApp Cloud API: { type: "reply", reply: { id, title } }
+  const buttonsCloudApi = limitedButtons.map((btn, idx) => ({
+    type: 'reply',
+    reply: {
+      id: btn.buttonId,
+      title: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
+    },
+  }));
+
   // Formato Evolution API v2+ com type: "reply" (OBRIGATÓRIO para muitas versões)
   const buttonsWithType = limitedButtons.map((btn, idx) => ({
     type: 'reply',
@@ -69,24 +78,32 @@ export function buildSendButtonsPayloadVariants(
     buttonText: { displayText: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20) },
   }));
 
-  // Formato simplificado com type: "reply"
+  // Formato simplificado com type: "reply" e id/title
   const buttonsSimpleWithType = limitedButtons.map((btn, idx) => ({
     type: 'reply',
     id: btn.buttonId,
     title: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
   }));
 
-  // Formato com text ao invés de title
-  const buttonsTextWithType = limitedButtons.map((btn, idx) => ({
-    type: 'reply',
-    id: btn.buttonId,
-    text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
-  }));
-
   return [
     {
-      // Formato com type:"reply" e buttonId/buttonText (Evolution v2+)
-      name: 'flat.buttons.type.displayText',
+      // Formato WhatsApp Cloud API oficial (prioridade máxima)
+      name: 'cloudapi.reply.buttons',
+      payload: {
+        number: phoneNumber,
+        interactiveMessage: {
+          type: 'button',
+          body: { text: bodyText },
+          footer: { text: stripMarkdown(safeFooterText).substring(0, 60) || ' ' },
+          action: {
+            buttons: buttonsCloudApi,
+          },
+        },
+      },
+    },
+    {
+      // Formato Evolution sendButtons com buttonId/buttonText
+      name: 'evolution.buttonId.displayText',
       payload: {
         number: phoneNumber,
         title: safeTitle,
@@ -96,8 +113,8 @@ export function buildSendButtonsPayloadVariants(
       },
     },
     {
-      // Formato com type:"reply" e id/title
-      name: 'flat.buttons.type.title',
+      // Formato simplificado com id/title (flat)
+      name: 'evolution.id.title',
       payload: {
         number: phoneNumber,
         title: safeTitle,
@@ -107,19 +124,8 @@ export function buildSendButtonsPayloadVariants(
       },
     },
     {
-      // Formato com type:"reply" e id/text
-      name: 'flat.buttons.type.text',
-      payload: {
-        number: phoneNumber,
-        title: safeTitle,
-        description: stripMarkdown(safeDescription).substring(0, 1024),
-        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
-        buttons: buttonsTextWithType,
-      },
-    },
-    {
-      // Formato aninhado (Evolution API interativa)
-      name: 'interactive.buttons',
+      // Formato aninhado interactive.action.buttons
+      name: 'interactive.action.buttons',
       payload: {
         number: phoneNumber,
         type: 'interactive',
@@ -128,7 +134,7 @@ export function buildSendButtonsPayloadVariants(
           body: { text: bodyText },
           footer: { text: stripMarkdown(safeFooterText).substring(0, 60) || ' ' },
           action: {
-            buttons: buttonsSimpleWithType,
+            buttons: buttonsCloudApi,
           },
         },
       },
