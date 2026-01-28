@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { Plus, Trash2, Monitor, Mail, Key, ExternalLink, AppWindow, Copy, CalendarIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +28,8 @@ import { cn } from '@/lib/utils';
 import type { ExternalApp } from './ExternalAppsManager';
 import { InlineExternalAppCreator, InlineResellerAppCreator } from './InlineAppCreator';
 import { RESELLER_DEVICE_APPS_QUERY_KEY } from '@/hooks/useResellerDeviceApps';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { AppSelectorMobile } from './AppSelectorMobile';
 
 // Apps fixos visíveis para todos os revendedores
 const FIXED_EXTERNAL_APPS: ExternalApp[] = [
@@ -86,6 +90,7 @@ interface ClientExternalAppsProps {
 export function ClientExternalApps({ clientId, sellerId, onChange, initialApps = [] }: ClientExternalAppsProps) {
   const { decrypt } = useCrypto();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   
   const [localApps, setLocalApps] = useState<{ appId: string; devices: MacDevice[]; email: string; password: string; expirationDate: string }[]>(initialApps);
   const [expandedApps, setExpandedApps] = useState<Set<number>>(new Set());
@@ -330,99 +335,116 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                   onClick={() => app.appId && toggleExpanded(appIndex)}
                 >
                   <div className="flex-1 min-w-0">
-                    <Select
-                      value={app.appId}
-                      onValueChange={(value) => {
-                        const newApp = availableApps.find(a => a.id === value);
-                        updateApp(appIndex, { 
-                          appId: value,
-                          devices: newApp?.auth_type === 'mac_key' ? [] : app.devices,
-                          email: newApp?.auth_type === 'email_password' ? app.email : '',
-                        });
-                        if (value) setExpandedApps(new Set([...expandedApps, appIndex]));
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-sm" onClick={(e) => e.stopPropagation()}>
-                        <SelectValue placeholder="Selecione um app" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[400px] min-w-[500px] p-0">
-                        <div className="grid grid-cols-2 divide-x divide-border">
-                          {/* Coluna Esquerda - Apps do Revendedor + Personalizados */}
-                          <div className="max-h-[380px] overflow-y-auto">
-                            <SelectGroup>
-                              <SelectLabel className="text-xs font-semibold text-primary sticky top-0 bg-popover py-2 px-2 border-b">
-                                🏪 Apps do Revendedor
-                              </SelectLabel>
-                              {groupedApps.reseller.length === 0 ? (
-                                <div className="px-2 py-3 text-xs text-muted-foreground italic text-center">
-                                  Nenhum app cadastrado
-                                </div>
-                              ) : (
-                                groupedApps.reseller.map((availableApp) => (
-                                  <SelectItem key={availableApp.id} value={availableApp.id} className="py-2">
-                                    <div className="flex items-center gap-1.5">
-                                      {availableApp.auth_type === 'mac_key' ? (
-                                        <Monitor className="h-3 w-3 text-primary" />
-                                      ) : (
-                                        <Mail className="h-3 w-3 text-primary" />
-                                      )}
-                                      <span className="truncate font-medium">{availableApp.name}</span>
-                                    </div>
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectGroup>
-
-                            {/* Meus Apps Personalizados */}
-                            {groupedApps.custom.length > 0 && (
+                    {isMobile ? (
+                      <AppSelectorMobile
+                        value={app.appId}
+                        onValueChange={(value) => {
+                          const newApp = availableApps.find(a => a.id === value);
+                          updateApp(appIndex, { 
+                            appId: value,
+                            devices: newApp?.auth_type === 'mac_key' ? [] : app.devices,
+                            email: newApp?.auth_type === 'email_password' ? app.email : '',
+                          });
+                          if (value) setExpandedApps(new Set([...expandedApps, appIndex]));
+                        }}
+                        groupedApps={groupedApps}
+                        availableApps={availableApps}
+                      />
+                    ) : (
+                      <Select
+                        value={app.appId}
+                        onValueChange={(value) => {
+                          const newApp = availableApps.find(a => a.id === value);
+                          updateApp(appIndex, { 
+                            appId: value,
+                            devices: newApp?.auth_type === 'mac_key' ? [] : app.devices,
+                            email: newApp?.auth_type === 'email_password' ? app.email : '',
+                          });
+                          if (value) setExpandedApps(new Set([...expandedApps, appIndex]));
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-sm" onClick={(e) => e.stopPropagation()}>
+                          <SelectValue placeholder="Selecione um app" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[400px] min-w-[500px] p-0">
+                          <div className="grid grid-cols-2 divide-x divide-border">
+                            {/* Coluna Esquerda - Apps do Revendedor + Personalizados */}
+                            <div className="max-h-[380px] overflow-y-auto">
                               <SelectGroup>
-                                <SelectLabel className="text-xs font-semibold text-accent-foreground sticky top-0 bg-popover py-2 px-2 border-y mt-1">
-                                  ⭐ Meus Apps
+                                <SelectLabel className="text-xs font-semibold text-primary sticky top-0 bg-popover py-2 px-2 border-b">
+                                  🏪 Apps do Revendedor
                                 </SelectLabel>
-                                {groupedApps.custom.map((availableApp) => (
-                                  <SelectItem key={availableApp.id} value={availableApp.id} className="py-2">
+                                {groupedApps.reseller.length === 0 ? (
+                                  <div className="px-2 py-3 text-xs text-muted-foreground italic text-center">
+                                    Nenhum app cadastrado
+                                  </div>
+                                ) : (
+                                  groupedApps.reseller.map((availableApp) => (
+                                    <SelectItem key={availableApp.id} value={availableApp.id} className="py-2">
+                                      <div className="flex items-center gap-1.5">
+                                        {availableApp.auth_type === 'mac_key' ? (
+                                          <Monitor className="h-3 w-3 text-primary" />
+                                        ) : (
+                                          <Mail className="h-3 w-3 text-primary" />
+                                        )}
+                                        <span className="truncate font-medium">{availableApp.name}</span>
+                                      </div>
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectGroup>
+
+                              {/* Meus Apps Personalizados */}
+                              {groupedApps.custom.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel className="text-xs font-semibold text-accent-foreground sticky top-0 bg-popover py-2 px-2 border-y mt-1">
+                                    ⭐ Meus Apps
+                                  </SelectLabel>
+                                  {groupedApps.custom.map((availableApp) => (
+                                    <SelectItem key={availableApp.id} value={availableApp.id} className="py-2">
+                                      <div className="flex items-center gap-1.5">
+                                        {availableApp.auth_type === 'mac_key' ? (
+                                          <Monitor className="h-3 w-3 text-accent-foreground" />
+                                        ) : (
+                                          <Mail className="h-3 w-3 text-accent-foreground" />
+                                        )}
+                                        <span className="truncate">{availableApp.name}</span>
+                                        {(availableApp.price || 0) > 0 && (
+                                          <Badge variant="outline" className="text-[9px] h-4 px-1 ml-1">
+                                            R$ {availableApp.price}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                            </div>
+
+                            {/* Coluna Direita - Apps do Sistema */}
+                            <div className="max-h-[380px] overflow-y-auto">
+                              <SelectGroup>
+                                <SelectLabel className="text-xs text-muted-foreground sticky top-0 bg-popover py-2 px-2 border-b">
+                                  📦 Apps do Sistema ({groupedApps.system.length})
+                                </SelectLabel>
+                                {groupedApps.system.map((availableApp) => (
+                                  <SelectItem key={availableApp.id} value={availableApp.id} className="py-1.5">
                                     <div className="flex items-center gap-1.5">
                                       {availableApp.auth_type === 'mac_key' ? (
-                                        <Monitor className="h-3 w-3 text-accent-foreground" />
+                                        <Monitor className="h-3 w-3 text-muted-foreground" />
                                       ) : (
-                                        <Mail className="h-3 w-3 text-accent-foreground" />
+                                        <Mail className="h-3 w-3 text-muted-foreground" />
                                       )}
-                                      <span className="truncate">{availableApp.name}</span>
-                                      {(availableApp.price || 0) > 0 && (
-                                        <Badge variant="outline" className="text-[9px] h-4 px-1 ml-1">
-                                          R$ {availableApp.price}
-                                        </Badge>
-                                      )}
+                                      <span className="truncate text-sm">{availableApp.name}</span>
                                     </div>
                                   </SelectItem>
                                 ))}
                               </SelectGroup>
-                            )}
+                            </div>
                           </div>
-
-                          {/* Coluna Direita - Apps do Sistema */}
-                          <div className="max-h-[380px] overflow-y-auto">
-                            <SelectGroup>
-                              <SelectLabel className="text-xs text-muted-foreground sticky top-0 bg-popover py-2 px-2 border-b">
-                                📦 Apps do Sistema ({groupedApps.system.length})
-                              </SelectLabel>
-                              {groupedApps.system.map((availableApp) => (
-                                <SelectItem key={availableApp.id} value={availableApp.id} className="py-1.5">
-                                  <div className="flex items-center gap-1.5">
-                                    {availableApp.auth_type === 'mac_key' ? (
-                                      <Monitor className="h-3 w-3 text-muted-foreground" />
-                                    ) : (
-                                      <Mail className="h-3 w-3 text-muted-foreground" />
-                                    )}
-                                    <span className="truncate text-sm">{availableApp.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </div>
-                        </div>
-                      </SelectContent>
-                    </Select>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   
                   {app.appId && (
