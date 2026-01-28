@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +38,8 @@ export interface ExternalApp {
   seller_id: string;
   price: number;
   cost: number;
+  icon?: string | null;
+  downloader_code?: string | null;
   isFixed?: boolean;
 }
 
@@ -101,10 +103,38 @@ export function ExternalAppsManager() {
     enabled: !!user?.id,
   });
 
-  // Combinar apps fixos com apps personalizados do revendedor
-  const allApps = useMemo(() => {
-    return [...FIXED_EXTERNAL_APPS, ...customApps];
+  // Helper: validar URL
+  const isValidUrl = useCallback((url: string): boolean => {
+    if (!url) return true; // URLs vazias são permitidas
+    try {
+      const parsed = new URL(url);
+      return ['http:', 'https:'].includes(parsed.protocol);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Helper: verificar nome duplicado
+  const isNameDuplicate = useCallback((name: string, excludeId?: string): boolean => {
+    const trimmedName = name.trim().toLowerCase();
+    
+    // Verificar nos apps fixos
+    const fixedDuplicate = FIXED_EXTERNAL_APPS.some(
+      app => app.name.toLowerCase() === trimmedName
+    );
+    if (fixedDuplicate) return true;
+    
+    // Verificar nos apps customizados
+    return customApps.some(
+      app => app.name.toLowerCase() === trimmedName && app.id !== excludeId
+    );
   }, [customApps]);
+
+  // Helper: safe number parsing
+  const safeNumber = (value: number | undefined | null): number => {
+    const num = Number(value);
+    return isNaN(num) ? 0 : Math.round(num * 100) / 100;
+  };
 
   const createMutation = useMutation({
     mutationFn: async (data: { 
@@ -115,20 +145,39 @@ export function ExternalAppsManager() {
       price: number;
       cost: number;
     }) => {
+      const trimmedName = data.name.trim();
+      
+      // Validações
+      if (!trimmedName) {
+        throw new Error('Nome do app é obrigatório');
+      }
+      
+      if (isNameDuplicate(trimmedName)) {
+        throw new Error('Já existe um app com este nome');
+      }
+      
+      if (data.website_url && !isValidUrl(data.website_url)) {
+        throw new Error('URL do site inválida');
+      }
+      
+      if (data.download_url && !isValidUrl(data.download_url)) {
+        throw new Error('URL de download inválida');
+      }
+      
       const { error } = await supabase.from('external_apps').insert([{
-        name: data.name,
-        website_url: data.website_url || null,
-        download_url: data.download_url || null,
+        name: trimmedName,
+        website_url: data.website_url.trim() || null,
+        download_url: data.download_url.trim() || null,
         auth_type: data.auth_type,
-        price: data.price || 0,
-        cost: data.cost || 0,
+        price: safeNumber(data.price),
+        cost: safeNumber(data.cost),
         seller_id: user!.id,
         is_active: true,
       }]);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['external-apps'] });
+      queryClient.invalidateQueries({ queryKey: ['external-apps', user?.id] });
       toast.success('Aplicativo cadastrado!');
       resetForm();
       setIsDialogOpen(false);
@@ -140,18 +189,37 @@ export function ExternalAppsManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      const trimmedName = data.name.trim();
+      
+      // Validações
+      if (!trimmedName) {
+        throw new Error('Nome do app é obrigatório');
+      }
+      
+      if (isNameDuplicate(trimmedName, id)) {
+        throw new Error('Já existe um app com este nome');
+      }
+      
+      if (data.website_url && !isValidUrl(data.website_url)) {
+        throw new Error('URL do site inválida');
+      }
+      
+      if (data.download_url && !isValidUrl(data.download_url)) {
+        throw new Error('URL de download inválida');
+      }
+      
       const { error } = await supabase.from('external_apps').update({
-        name: data.name,
-        website_url: data.website_url || null,
-        download_url: data.download_url || null,
+        name: trimmedName,
+        website_url: data.website_url.trim() || null,
+        download_url: data.download_url.trim() || null,
         auth_type: data.auth_type,
-        price: data.price || 0,
-        cost: data.cost || 0,
+        price: safeNumber(data.price),
+        cost: safeNumber(data.cost),
       }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['external-apps'] });
+      queryClient.invalidateQueries({ queryKey: ['external-apps', user?.id] });
       toast.success('Aplicativo atualizado!');
       resetForm();
       setIsDialogOpen(false);
@@ -168,7 +236,7 @@ export function ExternalAppsManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['external-apps'] });
+      queryClient.invalidateQueries({ queryKey: ['external-apps', user?.id] });
       toast.success('Aplicativo removido!');
     },
     onError: (error: Error) => {
@@ -195,8 +263,8 @@ export function ExternalAppsManager() {
       website_url: app.website_url || '',
       download_url: app.download_url || '',
       auth_type: app.auth_type,
-      price: app.price || 0,
-      cost: app.cost || 0,
+      price: safeNumber(app.price),
+      cost: safeNumber(app.cost),
     });
     setIsDialogOpen(true);
   };
@@ -455,15 +523,15 @@ export function ExternalAppsManager() {
                                 <><Mail className="h-3 w-3 mr-1" /> E-mail</>
                               )}
                             </Badge>
-                            {(app.price > 0 || app.cost > 0) && (
+                            {(safeNumber(app.price) > 0 || safeNumber(app.cost) > 0) && (
                               <Badge variant="secondary" className="text-xs">
-                                Lucro: R$ {((app.price || 0) - (app.cost || 0)).toFixed(2)}
+                                Lucro: R$ {(safeNumber(app.price) - safeNumber(app.cost)).toFixed(2)}
                               </Badge>
                             )}
                           </div>
-                          {(app.price > 0 || app.cost > 0) && (
+                          {(safeNumber(app.price) > 0 || safeNumber(app.cost) > 0) && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Venda: R$ {(app.price || 0).toFixed(2)} | Custo: R$ {(app.cost || 0).toFixed(2)}
+                              Venda: R$ {safeNumber(app.price).toFixed(2)} | Custo: R$ {safeNumber(app.cost).toFixed(2)}
                             </p>
                           )}
                           <div className="flex flex-wrap gap-2 mt-2">
@@ -497,6 +565,7 @@ export function ExternalAppsManager() {
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => handleEdit(app)}
+                            disabled={updateMutation.isPending}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -504,6 +573,7 @@ export function ExternalAppsManager() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
+                            disabled={deleteMutation.isPending}
                             onClick={() => {
                               confirm({
                                 title: 'Remover app',
@@ -514,7 +584,11 @@ export function ExternalAppsManager() {
                               });
                             }}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {deleteMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
                         </div>
                       </div>
