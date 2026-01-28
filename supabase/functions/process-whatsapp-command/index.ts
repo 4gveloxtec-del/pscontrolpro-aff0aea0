@@ -498,7 +498,7 @@ Deno.serve(async (req) => {
 
     // Buscar dados do vendedor para variáveis do sistema
     let sellerData: { company_name?: string; pix_key?: string } | null = null;
-    let resellerApps: Array<{ name: string; download_url?: string }> | null = null;
+    let resellerApps: Array<{ name: string; download_url?: string; downloader_code?: string; icon?: string }> | null = null;
     let serverName: string | null = null;
 
     if (api.use_custom_response && api.custom_response_template) {
@@ -519,7 +519,7 @@ Deno.serve(async (req) => {
       if (needsApps) {
         const { data: apps } = await supabase
           .from('reseller_device_apps')
-          .select('name, download_url')
+          .select('name, download_url, downloader_code, icon')
           .eq('seller_id', seller_id)
           .eq('is_active', true);
         resellerApps = apps;

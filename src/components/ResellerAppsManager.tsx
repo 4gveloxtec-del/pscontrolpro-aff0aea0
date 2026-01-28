@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, Smartphone, Save, Download, ExternalLink, Hash } from 'lucide-react';
+import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface ResellerApp {
@@ -29,6 +29,9 @@ interface ResellerAppsManagerProps {
   sellerId: string;
 }
 
+// Standard query key for reseller apps - unified across all components
+export const RESELLER_APPS_QUERY_KEY = 'reseller-device-apps';
+
 export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const queryClient = useQueryClient();
   const { dialogProps, confirm } = useConfirmDialog();
@@ -36,21 +39,21 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const [editingApp, setEditingApp] = useState<ResellerApp | null>(null);
   const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '' });
 
-  // Fetch reseller apps - using custom_products with a specific naming convention
-  // AUDIT FIX: Added isError guard for ResellerAppsManager
+  // Fetch reseller apps - now using unified reseller_device_apps table
   const { data: resellerApps = [], isLoading, isError } = useQuery({
-    queryKey: ['reseller-apps', sellerId],
+    queryKey: [RESELLER_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('custom_products')
+        .from('reseller_device_apps' as any)
         .select('*')
         .eq('seller_id', sellerId)
-        .like('name', 'APP_REVENDEDOR:%')
+        .eq('is_gerencia_app', false) // Regular reseller apps, not gerencia apps
+        .eq('is_active', true)
         .order('created_at');
       if (error) throw error;
-      return (data || []).map(item => ({
+      return (data || []).map((item: any) => ({
         id: item.id,
-        name: item.name.replace('APP_REVENDEDOR:', ''),
+        name: item.name,
         icon: item.icon || '📱',
         download_url: item.download_url,
         downloader_code: item.downloader_code,
@@ -69,19 +72,22 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       }
       
       const { error } = await supabase
-        .from('custom_products')
+        .from('reseller_device_apps' as any)
         .insert({
-          name: `APP_REVENDEDOR:${data.name}`,
+          name: data.name,
           icon: data.icon,
           download_url: data.download_url || null,
           downloader_code: data.downloader_code || null,
           seller_id: sellerId,
-          is_active: true
+          is_active: true,
+          is_gerencia_app: false,
+          device_types: ['android_tv', 'celular_android', 'smart_tv'], // Default device types
+          app_source: 'direct' as const
         });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_APPS_QUERY_KEY] });
       toast.success('App criado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
@@ -94,9 +100,9 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string; downloader_code: string } }) => {
       const { error } = await supabase
-        .from('custom_products')
+        .from('reseller_device_apps' as any)
         .update({
-          name: `APP_REVENDEDOR:${data.name}`,
+          name: data.name,
           icon: data.icon,
           download_url: data.download_url || null,
           downloader_code: data.downloader_code || null,
@@ -106,7 +112,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_APPS_QUERY_KEY] });
       toast.success('App atualizado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
@@ -119,13 +125,13 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('custom_products')
+        .from('reseller_device_apps' as any)
         .delete()
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_APPS_QUERY_KEY] });
       toast.success('App removido com sucesso!');
     },
     onError: () => {
@@ -163,7 +169,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
     }
   };
 
-  // AUDIT FIX: Error state guard
+  // Error state guard
   if (isError) {
     return (
       <Card>
@@ -392,22 +398,22 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   );
 }
 
-// Hook to fetch reseller apps for use in other components
+// Hook to fetch reseller apps for use in other components - now unified
 export function useResellerApps(sellerId: string | undefined) {
   return useQuery({
-    queryKey: ['reseller-apps', sellerId],
+    queryKey: [RESELLER_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('custom_products')
+        .from('reseller_device_apps' as any)
         .select('*')
         .eq('seller_id', sellerId!)
-        .like('name', 'APP_REVENDEDOR:%')
+        .eq('is_gerencia_app', false)
         .eq('is_active', true)
         .order('created_at');
       if (error) throw error;
-      return (data || []).map(item => ({
+      return (data || []).map((item: any) => ({
         id: item.id,
-        name: item.name.replace('APP_REVENDEDOR:', ''),
+        name: item.name,
         icon: item.icon || '📱',
         download_url: item.download_url,
         downloader_code: item.downloader_code,

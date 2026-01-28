@@ -290,30 +290,33 @@ export function InlineResellerAppCreator({ sellerId, onCreated }: InlineReseller
   const [downloaderCode, setDownloaderCode] = useState('');
   const queryClient = useQueryClient();
 
-  // AUDIT FIX: Use maybeSingle() instead of single() on insert
+  // UNIFIED: Now uses reseller_device_apps table instead of custom_products
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase
-        .from('custom_products')
-        .insert([
-          {
-            name: `APP_REVENDEDOR:${name.trim()}`,
-            icon: icon || '📱',
-            download_url: downloadUrl.trim() ? downloadUrl.trim() : null,
-            downloader_code: downloaderCode.trim() ? downloaderCode.trim() : null,
-            seller_id: sellerId,
-            is_active: true,
-          },
-        ])
+        .from('reseller_device_apps' as any)
+        .insert({
+          name: name.trim(),
+          icon: icon || '📱',
+          download_url: downloadUrl.trim() ? downloadUrl.trim() : null,
+          downloader_code: downloaderCode.trim() ? downloaderCode.trim() : null,
+          seller_id: sellerId,
+          is_active: true,
+          is_gerencia_app: false,
+          device_types: ['android_tv', 'celular_android', 'smart_tv'],
+          app_source: 'direct',
+        })
         .select('id')
         .maybeSingle();
       if (error) throw error;
-      if (!data) throw new Error('Falha ao criar app');
-      return data;
+      const result = data as unknown as { id: string } | null;
+      if (!result) throw new Error('Falha ao criar app');
+      return result;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-apps', sellerId] });
-      queryClient.invalidateQueries({ queryKey: ['reseller-apps-for-external', sellerId] });
+      // Unified query key for all reseller apps
+      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps', sellerId] });
+      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps'] });
       toast.success('App do revendedor criado!');
       onCreated?.(data.id);
       setName('');

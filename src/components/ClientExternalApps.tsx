@@ -105,22 +105,22 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
     enabled: !!sellerId,
   });
 
-  // Fetch reseller apps from custom_products table (apps created in ResellerAppsManager)
+  // Fetch reseller apps from reseller_device_apps table (UNIFIED source)
   const { data: resellerApps = [] } = useQuery({
-    queryKey: ['reseller-apps-for-external', sellerId],
+    queryKey: ['reseller-device-apps', sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('custom_products')
+        .from('reseller_device_apps' as any)
         .select('*')
         .eq('seller_id', sellerId)
-        .like('name', 'APP_REVENDEDOR:%')
+        .eq('is_gerencia_app', false)
         .eq('is_active', true)
         .order('created_at');
       if (error) throw error;
       // Map to ExternalApp format
-      return (data || []).map(item => ({
+      return ((data || []) as any[]).map(item => ({
         id: item.id,
-        name: item.name.replace('APP_REVENDEDOR:', ''),
+        name: item.name,
         website_url: null,
         download_url: item.download_url,
         auth_type: 'mac_key' as const,
@@ -128,6 +128,9 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         seller_id: item.seller_id,
         price: 0,
         cost: 0,
+        // Keep extra fields for display
+        icon: item.icon,
+        downloader_code: item.downloader_code,
       })) as ExternalApp[];
     },
     enabled: !!sellerId,
@@ -271,7 +274,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
           <InlineResellerAppCreator
             sellerId={sellerId}
             onCreated={(_id) => {
-              queryClient.invalidateQueries({ queryKey: ['reseller-apps-for-external', sellerId] });
+              queryClient.invalidateQueries({ queryKey: ['reseller-device-apps', sellerId] });
             }}
           />
           <InlineExternalAppCreator 

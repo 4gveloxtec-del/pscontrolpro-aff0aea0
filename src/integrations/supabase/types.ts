@@ -2444,6 +2444,7 @@ export type Database = {
           created_at: string | null
           device_types: Json
           download_url: string | null
+          downloader_code: string | null
           icon: string | null
           id: string
           is_active: boolean
@@ -2459,6 +2460,7 @@ export type Database = {
           created_at?: string | null
           device_types?: Json
           download_url?: string | null
+          downloader_code?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean
@@ -2474,6 +2476,7 @@ export type Database = {
           created_at?: string | null
           device_types?: Json
           download_url?: string | null
+          downloader_code?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean
