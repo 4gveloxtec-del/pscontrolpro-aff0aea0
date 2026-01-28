@@ -3696,7 +3696,7 @@ export default function Clients() {
         </div>
 
         {/* Server Filter - Discrete dropdown */}
-        {servers.length > 0 && (
+        {serversForBadges.length > 0 && (
           <div className="flex items-center gap-2">
             <Server className="h-4 w-4 text-muted-foreground" />
             <Select value={serverFilter} onValueChange={setServerFilter}>
@@ -3705,7 +3705,7 @@ export default function Clients() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os servidores</SelectItem>
-                {servers.map((server) => {
+                {serversForBadges.map((server) => {
                   const count = clients.filter(c => c.server_id === server.id).length;
                   return (
                     <SelectItem key={server.id} value={server.id}>
@@ -5564,8 +5564,8 @@ export default function Clients() {
           open={showMigrationDialog}
           onOpenChange={setShowMigrationDialog}
           sourceServerId={serverFilter}
-          sourceServerName={servers.find(s => s.id === serverFilter)?.name || ''}
-          servers={servers}
+          sourceServerName={serversForBadges.find(s => s.id === serverFilter)?.name || ''}
+          servers={serversForBadges}
           clientsToMigrate={clients.filter(c => c.server_id === serverFilter).map(c => ({ id: c.id, name: c.name }))}
           userId={user.id}
         />
