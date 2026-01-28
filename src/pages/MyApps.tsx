@@ -49,6 +49,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { 
+  ResellerDeviceApp, 
+  RESELLER_DEVICE_APPS_QUERY_KEY 
+} from '@/hooks/useResellerDeviceApps';
 
 // Device types available
 const DEVICE_TYPES = [
@@ -66,22 +70,7 @@ const APP_SOURCES = [
   { value: 'direct', label: 'Download Direto', icon: Download },
 ] as const;
 
-interface ResellerDeviceApp {
-  id: string;
-  seller_id: string;
-  name: string;
-  icon: string;
-  company_name: string | null;
-  device_types: string[];
-  app_source: 'play_store' | 'app_store' | 'direct';
-  download_url: string | null;
-  downloader_code: string | null;
-  server_id: string | null;
-  is_gerencia_app: boolean;
-  is_active: boolean;
-  created_at: string;
-  servers?: { name: string } | null;
-}
+// ResellerDeviceApp is now imported from useResellerDeviceApps.tsx
 
 interface FormData {
   name: string;
@@ -119,9 +108,9 @@ export default function MyApps() {
   const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [activeTab, setActiveTab] = useState<'all' | 'gerencia'>('all');
 
-  // Fetch apps
+  // Fetch apps - uses unified query key
   const { data: apps = [], isLoading, isError } = useQuery({
-    queryKey: ['reseller-device-apps', user?.id],
+    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
@@ -177,7 +166,7 @@ export default function MyApps() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('Aplicativo cadastrado com sucesso!');
       resetForm();
     },
@@ -207,7 +196,7 @@ export default function MyApps() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('Aplicativo atualizado com sucesso!');
       resetForm();
     },
@@ -226,7 +215,7 @@ export default function MyApps() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('Aplicativo excluído com sucesso!');
     },
     onError: (error) => {

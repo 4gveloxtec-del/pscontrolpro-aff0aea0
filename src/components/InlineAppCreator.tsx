@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { Plus, Loader2, Monitor, Mail, Package, Handshake, Smartphone, Hash, Download } from 'lucide-react';
+import { RESELLER_DEVICE_APPS_QUERY_KEY } from '@/hooks/useResellerDeviceApps';
 
 interface InlineExternalAppCreatorProps {
   sellerId: string;
@@ -315,8 +316,8 @@ export function InlineResellerAppCreator({ sellerId, onCreated }: InlineReseller
     },
     onSuccess: (data) => {
       // Unified query key for all reseller apps
-      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps', sellerId] });
-      queryClient.invalidateQueries({ queryKey: ['reseller-device-apps'] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('App do revendedor criado!');
       onCreated?.(data.id);
       setName('');

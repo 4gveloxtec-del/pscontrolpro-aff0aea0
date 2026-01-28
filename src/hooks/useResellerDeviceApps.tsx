@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+// =====================================================
+// UNIFIED QUERY KEY - Use this constant everywhere
+// =====================================================
+export const RESELLER_DEVICE_APPS_QUERY_KEY = 'reseller-device-apps';
+
+// =====================================================
+// CANONICAL INTERFACE - Single source of truth
+// =====================================================
 export interface ResellerDeviceApp {
   id: string;
   seller_id: string;
@@ -14,6 +22,10 @@ export interface ResellerDeviceApp {
   server_id: string | null;
   is_gerencia_app: boolean;
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Optional join field
+  servers?: { name: string } | null;
 }
 
 // Map UI device names to database device types
@@ -34,7 +46,7 @@ const DEVICE_MAPPING: Record<string, string[]> = {
  */
 export function useResellerDeviceApps(sellerId: string | undefined) {
   return useQuery({
-    queryKey: ['reseller-device-apps', sellerId],
+    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)

@@ -12,8 +12,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { 
+  ResellerDeviceApp, 
+  RESELLER_DEVICE_APPS_QUERY_KEY 
+} from '@/hooks/useResellerDeviceApps';
 
-interface ResellerApp {
+// Local interface for simplified display in this component
+interface ResellerAppDisplay {
   id: string;
   name: string;
   icon: string;
@@ -29,19 +34,16 @@ interface ResellerAppsManagerProps {
   sellerId: string;
 }
 
-// Standard query key for reseller apps - unified across all components
-export const RESELLER_APPS_QUERY_KEY = 'reseller-device-apps';
-
 export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const queryClient = useQueryClient();
   const { dialogProps, confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingApp, setEditingApp] = useState<ResellerApp | null>(null);
+  const [editingApp, setEditingApp] = useState<ResellerAppDisplay | null>(null);
   const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '' });
 
   // Fetch reseller apps - now using unified reseller_device_apps table
   const { data: resellerApps = [], isLoading, isError } = useQuery({
-    queryKey: [RESELLER_APPS_QUERY_KEY, sellerId],
+    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
@@ -59,7 +61,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
         downloader_code: item.downloader_code,
         seller_id: item.seller_id,
         is_active: item.is_active
-      })) as ResellerApp[];
+      })) as ResellerAppDisplay[];
     },
     enabled: !!sellerId,
   });
@@ -87,7 +89,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [RESELLER_APPS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('App criado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
@@ -112,7 +114,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [RESELLER_APPS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('App atualizado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
@@ -131,7 +133,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [RESELLER_APPS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('App removido com sucesso!');
     },
     onError: () => {
@@ -144,7 +146,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
     setEditingApp(null);
   };
 
-  const handleEdit = (app: ResellerApp) => {
+  const handleEdit = (app: ResellerAppDisplay) => {
     setEditingApp(app);
     setFormData({ 
       name: app.name, 
@@ -401,7 +403,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
 // Hook to fetch reseller apps for use in other components - now unified
 export function useResellerApps(sellerId: string | undefined) {
   return useQuery({
-    queryKey: [RESELLER_APPS_QUERY_KEY, sellerId],
+    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
