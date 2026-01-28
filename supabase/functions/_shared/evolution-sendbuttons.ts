@@ -62,28 +62,63 @@ export function buildSendButtonsPayloadVariants(
   const bodyText = stripMarkdown(`${safeTitle}\n\n${safeDescription}`)
     .substring(0, 1024);
 
-  // Formato 1: Buttons com buttonId/buttonText (Evolution v2+)
-  const buttonsFormat1 = limitedButtons.map((btn, idx) => ({
+  // Formato Evolution API v2+ com type: "reply" (OBRIGATÓRIO para muitas versões)
+  const buttonsWithType = limitedButtons.map((btn, idx) => ({
+    type: 'reply',
     buttonId: btn.buttonId,
     buttonText: { displayText: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20) },
-    type: 1,
   }));
 
-  // Formato 2: Buttons com id/text simplificado
-  const buttonsFormat2 = limitedButtons.map((btn, idx) => ({
+  // Formato simplificado com type: "reply"
+  const buttonsSimpleWithType = limitedButtons.map((btn, idx) => ({
+    type: 'reply',
     id: btn.buttonId,
-    text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
+    title: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
   }));
 
-  // Formato 3: Buttons com buttonId/text (variante)
-  const buttonsFormat3 = limitedButtons.map((btn, idx) => ({
-    buttonId: btn.buttonId,
+  // Formato com text ao invés de title
+  const buttonsTextWithType = limitedButtons.map((btn, idx) => ({
+    type: 'reply',
+    id: btn.buttonId,
     text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
   }));
 
   return [
     {
-      // Formato aninhado (Evolution API mais recente)
+      // Formato com type:"reply" e buttonId/buttonText (Evolution v2+)
+      name: 'flat.buttons.type.displayText',
+      payload: {
+        number: phoneNumber,
+        title: safeTitle,
+        description: stripMarkdown(safeDescription).substring(0, 1024),
+        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
+        buttons: buttonsWithType,
+      },
+    },
+    {
+      // Formato com type:"reply" e id/title
+      name: 'flat.buttons.type.title',
+      payload: {
+        number: phoneNumber,
+        title: safeTitle,
+        description: stripMarkdown(safeDescription).substring(0, 1024),
+        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
+        buttons: buttonsSimpleWithType,
+      },
+    },
+    {
+      // Formato com type:"reply" e id/text
+      name: 'flat.buttons.type.text',
+      payload: {
+        number: phoneNumber,
+        title: safeTitle,
+        description: stripMarkdown(safeDescription).substring(0, 1024),
+        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
+        buttons: buttonsTextWithType,
+      },
+    },
+    {
+      // Formato aninhado (Evolution API interativa)
       name: 'interactive.buttons',
       payload: {
         number: phoneNumber,
@@ -93,42 +128,9 @@ export function buildSendButtonsPayloadVariants(
           body: { text: bodyText },
           footer: { text: stripMarkdown(safeFooterText).substring(0, 60) || ' ' },
           action: {
-            buttons: buttonsFormat2,
+            buttons: buttonsSimpleWithType,
           },
         },
-      },
-    },
-    {
-      // Formato flat com buttons (comum em Evolution v1)
-      name: 'flat.buttons.displayText',
-      payload: {
-        number: phoneNumber,
-        title: safeTitle,
-        description: stripMarkdown(safeDescription).substring(0, 1024),
-        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
-        buttons: buttonsFormat1,
-      },
-    },
-    {
-      // Formato flat alternativo
-      name: 'flat.buttons.simple',
-      payload: {
-        number: phoneNumber,
-        title: safeTitle,
-        description: stripMarkdown(safeDescription).substring(0, 1024),
-        footerText: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
-        buttons: buttonsFormat2,
-      },
-    },
-    {
-      // Formato com buttonId/text
-      name: 'flat.buttons.buttonId',
-      payload: {
-        number: phoneNumber,
-        title: safeTitle,
-        description: stripMarkdown(safeDescription).substring(0, 1024),
-        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
-        buttons: buttonsFormat3,
       },
     },
   ];
