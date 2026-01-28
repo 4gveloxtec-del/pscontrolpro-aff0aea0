@@ -1,28 +1,26 @@
 /**
- * BOT ENGINE - Sistema de Botões Interativos do WhatsApp
- * Substitui sendList por sendButtons (máximo 3 botões)
+ * BOT ENGINE - Botões Interativos WhatsApp
  * 
- * VANTAGENS:
- * - Maior compatibilidade com versões da Evolution API
- * - Exibição mais simples e direta no WhatsApp
- * - Máximo 3 botões por mensagem
+ * FORMATO EVOLUTION API v2.3.7 (atendai/evolution-api:latest):
+ * POST /message/sendButtons/{instance}
+ * {
+ *   "number": "5511999999999@c.us",
+ *   "body": "Texto do menu",
+ *   "buttons": [{"id": "1", "text": "Opção 1"}, ...]
+ * }
+ * 
+ * IMPORTANTE: Usar 'text' (não 'title'), máx 3 botões, 20 chars por texto
  */
 
 export interface ButtonOption {
-  /** ID do botão (usado para identificar a seleção) */
   buttonId: string;
-  /** Texto exibido no botão (max 20 chars) */
   buttonText: string;
 }
 
 export interface ButtonsMessage {
-  /** Texto principal da mensagem */
   title: string;
-  /** Descrição/corpo da mensagem */
   description?: string;
-  /** Texto do rodapé (opcional) */
   footerText?: string;
-  /** Botões (máximo 3) */
   buttons: ButtonOption[];
 }
 
@@ -44,8 +42,8 @@ function ensureNonEmpty(input: string | undefined | null, fallback: string): str
 }
 
 /**
- * Builds multiple payload shapes for Evolution API sendButtons.
- * Different Evolution versions expect different schemas.
+ * Gera payload para Evolution API v2.3.7 sendButtons
+ * Formato: { number, body, buttons: [{id, text}] }
  */
 export function buildSendButtonsPayloadVariants(
   message: ButtonsMessage,
@@ -53,114 +51,54 @@ export function buildSendButtonsPayloadVariants(
 ): PayloadVariant[] {
   const safeTitle = ensureNonEmpty(message.title, 'Menu').substring(0, 60);
   const safeDescription = ensureNonEmpty(message.description, 'Selecione uma opção');
-  const safeFooterText = ensureNonEmpty(message.footerText, ' ').substring(0, 60);
 
   // Limitar a 3 botões (requisito do WhatsApp)
   const limitedButtons = message.buttons.slice(0, 3);
 
-  // Body text (título + descrição)
-  const bodyText = stripMarkdown(`${safeTitle}\n\n${safeDescription}`)
-    .substring(0, 1024);
+  // Body text limpo (sem markdown excessivo)
+  const bodyText = `${safeTitle}\n\n${safeDescription}`.substring(0, 1024);
 
-  // Formato Evolution v2.3.7: usa 'text' em vez de 'title', número com @c.us
-  const buttonsEvolution237 = limitedButtons.map((btn, idx) => ({
-    id: btn.buttonId,
-    text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
-  }));
-
-  // Formato oficial WhatsApp Cloud API: { type: "reply", reply: { id, title } }
-  const buttonsCloudApi = limitedButtons.map((btn, idx) => ({
-    type: 'reply',
-    reply: {
-      id: btn.buttonId,
-      title: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
-    },
-  }));
-
-  // Formato Evolution API v2+ com type: "reply" (OBRIGATÓRIO para muitas versões)
-  const buttonsWithType = limitedButtons.map((btn, idx) => ({
-    type: 'reply',
-    buttonId: btn.buttonId,
-    buttonText: { displayText: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20) },
-  }));
-
-  // Formato simplificado com type: "reply" e id/title
-  const buttonsSimpleWithType = limitedButtons.map((btn, idx) => ({
-    type: 'reply',
-    id: btn.buttonId,
-    title: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
-  }));
-
+  // Evolution API v2.3.7 EXIGE type: "reply" em cada botão
+  // Testar variações: body, title, e text como campo raiz
   return [
     {
-      // PRIORIDADE 1: Formato Evolution v2.3.7 - body + buttons com 'text'
-      name: 'evolution.v237.body.text',
+      // Formato com title + body (alguns setups da Evolution API usam title)
+      name: 'evolution.v237.title.body',
+      payload: {
+        number: `${phoneNumber}@c.us`,
+        title: safeTitle,
+        body: safeDescription,
+        buttons: limitedButtons.map((btn, idx) => ({
+          type: 'reply',
+          id: btn.buttonId || String(idx + 1),
+          text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
+        })),
+      },
+    },
+    {
+      // Formato só com body (concatenado)
+      name: 'evolution.v237.body.only',
       payload: {
         number: `${phoneNumber}@c.us`,
         body: bodyText,
-        buttons: buttonsEvolution237,
+        buttons: limitedButtons.map((btn, idx) => ({
+          type: 'reply',
+          id: btn.buttonId || String(idx + 1),
+          text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
+        })),
       },
     },
     {
-      // Variante sem @c.us
-      name: 'evolution.v237.body.text.noSuffix',
+      // Formato com text (alguns usam 'text' em vez de 'body')
+      name: 'evolution.v237.text.field',
       payload: {
-        number: phoneNumber,
-        body: bodyText,
-        buttons: buttonsEvolution237,
-      },
-    },
-    {
-      // Formato WhatsApp Cloud API oficial
-      name: 'cloudapi.reply.buttons',
-      payload: {
-        number: phoneNumber,
-        interactiveMessage: {
-          type: 'button',
-          body: { text: bodyText },
-          footer: { text: stripMarkdown(safeFooterText).substring(0, 60) || ' ' },
-          action: {
-            buttons: buttonsCloudApi,
-          },
-        },
-      },
-    },
-    {
-      // Formato Evolution sendButtons com buttonId/buttonText
-      name: 'evolution.buttonId.displayText',
-      payload: {
-        number: phoneNumber,
-        title: safeTitle,
-        description: stripMarkdown(safeDescription).substring(0, 1024),
-        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
-        buttons: buttonsWithType,
-      },
-    },
-    {
-      // Formato simplificado com id/title (flat)
-      name: 'evolution.id.title',
-      payload: {
-        number: phoneNumber,
-        title: safeTitle,
-        description: stripMarkdown(safeDescription).substring(0, 1024),
-        footer: stripMarkdown(safeFooterText).substring(0, 60) || ' ',
-        buttons: buttonsSimpleWithType,
-      },
-    },
-    {
-      // Formato aninhado interactive.action.buttons
-      name: 'interactive.action.buttons',
-      payload: {
-        number: phoneNumber,
-        type: 'interactive',
-        interactive: {
-          type: 'button',
-          body: { text: bodyText },
-          footer: { text: stripMarkdown(safeFooterText).substring(0, 60) || ' ' },
-          action: {
-            buttons: buttonsCloudApi,
-          },
-        },
+        number: `${phoneNumber}@c.us`,
+        text: bodyText,
+        buttons: limitedButtons.map((btn, idx) => ({
+          type: 'reply',
+          id: btn.buttonId || String(idx + 1),
+          text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
+        })),
       },
     },
   ];
