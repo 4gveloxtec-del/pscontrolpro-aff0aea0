@@ -19,6 +19,7 @@ export interface ResellerDeviceApp {
   app_source: 'play_store' | 'app_store' | 'direct';
   download_url: string | null;
   downloader_code: string | null;
+  mac_address: string | null;
   server_id: string | null;
   is_gerencia_app: boolean;
   is_active: boolean;

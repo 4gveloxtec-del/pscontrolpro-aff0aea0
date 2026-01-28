@@ -39,7 +39,15 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const { dialogProps, confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ResellerAppDisplay | null>(null);
-  const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '' });
+  const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '', mac_address: '' });
+
+  // Format MAC address with colons (AA:BB:CC:DD:EE:FF)
+  const formatMacAddress = (value: string): string => {
+    const hex = value.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    const limited = hex.slice(0, 12);
+    const parts = limited.match(/.{1,2}/g) || [];
+    return parts.join(':');
+  };
 
   // Fetch reseller apps - now using unified reseller_device_apps table
   const { data: resellerApps = [], isLoading, isError } = useQuery({
@@ -67,7 +75,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; icon: string; download_url: string; downloader_code: string }) => {
+    mutationFn: async (data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string }) => {
       // Check if already has 10 apps
       if (resellerApps.length >= 10) {
         throw new Error('Limite de 10 apps atingido');
@@ -80,6 +88,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
           icon: data.icon,
           download_url: data.download_url || null,
           downloader_code: data.downloader_code || null,
+          mac_address: data.mac_address || null,
           seller_id: sellerId,
           is_active: true,
           is_gerencia_app: false,
@@ -100,7 +109,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string; downloader_code: string } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string } }) => {
       const { error } = await supabase
         .from('reseller_device_apps' as any)
         .update({
@@ -108,6 +117,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
           icon: data.icon,
           download_url: data.download_url || null,
           downloader_code: data.downloader_code || null,
+          mac_address: data.mac_address || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -142,7 +152,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', icon: '📱', download_url: '', downloader_code: '' });
+    setFormData({ name: '', icon: '📱', download_url: '', downloader_code: '', mac_address: '' });
     setEditingApp(null);
   };
 
@@ -152,7 +162,8 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       name: app.name, 
       icon: app.icon, 
       download_url: app.download_url || '',
-      downloader_code: app.downloader_code || ''
+      downloader_code: app.downloader_code || '',
+      mac_address: (app as any).mac_address || ''
     });
     setIsDialogOpen(true);
   };
@@ -283,6 +294,20 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                       />
                       <p className="text-xs text-muted-foreground">
                         🔢 Código para baixar via app Downloader
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="mac_address">Endereço MAC</Label>
+                      <Input
+                        id="mac_address"
+                        value={formData.mac_address}
+                        onChange={(e) => setFormData({ ...formData, mac_address: formatMacAddress(e.target.value) })}
+                        placeholder="AA:BB:CC:DD:EE:FF"
+                        maxLength={17}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        📟 Endereço MAC do dispositivo (formatação automática com :)
                       </p>
                     </div>
                   </div>

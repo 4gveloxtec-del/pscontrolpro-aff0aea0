@@ -2449,6 +2449,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_gerencia_app: boolean
+          mac_address: string | null
           name: string
           seller_id: string
           server_id: string | null
@@ -2465,6 +2466,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_gerencia_app?: boolean
+          mac_address?: string | null
           name: string
           seller_id: string
           server_id?: string | null
@@ -2481,6 +2483,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_gerencia_app?: boolean
+          mac_address?: string | null
           name?: string
           seller_id?: string
           server_id?: string | null
