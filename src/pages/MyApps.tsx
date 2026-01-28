@@ -80,6 +80,7 @@ interface FormData {
   app_source: 'play_store' | 'app_store' | 'direct';
   download_url: string;
   downloader_code: string;
+  mac_address: string;
   server_id: string;
   is_gerencia_app: boolean;
   is_active: boolean;
@@ -93,9 +94,21 @@ const defaultFormData: FormData = {
   app_source: 'play_store',
   download_url: '',
   downloader_code: '',
+  mac_address: '',
   server_id: '',
   is_gerencia_app: false,
   is_active: true,
+};
+
+// Format MAC address with colons (AA:BB:CC:DD:EE:FF)
+const formatMacAddress = (value: string): string => {
+  // Remove all non-hex characters
+  const hex = value.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+  // Limit to 12 characters
+  const limited = hex.slice(0, 12);
+  // Add colons every 2 characters
+  const parts = limited.match(/.{1,2}/g) || [];
+  return parts.join(':');
 };
 
 export default function MyApps() {
@@ -159,6 +172,7 @@ export default function MyApps() {
           app_source: data.app_source,
           download_url: data.download_url || null,
           downloader_code: data.downloader_code || null,
+          mac_address: data.mac_address || null,
           server_id: data.server_id || null,
           is_gerencia_app: data.is_gerencia_app,
           is_active: data.is_active,
@@ -188,6 +202,7 @@ export default function MyApps() {
           app_source: data.app_source,
           download_url: data.download_url || null,
           downloader_code: data.downloader_code || null,
+          mac_address: data.mac_address || null,
           server_id: data.server_id || null,
           is_gerencia_app: data.is_gerencia_app,
           is_active: data.is_active,
@@ -239,6 +254,7 @@ export default function MyApps() {
       app_source: app.app_source,
       download_url: app.download_url || '',
       downloader_code: app.downloader_code || '',
+      mac_address: app.mac_address || '',
       server_id: app.server_id || '',
       is_gerencia_app: app.is_gerencia_app,
       is_active: app.is_active,
@@ -493,6 +509,23 @@ export default function MyApps() {
                   🔢 Código para baixar via app Downloader
                 </p>
               </div>
+
+              {/* MAC Address - Only for Reseller Apps (not Gerencia App) */}
+              {!formData.is_gerencia_app && (
+                <div className="space-y-2">
+                  <Label htmlFor="mac_address">Endereço MAC (opcional)</Label>
+                  <Input
+                    id="mac_address"
+                    value={formData.mac_address}
+                    onChange={(e) => setFormData(prev => ({ ...prev, mac_address: formatMacAddress(e.target.value) }))}
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    maxLength={17}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    📟 Endereço MAC do dispositivo (formatação automática com :)
+                  </p>
+                </div>
+              )}
 
               {/* Server Association - Only show if not Gerencia App */}
               {!formData.is_gerencia_app && servers.length > 0 && (
