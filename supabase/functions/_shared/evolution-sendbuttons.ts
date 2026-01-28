@@ -62,6 +62,12 @@ export function buildSendButtonsPayloadVariants(
   const bodyText = stripMarkdown(`${safeTitle}\n\n${safeDescription}`)
     .substring(0, 1024);
 
+  // Formato Evolution v2.3.7: usa 'text' em vez de 'title', número com @c.us
+  const buttonsEvolution237 = limitedButtons.map((btn, idx) => ({
+    id: btn.buttonId,
+    text: ensureNonEmpty(btn.buttonText, `Opção ${idx + 1}`).substring(0, 20),
+  }));
+
   // Formato oficial WhatsApp Cloud API: { type: "reply", reply: { id, title } }
   const buttonsCloudApi = limitedButtons.map((btn, idx) => ({
     type: 'reply',
@@ -87,7 +93,25 @@ export function buildSendButtonsPayloadVariants(
 
   return [
     {
-      // Formato WhatsApp Cloud API oficial (prioridade máxima)
+      // PRIORIDADE 1: Formato Evolution v2.3.7 - body + buttons com 'text'
+      name: 'evolution.v237.body.text',
+      payload: {
+        number: `${phoneNumber}@c.us`,
+        body: bodyText,
+        buttons: buttonsEvolution237,
+      },
+    },
+    {
+      // Variante sem @c.us
+      name: 'evolution.v237.body.text.noSuffix',
+      payload: {
+        number: phoneNumber,
+        body: bodyText,
+        buttons: buttonsEvolution237,
+      },
+    },
+    {
+      // Formato WhatsApp Cloud API oficial
       name: 'cloudapi.reply.buttons',
       payload: {
         number: phoneNumber,
