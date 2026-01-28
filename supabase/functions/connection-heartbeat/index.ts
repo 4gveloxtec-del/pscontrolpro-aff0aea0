@@ -5,7 +5,11 @@ import {
   toEvolutionApiPayload,
 } from "../_shared/interactive-list.ts";
 
-import { buildSendListPayloadVariants } from "../_shared/evolution-sendlist.ts";
+import { 
+  buildSendButtonsPayloadVariants, 
+  listToButtons, 
+  buttonsToTextFallback 
+} from "../_shared/evolution-sendbuttons.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1531,127 +1535,99 @@ Deno.serve(async (req: Request) => {
                   
                   if (structuredResponse && structuredResponse.type === 'list' && structuredResponse.list) {
                     // ═════════════════════════════════════════════════════
-                    // ENVIAR COMO LISTA INTERATIVA (sendList)
+                    // ENVIAR COMO BOTÕES INTERATIVOS (sendButtons) - Máx 3
                     // ═════════════════════════════════════════════════════
-                    console.log(`[Webhook] 📋 Sending INTERACTIVE LIST`);
+                    console.log(`[Webhook] 🔘 Sending INTERACTIVE BUTTONS (max 3)`);
 
                     const baseUrl = normalizeApiUrl(apiUrl);
                     const baseUrlV1 = baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`;
                     
-                    // ═════════════════════════════════════════════════════
-                    // AUTO-CONFIGURAR SETTINGS ANTES DE ENVIAR LISTA
-                    // Verifica webhookUrl e alwaysOnline, configura se necessário
-                    // ═════════════════════════════════════════════════════
-                    const supabaseUrl = Deno.env.get("SUPABASE_URL") || '';
-                    const expectedWebhookUrl = `${supabaseUrl}/functions/v1/connection-heartbeat`;
+                    // Converter lista para botões (máximo 3)
+                    const buttonsMessage = listToButtons(structuredResponse.list);
                     
-                    const settingsCheck = await ensureInstanceSettings(
-                      apiUrl,
-                      globalConfig.api_token,
-                      instanceName,
-                      expectedWebhookUrl
-                    );
-                    
+                    console.log(`[Webhook] Converted list to ${buttonsMessage.buttons.length} buttons:`, 
+                      buttonsMessage.buttons.map(b => b.buttonText));
+
                     if (messageDebug) {
-                      messageDebug.settings_check = settingsCheck;
+                      messageDebug.settings_check = { mode: 'buttons', button_count: buttonsMessage.buttons.length };
                     }
                     
-                    if (settingsCheck.configured) {
-                      console.log(`[Webhook] ⚙️ Instance settings were auto-configured before sendList`);
-                    }
-                    
-                    const sendListUrls = [
-                      `${baseUrl}/message/sendList/${instanceName}`,
-                      `${baseUrl}/message/sendList`,
-                      `${baseUrlV1}/message/sendList/${instanceName}`,
-                      `${baseUrlV1}/message/sendList`,
+                    const sendButtonsUrls = [
+                      `${baseUrl}/message/sendButtons/${instanceName}`,
+                      `${baseUrl}/message/sendButtons`,
+                      `${baseUrlV1}/message/sendButtons/${instanceName}`,
+                      `${baseUrlV1}/message/sendButtons`,
                     ];
 
                     if (messageDebug) {
-                      messageDebug.send.mode = 'list';
-                      messageDebug.send.send_url = sendListUrls[0];
+                      messageDebug.send.mode = 'buttons';
+                      messageDebug.send.send_url = sendButtonsUrls[0];
                     }
                     
-                    let listSendAttempts = 0;
-                    let listSendSuccess = false;
+                    let buttonsSendAttempts = 0;
+                    let buttonsSendSuccess = false;
                     
-                    outerListSend: for (const phoneVariant of uniqueVariants) {
-                      const variants = buildSendListPayloadVariants(structuredResponse.list, phoneVariant);
+                    outerButtonsSend: for (const phoneVariant of uniqueVariants) {
+                      const variants = buildSendButtonsPayloadVariants(buttonsMessage, phoneVariant);
 
-                      // Keep the original payload for logging/debug (but we won't rely on it)
-                      // This preserves existing behavior in case a downstream depends on it.
-                      const legacyPayload = toEvolutionApiPayload(structuredResponse.list, phoneVariant);
-
-                      for (const sendListUrl of sendListUrls) {
+                      for (const sendButtonsUrl of sendButtonsUrls) {
                         for (const v of variants) {
-                          listSendAttempts++;
+                          buttonsSendAttempts++;
                           try {
                             const payloadToSend = v.payload;
 
-                            console.log(`[Webhook] List attempt url=${sendListUrl} variant=${v.name} phone=${phoneVariant}`);
-                            console.log(`[Webhook] List payload preview:`, JSON.stringify(payloadToSend).substring(0, 800));
+                            console.log(`[Webhook] Buttons attempt url=${sendButtonsUrl} variant=${v.name} phone=${phoneVariant}`);
+                            console.log(`[Webhook] Buttons payload preview:`, JSON.stringify(payloadToSend).substring(0, 800));
 
                             const headers: Record<string, string> = {
                               'Content-Type': 'application/json',
                               'apikey': globalConfig.api_token,
-                              // Some Evolution setups require Authorization Bearer
                               'Authorization': `Bearer ${globalConfig.api_token}`,
                             };
 
-                            let sendResponse = await fetch(sendListUrl, {
+                            const sendResponse = await fetch(sendButtonsUrl, {
                               method: 'POST',
                               headers,
                               body: JSON.stringify(payloadToSend),
                             });
 
-                            // Some setups might only accept the legacy payload generator.
-                            // If we get a 400 on all new variants, we still try the original payload once.
-                            if (!sendResponse.ok && sendResponse.status === 400 && v.name === 'flat.values.rowId') {
-                              console.log(`[Webhook] Trying legacy generator payload as last resort (same URL)`);
-                              sendResponse = await fetch(sendListUrl, {
-                                method: 'POST',
-                                headers,
-                                body: JSON.stringify(legacyPayload),
-                              });
-                            }
-
                             if (sendResponse.ok) {
-                              console.log(`[Webhook] ✅ Interactive list sent to ${phoneVariant} via ${sendListUrl} (${v.name})`);
+                              console.log(`[Webhook] ✅ Interactive buttons sent to ${phoneVariant} via ${sendButtonsUrl} (${v.name})`);
                               if (messageDebug) {
-                                messageDebug.send.send_url = sendListUrl;
+                                messageDebug.send.send_url = sendButtonsUrl;
                                 messageDebug.send.attempts.push({
                                   phone: phoneVariant,
                                   ok: true,
                                   status: sendResponse.status,
-                                  url: sendListUrl,
+                                  url: sendButtonsUrl,
                                   variant: v.name,
                                 });
                               }
                               messageSent = true;
-                              listSendSuccess = true;
-                              break outerListSend;
+                              buttonsSendSuccess = true;
+                              break outerButtonsSend;
                             }
 
                             const errText = await sendResponse.text().catch(() => '');
-                            console.log(`[Webhook] ❌ List failed url=${sendListUrl} variant=${v.name} status=${sendResponse.status}: ${String(errText).substring(0, 300)}`);
+                            console.log(`[Webhook] ❌ Buttons failed url=${sendButtonsUrl} variant=${v.name} status=${sendResponse.status}: ${String(errText).substring(0, 300)}`);
                             if (messageDebug) {
                               messageDebug.send.attempts.push({
                                 phone: phoneVariant,
                                 ok: false,
                                 status: sendResponse.status,
-                                url: sendListUrl,
+                                url: sendButtonsUrl,
                                 variant: v.name,
                                 error_preview: String(errText || '').substring(0, 300),
                               });
                             }
                           } catch (sendErr) {
-                            console.error(`[Webhook] List send error url=${sendListUrl} variant=${v.name} for ${phoneVariant}:`, sendErr);
+                            console.error(`[Webhook] Buttons send error url=${sendButtonsUrl} variant=${v.name} for ${phoneVariant}:`, sendErr);
                             if (messageDebug) {
                               messageDebug.send.attempts.push({
                                 phone: phoneVariant,
                                 ok: false,
                                 status: null,
-                                url: sendListUrl,
+                                url: sendButtonsUrl,
                                 variant: v.name,
                                 error_preview: sendErr instanceof Error ? sendErr.message : String(sendErr),
                               });
@@ -1662,34 +1638,13 @@ Deno.serve(async (req: Request) => {
                     }
                     
                     // ═════════════════════════════════════════════════════
-                    // FALLBACK: Se lista falhou, enviar como texto
+                    // FALLBACK: Se botões falharam, enviar como texto
                     // ═════════════════════════════════════════════════════
-                    if (!listSendSuccess) {
-                      console.log(`[Webhook] ⚠️ List send failed after ${listSendAttempts} attempts, falling back to TEXT`);
+                    if (!buttonsSendSuccess) {
+                      console.log(`[Webhook] ⚠️ Buttons send failed after ${buttonsSendAttempts} attempts, falling back to TEXT`);
                       
-                      // Converter lista para texto formatado
-                      const list = structuredResponse.list;
-                      let textFallback = `📋 *${list.title}*\n`;
-                      if (list.description) {
-                        textFallback += `${list.description}\n`;
-                      }
-                      textFallback += `\n`;
-                      
-                      for (const section of list.sections) {
-                        textFallback += `*${section.title}*\n`;
-                        for (const row of section.rows) {
-                          textFallback += `• ${row.title}`;
-                          if (row.description) {
-                            textFallback += ` - ${row.description}`;
-                          }
-                          textFallback += `\n`;
-                        }
-                        textFallback += `\n`;
-                      }
-                      
-                      if (list.footerText) {
-                        textFallback += `_${list.footerText}_`;
-                      }
+                      // Converter botões para texto formatado
+                      const textFallback = buttonsToTextFallback(buttonsMessage);
                       
                       const sendTextUrl = `${apiUrl}/message/sendText/${instanceName}`;
                       
