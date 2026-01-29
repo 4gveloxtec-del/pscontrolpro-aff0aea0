@@ -1596,6 +1596,7 @@ export default function Clients() {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
       // Go to page 1 to see the new client BUT don't scroll (user stays in place)
       goToPage(1, false);
@@ -1851,6 +1852,7 @@ export default function Clients() {
     onSuccess: () => {
       toast.dismiss('updating-client');
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Cliente salvo com sucesso! ✅');
       resetForm();
       setIsDialogOpen(false);
@@ -1899,6 +1901,7 @@ export default function Clients() {
       setHasMoreClients(true);
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Cliente excluído!');
     },
     onError: (error: Error, _id, context) => {
@@ -1920,6 +1923,7 @@ export default function Clients() {
       setHasMoreClients(true);
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Todos os clientes foram excluídos!');
       setShowDeleteAllConfirm(false);
     },

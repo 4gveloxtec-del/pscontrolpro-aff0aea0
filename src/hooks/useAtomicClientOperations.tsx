@@ -107,6 +107,7 @@ export function useAtomicClientCreate() {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
       queryClient.invalidateQueries({ queryKey: ['client-external-apps'] });
       queryClient.invalidateQueries({ queryKey: ['client-premium-accounts'] });
@@ -139,6 +140,7 @@ export function useAtomicClientUpdate() {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
       queryClient.invalidateQueries({ queryKey: ['client-external-apps'] });
       queryClient.invalidateQueries({ queryKey: ['client-premium-accounts'] });
