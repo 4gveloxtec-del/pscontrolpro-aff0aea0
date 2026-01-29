@@ -1265,109 +1265,27 @@ div[style*="fixed"][style*="bottom"][style*="right"] > a[href*="lovable"] {
 }
 
 /* =============================================================================
-   GLOBAL SCROLL STABILITY - Prevents auto-scroll on all pages
-   Fixes: Page jumping up when editing forms, clicking buttons, or interacting
+   SCROLL STABILITY - Prevents page jumping during interactions
    ============================================================================= */
 
-/* Prevent scroll chaining and bouncing globally */
-html {
-  overscroll-behavior: none !important;
-  scroll-behavior: auto !important;
-  overflow-anchor: auto !important;
-}
-
-body {
-  overscroll-behavior: none !important;
-  overflow-anchor: auto !important;
-}
-
-/* Prevent focus-triggered scroll on inputs */
-input,
-textarea,
-select,
-[contenteditable="true"] {
-  scroll-margin: 0 !important;
-  scroll-padding: 0 !important;
-}
-
-/* Prevent any element from triggering scroll when focused */
+/* Prevent scroll-into-view on focus for inputs */
 input:focus,
 textarea:focus,
-select:focus,
-button:focus,
-[tabindex]:focus,
-[contenteditable="true"]:focus {
-  scroll-margin-top: 0 !important;
-  scroll-margin-bottom: 0 !important;
-  outline-offset: -2px;
-}
-
-/* Prevent scroll on interactive elements */
-button,
-a,
-label,
-[role="button"],
-[role="checkbox"],
-[role="switch"],
-[role="combobox"],
-[role="listbox"],
-[role="option"],
-[role="menuitem"],
-[role="tab"] {
-  scroll-margin: 0 !important;
-  scroll-padding: 0 !important;
-}
-
-/* Prevent scroll anchoring from moving content */
-* {
-  overflow-anchor: none;
-}
-
-/* Re-enable scroll anchoring only for main scroll container */
-.mobile-frame-inner,
-main,
-[role="main"] {
-  overflow-anchor: auto;
-}
-
-/* Prevent forms from scrolling on submit */
-form {
-  scroll-margin: 0 !important;
+select:focus {
+  scroll-margin-top: 0;
+  scroll-margin-bottom: 0;
 }
 
 /* Prevent dialogs/modals from affecting page scroll */
 [data-radix-dialog-content],
 [data-radix-alert-dialog-content],
-[data-radix-popover-content],
-[data-radix-dropdown-menu-content],
-[data-radix-select-content],
 [role="dialog"],
 [role="alertdialog"] {
-  overscroll-behavior: contain !important;
+  overscroll-behavior: contain;
 }
 
-/* Prevent scroll containers from propagating scroll */
-.scroll-area,
-[data-radix-scroll-area-viewport] {
-  overscroll-behavior: contain !important;
-}
-
-/* Prevent switch/toggle from scrolling page */
-[data-state="checked"],
-[data-state="unchecked"] {
-  scroll-margin: 0 !important;
-}
-
-/* Fix for accordion/collapsible that can trigger scroll */
-[data-radix-accordion-content],
-[data-radix-collapsible-content] {
-  scroll-margin: 0 !important;
-  overflow-anchor: none !important;
-}
-
-/* Prevent drawer/sheet from scrolling main page */
+/* Prevent drawer/sheet scroll propagation */
 [vaul-drawer],
 [data-vaul-drawer] {
-  overscroll-behavior: contain !important;
+  overscroll-behavior: contain;
 }
-
