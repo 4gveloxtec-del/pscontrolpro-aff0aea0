@@ -50,6 +50,7 @@ const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
 const TestCommands = lazy(() => import("./pages/TestCommands"));
 const BotEngine = lazy(() => import("./pages/BotEngine"));
+const AdminAsaas = lazy(() => import("./pages/AdminAsaas"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ProjectDocumentation = lazy(() => import("./pages/ProjectDocumentation"));
 
@@ -189,6 +190,7 @@ const AppRoutes = () => {
           <Route path="/admin/tutorials" element={<Tutorials />} />
           <Route path="/admin/system-health" element={<SystemHealth />} />
           <Route path="/admin/settings" element={<Settings />} />
+          <Route path="/admin/asaas" element={<AdminAsaas />} />
         </Route>
         {/* ============ FIM ADMIN PWA ROUTES ============ */}
         

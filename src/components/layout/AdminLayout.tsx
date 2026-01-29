@@ -17,7 +17,8 @@ import {
   Image,
   MessageSquare,
   GraduationCap,
-  HeartPulse
+  HeartPulse,
+  CreditCard
 } from 'lucide-react';
 
 interface NavItem {
@@ -29,6 +30,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Vendedores', href: '/admin/sellers', icon: Users },
+  { label: 'ASAAS Cobranças', href: '/admin/asaas', icon: CreditCard },
   { label: 'Chatbot', href: '/admin/chatbot', icon: MessageSquare },
   { label: 'Autocura', href: '/admin/system-health', icon: HeartPulse },
   { label: 'Relatórios', href: '/admin/reports', icon: FileText },
