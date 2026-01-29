@@ -680,7 +680,7 @@ export default function Clients() {
     staleTime: 1000 * 60 * 5, // 5 minutes cache
   });
 
-  const allCategories = [...DEFAULT_CATEGORIES, ...customProducts.map(p => p.name), ...customCategories.map(c => c.name)];
+  const allCategories = [...DEFAULT_CATEGORIES, ...customCategories.map(c => c.name)];
 
   // Fetch reseller apps (custom apps created by the reseller)
   const { data: resellerApps = [] } = useResellerApps(user?.id);
