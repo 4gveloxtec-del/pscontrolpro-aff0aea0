@@ -251,10 +251,55 @@ Deno.serve(async (req) => {
       for (const app of externalApps) {
         if (!app.appId) continue;
 
+        // Determine app type and set appropriate fields
         const isFixedApp = app.appId.startsWith('fixed-');
-        const fixedAppName = isFixedApp 
-          ? app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ') 
-          : null;
+        const isResellerApp = app.appId.startsWith('RESELLER:');
+        
+        let fixedAppName: string | null = null;
+        let externalAppId: string | null = null;
+        
+        if (isFixedApp) {
+          // Fixed system app (e.g., "fixed-ibo-pro" -> "IBO PRO")
+          fixedAppName = app.appId.replace('fixed-', '').toUpperCase().replace(/-/g, ' ');
+        } else if (isResellerApp) {
+          // Reseller app - store with RESELLER: prefix in fixed_app_name
+          // The app name is after the prefix
+          fixedAppName = app.appId; // Keep as "RESELLER:AppName"
+        } else {
+          // Check if it's a UUID (custom app from external_apps table)
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(app.appId);
+          
+          if (isUUID) {
+            // First check if it exists in external_apps table
+            const { data: externalApp } = await supabase
+              .from('external_apps')
+              .select('id')
+              .eq('id', app.appId)
+              .maybeSingle();
+            
+            if (externalApp) {
+              // It's a custom external app
+              externalAppId = app.appId;
+            } else {
+              // It's a reseller app UUID - get the name and store with prefix
+              const { data: resellerApp } = await supabase
+                .from('reseller_device_apps')
+                .select('name')
+                .eq('id', app.appId)
+                .maybeSingle();
+              
+              if (resellerApp) {
+                fixedAppName = `RESELLER:${resellerApp.name}`;
+              } else {
+                console.warn(`[AtomicUpsert] App ${app.appId} not found in any table, skipping`);
+                continue;
+              }
+            }
+          } else {
+            // Unknown format, try to save as fixed_app_name
+            fixedAppName = app.appId;
+          }
+        }
 
         const insertData = {
           client_id: finalClientId,
@@ -263,7 +308,7 @@ Deno.serve(async (req) => {
           email: app.email || null,
           password: app.password || null, // Already encrypted by client
           expiration_date: app.expirationDate || null,
-          external_app_id: isFixedApp ? null : app.appId,
+          external_app_id: externalAppId,
           fixed_app_name: fixedAppName,
         };
 
