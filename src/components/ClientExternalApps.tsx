@@ -703,6 +703,12 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
     const appName = fixedName.replace('RESELLER:', '');
     return resellerApps.find(ra => ra.name === appName) || { name: appName, icon: '📱', download_url: null };
   };
+  
+  // Helper to get fixed system app info by name
+  const getFixedAppInfo = (fixedName: string) => {
+    if (!fixedName || fixedName.startsWith('RESELLER:')) return null;
+    return FIXED_EXTERNAL_APPS.find(fa => fa.name === fixedName);
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -714,6 +720,8 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
       {linkedApps.map((app) => {
         // Check if it's a reseller app and get its info
         const resellerInfo = app.fixed_app_name ? getResellerAppInfo(app.fixed_app_name) : null;
+        // Check if it's a fixed system app
+        const fixedAppInfo = app.fixed_app_name ? getFixedAppInfo(app.fixed_app_name) : null;
         
         // Display name: remove RESELLER: prefix, use reseller app name, or fallback
         let displayName = app.external_app?.name || 'App';
@@ -724,8 +732,12 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
           displayName = resellerInfo.name;
           appIcon = resellerInfo.icon;
           appLink = resellerInfo.download_url || appLink;
+        } else if (fixedAppInfo) {
+          // Fixed system app - use its website_url or download_url
+          displayName = fixedAppInfo.name;
+          appLink = fixedAppInfo.website_url || fixedAppInfo.download_url || appLink;
         } else if (app.fixed_app_name && !app.fixed_app_name.startsWith('RESELLER:')) {
-          // Fixed system app
+          // Fallback for fixed system app not found in list
           displayName = app.fixed_app_name;
         }
         
