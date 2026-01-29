@@ -807,50 +807,41 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[80vh] sm:max-h-[90vh] overflow-y-auto p-3 sm:p-6">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-lg max-h-[75vh] sm:max-h-[85vh] overflow-y-auto p-2 sm:p-6">
+        <DialogHeader className="pb-1 sm:pb-2">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             Enviar Mensagem
             {clientSentInfo && (
-              <Badge variant="secondary" className="text-xs gap-1 text-success">
-                <CheckCircle className="h-3 w-3" />
+              <Badge variant="secondary" className="text-[10px] gap-1 text-success">
+                <CheckCircle className="h-2.5 w-2.5" />
                 Enviado
               </Badge>
             )}
           </DialogTitle>
-          <DialogDescription>
-            Enviar mensagem para {client.name}
-            {clientSentInfo && (
-              <span className="block text-xs text-success mt-1">
-                Última mensagem: {format(new Date(clientSentInfo.sentAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                {clientSentInfo.templateName && ` - ${clientSentInfo.templateName}`}
-              </span>
-            )}
+          <DialogDescription className="text-xs sm:text-sm">
+            Para: {client.name}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-2 sm:space-y-4">
           {/* Platform Selector */}
-          <div className="space-y-2">
-            <Label>Plataforma</Label>
-            <Tabs value={platform} onValueChange={(v) => handlePlatformChange(v as 'whatsapp' | 'telegram')}>
-              <TabsList className="w-full">
-                <TabsTrigger value="whatsapp" className="flex-1 gap-2">
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp
-                  {client.phone && <span className="text-xs text-muted-foreground">✓</span>}
-                </TabsTrigger>
-                <TabsTrigger value="telegram" className="flex-1 gap-2">
-                  <Send className="h-4 w-4" />
-                  Telegram
-                  {client.telegram && <span className="text-xs text-muted-foreground">✓</span>}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          <Tabs value={platform} onValueChange={(v) => handlePlatformChange(v as 'whatsapp' | 'telegram')}>
+            <TabsList className="w-full h-8">
+              <TabsTrigger value="whatsapp" className="flex-1 gap-1 text-xs h-7">
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+                {client.phone && <span className="text-[10px] text-muted-foreground">✓</span>}
+              </TabsTrigger>
+              <TabsTrigger value="telegram" className="flex-1 gap-1 text-xs h-7">
+                <Send className="h-3.5 w-3.5" />
+                Telegram
+                {client.telegram && <span className="text-[10px] text-muted-foreground">✓</span>}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          {/* Filters */}
-          <div className="space-y-3">
+          {/* Filters - hidden on mobile for compactness */}
+          <div className="hidden sm:block space-y-3">
             {/* Category Filter */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Categoria</Label>
@@ -938,28 +929,23 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label>Template</Label>
-              {isPrivacyMode && (
-                <span className="text-xs text-warning">⚠️ Modo privacidade ativo</span>
-              )}
-            </div>
+          <div className="space-y-1">
+            <Label className="text-xs sm:text-sm">Template</Label>
             <Select 
               value={selectedTemplate} 
               onValueChange={handleTemplateChange}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-8 sm:h-10 text-xs sm:text-sm">
                 <SelectValue placeholder="Selecione um template" />
               </SelectTrigger>
               <SelectContent>
                 {filteredTemplates.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground text-center">
-                    Nenhum template {categoryFilter !== 'all' ? `para ${categoryFilter}` : ''} ({platform === 'telegram' ? 'Telegram' : 'WhatsApp'})
+                  <div className="p-2 text-xs text-muted-foreground text-center">
+                    Nenhum template ({platform === 'telegram' ? 'Telegram' : 'WhatsApp'})
                   </div>
                 ) : (
                   filteredTemplates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
+                    <SelectItem key={template.id} value={template.id} className="text-xs sm:text-sm">
                       {template.name.replace('[TG] ', '')}
                     </SelectItem>
                   ))
@@ -968,76 +954,73 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <Label>Mensagem</Label>
+              <Label className="text-xs sm:text-sm">Mensagem</Label>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={handleCopy}
                 disabled={!message.trim()}
-                className="h-7 text-xs"
+                className="h-6 text-[10px] sm:text-xs px-1.5"
               >
-                <Copy className="h-3 w-3 mr-1" />
+                <Copy className="h-3 w-3 mr-0.5" />
                 Copiar
               </Button>
             </div>
             <Textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              className="min-h-[80px] sm:min-h-[140px] resize-none text-sm"
-              placeholder="Escreva sua mensagem ou selecione um template..."
+              rows={3}
+              className="min-h-[60px] sm:min-h-[120px] resize-none text-xs sm:text-sm"
+              placeholder="Selecione um template..."
             />
           </div>
 
-          {/* PIX Key Quick Copy */}
+          {/* PIX Key Quick Copy - compact */}
           {sellerProfile?.pix_key && (
-            <div className="flex items-center justify-between gap-1.5 p-2 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                <CreditCard className="h-3.5 w-3.5 text-primary shrink-0" />
-                <p className="text-xs text-muted-foreground truncate">
+            <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-primary/5 border border-primary/20">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                <CreditCard className="h-3 w-3 text-primary shrink-0" />
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                   {sellerProfile.pix_key}
                 </p>
               </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={handleCopyPix}
-                className="h-6 text-xs shrink-0 px-2"
+                className="h-5 text-[10px] shrink-0 px-1"
               >
-                <Copy className="h-3 w-3" />
+                <Copy className="h-2.5 w-2.5" />
               </Button>
             </div>
           )}
 
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={handleCopy} disabled={!message.trim()} className="w-full sm:w-auto">
-            <Copy className="h-4 w-4 mr-2" />
-            Copiar
-          </Button>
+        <DialogFooter className="flex-row gap-1.5 sm:gap-2 pt-2">
           {canSendViaApi && (
             <Button 
               onClick={handleSendViaApi} 
               disabled={!message.trim() || isSendingViaApi}
               variant="default"
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+              size="sm"
+              className="flex-1 sm:flex-none h-8 text-xs sm:text-sm bg-green-600 hover:bg-green-700"
             >
               {isSendingViaApi ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
               ) : (
-                <Zap className="h-4 w-4 mr-2" />
+                <Zap className="h-3.5 w-3.5 mr-1" />
               )}
-              Enviar via API
+              <span className="hidden sm:inline">Enviar via </span>API
             </Button>
           )}
-          <Button onClick={handleSend} disabled={!message.trim() || !canSend} className="w-full sm:w-auto">
-            <Send className="h-4 w-4 mr-2" />
-            {platform === 'telegram' ? 'Abrir Telegram' : 'Abrir WhatsApp'}
+          <Button onClick={handleSend} disabled={!message.trim() || !canSend} size="sm" className="flex-1 sm:flex-none h-8 text-xs sm:text-sm">
+            <Send className="h-3.5 w-3.5 mr-1" />
+            {platform === 'telegram' ? 'Telegram' : 'WhatsApp'}
           </Button>
         </DialogFooter>
       </DialogContent>
