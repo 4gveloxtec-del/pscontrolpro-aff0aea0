@@ -73,6 +73,7 @@ table, tabs, textarea, toast, toaster, toggle, toggle-group, tooltip
 | ServerAppsManager | Gestão apps por servidor |
 | ServerImageUpload | Upload de ícone servidor |
 | SharedCreditPicker | Seletor de créditos |
+| SharedServersModal | Modal servidores cadastrados (multi-select) |
 | ExternalAppsManager | Gestão apps externos |
 | SendMessageDialog | Modal envio mensagem |
 | BulkCollectionDialog | Cobrança em massa |
