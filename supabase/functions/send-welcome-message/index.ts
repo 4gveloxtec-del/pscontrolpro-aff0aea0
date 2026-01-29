@@ -166,13 +166,24 @@ function replaceVariables(template: string, variables: Record<string, string>): 
   return result;
 }
 
-// Format date to DD/MM/YYYY - uses T12:00:00 to avoid timezone shift
+// Format date to DD/MM/YYYY - parse date-only as components to avoid timezone shift
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
-  // Parse as local date by adding T12:00:00 to avoid timezone issues
-  const normalizedDate = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
-  const date = new Date(normalizedDate);
-  return date.toLocaleDateString('pt-BR');
+  
+  // For date-only strings (yyyy-MM-dd), parse components directly to avoid timezone issues
+  const dateOnlyMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    // Return formatted directly without creating a Date object
+    return `${day}/${month}/${year}`;
+  }
+  
+  // For datetime strings, use the Date object
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  
+  // Format in São Paulo timezone to avoid UTC conversion issues
+  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
 Deno.serve(async (req) => {
