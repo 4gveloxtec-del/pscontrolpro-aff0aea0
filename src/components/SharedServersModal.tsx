@@ -163,7 +163,7 @@ export function SharedServersModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh]">
+      <DialogContent className="sm:max-w-2xl w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
@@ -175,14 +175,14 @@ export function SharedServersModal({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'list' | 'add')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="list" className="gap-2">
-              <Server className="h-4 w-4" />
-              Ver Servidores ({servers.length})
+          <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
+            <TabsTrigger value="list" className="gap-1 sm:gap-2 text-xs sm:text-sm">
+              <Server className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Ver</span> Servidores ({servers.length})
             </TabsTrigger>
-            <TabsTrigger value="add" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Adicionar Novo
+            <TabsTrigger value="add" className="gap-1 sm:gap-2 text-xs sm:text-sm">
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Adicionar</span> Novo
             </TabsTrigger>
           </TabsList>
 
@@ -198,7 +198,7 @@ export function SharedServersModal({
               />
             </div>
 
-            <ScrollArea className="h-[350px] pr-4">
+            <ScrollArea className="h-[40vh] sm:h-[350px] pr-2 sm:pr-4">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -225,13 +225,13 @@ export function SharedServersModal({
                     <div
                       key={server.id}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border transition-all group",
+                        "flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all group",
                         "hover:border-primary/50 hover:bg-primary/5",
                         selectedId === server.id && "border-primary bg-primary/10"
                       )}
                     >
                       {/* Icon */}
-                      <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-muted border">
+                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-muted border">
                         {server.icon_url ? (
                           <img
                             src={server.icon_url}
@@ -243,28 +243,28 @@ export function SharedServersModal({
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Server className="h-5 w-5 text-muted-foreground" />
+                            <Server className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
                           </div>
                         )}
                       </div>
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-sm truncate">{server.name}</h4>
+                        <h4 className="font-semibold text-xs sm:text-sm truncate">{server.name}</h4>
                         {server.panel_url && (
-                          <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                            {server.panel_url}
+                          <p className="text-[10px] sm:text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                            <ExternalLink className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                            <span className="truncate">{server.panel_url}</span>
                           </p>
                         )}
-                        <div className="flex gap-2 mt-1">
+                        <div className="flex gap-1 sm:gap-2 mt-1">
                           {server.icon_url && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-600 border-green-500/20">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-green-500/10 text-green-600 border-green-500/20">
                               Ícone
                             </Badge>
                           )}
                           {server.panel_url && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/10 text-blue-600 border-blue-500/20">
+                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-blue-500/10 text-blue-600 border-blue-500/20">
                               Painel
                             </Badge>
                           )}
@@ -272,22 +272,22 @@ export function SharedServersModal({
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 px-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-7 sm:h-8 px-2 sm:px-3 text-xs"
                           onClick={() => handleSelect(server)}
                         >
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          Usar
+                          <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 sm:mr-1" />
+                          <span className="hidden sm:inline">Usar</span>
                         </Button>
                         
                         {isAdmin && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                             onClick={() => {
                               confirm({
                                 title: 'Remover servidor',
