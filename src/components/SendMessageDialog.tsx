@@ -807,7 +807,7 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Enviar Mensagem
@@ -986,19 +986,20 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
             <Textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              rows={8}
+              rows={5}
+              className="min-h-[120px] sm:min-h-[160px] resize-none"
               placeholder="Escreva sua mensagem ou selecione um template..."
             />
           </div>
 
           {/* PIX Key Quick Copy */}
           {sellerProfile?.pix_key && (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-primary" />
-                <div>
+            <div className="flex items-center justify-between gap-2 p-2 sm:p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <CreditCard className="h-4 w-4 text-primary shrink-0" />
+                <div className="min-w-0">
                   <p className="text-xs font-medium">Chave PIX</p>
-                  <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                  <p className="text-xs text-muted-foreground truncate">
                     {sellerProfile.pix_key}
                   </p>
                 </div>
@@ -1008,10 +1009,10 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
                 variant="outline"
                 size="sm"
                 onClick={handleCopyPix}
-                className="h-7 text-xs"
+                className="h-7 text-xs shrink-0"
               >
-                <Copy className="h-3 w-3 mr-1" />
-                Copiar PIX
+                <Copy className="h-3 w-3 sm:mr-1" />
+                <span className="hidden sm:inline">Copiar PIX</span>
               </Button>
             </div>
           )}
