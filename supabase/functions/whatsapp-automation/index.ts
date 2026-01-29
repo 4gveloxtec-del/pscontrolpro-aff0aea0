@@ -378,8 +378,9 @@ Deno.serve(async (req: Request) => {
         let templateType = '';
 
         if (daysLeft === 0) {
-          notificationType = 'plano_vencimento';
-          templateType = 'expired';
+          // Vence HOJE - usar template "vence hoje", NÃO "vencido"
+          notificationType = 'plano_hoje';
+          templateType = 'expiring_today';
         } else if (daysLeft === 3) {
           notificationType = 'plano_3_dias';
           templateType = 'expiring_3days';
