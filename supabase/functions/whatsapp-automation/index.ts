@@ -200,12 +200,14 @@ function daysSince(dateStr: string): number {
 function getNotificationLabel(notificationType: string): { title: string; emoji: string } {
   const labels: Record<string, { title: string; emoji: string }> = {
     'app_vencimento': { title: 'App Vencido', emoji: '🔴' },
-    'app_1_dia': { title: 'App Vence Amanhã', emoji: '🟠' },
-    'app_3_dias': { title: 'App Vence em 3 dias', emoji: '🟡' },
+    'app_hoje': { title: 'App Vence Hoje', emoji: '🟠' },
+    'app_1_dia': { title: 'App Vence Amanhã', emoji: '🟡' },
+    'app_3_dias': { title: 'App Vence em 3 dias', emoji: '🔵' },
     'app_30_dias': { title: 'App Vence em 30 dias', emoji: '🔵' },
     'iptv_vencimento': { title: 'Plano Vencido', emoji: '🔴' },
-    'iptv_1_dia': { title: 'Plano Vence Amanhã', emoji: '🟠' },
-    'iptv_3_dias': { title: 'Plano Vence em 3 dias', emoji: '🟡' },
+    'iptv_hoje': { title: 'Plano Vence Hoje', emoji: '🟠' },
+    'iptv_1_dia': { title: 'Plano Vence Amanhã', emoji: '🟡' },
+    'iptv_3_dias': { title: 'Plano Vence em 3 dias', emoji: '🔵' },
     'renovacao': { title: 'Renovação', emoji: '✅' },
     'cobranca': { title: 'Cobrança', emoji: '💰' },
     'payment_overdue_1day': { title: 'Pagamento Atrasado (1 dia)', emoji: '⚠️' },
@@ -545,13 +547,18 @@ Deno.serve(async (req: Request) => {
           // Payment overdue by 1 day - NEW NOTIFICATION TYPE
           notificationType = 'payment_overdue_1day';
           templateType = 'payment_overdue_1day';
-        } else if (hasUnpaidAmount && daysLeft <= 0) {
-          // Cobrança - client expired and has pending payment
+        } else if (hasUnpaidAmount && daysLeft < 0) {
+          // Cobrança - client expired (1+ days ago) and has pending payment
           notificationType = 'cobranca';
           templateType = 'billing';
-        } else if (daysLeft === 0) {
+        } else if (daysLeft < 0) {
+          // Vencido (1+ dias após vencimento) - mensagem de VENCIDO
           notificationType = isPaidApp ? 'app_vencimento' : 'iptv_vencimento';
           templateType = 'expired';
+        } else if (daysLeft === 0) {
+          // Vence HOJE - mensagem de "vence hoje", NÃO de vencido
+          notificationType = isPaidApp ? 'app_hoje' : 'iptv_hoje';
+          templateType = 'expiring_today';
         } else if (daysLeft === 1) {
           // 1 day before expiration - useful for short tests (7 days)
           notificationType = isPaidApp ? 'app_1_dia' : 'iptv_1_dia';

@@ -61,17 +61,24 @@ function formatExpirationMessage(client: ExpiringClient, today: Date): { title: 
   let emoji: string;
   let timeText: string;
   
-  if (diffDays <= 0) {
+  if (diffDays < 0) {
+    // Vencido (1+ dias após vencimento)
     urgency = 'expired';
     emoji = '🔴';
-    timeText = 'Venceu hoje!';
-  } else if (diffDays === 1) {
+    const daysOverdue = Math.abs(diffDays);
+    timeText = daysOverdue === 1 ? 'Vencido há 1 dia!' : `Vencido há ${daysOverdue} dias!`;
+  } else if (diffDays === 0) {
+    // Vence HOJE (não vencido ainda)
     urgency = 'critical';
     emoji = '🟠';
-    timeText = 'Vence amanhã!';
-  } else if (diffDays === 2) {
+    timeText = 'Vence HOJE!';
+  } else if (diffDays === 1) {
     urgency = 'warning';
     emoji = '🟡';
+    timeText = 'Vence amanhã!';
+  } else if (diffDays === 2) {
+    urgency = 'info';
+    emoji = '🔵';
     timeText = 'Vence em 2 dias';
   } else {
     urgency = 'info';
