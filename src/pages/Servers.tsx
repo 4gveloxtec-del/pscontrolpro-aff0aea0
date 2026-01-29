@@ -205,6 +205,30 @@ export default function Servers() {
     enabled: !!user?.id,
   });
 
+  // Fetch client counts per server
+  const { data: clientCountsMap = {} } = useQuery({
+    queryKey: ['server-client-counts', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('server_id')
+        .eq('seller_id', user!.id)
+        .not('server_id', 'is', null);
+      
+      if (error) throw error;
+      
+      // Count clients per server_id
+      const counts: Record<string, number> = {};
+      (data || []).forEach(client => {
+        if (client.server_id) {
+          counts[client.server_id] = (counts[client.server_id] || 0) + 1;
+        }
+      });
+      return counts;
+    },
+    enabled: !!user?.id,
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: { 
       name: string; 
@@ -923,9 +947,15 @@ export default function Servers() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-lg font-semibold">R$ {server.monthly_cost.toFixed(2)}/mês</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-lg font-semibold">R$ {server.monthly_cost.toFixed(2)}/mês</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Users className="h-4 w-4" />
+                      <span>{clientCountsMap[server.id] || 0}</span>
+                    </div>
                   </div>
                   
                   {/* Credit info */}
