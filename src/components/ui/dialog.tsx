@@ -65,13 +65,16 @@ const DialogContent = React.forwardRef<
       )}
       {...props}
     >
-      {/* Mobile drag indicator */}
-      <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mb-2 flex-shrink-0" />
-      {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted/50 sm:bg-transparent touch-target">
+      {/* Close button - sticky to stay visible during scroll */}
+      <DialogPrimitive.Close 
+        className="sticky top-0 right-0 z-50 ml-auto -mt-1 -mr-1 sm:-mt-2 sm:-mr-2 rounded-full opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 touch-target shrink-0"
+      >
         <X className="h-4 w-4 sm:h-5 sm:w-5" />
         <span className="sr-only">Fechar</span>
       </DialogPrimitive.Close>
+      {/* Mobile drag indicator */}
+      <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto -mt-6 mb-2 flex-shrink-0" />
+      {children}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
