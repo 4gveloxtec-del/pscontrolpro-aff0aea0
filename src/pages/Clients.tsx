@@ -549,6 +549,23 @@ export default function Clients() {
   // Use accumulated clients for the rest of the component
   const clients = allLoadedClients;
 
+  // Count archived clients for the tab badge (separate from main query)
+  const { data: archivedClientsCount = 0 } = useQuery({
+    queryKey: ['archived-clients-count', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 0;
+      const { count, error } = await supabase
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', user.id)
+        .eq('is_archived', true);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 30, // 30 seconds
+  });
+
   // Fetch client IDs that have external apps (paid apps) - with cache optimization
   const { data: clientsWithExternalApps = [] } = useQuery({
     queryKey: ['clients-with-external-apps', user?.id],
@@ -3820,7 +3837,7 @@ export default function Clients() {
               </TabsTrigger>
               <TabsTrigger value="archived" className="gap-1">
                 <Archive className="h-3 w-3" />
-                Lixeira ({archivedClients.length})
+                Lixeira ({archivedClientsCount})
               </TabsTrigger>
             </TabsList>
           </Tabs>
