@@ -297,8 +297,8 @@
   }
 
   html {
-    /* Smooth scrolling */
-    scroll-behavior: smooth;
+    /* Use auto scroll to allow instant scroll restoration */
+    scroll-behavior: auto;
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     /* Prevent horizontal overflow */
@@ -505,7 +505,8 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  /* Use auto to allow instant scroll restoration */
+  scroll-behavior: auto;
 }
 
 /* Ensure main content areas are scrollable */
