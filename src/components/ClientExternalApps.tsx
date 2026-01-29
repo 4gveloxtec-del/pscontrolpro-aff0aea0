@@ -27,7 +27,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { type ExternalApp, FIXED_EXTERNAL_APPS } from './ExternalAppsManager';
 import { InlineExternalAppCreator, InlineResellerAppCreator } from './InlineAppCreator';
-import { RESELLER_DEVICE_APPS_QUERY_KEY } from '@/hooks/useResellerDeviceApps';
+import { RESELLER_DEVICE_APPS_QUERY_KEY, useResellerDeviceApps } from '@/hooks/useResellerDeviceApps';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AppSelectorMobile } from './AppSelectorMobile';
 
@@ -657,19 +657,8 @@ interface ClientExternalAppsDisplayProps {
 export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDisplayProps) {
   const { decrypt } = useCrypto();
   
-  // Fetch reseller apps to get icon and download_url
-  const { data: resellerApps = [] } = useQuery({
-    queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, 'display'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reseller_device_apps' as any)
-        .select('id, name, icon, download_url')
-        .eq('is_active', true);
-      if (error) throw error;
-      return (data || []) as unknown as { id: string; name: string; icon: string; download_url: string | null }[];
-    },
-    staleTime: 300000, // 5 minutes cache
-  });
+  // Fetch reseller apps to get icon and download_url - uses same query key as ResellerAppsManager for cache sync
+  const { data: resellerApps = [] } = useResellerDeviceApps(undefined);
   
   const { data: linkedApps = [], isLoading } = useQuery({
     queryKey: ['client-external-apps-display', clientId],
