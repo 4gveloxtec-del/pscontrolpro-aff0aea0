@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,9 +17,11 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Search, Server, ExternalLink, Check, Plus, 
-  Loader2, Users, Image, Link, Upload, AlertCircle 
+  Loader2, Users, Image, Link, Upload, AlertCircle,
+  CheckSquare, Square
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -39,6 +41,10 @@ interface SharedServersModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectServer: (server: { name: string; icon_url: string; panel_url?: string | null }) => void;
+  /** When true, allows selecting multiple servers at once */
+  multiSelect?: boolean;
+  /** Callback for multi-select mode */
+  onSelectMultiple?: (servers: Array<{ name: string; icon_url: string; panel_url?: string | null }>) => void;
 }
 
 // Normalize server name for comparison
@@ -50,12 +56,15 @@ export function SharedServersModal({
   open,
   onOpenChange,
   onSelectServer,
+  multiSelect = false,
+  onSelectMultiple,
 }: SharedServersModalProps) {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const { dialogProps, confirm } = useConfirmDialog();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
   const [newServerData, setNewServerData] = useState({
     name: '',
@@ -137,20 +146,66 @@ export function SharedServersModal({
     },
   });
 
-  const filteredServers = servers.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase())
+  const filteredServers = useMemo(() => 
+    servers.filter(s => s.name.toLowerCase().includes(search.toLowerCase())),
+    [servers, search]
   );
 
-  const handleSelect = (server: SharedServer) => {
-    setSelectedId(server.id);
-    onSelectServer({
-      name: server.name,
-      icon_url: server.icon_url || '',
-      panel_url: server.panel_url,
+  // Toggle selection for multi-select mode
+  const toggleSelection = (serverId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(serverId)) {
+        next.delete(serverId);
+      } else {
+        next.add(serverId);
+      }
+      return next;
     });
+  };
+
+  // Select/Deselect all filtered servers
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredServers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredServers.map(s => s.id)));
+    }
+  };
+
+  const handleSelect = (server: SharedServer) => {
+    if (multiSelect) {
+      toggleSelection(server.id);
+    } else {
+      setSelectedId(server.id);
+      onSelectServer({
+        name: server.name,
+        icon_url: server.icon_url || '',
+        panel_url: server.panel_url,
+      });
+      onOpenChange(false);
+      setSearch('');
+      setSelectedId(null);
+    }
+  };
+
+  const handleConfirmMultiSelect = () => {
+    const selectedServers = servers
+      .filter(s => selectedIds.has(s.id))
+      .map(s => ({
+        name: s.name,
+        icon_url: s.icon_url || '',
+        panel_url: s.panel_url,
+      }));
+    
+    if (onSelectMultiple) {
+      onSelectMultiple(selectedServers);
+    }
+    
     onOpenChange(false);
     setSearch('');
-    setSelectedId(null);
+    setSelectedIds(new Set());
+    toast.success(`${selectedServers.length} servidor(es) selecionado(s)!`);
   };
 
   const handleAddServer = () => {
@@ -161,8 +216,17 @@ export function SharedServersModal({
     addServerMutation.mutate(newServerData);
   };
 
+  // Reset selection when modal closes
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setSelectedIds(new Set());
+      setSearch('');
+    }
+    onOpenChange(isOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -188,17 +252,57 @@ export function SharedServersModal({
 
           {/* List Tab */}
           <TabsContent value="list" className="space-y-3 mt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar servidor..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+            {/* Search + Select All */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar servidor..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {multiSelect && filteredServers.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleSelectAll}
+                  className="gap-1 h-10 px-3 whitespace-nowrap"
+                >
+                  {selectedIds.size === filteredServers.length ? (
+                    <>
+                      <CheckSquare className="h-4 w-4" />
+                      <span className="hidden sm:inline">Desmarcar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Square className="h-4 w-4" />
+                      <span className="hidden sm:inline">Selecionar Todos</span>
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
-            <ScrollArea className="h-[40vh] sm:h-[350px] pr-2 sm:pr-4">
+            {/* Selection count indicator */}
+            {multiSelect && selectedIds.size > 0 && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                <span className="text-sm font-medium text-primary">
+                  {selectedIds.size} servidor(es) selecionado(s)
+                </span>
+                <Button
+                  size="sm"
+                  onClick={handleConfirmMultiSelect}
+                  className="h-7 gap-1"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Confirmar
+                </Button>
+              </div>
+            )}
+
+            <ScrollArea className="h-[35vh] sm:h-[300px] pr-2 sm:pr-4">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -221,93 +325,127 @@ export function SharedServersModal({
                 </div>
               ) : (
                 <div className="grid gap-2">
-                  {filteredServers.map((server) => (
-                    <div
-                      key={server.id}
-                      className={cn(
-                        "flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all group",
-                        "hover:border-primary/50 hover:bg-primary/5",
-                        selectedId === server.id && "border-primary bg-primary/10"
-                      )}
-                    >
-                      {/* Icon */}
-                      <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-muted border">
-                        {server.icon_url ? (
-                          <img
-                            src={server.icon_url}
-                            alt={server.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Server className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                  {filteredServers.map((server) => {
+                    const isSelected = multiSelect 
+                      ? selectedIds.has(server.id) 
+                      : selectedId === server.id;
+                    
+                    return (
+                      <div
+                        key={server.id}
+                        className={cn(
+                          "flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border transition-all group cursor-pointer",
+                          "hover:border-primary/50 hover:bg-primary/5",
+                          isSelected && "border-primary bg-primary/10"
+                        )}
+                        onClick={() => multiSelect && handleSelect(server)}
+                      >
+                        {/* Checkbox for multi-select */}
+                        {multiSelect && (
+                          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelection(server.id)}
+                              className="h-5 w-5"
+                            />
                           </div>
                         )}
-                      </div>
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-xs sm:text-sm truncate">{server.name}</h4>
-                        {server.panel_url && (
-                          <p className="text-[10px] sm:text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-                            <ExternalLink className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-                            <span className="truncate">{server.panel_url}</span>
-                          </p>
-                        )}
-                        <div className="flex gap-1 sm:gap-2 mt-1">
-                          {server.icon_url && (
-                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-green-500/10 text-green-600 border-green-500/20">
-                              Ícone
-                            </Badge>
+                        {/* Icon */}
+                        <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-muted border">
+                          {server.icon_url ? (
+                            <img
+                              src={server.icon_url}
+                              alt={server.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Server className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                            </div>
                           )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-xs sm:text-sm truncate">{server.name}</h4>
                           {server.panel_url && (
-                            <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-blue-500/10 text-blue-600 border-blue-500/20">
-                              Painel
-                            </Badge>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                              <ExternalLink className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                              <span className="truncate">{server.panel_url}</span>
+                            </p>
+                          )}
+                          <div className="flex gap-1 sm:gap-2 mt-1">
+                            {server.icon_url && (
+                              <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-green-500/10 text-green-600 border-green-500/20">
+                                Ícone
+                              </Badge>
+                            )}
+                            {server.panel_url && (
+                              <Badge variant="outline" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                Painel
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          {!multiSelect && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 sm:h-8 px-2 sm:px-3 text-xs"
+                              onClick={() => handleSelect(server)}
+                            >
+                              <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 sm:mr-1" />
+                              <span className="hidden sm:inline">Usar</span>
+                            </Button>
+                          )}
+                          
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirm({
+                                  title: 'Remover servidor',
+                                  description: `Tem certeza que deseja remover "${server.name}" da lista compartilhada?`,
+                                  confirmText: 'Remover',
+                                  variant: 'destructive',
+                                  onConfirm: () => deleteServerMutation.mutate(server.id),
+                                });
+                              }}
+                              disabled={deleteServerMutation.isPending}
+                            >
+                              ×
+                            </Button>
                           )}
                         </div>
                       </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 sm:h-8 px-2 sm:px-3 text-xs"
-                          onClick={() => handleSelect(server)}
-                        >
-                          <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 sm:mr-1" />
-                          <span className="hidden sm:inline">Usar</span>
-                        </Button>
-                        
-                        {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              confirm({
-                                title: 'Remover servidor',
-                                description: `Tem certeza que deseja remover "${server.name}" da lista compartilhada?`,
-                                confirmText: 'Remover',
-                                variant: 'destructive',
-                                onConfirm: () => deleteServerMutation.mutate(server.id),
-                              });
-                            }}
-                            disabled={deleteServerMutation.isPending}
-                          >
-                            ×
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>
+
+            {/* Floating confirm button for mobile multi-select */}
+            {multiSelect && selectedIds.size > 0 && (
+              <div className="sm:hidden pt-2 border-t">
+                <Button
+                  className="w-full gap-2"
+                  onClick={handleConfirmMultiSelect}
+                >
+                  <Check className="h-4 w-4" />
+                  Importar {selectedIds.size} servidor(es)
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           {/* Add Tab */}
