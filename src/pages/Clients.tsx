@@ -335,16 +335,25 @@ export default function Clients() {
   const AUTOLOAD_ALL_UP_TO = 250; // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
 
   // Get total count of clients for accurate pagination info
+  // Determine if we're viewing archived clients
+  const isViewingArchived = filter === 'archived';
+
   const { data: clientCount } = useQuery({
-    queryKey: ['clients-count', user?.id, debouncedSearch],
+    queryKey: ['clients-count', user?.id, debouncedSearch, isViewingArchived],
     queryFn: async () => {
       if (!user?.id) return 0;
 
       let query = supabase
         .from('clients')
         .select('id', { count: 'exact', head: true })
-        .eq('seller_id', user.id)
-        .or('is_archived.is.null,is_archived.eq.false');
+        .eq('seller_id', user.id);
+
+      // Filter by archived status
+      if (isViewingArchived) {
+        query = query.eq('is_archived', true);
+      } else {
+        query = query.or('is_archived.is.null,is_archived.eq.false');
+      }
 
       const raw = debouncedSearch.trim();
       if (raw) {
@@ -392,7 +401,7 @@ export default function Clients() {
   }, [clientCount, allLoadedClients.length]);
 
   const { data: fetchedClients = [], isLoading, isFetching, isSuccess, dataUpdatedAt } = useQuery({
-    queryKey: ['clients', user?.id, dbPage, debouncedSearch],
+    queryKey: ['clients', user?.id, dbPage, debouncedSearch, isViewingArchived],
     queryFn: async () => {
       if (!user?.id) return [];
       const from = dbPage * CLIENTS_PER_PAGE;
@@ -412,8 +421,14 @@ export default function Clients() {
           app_name, app_type, device_model, additional_servers,
           is_test, is_integrated
         `)
+        .eq('seller_id', user.id);
 
-      query = query.eq('seller_id', user.id).or('is_archived.is.null,is_archived.eq.false');
+      // Filter by archived status
+      if (isViewingArchived) {
+        query = query.eq('is_archived', true);
+      } else {
+        query = query.or('is_archived.is.null,is_archived.eq.false');
+      }
 
       const raw = debouncedSearch.trim();
       if (raw) {
@@ -446,7 +461,7 @@ export default function Clients() {
 
       // Ordenação/paginação sempre no banco
       const { data, error } = await query
-        .order('expiration_date', { ascending: true })
+        .order(isViewingArchived ? 'archived_at' : 'expiration_date', { ascending: !isViewingArchived })
         .range(from, to);
       
       if (error) throw error;
@@ -467,13 +482,13 @@ export default function Clients() {
     refetchOnMount: 'always',
   });
 
-  // Quando a busca muda, reinicia o carregamento no banco para buscar em TODO o dataset
+  // Quando a busca ou o filtro de arquivados muda, reinicia o carregamento no banco
   useEffect(() => {
     if (!user?.id) return;
     setDbPage(0);
     setAllLoadedClients([]);
     setHasMoreClients(true);
-  }, [debouncedSearch, user?.id]);
+  }, [debouncedSearch, user?.id, isViewingArchived]);
 
   // Accumulate loaded clients when fetching new pages - use isSuccess and dataUpdatedAt for reliable updates
   useEffect(() => {
@@ -2437,10 +2452,16 @@ export default function Clients() {
   };
 
   // Separate archived and active clients - memoized for performance
-  const { activeClients, archivedClients } = useMemo(() => ({
-    activeClients: clients.filter(c => !c.is_archived),
-    archivedClients: clients.filter(c => c.is_archived),
-  }), [clients]);
+  // Note: When isViewingArchived is true, all loaded clients are archived (fetched from DB with is_archived=true)
+  // When isViewingArchived is false, all loaded clients are active (fetched from DB with is_archived=false/null)
+  const { activeClients, archivedClients } = useMemo(() => {
+    if (isViewingArchived) {
+      // All loaded clients are archived when viewing archived filter
+      return { activeClients: [], archivedClients: clients };
+    }
+    // All loaded clients are active when viewing other filters
+    return { activeClients: clients, archivedClients: [] };
+  }, [clients, isViewingArchived]);
 
   // Get expired clients that have been contacted (sent message)
   const expiredCalledClients = useMemo(() => activeClients.filter(c => {
