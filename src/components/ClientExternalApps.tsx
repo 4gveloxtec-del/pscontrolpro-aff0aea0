@@ -450,18 +450,36 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                 {/* Expanded Content */}
                 {app.appId && isExpanded && (
                   <div className="px-2 pb-2 space-y-2 border-t bg-muted/30">
-                    {/* Website link */}
-                    {appDetails?.website_url && (
-                      <a
-                        href={appDetails.website_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs text-primary hover:underline pt-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Abrir site do app
-                      </a>
+                    {/* Links Section */}
+                    {(appDetails?.website_url || appDetails?.download_url) && (
+                      <div className="flex flex-wrap items-center gap-3 pt-2">
+                        {/* Website link */}
+                        {appDetails?.website_url && (
+                          <a
+                            href={appDetails.website_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Abrir site do app
+                          </a>
+                        )}
+                        {/* Download link */}
+                        {appDetails?.download_url && (
+                          <a
+                            href={appDetails.download_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Download do App
+                          </a>
+                        )}
+                      </div>
                     )}
 
                     {/* MAC Authentication */}
