@@ -2466,7 +2466,8 @@ export default function Clients() {
   const nextWeek = addDays(today, 7);
 
   const getClientStatus = (client: Client) => {
-    const expDate = new Date(client.expiration_date);
+    // Usar T12:00:00 para evitar problemas de timezone
+    const expDate = new Date(client.expiration_date + 'T12:00:00');
     if (isBefore(expDate, today)) return 'expired';
     if (isBefore(expDate, nextWeek)) return 'expiring';
     return 'active';
@@ -4019,7 +4020,7 @@ export default function Clients() {
         <div className="clients-grid">
           {paginatedClients.map((client) => {
             const status = getClientStatus(client);
-            const daysLeft = differenceInDays(new Date(client.expiration_date), today);
+            const daysLeft = differenceInDays(new Date(client.expiration_date + 'T12:00:00'), today);
             const hasCredentials = client.login || client.password;
             const isDecrypted = decryptedCredentials[client.id];
             const isDecrypting = decrypting === client.id;
@@ -4147,7 +4148,7 @@ export default function Clients() {
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <CalendarIcon className="h-3.5 w-3.5" />
-                      <span>{format(new Date(client.expiration_date), "dd/MM/yyyy")}</span>
+                      <span>{format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy")}</span>
                     </div>
                     
                     {/* Plan + Server Badges */}
@@ -5118,7 +5119,7 @@ export default function Clients() {
                                     )}
                                   </div>
                                   <span className="text-xs text-muted-foreground">
-                                    Vence: {format(new Date(client.expiration_date), "dd/MM/yyyy", { locale: ptBR })}
+                                    Vence: {format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })}
                                   </span>
                                 </div>
                                 

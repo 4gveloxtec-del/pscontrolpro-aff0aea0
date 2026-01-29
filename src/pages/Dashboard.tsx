@@ -1202,7 +1202,7 @@ export default function Dashboard() {
                           <div>
                             <p className="font-medium">{maskData(client.name, 'name')}</p>
                             <p className="text-xs text-muted-foreground">
-                              {client.plan_name} • {format(new Date(client.expiration_date), "dd/MM/yyyy")}
+                              {client.plan_name} • {format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy")}
                             </p>
                           </div>
                         </div>
