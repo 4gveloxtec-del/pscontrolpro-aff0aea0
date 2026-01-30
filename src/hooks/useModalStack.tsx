@@ -49,15 +49,16 @@ export function useModalStack({ id, isOpen, onClose, data }: UseModalStackOption
       navigation.pushModal(modalId, stableOnClose, data);
     } else {
       // Only pop if this modal is in the stack
+      // Use skipCallback=true because the modal was closed via UI (onOpenChange already called)
       if (navigation.isModalOpen(modalId)) {
-        navigation.popModal(modalId);
+        navigation.popModal(modalId, true);
       }
     }
     
-    // Cleanup on unmount
+    // Cleanup on unmount - also skip callback to avoid double-trigger
     return () => {
       if (navigation.isModalOpen(modalId)) {
-        navigation.popModal(modalId);
+        navigation.popModal(modalId, true);
       }
     };
   }, [isOpen, modalId, navigation, stableOnClose, data]);

@@ -22,7 +22,7 @@ interface NavigationContextType {
   
   // Modal methods
   pushModal: (id: string, onClose?: () => void, data?: Record<string, unknown>) => void;
-  popModal: (id?: string) => boolean;
+  popModal: (id?: string, skipCallback?: boolean) => boolean;
   closeAllModals: () => void;
   isModalOpen: (id: string) => boolean;
   
@@ -168,7 +168,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const poppedModalsRef = useRef<Set<string>>(new Set());
   
   // Pop a modal from the stack with idempotency
-  const popModal = useCallback((id?: string): boolean => {
+  // skipCallback: when true, removes from stack without calling onClose (used when modal already closed via UI)
+  const popModal = useCallback((id?: string, skipCallback?: boolean): boolean => {
     // If specific id provided, check idempotency
     if (id && poppedModalsRef.current.has(id)) {
       return false; // Already popped, skip
@@ -195,7 +196,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       }
     });
     
-    // Mark as popped and call callback
+    // Mark as popped and call callback (unless skipCallback is true)
     if (closedEntry && entryId) {
       poppedModalsRef.current.add(entryId);
       // Clear from set after a short delay to allow re-opening
@@ -203,7 +204,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         poppedModalsRef.current.delete(entryId!);
       }, 100);
       
-      closedEntry.onClose?.();
+      // Only call onClose if not skipping (i.e., when triggered by back button or programmatic close)
+      if (!skipCallback) {
+        closedEntry.onClose?.();
+      }
     }
     
     return !!closedEntry;
