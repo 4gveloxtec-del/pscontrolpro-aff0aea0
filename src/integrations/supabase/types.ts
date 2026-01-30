@@ -380,6 +380,7 @@ export type Database = {
           error_message: string | null
           id: string
           message: string
+          reminder_type: string | null
           scheduled_date: string
           scheduled_time: string
           seller_id: string
@@ -394,6 +395,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           message: string
+          reminder_type?: string | null
           scheduled_date: string
           scheduled_time: string
           seller_id: string
@@ -408,6 +410,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           message?: string
+          reminder_type?: string | null
           scheduled_date?: string
           scheduled_time?: string
           seller_id?: string
