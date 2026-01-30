@@ -29,8 +29,8 @@ const CloseButton = React.forwardRef<HTMLButtonElement, CloseButtonProps>(
         type="button"
         aria-label="Fechar"
         className={cn(
-          // Positioning
-          "absolute top-3 right-3 z-[100]",
+          // Positioning - higher z-index to ensure clickability
+          "absolute top-3 right-3 z-[150]",
           // Layout
           "flex items-center justify-center shrink-0",
           // Sizing
@@ -42,8 +42,10 @@ const CloseButton = React.forwardRef<HTMLButtonElement, CloseButtonProps>(
           // Focus
           "ring-offset-background transition-opacity",
           "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          // Touch optimization
-          "touch-manipulation",
+          // Touch optimization - ensure the button is always clickable
+          "touch-manipulation cursor-pointer select-none",
+          // Prevent any pointer-events issues
+          "pointer-events-auto",
           className
         )}
         {...props}
