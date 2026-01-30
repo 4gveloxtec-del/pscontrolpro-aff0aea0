@@ -3350,27 +3350,30 @@ export default function Clients() {
                 {/* IPTV/SSH Login and Password - Only show for IPTV, P2P, SSH, or Revendedor categories */}
                 {(formData.category === 'IPTV' || formData.category === 'P2P' || formData.category === 'SSH' || formData.category === 'Revendedor') && (
                   <>
-                    <div className="space-y-2">
-                      <Label htmlFor="login" className="flex items-center gap-1">
-                        Login (Servidor 1)
-                        <Lock className="h-3 w-3 text-muted-foreground" />
-                      </Label>
-                      <Input
-                        id="login"
-                        value={formData.login}
-                        onChange={(e) => setFormData({ ...formData, login: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password" className="flex items-center gap-1">
-                        Senha (Servidor 1)
-                        <Lock className="h-3 w-3 text-muted-foreground" />
-                      </Label>
-                      <Input
-                        id="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      />
+                    {/* Login + Senha agrupados no mesmo row no desktop */}
+                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="login" className="flex items-center gap-1">
+                          Login (Servidor 1)
+                          <Lock className="h-3 w-3 text-muted-foreground" />
+                        </Label>
+                        <Input
+                          id="login"
+                          value={formData.login}
+                          onChange={(e) => setFormData({ ...formData, login: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="password" className="flex items-center gap-1">
+                          Senha (Servidor 1)
+                          <Lock className="h-3 w-3 text-muted-foreground" />
+                        </Label>
+                        <Input
+                          id="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        />
+                      </div>
                     </div>
                     
                     {/* Additional Servers Section */}
