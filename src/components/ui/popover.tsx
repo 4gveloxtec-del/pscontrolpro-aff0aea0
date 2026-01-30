@@ -2,16 +2,32 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/lib/utils";
+import { useIsInsideDialog } from "@/contexts/DialogContext";
 
 const Popover = PopoverPrimitive.Root;
 
 const PopoverTrigger = PopoverPrimitive.Trigger;
 
+const PopoverAnchor = PopoverPrimitive.Anchor;
+
+interface PopoverContentProps
+  extends React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> {
+  /**
+   * When true, the Popover will not use a portal.
+   * Use this when the Popover is inside a Dialog/Modal to avoid portal conflicts.
+   */
+  usePortal?: boolean;
+}
+
 const PopoverContent = React.forwardRef<
   React.ElementRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
+  PopoverContentProps
+>(({ className, align = "center", sideOffset = 4, usePortal, ...props }, ref) => {
+  // Auto-detect if inside a Dialog - disable portal to avoid conflicts
+  const isInsideDialog = useIsInsideDialog();
+  const shouldUsePortal = usePortal ?? !isInsideDialog;
+
+  const content = (
     <PopoverPrimitive.Content
       ref={ref}
       align={align}
@@ -22,8 +38,15 @@ const PopoverContent = React.forwardRef<
       )}
       {...props}
     />
-  </PopoverPrimitive.Portal>
-));
+  );
+
+  // When not using portal, render directly to avoid conflicts with Dialog portals
+  if (!shouldUsePortal) {
+    return content;
+  }
+
+  return <PopoverPrimitive.Portal>{content}</PopoverPrimitive.Portal>;
+});
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
-export { Popover, PopoverTrigger, PopoverContent };
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor };
