@@ -1,10 +1,31 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
+import { useScrollSafe } from '@/contexts/ScrollContext';
+
+interface UseScrollPreservationOptions {
+  /**
+   * Whether to auto-preserve scroll on interactive element clicks
+   */
+  autoPreserve?: boolean;
+  
+  /**
+   * Duration to preserve scroll after an action (ms)
+   */
+  preserveDuration?: number;
+}
 
 /**
- * Hook to prevent automatic scroll after button/form interactions
- * Preserves scroll position when clicking action buttons or interacting with dialogs
+ * Enhanced scroll preservation hook that integrates with the global ScrollContext.
+ * Provides both automatic and manual scroll preservation capabilities.
  */
-export function useScrollPreservation() {
+export function useScrollPreservation(options: UseScrollPreservationOptions = {}) {
+  const {
+    autoPreserve = true,
+    preserveDuration = 500,
+  } = options;
+  
+  const scroll = useScrollSafe();
+  
+  // Local state for when context is not available
   const savedScrollRef = useRef<number | null>(null);
   const isPreservingRef = useRef(false);
   const preserveTimeoutRef = useRef<number | null>(null);
@@ -18,16 +39,21 @@ export function useScrollPreservation() {
     }
   }, []);
 
-  const startPreserving = useCallback((duration: number = 500) => {
+  const startPreserving = useCallback((duration: number = preserveDuration) => {
     savedScrollRef.current = window.scrollY;
     isPreservingRef.current = true;
+    
+    // Also save to context if available
+    if (scroll) {
+      scroll.saveScrollPosition();
+    }
     
     // Clear existing timeout
     if (preserveTimeoutRef.current) {
       clearTimeout(preserveTimeoutRef.current);
     }
     
-    // Restore scroll multiple times to catch delayed scrolls from async operations
+    // Restore scroll multiple times to catch delayed scrolls
     requestAnimationFrame(preserveScroll);
     setTimeout(preserveScroll, 16);
     setTimeout(preserveScroll, 50);
@@ -41,9 +67,40 @@ export function useScrollPreservation() {
       isPreservingRef.current = false;
       savedScrollRef.current = null;
     }, duration);
-  }, [preserveScroll]);
+  }, [preserveScroll, scroll, preserveDuration]);
+
+  // Wrap an async action with scroll preservation
+  const withScrollPreservation = useCallback(async <T,>(
+    action: () => T | Promise<T>,
+    duration?: number
+  ): Promise<T> => {
+    if (scroll) {
+      let result: T;
+      await scroll.preserveScrollDuringAction(async () => {
+        result = await action();
+      }, duration || preserveDuration);
+      return result!;
+    } else {
+      startPreserving(duration || preserveDuration);
+      try {
+        return await action();
+      } finally {
+        // Preservation will auto-stop after timeout
+      }
+    }
+  }, [scroll, startPreserving, preserveDuration]);
+
+  // Mark an item as being edited (for smart restoration)
+  const markItemEdit = useCallback((itemId: string) => {
+    if (scroll) {
+      scroll.markEditAction(itemId);
+    }
+    startPreserving();
+  }, [scroll, startPreserving]);
 
   useEffect(() => {
+    if (!autoPreserve) return;
+
     const handleInteractionStart = (e: Event) => {
       const target = e.target as HTMLElement;
       
@@ -55,7 +112,7 @@ export function useScrollPreservation() {
       if (isInteractiveElement) {
         // Use longer duration for buttons that likely trigger dialog/modal operations
         const isDialogTrigger = target.closest('[data-state], [aria-haspopup], [aria-expanded]');
-        startPreserving(isDialogTrigger ? 800 : 500);
+        startPreserving(isDialogTrigger ? 800 : preserveDuration);
       }
     };
 
@@ -96,5 +153,12 @@ export function useScrollPreservation() {
         clearTimeout(preserveTimeoutRef.current);
       }
     };
-  }, [preserveScroll, startPreserving]);
+  }, [autoPreserve, preserveScroll, startPreserving, preserveDuration]);
+
+  return {
+    startPreserving,
+    withScrollPreservation,
+    markItemEdit,
+    scrollContext: scroll,
+  };
 }
