@@ -26,53 +26,59 @@ interface UseModalStackOptions {
 /**
  * Hook to integrate a modal with the global navigation stack.
  * Ensures proper ordering, back button handling, and X button functionality.
+ * 
+ * IMPORTANT: This hook does NOT interfere with native Radix close behavior.
+ * The X button, overlay click, and ESC key all work through Radix's onOpenChange.
+ * This hook only manages the navigation stack for back button support.
  */
 export function useModalStack({ id, isOpen, onClose, data }: UseModalStackOptions) {
   const generatedId = useId();
   const modalId = id || generatedId;
   const navigation = useNavigationSafe();
   
-  // Use ref to avoid dependency issues with onClose callback
+  // Track the previous open state to detect transitions
+  const prevIsOpenRef = useRef(isOpen);
+  
+  // Use ref to store onClose to avoid stale closures
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   
-  // Stable callback that uses the ref
+  // Stable callback that uses the ref - only called by back button handler
   const stableOnClose = useCallback(() => {
     onCloseRef.current();
   }, []);
   
-  // Register/unregister modal with the stack when open state changes
+  // Handle registration/unregistration based on open state changes
   useEffect(() => {
     if (!navigation) return;
     
-    if (isOpen) {
-      navigation.pushModal(modalId, stableOnClose, data);
-    } else {
-      // Only pop if this modal is in the stack
-      // Use skipCallback=true because the modal was closed via UI (onOpenChange already called)
-      if (navigation.isModalOpen(modalId)) {
-        navigation.popModal(modalId, true);
-      }
-    }
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
     
-    // Cleanup on unmount - also skip callback to avoid double-trigger
+    if (isOpen && !wasOpen) {
+      // Modal just opened - register it
+      navigation.pushModal(modalId, stableOnClose, data);
+    } else if (!isOpen && wasOpen) {
+      // Modal just closed (via UI) - silently remove from stack
+      // skipCallback=true because Radix already triggered onOpenChange
+      navigation.popModal(modalId, true);
+    }
+  }, [isOpen, modalId, navigation, stableOnClose, data]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      if (navigation.isModalOpen(modalId)) {
+      if (navigation?.isModalOpen(modalId)) {
         navigation.popModal(modalId, true);
       }
     };
-  }, [isOpen, modalId, navigation, stableOnClose, data]);
+  }, [modalId, navigation]);
   
-  // Safe close function that uses the stack
+  // Close handler for programmatic use (not needed for X button)
   const handleClose = useCallback(() => {
-    if (navigation) {
-      // Pop from stack (this will call onClose)
-      navigation.popModal(modalId);
-    } else {
-      // Fallback if no navigation context
-      onClose();
-    }
-  }, [navigation, modalId, onClose]);
+    // Just call onClose - let React state flow handle the rest
+    onClose();
+  }, [onClose]);
   
   // Check if this is the top modal
   const isTopModal = navigation?.getTopModal()?.id === modalId;
