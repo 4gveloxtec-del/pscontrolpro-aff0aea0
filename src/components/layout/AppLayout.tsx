@@ -11,7 +11,7 @@ import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 import { OnboardingProgressBar } from '@/components/OnboardingProgressBar';
 import { useState, useEffect } from 'react';
 import { useOnce } from '@/hooks/useOnce';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -370,8 +370,11 @@ export function AppLayout() {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetContent 
               side="left" 
-              className="w-[280px] max-w-[85vw] p-0 bg-sidebar border-sidebar-border [&>button]:hidden"
+              hideCloseButton
+              className="w-[280px] max-w-[85vw] p-0 bg-sidebar border-sidebar-border"
+              aria-describedby={undefined}
             >
+              <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
               <MobileMenuContent onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
           </Sheet>
