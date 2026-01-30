@@ -393,6 +393,22 @@ html {
     max-width: 100vw;
   }
 
+  /* Native dialog element reset - ensures Radix portals display correctly */
+  dialog {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    max-width: none;
+    max-height: none;
+    width: auto;
+    height: auto;
+  }
+
+  dialog::backdrop {
+    background: transparent;
+  }
+
   /* Safe area utilities */
   .safe-area-pt { padding-top: env(safe-area-inset-top); }
   .safe-area-pb { padding-bottom: env(safe-area-inset-bottom); }
