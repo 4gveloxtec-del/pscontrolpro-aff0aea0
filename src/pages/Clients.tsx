@@ -2207,11 +2207,17 @@ export default function Clients() {
       return { previousClients };
     },
     onSuccess: () => {
+      // Sync local count immediately (avoid stale count from query delay)
+      setTotalClientCount(prev => Math.max(0, prev - 1));
       setDbPage(0);
       setAllLoadedClients([]);
       setHasMoreClients(true);
+      // Invalidate ALL client-related queries to ensure full cache sync
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
+      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Cliente excluído!');
     },
@@ -2229,11 +2235,16 @@ export default function Clients() {
       if (error) throw error;
     },
     onSuccess: () => {
+      setTotalClientCount(0);
       setDbPage(0);
       setAllLoadedClients([]);
       setHasMoreClients(true);
+      // Invalidate ALL client-related queries
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
+      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
       queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Todos os clientes foram excluídos!');
       setShowDeleteAllConfirm(false);
