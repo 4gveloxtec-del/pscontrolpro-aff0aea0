@@ -1153,10 +1153,21 @@ export default function Clients() {
       return;
     }
 
-    // Helper to check if value looks encrypted (base64, long enough)
+    // Helper to check if value looks encrypted (base64 with special chars, long enough)
+    // Must contain at least one letter AND have base64 padding or special base64 chars
     const looksEncrypted = (value: string) => {
+      // Must be long enough
+      if (value.length < 20) return false;
+      // Must match base64 pattern
       const base64Regex = /^[A-Za-z0-9+/]+=*$/;
-      return base64Regex.test(value) && value.length >= 20;
+      if (!base64Regex.test(value)) return false;
+      // Must contain at least one letter (pure numbers aren't encrypted)
+      if (!/[A-Za-z]/.test(value)) return false;
+      // Must have mix of upper/lower or have = padding (encrypted data usually has these)
+      const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
+      const hasPadding = value.endsWith('=');
+      const hasSpecialBase64 = /[+/]/.test(value);
+      return hasUpperAndLower || hasPadding || hasSpecialBase64;
     };
 
     const safeDecrypt = async (value: string | null) => {
@@ -1165,14 +1176,19 @@ export default function Clients() {
       if (!looksEncrypted(value)) return value;
       try {
         const result = await decrypt(value);
-        // If decryption returns the same value or looks encrypted, it failed silently
-        if (result === value || looksEncrypted(result)) {
-          return ''; // Return empty to avoid showing encrypted garbage
+        // If decryption failed (returned same value or still looks encrypted), return original
+        // This handles edge cases where data might be wrongly identified as encrypted
+        if (result === value) {
+          return value; // Decryption didn't change anything, use original
+        }
+        // If result still looks encrypted, decryption failed
+        if (looksEncrypted(result)) {
+          return value; // Return original value as fallback
         }
         return result;
       } catch {
-        // Decryption failed - return empty to avoid showing encrypted data in search
-        return '';
+        // Decryption failed - return original value (might be readable plain text)
+        return value;
       }
     };
 
