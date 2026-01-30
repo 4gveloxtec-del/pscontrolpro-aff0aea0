@@ -43,11 +43,12 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Settings2
+  Settings2,
+  Check
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
   ResellerDeviceApp, 
@@ -421,7 +422,8 @@ export default function MyApps() {
                       const Icon = device.icon;
                       const isChecked = formData.device_types.includes(device.value);
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={device.value}
                           onClick={() => handleDeviceToggle(device.value)}
                           className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -430,10 +432,16 @@ export default function MyApps() {
                               : 'border-border hover:border-primary/50'
                           }`}
                         >
-                          <Checkbox checked={isChecked} className="pointer-events-none" />
+                          <div className={`h-4 w-4 shrink-0 rounded-sm border flex items-center justify-center ${
+                            isChecked 
+                              ? 'bg-primary border-primary text-primary-foreground' 
+                              : 'border-primary'
+                          }`}>
+                            {isChecked && <Check className="h-3 w-3" />}
+                          </div>
                           <Icon className="h-4 w-4" />
                           <span className="text-sm">{device.label}</span>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
