@@ -52,6 +52,23 @@ html {
   scroll-margin-bottom: 1rem;
 }
 
+/* ============================================
+   SCREEN CONTAINER SYSTEM (Architectural Guardrails)
+   ============================================ */
+
+/* Base screen container - ensures consistent rendering */
+.screen-container {
+  min-height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Debug mode: show screen boundaries (dev only via data attribute) */
+[data-screen-id][data-debug="true"] {
+  outline: 2px dashed hsl(var(--primary) / 0.3);
+  outline-offset: -2px;
+}
+
 /* Inter font loaded via system fonts for performance */
 
 /* Responsive frame layout - mobile first, full width on tablet+ */

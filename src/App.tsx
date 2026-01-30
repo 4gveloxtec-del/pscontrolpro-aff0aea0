@@ -20,6 +20,7 @@ import { useScrollPreservation } from "@/hooks/useScrollPreservation";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import { ScrollProvider, useScrollUserSync } from "@/contexts/ScrollContext";
 import { useModalBackButtonHandler } from "@/hooks/useModalStack";
+import { useGuardrails } from "@/hooks/useGuardrails";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -254,11 +255,12 @@ const AppRoutes = () => {
   );
 };
 
-// App initialization hook for clearing offline data, scroll preservation and modal back button
+// App initialization hook for clearing offline data, scroll preservation, modal back button and guardrails
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useClearOfflineData();
   useScrollPreservation();
   useModalBackButtonHandler();
+  useGuardrails(); // Automatic architectural guardrails
   return <>{children}</>;
 }
 
