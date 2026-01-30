@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { DialogContextProvider } from "@/contexts/DialogContext";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -64,7 +65,13 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         className={cn(sheetVariants({ side }), className)} 
         {...props}
       >
-        {children}
+        {/*
+          IMPORTANT: Sheet uses Radix Dialog primitives under the hood.
+          When a Select is rendered inside a Sheet, its own Portal can conflict with the Sheet portal
+          and crash on unmount (NotFoundError: removeChild). We provide the same DialogContext used
+          by DialogContent so Select auto-disables its Portal inside overlays.
+        */}
+        <DialogContextProvider>{children}</DialogContextProvider>
         {!hideCloseButton && (
           <SheetPrimitive.Close asChild>
             <button
