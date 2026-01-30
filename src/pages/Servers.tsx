@@ -213,6 +213,8 @@ export default function Servers() {
         .from('clients')
         .select('server_id')
         .eq('seller_id', user!.id)
+        // Count only active (non-archived) clients
+        .or('is_archived.is.null,is_archived.eq.false')
         .not('server_id', 'is', null);
       
       if (error) throw error;
