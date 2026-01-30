@@ -222,16 +222,29 @@ function ClientLookup() {
       setIsDecryptingLogins(true);
       const result: Record<string, { login: string; login_2: string }> = {};
       
-      for (const client of allClients) {
+      // Helper to safely decrypt a value
+      const safeDecrypt = async (value: string | null): Promise<string> => {
+        if (!value) return '';
+        // If it doesn't look encrypted, return as-is (plain text data)
+        if (!looksEncrypted(value)) return value;
         try {
-          const [login, login_2] = await Promise.all([
-            client.login && looksEncrypted(client.login) ? decrypt(client.login) : Promise.resolve(client.login || ''),
-            client.login_2 && looksEncrypted(client.login_2) ? decrypt(client.login_2) : Promise.resolve(client.login_2 || ''),
-          ]);
-          result[client.id] = { login, login_2 };
+          const decrypted = await decrypt(value);
+          // If decryption returns encrypted-looking data, it failed
+          if (decrypted === value || looksEncrypted(decrypted)) {
+            return ''; // Don't expose encrypted data
+          }
+          return decrypted;
         } catch {
-          result[client.id] = { login: client.login || '', login_2: client.login_2 || '' };
+          return ''; // Decryption failed
         }
+      };
+      
+      for (const client of allClients) {
+        const [login, login_2] = await Promise.all([
+          safeDecrypt(client.login),
+          safeDecrypt(client.login_2),
+        ]);
+        result[client.id] = { login, login_2 };
       }
       
       setDecryptedLogins(result);
