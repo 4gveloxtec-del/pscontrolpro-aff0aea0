@@ -1,26 +1,15 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useGlobalModalCloseSafe } from "@/contexts/GlobalModalCloseContext";
 
 /**
  * =========================================================================
- * CloseButtonGlobal - COMPONENTE ÚNICO E OBRIGATÓRIO PARA FECHAR OVERLAYS
+ * CloseButtonGlobal - COMPONENTE ÚNICO PARA FECHAR MODAIS VIA ESTADO GLOBAL
  * =========================================================================
  * 
- * Este é o ÚNICO botão de fechamento permitido em toda a aplicação.
- * 
- * REGRAS ABSOLUTAS:
- * 1. NÃO criar botões "X" manuais em nenhuma tela
- * 2. NÃO usar onClick para fechar - isso é gerenciado pelos primitivos Radix/Vaul
- * 3. NÃO usar window.history.back() para fechar overlays
- * 4. NÃO resetar estado da tela base ao fechar
- * 
- * COMO FUNCIONA:
- * - Este componente é embedado automaticamente em DialogContent, SheetContent e DrawerContent
- * - O fechamento é gerenciado pelos primitivos (DialogPrimitive.Close, etc.)
- * - Você NÃO precisa adicionar este botão manualmente em nenhum lugar
- * 
- * SE VOCÊ ESTÁ LENDO ISSO E PENSANDO EM CRIAR UM BOTÃO X MANUAL: NÃO FAÇA.
- * Use os componentes Dialog, Sheet ou Drawer do shadcn que já incluem este botão.
+ * Este botão NÃO fecha o modal diretamente.
+ * Ele apenas dispara o estado global `shouldClose = true`.
+ * Os modais (Dialog, Sheet, Drawer) observam esse estado e fecham.
  * 
  * =========================================================================
  */
@@ -33,29 +22,27 @@ export interface CloseButtonGlobalProps
   className?: string;
 }
 
-/**
- * CloseButtonGlobal - Renderiza o botão X padrão para overlays
- * 
- * IMPORTANTE: Este componente deve ser usado APENAS dentro dos primitivos Close do Radix/Vaul:
- * - <DialogPrimitive.Close asChild><CloseButtonGlobal /></DialogPrimitive.Close>
- * - <SheetPrimitive.Close asChild><CloseButtonGlobal /></SheetPrimitive.Close>
- * - <DrawerPrimitive.Close asChild><CloseButtonGlobal /></DrawerPrimitive.Close>
- * 
- * O fechamento é gerenciado automaticamente pelo primitivo - NÃO adicione onClick.
- */
 export const CloseButtonGlobal = React.forwardRef<HTMLButtonElement, CloseButtonGlobalProps>(
   ({ className, size = "default", onClick, onContextMenu, style, type, ...props }, ref) => {
-    // IMPORTANTE: este componente é renderizado dentro do Primitive.Close (Radix/Vaul) via `asChild`.
-    // Portanto, precisamos PROPAGAR os handlers (ex: onClick) recebidos do Primitive para que o fechamento ocorra.
+    const globalClose = useGlobalModalCloseSafe();
 
-    // Handler para prevenir propagação de eventos (sem bloquear o handler do Primitive.Close)
+    // Handler que dispara o fechamento global
     const handleClick = React.useCallback(
       (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
         e.stopPropagation();
+        
+        console.log('[CloseButtonGlobal] Click detected, triggering global close');
+        
+        // Dispara o fechamento global - os modais observam esse estado
+        if (globalClose) {
+          globalClose.triggerClose();
+        }
+        
+        // Também chama onClick original caso exista (fallback para Radix)
         onClick?.(e);
-        // O fechamento real é gerenciado pelo primitivo Close do Radix/Vaul
       },
-      [onClick],
+      [globalClose, onClick],
     );
 
     // Handler para prevenir menu de contexto em long-press mobile

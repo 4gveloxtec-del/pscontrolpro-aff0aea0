@@ -4,13 +4,12 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
 import { CloseButtonGlobal } from "./close-button-global";
+import { useGlobalModalCloseSafe } from "@/contexts/GlobalModalCloseContext";
 
 const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
-// Use DialogPortal directly without forwardRef wrapper
-// Portal doesn't need a ref and wrapping it causes warnings
 const DialogPortal = DialogPrimitive.Portal;
 
 const DialogClose = DialogPrimitive.Close;
@@ -49,6 +48,9 @@ interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof Dialo
   hideCloseButton?: boolean;
 }
 
+/**
+ * DialogContent com observação do estado global de fechamento
+ */
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
@@ -67,6 +69,32 @@ const DialogContent = React.forwardRef<
   ) => {
     const contentRef = React.useRef<React.ElementRef<typeof DialogPrimitive.Content> | null>(null);
     const previouslyFocusedRef = React.useRef<HTMLElement | null>(null);
+    const globalClose = useGlobalModalCloseSafe();
+    const lastCloseIdRef = React.useRef<number>(0);
+
+    // Observa o estado global e fecha quando shouldClose = true
+    React.useEffect(() => {
+      if (!globalClose) return;
+      
+      const { shouldClose, closeId, resetClose } = globalClose;
+      
+      // Só processa se é um novo trigger (closeId diferente)
+      if (shouldClose && closeId > lastCloseIdRef.current) {
+        console.log('[DialogContent] Global close triggered, closing dialog');
+        lastCloseIdRef.current = closeId;
+        
+        // Encontra e clica no botão de fechar do Radix para fechar corretamente
+        const closeButton = contentRef.current?.querySelector('[data-radix-dialog-close]') as HTMLButtonElement;
+        if (closeButton) {
+          closeButton.click();
+        }
+        
+        // Reset o estado global após um pequeno delay
+        setTimeout(() => {
+          resetClose();
+        }, 50);
+      }
+    }, [globalClose?.shouldClose, globalClose?.closeId, globalClose?.resetClose]);
 
     return (
       <DialogPortal>
@@ -74,14 +102,12 @@ const DialogContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={composeRefs(ref, contentRef)}
           tabIndex={tabIndex ?? -1}
-          // Prevent Radix's default auto-focus from scrolling the page to the top.
           onOpenAutoFocus={(event) => {
             previouslyFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
             onOpenAutoFocus?.(event);
 
             if (!event.defaultPrevented) {
               event.preventDefault();
-              // Focus the dialog content without scrolling.
               try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (contentRef.current as any)?.focus?.({ preventScroll: true });
@@ -107,27 +133,18 @@ const DialogContent = React.forwardRef<
             }
           }}
           className={cn(
-            // Mobile-first: fullscreen on small devices, centered modal on larger
             "fixed z-50 grid gap-3 sm:gap-4 border bg-background shadow-lg duration-200",
-            // Mobile: bottom sheet style for better UX
             "inset-x-0 bottom-0 top-auto w-full rounded-t-2xl sm:rounded-xl",
-            // Desktop: centered modal
             "sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%]",
             "sm:w-[calc(100%-2rem)] sm:max-w-lg",
-            // Height constraints with safe area support
             "max-h-[85vh] sm:max-h-[90vh]",
-            // Safe area insets for mobile devices with notch/home indicator
             "pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6",
             "pt-4 px-4 sm:p-6",
-            // Scroll handling
             "overflow-y-auto overflow-x-hidden",
             "-webkit-overflow-scrolling-touch",
-            // Animations
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            // Mobile: slide from bottom
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-            // Desktop: zoom effect
             "sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:slide-in-from-bottom-0",
             "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
             className,
@@ -136,17 +153,19 @@ const DialogContent = React.forwardRef<
         >
           {/* Mobile drag indicator */}
           <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-2 flex-shrink-0" />
-          {/*
-            IMPORTANT: DialogContextProvider signals to nested Select components
-            that they're inside an overlay, so they disable their own Portal
-            and avoid DOM conflicts on unmount.
-          */}
           <DialogContextProvider>{children}</DialogContextProvider>
-          {/* CloseButtonGlobal - ÚNICO botão de fechamento permitido */}
+          {/* Botão de fechar - dispara estado global */}
           {!hideCloseButton && (
-            <DialogPrimitive.Close asChild>
+            <>
+              {/* Botão invisível do Radix para manter a lógica de fechamento */}
+              <DialogPrimitive.Close 
+                data-radix-dialog-close
+                className="sr-only" 
+                aria-hidden="true"
+              />
+              {/* Botão visual que dispara o estado global */}
               <CloseButtonGlobal />
-            </DialogPrimitive.Close>
+            </>
           )}
         </DialogPrimitive.Content>
       </DialogPortal>
