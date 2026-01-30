@@ -49,18 +49,23 @@ const sheetVariants = cva(
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  /** Hide the close button (useful for full-custom layouts like menus) */
+  hideCloseButton?: boolean;
+}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
+  ({ side = "right", className, children, hideCloseButton = false, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), "relative", className)} {...props}>
         {children}
-        {/* Close button using global CloseButton component */}
-        <SheetPrimitive.Close asChild>
-          <CloseButton />
-        </SheetPrimitive.Close>
+        {/* Close button - hidden for left-side menu panels */}
+        {!hideCloseButton && (
+          <SheetPrimitive.Close asChild>
+            <CloseButton />
+          </SheetPrimitive.Close>
+        )}
       </SheetPrimitive.Content>
     </SheetPortal>
   ),
