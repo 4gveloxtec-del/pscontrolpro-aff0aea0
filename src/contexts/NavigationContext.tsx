@@ -164,31 +164,46 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     });
   }, []);
   
-  // Pop a modal from the stack
+  // Track popped modals to prevent double-pop (idempotency guard)
+  const poppedModalsRef = useRef<Set<string>>(new Set());
+  
+  // Pop a modal from the stack with idempotency
   const popModal = useCallback((id?: string): boolean => {
+    // If specific id provided, check idempotency
+    if (id && poppedModalsRef.current.has(id)) {
+      return false; // Already popped, skip
+    }
+    
     let closedEntry: StackEntry | undefined;
+    let entryId: string | undefined;
     
     setModalStack(prev => {
       if (prev.length === 0) return prev;
       
       if (id) {
-        // Close specific modal
         const index = prev.findIndex(entry => entry.id === id);
         if (index >= 0) {
           closedEntry = prev[index];
+          entryId = id;
           return [...prev.slice(0, index), ...prev.slice(index + 1)];
         }
         return prev;
       } else {
-        // Close top modal
         closedEntry = prev[prev.length - 1];
+        entryId = closedEntry?.id;
         return prev.slice(0, -1);
       }
     });
     
-    // Call onClose callback if provided
-    if (closedEntry?.onClose) {
-      closedEntry.onClose();
+    // Mark as popped and call callback
+    if (closedEntry && entryId) {
+      poppedModalsRef.current.add(entryId);
+      // Clear from set after a short delay to allow re-opening
+      setTimeout(() => {
+        poppedModalsRef.current.delete(entryId!);
+      }, 100);
+      
+      closedEntry.onClose?.();
     }
     
     return !!closedEntry;
