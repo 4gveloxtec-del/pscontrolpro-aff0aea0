@@ -138,8 +138,8 @@ const DialogContent = React.forwardRef<
               onClick={(e) => {
                 e.stopPropagation();
               }}
-              onTouchEnd={(e) => {
-                // Prevent ghost clicks on Android
+              onContextMenu={(e) => {
+                // Avoid long-press context UI that can look like a second overlay action on mobile
                 e.preventDefault();
               }}
               className={cn(

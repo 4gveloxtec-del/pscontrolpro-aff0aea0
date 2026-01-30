@@ -71,7 +71,10 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
               type="button"
               aria-label="Fechar"
               onClick={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.preventDefault()}
+              onContextMenu={(e) => {
+                // Avoid long-press context UI that can look like a second overlay action on mobile
+                e.preventDefault();
+              }}
               className="absolute top-2 right-2 z-[9999] flex items-center justify-center shrink-0 h-12 w-12 min-h-[48px] min-w-[48px] rounded-full bg-muted/90 backdrop-blur-sm border border-border/50 active:scale-95 active:bg-muted-foreground/30 hover:bg-muted-foreground/20 ring-offset-background transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer select-none pointer-events-auto"
               style={{
                 touchAction: 'manipulation',
