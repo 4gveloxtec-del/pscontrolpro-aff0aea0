@@ -1153,13 +1153,26 @@ export default function Clients() {
       return;
     }
 
+    // Helper to check if value looks encrypted (base64, long enough)
+    const looksEncrypted = (value: string) => {
+      const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+      return base64Regex.test(value) && value.length >= 20;
+    };
+
     const safeDecrypt = async (value: string | null) => {
       if (!value) return '';
+      // If it doesn't look encrypted, return as-is (plain text data)
+      if (!looksEncrypted(value)) return value;
       try {
-        return await decrypt(value);
+        const result = await decrypt(value);
+        // If decryption returns the same value or looks encrypted, it failed silently
+        if (result === value || looksEncrypted(result)) {
+          return ''; // Return empty to avoid showing encrypted garbage
+        }
+        return result;
       } catch {
-        // Might already be plain text (old data) or invalid ciphertext
-        return value;
+        // Decryption failed - return empty to avoid showing encrypted data in search
+        return '';
       }
     };
 
