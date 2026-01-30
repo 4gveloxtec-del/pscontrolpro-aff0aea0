@@ -2266,16 +2266,38 @@ export default function Clients() {
     onMutate: async (id) => {
       // Optimistically update in local state
       const previousClients = allLoadedClients;
-      setAllLoadedClients(prev => prev.map(client => 
-        client.id === id 
-          ? { ...client, is_archived: true, archived_at: new Date().toISOString() }
-          : client
-      ));
+      setAllLoadedClients(prev => {
+        // If user is viewing active clients, remove it from the list immediately.
+        if (!isViewingArchived) {
+          return prev.filter(client => client.id !== id);
+        }
+        // If viewing archived list, it would become visible (rare path), so update the row.
+        return prev.map(client =>
+          client.id === id
+            ? { ...client, is_archived: true, archived_at: new Date().toISOString() }
+            : client
+        );
+      });
       return { previousClients };
     },
     onSuccess: () => {
+      // Keep local counter in sync immediately (only when not searching to avoid temporary mismatches)
+      if (!debouncedSearch.trim()) {
+        setTotalClientCount(prev => (isViewingArchived ? prev + 1 : Math.max(0, prev - 1)));
+      }
+
+      // Reset pagination cache to avoid “ghost” rows after archive
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
+
+      // Invalidate ALL client-related queries (global sync)
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
       queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Cliente movido para lixeira!');
     },
     onError: (error: Error, _id, context) => {
@@ -2297,8 +2319,23 @@ export default function Clients() {
       return clientIds.length;
     },
     onSuccess: (count) => {
+      // Keep local counter in sync immediately (only when not searching to avoid temporary mismatches)
+      if (!debouncedSearch.trim()) {
+        setTotalClientCount(prev => (isViewingArchived ? prev + count : Math.max(0, prev - count)));
+      }
+
+      // Reset pagination cache to avoid stale list after bulk archive
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
+
+      // Invalidate ALL client-related queries (global sync)
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
       queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       clearAllSentMarks();
       toast.success(`${count} cliente${count > 1 ? 's' : ''} vencido${count > 1 ? 's' : ''} arquivado${count > 1 ? 's' : ''}!`);
     },
@@ -2320,16 +2357,38 @@ export default function Clients() {
     onMutate: async (id) => {
       // Optimistically update in local state
       const previousClients = allLoadedClients;
-      setAllLoadedClients(prev => prev.map(client => 
-        client.id === id 
-          ? { ...client, is_archived: false, archived_at: null }
-          : client
-      ));
+      setAllLoadedClients(prev => {
+        // If user is viewing archived clients, remove it from the list immediately.
+        if (isViewingArchived) {
+          return prev.filter(client => client.id !== id);
+        }
+        // Otherwise update row in place.
+        return prev.map(client =>
+          client.id === id
+            ? { ...client, is_archived: false, archived_at: null }
+            : client
+        );
+      });
       return { previousClients };
     },
     onSuccess: () => {
+      // Keep local counter in sync immediately (only when not searching to avoid temporary mismatches)
+      if (!debouncedSearch.trim()) {
+        setTotalClientCount(prev => (isViewingArchived ? Math.max(0, prev - 1) : prev + 1));
+      }
+
+      // Reset pagination cache to avoid stale list after restore
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
+
+      // Invalidate ALL client-related queries (global sync)
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
       queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
+      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Cliente restaurado!');
     },
     onError: (error: Error, _id, context) => {
