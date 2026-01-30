@@ -130,38 +130,55 @@ const DialogContent = React.forwardRef<
           {/* Mobile drag indicator */}
           <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-2 flex-shrink-0" />
           <DialogContextProvider>{children}</DialogContextProvider>
-          {/* Close button - inline to avoid asChild DOM issues */}
+          {/* Close button - native button with explicit touch handling for Android/PWA */}
           <DialogPrimitive.Close asChild>
             <button
               type="button"
               aria-label="Fechar"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              onTouchEnd={(e) => {
+                // Prevent ghost clicks on Android
+                e.preventDefault();
+              }}
               className={cn(
-                // Positioning - high z-index to ensure clickability
-                "absolute top-3 right-3 z-[200]",
+                // Positioning - very high z-index for Android WebView
+                "absolute top-2 right-2 z-[9999]",
                 // Layout
                 "flex items-center justify-center shrink-0",
-                // Sizing - larger touch target
-                "h-10 w-10 sm:h-9 sm:w-9",
+                // Sizing - minimum 48x48 for Android accessibility
+                "h-12 w-12 min-h-[48px] min-w-[48px]",
                 // Styling
-                "rounded-full bg-muted border-0",
+                "rounded-full bg-muted/90 backdrop-blur-sm border border-border/50",
                 // States
-                "opacity-90 hover:opacity-100 hover:bg-muted-foreground/20",
+                "active:scale-95 active:bg-muted-foreground/30",
+                "hover:bg-muted-foreground/20",
                 // Focus
-                "ring-offset-background transition-opacity",
+                "ring-offset-background transition-all duration-150",
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-                // Touch optimization - critical for mobile
-                "touch-manipulation cursor-pointer select-none",
+                // Touch optimization - critical for Android/PWA
+                "touch-action-manipulation",
+                "-webkit-tap-highlight-color-transparent",
+                "cursor-pointer select-none",
                 "pointer-events-auto"
               )}
+              style={{
+                // Force touch action for Android WebView
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                // Ensure it's always on top
+                isolation: 'isolate',
+              }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className="pointer-events-none"
