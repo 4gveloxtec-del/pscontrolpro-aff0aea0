@@ -3,7 +3,6 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useModalStack } from "@/hooks/useModalStack";
 
 const Dialog = DialogPrimitive.Root;
 
