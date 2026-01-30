@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
+import { OverlayCloseButton } from "./overlay-close-button";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -72,40 +73,10 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
           by DialogContent so Select auto-disables its Portal inside overlays.
         */}
         <DialogContextProvider>{children}</DialogContextProvider>
+        {/* Global close button - único padrão para toda a aplicação */}
         {!hideCloseButton && (
           <SheetPrimitive.Close asChild>
-            <button
-              type="button"
-              aria-label="Fechar"
-              onClick={(e) => e.stopPropagation()}
-              onContextMenu={(e) => {
-                // Avoid long-press context UI that can look like a second overlay action on mobile
-                e.preventDefault();
-              }}
-              className="absolute top-2 right-2 z-[9999] flex items-center justify-center shrink-0 h-12 w-12 min-h-[48px] min-w-[48px] rounded-full bg-muted/90 backdrop-blur-sm border border-border/50 active:scale-95 active:bg-muted-foreground/30 hover:bg-muted-foreground/20 ring-offset-background transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer select-none pointer-events-auto"
-              style={{
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-                isolation: 'isolate',
-              }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="pointer-events-none"
-                aria-hidden="true"
-              >
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-            </button>
+            <OverlayCloseButton />
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Content>

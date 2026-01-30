@@ -2,6 +2,8 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
+import { DialogContextProvider } from "@/contexts/DialogContext";
+import { OverlayCloseButton } from "./overlay-close-button";
 
 const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -22,10 +24,15 @@ const DrawerOverlay = React.forwardRef<
 ));
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
+interface DrawerContentProps extends React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> {
+  /** Hide the close button (useful for custom layouts) */
+  hideCloseButton?: boolean;
+}
+
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DrawerContentProps
+>(({ className, children, hideCloseButton = false, ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
     <DrawerPrimitive.Content
@@ -38,28 +45,18 @@ const DrawerContent = React.forwardRef<
     >
       {/* Drag indicator */}
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
-      {/* Close button - inline to avoid asChild DOM issues */}
-      <DrawerPrimitive.Close
-        className="absolute top-3 right-3 z-[150] flex items-center justify-center shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-muted opacity-90 hover:opacity-100 hover:bg-muted-foreground/20 ring-offset-background transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 touch-manipulation cursor-pointer select-none pointer-events-auto"
-        aria-label="Fechar"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="pointer-events-none"
-        >
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
-      </DrawerPrimitive.Close>
+      {/*
+        IMPORTANT: DialogContextProvider signals to nested Select components
+        that they're inside an overlay, so they disable their own Portal
+        and avoid DOM conflicts on unmount.
+      */}
+      <DialogContextProvider>{children}</DialogContextProvider>
+      {/* Global close button - único padrão para toda a aplicação */}
+      {!hideCloseButton && (
+        <DrawerPrimitive.Close asChild>
+          <OverlayCloseButton size="sm" />
+        </DrawerPrimitive.Close>
+      )}
     </DrawerPrimitive.Content>
   </DrawerPortal>
 ));
