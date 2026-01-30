@@ -9,12 +9,10 @@ import {
   SheetClose,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useModalStack } from "@/hooks/useModalStack";
-import { type VariantProps } from "class-variance-authority";
 
 interface ManagedSheetProps {
   /**
-   * Unique identifier for this sheet. Required for stack management.
+   * Unique identifier for this sheet (legacy - kept for API compatibility)
    */
   id: string;
   
@@ -45,8 +43,8 @@ interface ManagedSheetProps {
 }
 
 /**
- * A Sheet component that integrates with the global navigation stack.
- * Use this when you need proper back button handling and stack ordering.
+ * ManagedSheet - Wrapper simplificado que usa o sistema global de fechamento.
+ * O fechamento é gerenciado pelo GlobalModalCloseContext.
  */
 export function ManagedSheet({
   id,
@@ -56,14 +54,6 @@ export function ManagedSheet({
   side = "right",
   contentClassName,
 }: ManagedSheetProps) {
-  // Register with stack - cleanup happens automatically when open becomes false
-  useModalStack({
-    id,
-    isOpen: open,
-    onClose: () => onOpenChange(false),
-  });
-  
-  // Let Radix handle the close directly - stack cleanup happens via useEffect
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={side} className={contentClassName}>

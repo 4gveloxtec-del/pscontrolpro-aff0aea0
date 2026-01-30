@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, Trash2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useModalStack } from "@/hooks/useModalStack";
 import { useCallback, useId } from "react";
 
 interface ConfirmDialogProps {
@@ -40,14 +39,7 @@ export function ConfirmDialog({
   const IconComponent = icon === 'trash' ? Trash2 : icon === 'info' ? Info : AlertTriangle;
   const showIcon = variant === 'destructive' || variant === 'warning' || icon;
   
-  // Register with stack - cleanup happens automatically when open becomes false
-  useModalStack({
-    id: `confirm-dialog-${dialogId}`,
-    isOpen: open,
-    onClose: () => onOpenChange(false),
-  });
-  
-  // Handle confirm - just close via onOpenChange, stack cleanup is automatic
+  // Handle confirm - just close via onOpenChange
   const handleConfirm = useCallback(() => {
     onConfirm();
     onOpenChange(false);

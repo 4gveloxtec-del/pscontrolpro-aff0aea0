@@ -9,11 +9,10 @@ import {
   DrawerClose,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { useModalStack } from "@/hooks/useModalStack";
 
 interface ManagedDrawerProps {
   /**
-   * Unique identifier for this drawer. Required for stack management.
+   * Unique identifier for this drawer (legacy - kept for API compatibility)
    */
   id: string;
   
@@ -44,8 +43,8 @@ interface ManagedDrawerProps {
 }
 
 /**
- * A Drawer component that integrates with the global navigation stack.
- * Use this when you need proper back button handling and stack ordering.
+ * ManagedDrawer - Wrapper simplificado que usa o sistema global de fechamento.
+ * O fechamento é gerenciado pelo GlobalModalCloseContext.
  */
 export function ManagedDrawer({
   id,
@@ -55,14 +54,6 @@ export function ManagedDrawer({
   contentClassName,
   shouldScaleBackground = true,
 }: ManagedDrawerProps) {
-  // Register with stack - cleanup happens automatically when open becomes false
-  useModalStack({
-    id,
-    isOpen: open,
-    onClose: () => onOpenChange(false),
-  });
-  
-  // Let Radix handle the close directly - stack cleanup happens via useEffect
   return (
     <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground={shouldScaleBackground}>
       <DrawerContent className={contentClassName}>
