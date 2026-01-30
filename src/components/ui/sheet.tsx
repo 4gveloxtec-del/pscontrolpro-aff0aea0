@@ -55,11 +55,8 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
   ({ side = "right", className, children, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), "relative", className)} {...props}>
-        {/* Content wrapper with top padding to avoid overlap with close button */}
-        <div className="pt-8">
-          {children}
-        </div>
+      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), "relative pt-10", className)} {...props}>
+        {children}
         {/* Close button using global CloseButton component */}
         <SheetPrimitive.Close asChild>
           <CloseButton />

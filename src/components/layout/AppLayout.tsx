@@ -370,7 +370,7 @@ export function AppLayout() {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetContent 
               side="left" 
-              className="w-[280px] max-w-[85vw] p-0 bg-sidebar border-sidebar-border"
+              className="w-[280px] max-w-[85vw] p-0 pt-0 bg-sidebar border-sidebar-border"
             >
               <MobileMenuContent onNavigate={() => setMenuOpen(false)} />
             </SheetContent>
