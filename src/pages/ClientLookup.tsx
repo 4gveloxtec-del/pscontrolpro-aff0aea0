@@ -192,30 +192,94 @@ function ClientLookup() {
     }
   }, []);
   
-  // Search clients
-  const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ['client-lookup-search', searchQuery, user?.id],
+  // Fetch all clients for client-side search (credentials are encrypted, so server-side search won't work for login fields)
+  const { data: allClients = [], isLoading: isLoadingAllClients } = useQuery({
+    queryKey: ['client-lookup-all', user?.id],
     queryFn: async () => {
-      if (!user?.id || searchQuery.length < 2) return [];
-      
-      const normalizedQuery = searchQuery.toLowerCase().trim();
+      if (!user?.id) return [];
       
       const { data, error } = await supabase
         .from('clients')
         .select('id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived')
         .eq('seller_id', user.id)
-        .or(`name.ilike.%${normalizedQuery}%,phone.ilike.%${normalizedQuery}%,email.ilike.%${normalizedQuery}%,login.ilike.%${normalizedQuery}%,login_2.ilike.%${normalizedQuery}%`)
-        .order('expiration_date', { ascending: false })
-        .limit(50);
+        .order('expiration_date', { ascending: false });
         
       if (error) throw error;
-      // Retorna todos os clientes encontrados sem deduplicação
-      // O banco pode ter múltiplos registros com o mesmo telefone e datas diferentes
       return data || [];
     },
-    enabled: !!user?.id && searchQuery.length >= 2,
-    staleTime: 30000,
+    enabled: !!user?.id,
+    staleTime: 60000,
   });
+
+  // Decrypt all logins for search (only when we have clients)
+  const [decryptedLogins, setDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
+  const [isDecryptingLogins, setIsDecryptingLogins] = useState(false);
+
+  useEffect(() => {
+    if (!allClients.length || Object.keys(decryptedLogins).length > 0) return;
+    
+    const decryptAllLogins = async () => {
+      setIsDecryptingLogins(true);
+      const result: Record<string, { login: string; login_2: string }> = {};
+      
+      for (const client of allClients) {
+        try {
+          const [login, login_2] = await Promise.all([
+            client.login && looksEncrypted(client.login) ? decrypt(client.login) : Promise.resolve(client.login || ''),
+            client.login_2 && looksEncrypted(client.login_2) ? decrypt(client.login_2) : Promise.resolve(client.login_2 || ''),
+          ]);
+          result[client.id] = { login, login_2 };
+        } catch {
+          result[client.id] = { login: client.login || '', login_2: client.login_2 || '' };
+        }
+      }
+      
+      setDecryptedLogins(result);
+      setIsDecryptingLogins(false);
+    };
+    
+    decryptAllLogins();
+  }, [allClients, decrypt, looksEncrypted, decryptedLogins]);
+
+  // Client-side search with decrypted logins
+  const searchResults = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 2) return [];
+    
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+    const normalizedQueryDigits = searchQuery.replace(/\D/g, '');
+    
+    return allClients.filter(client => {
+      // Name match
+      if (client.name.toLowerCase().includes(normalizedQuery)) return true;
+      
+      // Email match
+      if (client.email?.toLowerCase().includes(normalizedQuery)) return true;
+      
+      // Phone match (with normalization)
+      if (client.phone) {
+        const phoneDigits = client.phone.replace(/\D/g, '');
+        if (normalizedQueryDigits.length >= 4 && phoneDigits.includes(normalizedQueryDigits)) return true;
+        // Also try without country code
+        if (phoneDigits.length >= 12 && phoneDigits.slice(2).includes(normalizedQueryDigits)) return true;
+      }
+      
+      // Decrypted login match
+      const decrypted = decryptedLogins[client.id];
+      if (decrypted) {
+        if (decrypted.login.toLowerCase().includes(normalizedQuery)) return true;
+        if (decrypted.login_2.toLowerCase().includes(normalizedQuery)) return true;
+      }
+      
+      // Fallback: raw login match (for non-encrypted data)
+      if (client.login?.toLowerCase().includes(normalizedQuery)) return true;
+      if (client.login_2?.toLowerCase().includes(normalizedQuery)) return true;
+      
+      return false;
+    }).slice(0, 50);
+  }, [searchQuery, allClients, decryptedLogins]);
+
+  const isSearching = isLoadingAllClients || isDecryptingLogins;
+
   
   // Fetch full client data when selected
   const { data: clientFullData, isLoading: isLoadingClient } = useQuery({
