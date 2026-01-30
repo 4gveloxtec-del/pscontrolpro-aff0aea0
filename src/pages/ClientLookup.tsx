@@ -258,9 +258,12 @@ function ClientLookup() {
       // Phone match (with normalization)
       if (client.phone) {
         const phoneDigits = client.phone.replace(/\D/g, '');
+        // Search by digits (minimum 4 digits for phone search)
         if (normalizedQueryDigits.length >= 4 && phoneDigits.includes(normalizedQueryDigits)) return true;
-        // Also try without country code
-        if (phoneDigits.length >= 12 && phoneDigits.slice(2).includes(normalizedQueryDigits)) return true;
+        // Also try without country code (55)
+        if (normalizedQueryDigits.length >= 4 && phoneDigits.length >= 12 && phoneDigits.slice(2).includes(normalizedQueryDigits)) return true;
+        // Also match plain text phone (for partial searches like "(11)")
+        if (client.phone.toLowerCase().includes(normalizedQuery)) return true;
       }
       
       // Decrypted login match
