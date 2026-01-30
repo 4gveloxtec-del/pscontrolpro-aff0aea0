@@ -1,9 +1,9 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { CloseButton } from "@/components/ui/close-button";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -60,15 +60,9 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         <div className="pt-8">
           {children}
         </div>
-        {/* Close button using Radix Close with asChild for full control */}
+        {/* Close button using global CloseButton component */}
         <SheetPrimitive.Close asChild>
-          <button
-            type="button"
-            className="absolute top-3 right-3 z-[100] rounded-full opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 shrink-0"
-            aria-label="Fechar"
-          >
-            <X className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
+          <CloseButton />
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPortal>
