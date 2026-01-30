@@ -54,6 +54,7 @@ const ForcePasswordUpdate = lazy(() => import("./pages/ForcePasswordUpdate"));
 const TestCommands = lazy(() => import("./pages/TestCommands"));
 const BotEngine = lazy(() => import("./pages/BotEngine"));
 const AdminAsaas = lazy(() => import("./pages/AdminAsaas"));
+const Reminders = lazy(() => import("./pages/Reminders"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ProjectDocumentation = lazy(() => import("./pages/ProjectDocumentation"));
 
@@ -233,6 +234,7 @@ const AppRoutes = () => {
             <Route path="/my-apps" element={<MyApps />} />
             <Route path="/test-commands" element={<TestCommands />} />
             <Route path="/bot-engine" element={<BotEngine />} />
+            <Route path="/reminders" element={<SellerOnly><Reminders /></SellerOnly>} />
             
             {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
             <Route path="/sellers" element={

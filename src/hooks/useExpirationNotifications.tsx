@@ -11,6 +11,7 @@ interface Client {
   id: string;
   name: string;
   expiration_date: string;
+  billing_mode?: string | null;
 }
 
 export function useExpirationNotifications() {
@@ -101,7 +102,7 @@ export function useExpirationNotifications() {
     try {
       const { data: clients, error } = await supabase
         .from('clients')
-        .select('id, name, expiration_date')
+        .select('id, name, expiration_date, billing_mode')
         .eq('seller_id', user.id)
         .eq('is_archived', false);
 
@@ -113,7 +114,12 @@ export function useExpirationNotifications() {
         const normalized = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
         return new Date(normalized);
       };
+      
+      // BILLING MODE: Only notify for clients with manual billing mode (or no mode set)
       const expiringClients = (clients || []).filter(c => {
+        // Skip clients with automatic billing mode - they use reminders
+        if (c.billing_mode === 'automatic') return false;
+        
         const days = differenceInDays(normalizeDate(c.expiration_date), todayDate);
         return days >= 0 && days <= 3;
       });
