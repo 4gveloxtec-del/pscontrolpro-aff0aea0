@@ -32,10 +32,13 @@ interface BillingReminder {
   client_id: string;
   template_id: string | null;
   message: string;
+  edited_message: string | null;
   scheduled_date: string;
   scheduled_time: string;
   reminder_type: string;
+  send_mode: 'auto' | 'manual_api' | 'push_only';
   status: string;
+  clients?: Client | null;
 }
 
 interface Client {
@@ -53,6 +56,7 @@ interface SellerProfile {
   full_name: string | null;
   company_name: string | null;
   pix_key: string | null;
+  plan_type: string | null;
 }
 
 interface GlobalConfig {
@@ -73,6 +77,8 @@ interface SellerInstance {
 function replaceVariables(template: string, variables: Record<string, string>): string {
   let result = template;
   for (const [key, value] of Object.entries(variables)) {
+    // Support both {{variable}} and {variable} formats
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value || '');
     result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value || '');
   }
   return result;
@@ -132,7 +138,7 @@ async function sendEvolutionMessage(
   }
 }
 
-// Send push notification to seller (for manual mode)
+// Send push notification to seller (for manual/push_only mode)
 async function sendPushNotification(
   supabaseUrl: string,
   supabaseKey: string,
@@ -175,6 +181,18 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check for specific reminder_id (for manual sending)
+    let specificReminderId: string | null = null;
+    let forceSend = false;
+    
+    try {
+      const body = await req.json();
+      specificReminderId = body.reminder_id || null;
+      forceSend = body.force_send === true;
+    } catch {
+      // No body or invalid JSON - proceed with scheduled processing
+    }
+
     // Get current date and time in São Paulo timezone
     const now = new Date();
     const spTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -185,24 +203,51 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[process-billing-reminders] Running at ${todayStr} ${currentTimeStr}`);
 
-    // Get scheduled reminders for today that should be sent now (time <= current time)
-    const { data: pendingReminders, error: remindersError } = await supabase
-      .from('billing_reminders')
-      .select(`
-        *,
-        clients:client_id (id, name, phone, expiration_date, plan_name, plan_price, billing_mode)
-      `)
-      .eq('scheduled_date', todayStr)
-      .eq('status', 'scheduled')
-      .lte('scheduled_time', currentTimeStr + ':59');
+    let pendingReminders: BillingReminder[] = [];
 
-    if (remindersError) {
-      throw new Error(`Error fetching reminders: ${remindersError.message}`);
+    if (specificReminderId && forceSend) {
+      // Force send a specific reminder (for manual_api mode)
+      const { data, error } = await supabase
+        .from('billing_reminders')
+        .select(`
+          *,
+          clients:client_id (id, name, phone, expiration_date, plan_name, plan_price, billing_mode)
+        `)
+        .eq('id', specificReminderId)
+        .eq('status', 'scheduled')
+        .single();
+
+      if (error) {
+        throw new Error(`Reminder not found: ${error.message}`);
+      }
+      
+      pendingReminders = [data];
+      console.log(`[process-billing-reminders] Force sending reminder ${specificReminderId}`);
+    } else {
+      // Get scheduled reminders for today that should be sent now
+      // Only process 'auto' and 'push_only' modes automatically
+      // 'manual_api' mode requires explicit force_send
+      const { data, error: remindersError } = await supabase
+        .from('billing_reminders')
+        .select(`
+          *,
+          clients:client_id (id, name, phone, expiration_date, plan_name, plan_price, billing_mode)
+        `)
+        .eq('scheduled_date', todayStr)
+        .eq('status', 'scheduled')
+        .in('send_mode', ['auto', 'push_only'])
+        .lte('scheduled_time', currentTimeStr + ':59');
+
+      if (remindersError) {
+        throw new Error(`Error fetching reminders: ${remindersError.message}`);
+      }
+
+      pendingReminders = data || [];
     }
 
-    console.log(`[process-billing-reminders] Found ${pendingReminders?.length || 0} pending reminders`);
+    console.log(`[process-billing-reminders] Found ${pendingReminders.length} pending reminders`);
 
-    if (!pendingReminders || pendingReminders.length === 0) {
+    if (pendingReminders.length === 0) {
       return new Response(JSON.stringify({
         message: 'No pending reminders to process',
         processed: 0,
@@ -222,10 +267,10 @@ Deno.serve(async (req: Request) => {
     // Get all unique seller IDs
     const sellerIds = [...new Set(pendingReminders.map(r => r.seller_id))];
 
-    // Get seller profiles
+    // Get seller profiles (including plan_type)
     const { data: sellerProfiles } = await supabase
       .from('profiles')
-      .select('id, full_name, company_name, pix_key')
+      .select('id, full_name, company_name, pix_key, plan_type')
       .in('id', sellerIds);
 
     const profilesMap = new Map<string, SellerProfile>();
@@ -267,6 +312,7 @@ Deno.serve(async (req: Request) => {
 
       const sellerProfile = profilesMap.get(reminder.seller_id);
       const sellerInstance = instancesMap.get(reminder.seller_id);
+      const sellerHasWhatsAppApi = sellerProfile?.plan_type === 'whatsapp';
 
       // Build variables for template
       const variables: Record<string, string> = {
@@ -278,18 +324,44 @@ Deno.serve(async (req: Request) => {
         empresa: sellerProfile?.company_name || sellerProfile?.full_name || '',
       };
 
-      // Replace variables in message
-      const finalMessage = replaceVariables(reminder.message, variables);
+      // Use edited_message if available, otherwise use template message with variables replaced
+      const finalMessage = reminder.edited_message 
+        ? reminder.edited_message 
+        : replaceVariables(reminder.message, variables);
 
       let sent = false;
       let errorMessage: string | null = null;
 
-      // Check billing mode
-      const billingMode = client.billing_mode || 'manual';
+      // Determine action based on send_mode
+      const sendMode = reminder.send_mode || 'push_only';
 
-      if (billingMode === 'automatic') {
-        // AUTOMATIC MODE: Send WhatsApp message to client
-        if (!client.phone) {
+      if (sendMode === 'push_only') {
+        // PUSH ONLY MODE: Send push notification to seller (NOT to client)
+        const reminderTypeLabel = reminder.reminder_type === 'd1' ? 'Vence Amanhã' : 'Vence Hoje';
+        
+        sent = await sendPushNotification(
+          supabaseUrl,
+          supabaseKey,
+          reminder.seller_id,
+          `📢 Cobrança: ${client.name}`,
+          `${reminderTypeLabel} • ${client.plan_name || 'Plano'} • ${formatPrice(client.plan_price)}`,
+          {
+            type: 'billing-reminder',
+            clientId: client.id,
+            clientName: client.name,
+            clientPhone: client.phone,
+            reminderType: reminder.reminder_type,
+            message: finalMessage,
+          }
+        );
+        
+        if (sent) pushSent++;
+        else errorMessage = 'Falha ao enviar notificação push';
+      } else if (sendMode === 'auto' || sendMode === 'manual_api') {
+        // API MODES: Send WhatsApp message to client
+        if (!sellerHasWhatsAppApi) {
+          errorMessage = 'Revendedor não possui plano API WhatsApp';
+        } else if (!client.phone) {
           errorMessage = 'Cliente sem telefone cadastrado';
         } else if (globalConfig && sellerInstance) {
           sent = await sendEvolutionMessage(
@@ -305,27 +377,6 @@ Deno.serve(async (req: Request) => {
             ? 'Instância do vendedor não conectada' 
             : 'WhatsApp API não configurada';
         }
-      } else {
-        // MANUAL MODE: Send push notification to seller (NOT to client)
-        const reminderTypeLabel = reminder.reminder_type === 'd1' ? 'Vence Amanhã' : 'Vence Hoje';
-        
-        sent = await sendPushNotification(
-          supabaseUrl,
-          supabaseKey,
-          reminder.seller_id,
-          `📢 Cobrança: ${client.name}`,
-          `${reminderTypeLabel} • ${client.plan_name || 'Plano'} • ${formatPrice(client.plan_price)}`,
-          {
-            type: 'billing-reminder',
-            clientId: client.id,
-            clientName: client.name,
-            clientPhone: client.phone,
-            reminderType: reminder.reminder_type,
-          }
-        );
-        
-        if (sent) pushSent++;
-        else errorMessage = 'Falha ao enviar notificação push';
       }
 
       // Update reminder status

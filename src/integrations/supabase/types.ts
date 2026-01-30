@@ -377,6 +377,7 @@ export type Database = {
         Row: {
           client_id: string
           created_at: string | null
+          edited_message: string | null
           error_message: string | null
           id: string
           message: string
@@ -384,6 +385,7 @@ export type Database = {
           scheduled_date: string
           scheduled_time: string
           seller_id: string
+          send_mode: string | null
           sent_at: string | null
           status: string
           template_id: string | null
@@ -392,6 +394,7 @@ export type Database = {
         Insert: {
           client_id: string
           created_at?: string | null
+          edited_message?: string | null
           error_message?: string | null
           id?: string
           message: string
@@ -399,6 +402,7 @@ export type Database = {
           scheduled_date: string
           scheduled_time: string
           seller_id: string
+          send_mode?: string | null
           sent_at?: string | null
           status?: string
           template_id?: string | null
@@ -407,6 +411,7 @@ export type Database = {
         Update: {
           client_id?: string
           created_at?: string | null
+          edited_message?: string | null
           error_message?: string | null
           id?: string
           message?: string
@@ -414,6 +419,7 @@ export type Database = {
           scheduled_date?: string
           scheduled_time?: string
           seller_id?: string
+          send_mode?: string | null
           sent_at?: string | null
           status?: string
           template_id?: string | null

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -33,8 +34,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
-import { Clock, Calendar, AlertTriangle, CheckCircle, XCircle, Bell, Settings, Zap, X } from 'lucide-react';
+import { Clock, Calendar, AlertTriangle, CheckCircle, XCircle, Bell, Settings, Zap, X, Send, MessageCircle, Smartphone } from 'lucide-react';
 import { format, addDays, startOfToday, parseISO, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -44,10 +46,12 @@ interface BillingReminder {
   client_id: string;
   template_id: string | null;
   message: string;
+  edited_message: string | null;
   scheduled_date: string;
   scheduled_time: string;
   status: 'scheduled' | 'sent' | 'failed' | 'cancelled';
   reminder_type: 'd1' | 'd0' | 'custom';
+  send_mode: 'auto' | 'manual_api' | 'push_only';
   sent_at: string | null;
   error_message: string | null;
   created_at: string;
@@ -84,21 +88,75 @@ interface Client {
 interface ReminderSettings {
   d1_enabled: boolean;
   d1_time: string;
-  d1_template_id: string;
   d0_enabled: boolean;
   d0_time: string;
-  d0_template_id: string;
+}
+
+interface SellerProfile {
+  id: string;
+  plan_type: string | null;
+  pix_key: string | null;
+  company_name: string | null;
+  full_name: string | null;
 }
 
 // Default settings key in localStorage
-const REMINDER_SETTINGS_KEY = 'reminder_settings';
+const REMINDER_SETTINGS_KEY = 'reminder_settings_v2';
+
+// Universal template ID
+const UNIVERSAL_TEMPLATE_ID = 'a0000000-0000-0000-0000-000000000001';
+
+// Format price helper
+function formatPrice(price: number | null): string {
+  if (price === null || price === undefined) return '';
+  return `R$ ${price.toFixed(2).replace('.', ',')}`;
+}
+
+// Format date helper
+function formatDateBR(dateStr: string): string {
+  if (!dateStr) return '';
+  const dateOnlyMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return `${day}/${month}/${year}`;
+  }
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+// Replace template variables
+function replaceVariables(
+  template: string, 
+  client: Client, 
+  profile: SellerProfile | null
+): string {
+  return template
+    .replace(/\{\{nome\}\}/g, client.name || '')
+    .replace(/\{\{plano\}\}/g, client.plan_name || '')
+    .replace(/\{\{vencimento\}\}/g, formatDateBR(client.expiration_date))
+    .replace(/\{\{valor\}\}/g, formatPrice(client.plan_price))
+    .replace(/\{\{pix\}\}/g, profile?.pix_key || '')
+    .replace(/\{\{empresa\}\}/g, profile?.company_name || profile?.full_name || '');
+}
 
 export default function Reminders() {
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('scheduled');
+  const [editReminderDialog, setEditReminderDialog] = useState<{
+    open: boolean;
+    reminder: BillingReminder | null;
+    editedMessage: string;
+    sending: boolean;
+  }>({
+    open: false,
+    reminder: null,
+    editedMessage: '',
+    sending: false,
+  });
 
   // Load settings from localStorage
   const [settings, setSettings] = useState<ReminderSettings>(() => {
@@ -109,10 +167,8 @@ export default function Reminders() {
     return {
       d1_enabled: true,
       d1_time: '09:00',
-      d1_template_id: 'a0000001-0000-0000-0000-000000000001',
       d0_enabled: true,
       d0_time: '08:00',
-      d0_template_id: 'a0000002-0000-0000-0000-000000000002',
     };
   });
 
@@ -122,6 +178,9 @@ export default function Reminders() {
       localStorage.setItem(`${REMINDER_SETTINGS_KEY}_${user.id}`, JSON.stringify(settings));
     }
   }, [settings, user?.id]);
+
+  // Check if seller has WhatsApp API plan (derived from sellerProfile query instead)
+  const [hasWhatsAppApi, setHasWhatsAppApi] = useState(false);
 
   // Redirect admin away - this page is resellers only
   if (isAdmin) {
@@ -135,6 +194,28 @@ export default function Reminders() {
       </div>
     );
   }
+
+  // Fetch seller profile for variables and plan type
+  const { data: sellerProfile } = useQuery({
+    queryKey: ['seller-profile', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, plan_type, pix_key, company_name, full_name')
+        .eq('id', user!.id)
+        .single();
+      if (error) throw error;
+      return data as SellerProfile;
+    },
+    enabled: !!user?.id && !isAdmin,
+  });
+
+  // Update hasWhatsAppApi when profile loads
+  useEffect(() => {
+    if (sellerProfile) {
+      setHasWhatsAppApi(sellerProfile.plan_type === 'whatsapp');
+    }
+  }, [sellerProfile]);
 
   // Fetch reminders
   const { data: reminders = [], isLoading: loadingReminders } = useQuery({
@@ -155,37 +236,35 @@ export default function Reminders() {
     enabled: !!user?.id && !isAdmin,
   });
 
-  // Fetch templates (own + global)
-  const { data: templates = [] } = useQuery({
-    queryKey: ['billing-reminder-templates', user?.id],
+  // Fetch universal template
+  const { data: universalTemplate } = useQuery({
+    queryKey: ['universal-billing-template'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('billing_reminder_templates')
         .select('*')
-        .or(`seller_id.eq.${user!.id},is_global.eq.true`)
-        .order('is_global', { ascending: false })
-        .order('name');
+        .eq('id', UNIVERSAL_TEMPLATE_ID)
+        .single();
       if (error) throw error;
-      return data as BillingReminderTemplate[];
+      return data as BillingReminderTemplate;
     },
     enabled: !!user?.id && !isAdmin,
   });
 
-  // Fetch clients that can receive reminders (automatic mode)
+  // Fetch clients that can receive reminders
   const { data: eligibleClients = [] } = useQuery({
-    queryKey: ['clients-for-auto-reminders', user?.id],
+    queryKey: ['clients-for-reminders', user?.id],
     queryFn: async () => {
       const today = startOfToday();
       const tomorrow = addDays(today, 1);
       const todayStr = format(today, 'yyyy-MM-dd');
       const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
       
-      // Get clients expiring today or tomorrow with automatic billing mode
+      // Get clients expiring today or tomorrow
       const { data, error } = await supabase
         .from('clients')
         .select('id, name, phone, billing_mode, expiration_date, plan_name, plan_price')
         .eq('seller_id', user!.id)
-        .eq('billing_mode', 'automatic')
         .eq('is_archived', false)
         .or(`expiration_date.eq.${todayStr},expiration_date.eq.${tomorrowStr}`)
         .order('expiration_date');
@@ -218,74 +297,82 @@ export default function Reminders() {
     return reminders.filter(r => r.status === statusFilter);
   }, [reminders, statusFilter]);
 
+  // Determine send mode based on plan
+  const getDefaultSendMode = (): 'auto' | 'manual_api' | 'push_only' => {
+    // Plano Manual: apenas push notification
+    if (!hasWhatsAppApi) return 'push_only';
+    // Plano API WhatsApp: default é automático
+    return 'auto';
+  };
+
   // Generate reminders for eligible clients
   const generateRemindersMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (sendMode: 'auto' | 'manual_api' | 'push_only') => {
+      if (!universalTemplate) throw new Error('Template universal não encontrado');
+
       const today = startOfToday();
       const tomorrow = addDays(today, 1);
       const todayStr = format(today, 'yyyy-MM-dd');
-      const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
-      
+
       const remindersToCreate: Array<{
         seller_id: string;
         client_id: string;
-        template_id: string | null;
+        template_id: string;
         message: string;
         scheduled_date: string;
         scheduled_time: string;
         reminder_type: 'd1' | 'd0';
+        send_mode: 'auto' | 'manual_api' | 'push_only';
         status: 'scheduled';
       }> = [];
-
-      // Get templates
-      const d1Template = templates.find(t => t.id === settings.d1_template_id);
-      const d0Template = templates.find(t => t.id === settings.d0_template_id);
 
       // Check existing reminders to avoid duplicates
       const { data: existingReminders } = await supabase
         .from('billing_reminders')
         .select('client_id, reminder_type, scheduled_date')
         .eq('seller_id', user!.id)
-        .in('scheduled_date', [todayStr, tomorrowStr])
+        .eq('scheduled_date', todayStr)
         .eq('status', 'scheduled');
 
       const existingKeys = new Set(
-        (existingReminders || []).map(r => `${r.client_id}:${r.reminder_type}:${r.scheduled_date}`)
+        (existingReminders || []).map(r => `${r.client_id}:${r.reminder_type}`)
       );
 
       // D-1: Clients expiring TOMORROW - schedule for TODAY
-      if (settings.d1_enabled && d1Template) {
+      if (settings.d1_enabled) {
         for (const client of clientsD1) {
-          const key = `${client.id}:d1:${todayStr}`;
+          const key = `${client.id}:d1`;
           if (existingKeys.has(key)) continue;
 
           remindersToCreate.push({
             seller_id: user!.id,
             client_id: client.id,
-            template_id: settings.d1_template_id,
-            message: d1Template.message,
+            template_id: UNIVERSAL_TEMPLATE_ID,
+            message: universalTemplate.message,
             scheduled_date: todayStr,
             scheduled_time: settings.d1_time,
             reminder_type: 'd1',
+            send_mode: sendMode,
             status: 'scheduled',
           });
         }
       }
 
       // D-0: Clients expiring TODAY - schedule for TODAY
-      if (settings.d0_enabled && d0Template) {
+      if (settings.d0_enabled) {
         for (const client of clientsD0) {
-          const key = `${client.id}:d0:${todayStr}`;
+          const key = `${client.id}:d0`;
           if (existingKeys.has(key)) continue;
 
           remindersToCreate.push({
             seller_id: user!.id,
             client_id: client.id,
-            template_id: settings.d0_template_id,
-            message: d0Template.message,
+            template_id: UNIVERSAL_TEMPLATE_ID,
+            message: universalTemplate.message,
             scheduled_date: todayStr,
             scheduled_time: settings.d0_time,
             reminder_type: 'd0',
+            send_mode: sendMode,
             status: 'scheduled',
           });
         }
@@ -306,7 +393,7 @@ export default function Reminders() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['billing-reminders'] });
       if (result.created > 0) {
-        toast.success(`${result.created} lembrete(s) criado(s) automaticamente!`);
+        toast.success(`${result.created} lembrete(s) criado(s)!`);
       } else {
         toast.info('Nenhum novo lembrete para criar. Todos já foram agendados.');
       }
@@ -336,6 +423,53 @@ export default function Reminders() {
     },
   });
 
+  // Send reminder manually via API
+  const sendManuallyMutation = useMutation({
+    mutationFn: async ({ reminderId, message }: { reminderId: string; message: string }) => {
+      // Update the reminder with edited message and mark as sending
+      const { error: updateError } = await supabase
+        .from('billing_reminders')
+        .update({ edited_message: message })
+        .eq('id', reminderId);
+
+      if (updateError) throw updateError;
+
+      // Call the process function to send this specific reminder
+      const { data, error } = await supabase.functions.invoke('process-billing-reminders', {
+        body: { reminder_id: reminderId, force_send: true }
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['billing-reminders'] });
+      toast.success('Mensagem enviada com sucesso!');
+      setEditReminderDialog({ open: false, reminder: null, editedMessage: '', sending: false });
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao enviar: ${error.message}`);
+      setEditReminderDialog(prev => ({ ...prev, sending: false }));
+    },
+  });
+
+  const openEditDialog = (reminder: BillingReminder) => {
+    const client = reminder.clients;
+    let message = reminder.edited_message || reminder.message;
+    
+    // Replace variables with actual values
+    if (client) {
+      message = replaceVariables(message, client as Client, sellerProfile || null);
+    }
+
+    setEditReminderDialog({
+      open: true,
+      reminder,
+      editedMessage: message,
+      sending: false,
+    });
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
@@ -354,11 +488,24 @@ export default function Reminders() {
   const getReminderTypeBadge = (type: string) => {
     switch (type) {
       case 'd1':
-        return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">D-1 (Amanhã)</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">D-1</Badge>;
       case 'd0':
-        return <Badge variant="secondary" className="bg-orange-500/10 text-orange-600">D-0 (Hoje)</Badge>;
+        return <Badge variant="secondary" className="bg-orange-500/10 text-orange-600">D-0</Badge>;
       default:
         return <Badge variant="secondary">Personalizado</Badge>;
+    }
+  };
+
+  const getSendModeBadge = (mode: string) => {
+    switch (mode) {
+      case 'auto':
+        return <Badge variant="outline" className="bg-success/10 text-success text-xs"><Zap className="h-3 w-3 mr-1" />Auto</Badge>;
+      case 'manual_api':
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-500 text-xs"><MessageCircle className="h-3 w-3 mr-1" />Manual API</Badge>;
+      case 'push_only':
+        return <Badge variant="outline" className="bg-purple-500/10 text-purple-500 text-xs"><Smartphone className="h-3 w-3 mr-1" />Push</Badge>;
+      default:
+        return null;
     }
   };
 
@@ -377,24 +524,48 @@ export default function Reminders() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Lembretes de Cobrança</h1>
           <p className="text-muted-foreground">
-            Agende mensagens automáticas para clientes próximos ao vencimento
+            {hasWhatsAppApi 
+              ? 'Envie lembretes automáticos ou manuais via WhatsApp'
+              : 'Receba alertas para cobrar seus clientes'
+            }
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" className="gap-2" onClick={() => setIsSettingsOpen(true)}>
             <Settings className="h-4 w-4" />
-            Configurar
-          </Button>
-          <Button 
-            className="gap-2" 
-            onClick={() => generateRemindersMutation.mutate()}
-            disabled={generateRemindersMutation.isPending}
-          >
-            <Zap className="h-4 w-4" />
-            {generateRemindersMutation.isPending ? 'Gerando...' : 'Gerar Lembretes'}
+            Horários
           </Button>
         </div>
       </div>
+
+      {/* Plan Info Banner */}
+      <Card className={hasWhatsAppApi ? "bg-success/5 border-success/20" : "bg-purple-500/5 border-purple-500/20"}>
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            {hasWhatsAppApi ? (
+              <>
+                <Zap className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+                <div className="text-sm space-y-1">
+                  <p className="font-medium text-success">Plano API WhatsApp</p>
+                  <p className="text-muted-foreground">
+                    Você pode enviar mensagens automaticamente ou manualmente via API do WhatsApp.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <Smartphone className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                <div className="text-sm space-y-1">
+                  <p className="font-medium text-purple-500">Plano Manual</p>
+                  <p className="text-muted-foreground">
+                    Você receberá notificações push como alerta de cobrança. Envie as mensagens manualmente.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -409,7 +580,7 @@ export default function Reminders() {
             <div className="text-2xl font-bold">{clientsD1.length}</div>
             <p className="text-xs text-muted-foreground">
               {settings.d1_enabled 
-                ? `Envio às ${settings.d1_time}` 
+                ? `Horário: ${settings.d1_time}` 
                 : 'Desativado'}
             </p>
           </CardContent>
@@ -426,7 +597,7 @@ export default function Reminders() {
             <div className="text-2xl font-bold">{clientsD0.length}</div>
             <p className="text-xs text-muted-foreground">
               {settings.d0_enabled 
-                ? `Envio às ${settings.d0_time}` 
+                ? `Horário: ${settings.d0_time}` 
                 : 'Desativado'}
             </p>
           </CardContent>
@@ -443,26 +614,69 @@ export default function Reminders() {
             <div className="text-2xl font-bold">
               {reminders.filter(r => r.status === 'scheduled').length}
             </div>
-            <p className="text-xs text-muted-foreground">Pendentes de envio</p>
+            <p className="text-xs text-muted-foreground">Pendentes de processamento</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Info Banner */}
-      <Card className="bg-blue-500/5 border-blue-500/20">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div className="text-sm space-y-1">
-              <p className="font-medium text-blue-500">Como funciona</p>
-              <ul className="text-muted-foreground list-disc list-inside space-y-1">
-                <li><strong>D-1:</strong> Clientes que vencem AMANHÃ recebem mensagem HOJE</li>
-                <li><strong>D-0:</strong> Clientes que vencem HOJE recebem mensagem HOJE</li>
-                <li>Apenas clientes com modo <strong>Automático</strong> são incluídos</li>
-                <li>Use o botão "Gerar Lembretes" para criar os agendamentos</li>
-              </ul>
+      {/* Generate Reminders Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5" />
+            Gerar Lembretes
+          </CardTitle>
+          <CardDescription>
+            Crie lembretes para os clientes que vencem hoje (D-0) ou amanhã (D-1)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {hasWhatsAppApi ? (
+            // Plano API WhatsApp: opções de envio
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Escolha como deseja enviar os lembretes:
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button 
+                  className="gap-2" 
+                  onClick={() => generateRemindersMutation.mutate('auto')}
+                  disabled={generateRemindersMutation.isPending}
+                >
+                  <Zap className="h-4 w-4" />
+                  Enviar Automaticamente
+                </Button>
+                <Button 
+                  variant="secondary"
+                  className="gap-2" 
+                  onClick={() => generateRemindersMutation.mutate('manual_api')}
+                  disabled={generateRemindersMutation.isPending}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Enviar Manualmente (editar antes)
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <strong>Automático:</strong> mensagens enviadas no horário configurado. <br />
+                <strong>Manual:</strong> você poderá editar e enviar cada mensagem individualmente.
+              </p>
             </div>
-          </div>
+          ) : (
+            // Plano Manual: apenas push notification
+            <div className="space-y-4">
+              <Button 
+                className="gap-2" 
+                onClick={() => generateRemindersMutation.mutate('push_only')}
+                disabled={generateRemindersMutation.isPending}
+              >
+                <Bell className="h-4 w-4" />
+                {generateRemindersMutation.isPending ? 'Gerando...' : 'Gerar Alertas de Cobrança'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Você receberá notificações push no horário configurado para lembrar de cobrar cada cliente.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -493,15 +707,6 @@ export default function Reminders() {
                 ? 'Nenhum lembrete agendado ainda' 
                 : `Nenhum lembrete com status "${statusFilter}"`}
             </p>
-            <Button 
-              variant="outline" 
-              className="mt-4" 
-              onClick={() => generateRemindersMutation.mutate()}
-              disabled={generateRemindersMutation.isPending}
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              Gerar Lembretes Automaticamente
-            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -516,11 +721,9 @@ export default function Reminders() {
                         {reminder.clients?.name || 'Cliente não encontrado'}
                       </span>
                       {getReminderTypeBadge(reminder.reminder_type)}
+                      {getSendModeBadge(reminder.send_mode)}
                       {getStatusBadge(reminder.status)}
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                      {reminder.message}
-                    </p>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -548,16 +751,29 @@ export default function Reminders() {
                       )}
                     </div>
                   </div>
-                  {reminder.status === 'scheduled' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => setCancelConfirmId(reminder.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {reminder.status === 'scheduled' && reminder.send_mode === 'manual_api' && hasWhatsAppApi && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => openEditDialog(reminder)}
+                      >
+                        <Send className="h-3 w-3" />
+                        Editar e Enviar
+                      </Button>
+                    )}
+                    {reminder.status === 'scheduled' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => setCancelConfirmId(reminder.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -571,10 +787,10 @@ export default function Reminders() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Configurações de Lembretes
+              Configuração de Horários
             </DialogTitle>
             <DialogDescription>
-              Configure os horários e templates para D-1 e D-0
+              Configure os horários para D-1 e D-0. A data é calculada automaticamente.
             </DialogDescription>
           </DialogHeader>
 
@@ -584,7 +800,7 @@ export default function Reminders() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-base font-medium">D-1 (Vence Amanhã)</Label>
-                  <p className="text-xs text-muted-foreground">Enviar lembrete para clientes que vencem amanhã</p>
+                  <p className="text-xs text-muted-foreground">Clientes que vencem amanhã</p>
                 </div>
                 <Switch
                   checked={settings.d1_enabled}
@@ -593,34 +809,14 @@ export default function Reminders() {
               </div>
               
               {settings.d1_enabled && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="d1_time">Horário</Label>
-                    <Input
-                      id="d1_time"
-                      type="time"
-                      value={settings.d1_time}
-                      onChange={(e) => setSettings(s => ({ ...s, d1_time: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Template</Label>
-                    <Select
-                      value={settings.d1_template_id}
-                      onValueChange={(v) => setSettings(s => ({ ...s, d1_template_id: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.is_global ? '🌐 ' : ''}{t.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="d1_time">Horário do Lembrete</Label>
+                  <Input
+                    id="d1_time"
+                    type="time"
+                    value={settings.d1_time}
+                    onChange={(e) => setSettings(s => ({ ...s, d1_time: e.target.value }))}
+                  />
                 </div>
               )}
             </div>
@@ -630,7 +826,7 @@ export default function Reminders() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-base font-medium">D-0 (Vence Hoje)</Label>
-                  <p className="text-xs text-muted-foreground">Enviar lembrete para clientes que vencem hoje</p>
+                  <p className="text-xs text-muted-foreground">Clientes que vencem hoje</p>
                 </div>
                 <Switch
                   checked={settings.d0_enabled}
@@ -639,34 +835,14 @@ export default function Reminders() {
               </div>
               
               {settings.d0_enabled && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="d0_time">Horário</Label>
-                    <Input
-                      id="d0_time"
-                      type="time"
-                      value={settings.d0_time}
-                      onChange={(e) => setSettings(s => ({ ...s, d0_time: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Template</Label>
-                    <Select
-                      value={settings.d0_template_id}
-                      onValueChange={(v) => setSettings(s => ({ ...s, d0_template_id: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.is_global ? '🌐 ' : ''}{t.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="d0_time">Horário do Lembrete</Label>
+                  <Input
+                    id="d0_time"
+                    type="time"
+                    value={settings.d0_time}
+                    onChange={(e) => setSettings(s => ({ ...s, d0_time: e.target.value }))}
+                  />
                 </div>
               )}
             </div>
@@ -678,13 +854,77 @@ export default function Reminders() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit and Send Dialog (for manual_api mode) */}
+      <Dialog 
+        open={editReminderDialog.open} 
+        onOpenChange={(open) => !editReminderDialog.sending && setEditReminderDialog(prev => ({ ...prev, open }))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5" />
+              Editar e Enviar Mensagem
+            </DialogTitle>
+            <DialogDescription>
+              {editReminderDialog.reminder?.clients?.name} - {editReminderDialog.reminder?.clients?.phone}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Mensagem</Label>
+              <Textarea
+                value={editReminderDialog.editedMessage}
+                onChange={(e) => setEditReminderDialog(prev => ({ ...prev, editedMessage: e.target.value }))}
+                rows={8}
+                placeholder="Edite a mensagem antes de enviar..."
+              />
+              <p className="text-xs text-muted-foreground">
+                A mensagem será enviada via WhatsApp API.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setEditReminderDialog({ open: false, reminder: null, editedMessage: '', sending: false })}
+              disabled={editReminderDialog.sending}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                if (editReminderDialog.reminder) {
+                  setEditReminderDialog(prev => ({ ...prev, sending: true }));
+                  sendManuallyMutation.mutate({
+                    reminderId: editReminderDialog.reminder.id,
+                    message: editReminderDialog.editedMessage,
+                  });
+                }
+              }}
+              disabled={editReminderDialog.sending || !editReminderDialog.editedMessage.trim()}
+            >
+              {editReminderDialog.sending ? (
+                <>Enviando...</>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar Agora
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={!!cancelConfirmId} onOpenChange={() => setCancelConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar Lembrete?</AlertDialogTitle>
             <AlertDialogDescription>
-              O lembrete será cancelado e não será enviado. Esta ação não pode ser desfeita.
+              O lembrete será cancelado e não será processado. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
