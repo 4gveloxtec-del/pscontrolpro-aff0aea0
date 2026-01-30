@@ -3,8 +3,6 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
-import { CloseButtonGlobal } from "./close-button-global";
-import { useGlobalModalCloseSafe } from "@/contexts/GlobalModalCloseContext";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -43,17 +41,12 @@ function composeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   };
 }
 
-interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
-  /** Hide the close button (useful for custom layouts) */
-  hideCloseButton?: boolean;
-}
-
 /**
- * DialogContent com observação do estado global de fechamento
+ * DialogContent - fecha via ESC, clique no backdrop ou botão voltar do navegador
  */
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  DialogContentProps
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(
   (
     {
@@ -62,39 +55,12 @@ const DialogContent = React.forwardRef<
       onOpenAutoFocus,
       onCloseAutoFocus,
       tabIndex,
-      hideCloseButton = false,
       ...props
     },
     ref,
   ) => {
     const contentRef = React.useRef<React.ElementRef<typeof DialogPrimitive.Content> | null>(null);
     const previouslyFocusedRef = React.useRef<HTMLElement | null>(null);
-    const globalClose = useGlobalModalCloseSafe();
-    const lastCloseIdRef = React.useRef<number>(0);
-
-    // Observa o estado global e fecha quando shouldClose = true
-    React.useEffect(() => {
-      if (!globalClose) return;
-      
-      const { shouldClose, closeId, resetClose } = globalClose;
-      
-      // Só processa se é um novo trigger (closeId diferente)
-      if (shouldClose && closeId > lastCloseIdRef.current) {
-        console.log('[DialogContent] Global close triggered, closing dialog');
-        lastCloseIdRef.current = closeId;
-        
-        // Encontra e clica no botão de fechar do Radix para fechar corretamente
-        const closeButton = contentRef.current?.querySelector('[data-radix-dialog-close]') as HTMLButtonElement;
-        if (closeButton) {
-          closeButton.click();
-        }
-        
-        // Reset o estado global após um pequeno delay
-        setTimeout(() => {
-          resetClose();
-        }, 50);
-      }
-    }, [globalClose?.shouldClose, globalClose?.closeId, globalClose?.resetClose]);
 
     return (
       <DialogPortal>
@@ -154,19 +120,12 @@ const DialogContent = React.forwardRef<
           {/* Mobile drag indicator */}
           <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-2 flex-shrink-0" />
           <DialogContextProvider>{children}</DialogContextProvider>
-          {/* Botão de fechar - dispara estado global */}
-          {!hideCloseButton && (
-            <>
-              {/* Botão invisível do Radix para manter a lógica de fechamento */}
-              <DialogPrimitive.Close 
-                data-radix-dialog-close
-                className="sr-only" 
-                aria-hidden="true"
-              />
-              {/* Botão visual que dispara o estado global */}
-              <CloseButtonGlobal />
-            </>
-          )}
+          {/* Botão invisível do Radix para fechamento programático (ESC/backdrop/back) */}
+          <DialogPrimitive.Close 
+            data-radix-dialog-close
+            className="sr-only" 
+            aria-hidden="true"
+          />
         </DialogPrimitive.Content>
       </DialogPortal>
     );

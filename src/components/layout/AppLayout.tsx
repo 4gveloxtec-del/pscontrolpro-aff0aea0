@@ -370,7 +370,6 @@ export function AppLayout() {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetContent 
               side="left" 
-              hideCloseButton
               className="w-[280px] max-w-[85vw] p-0 bg-sidebar border-sidebar-border"
               aria-describedby={undefined}
             >

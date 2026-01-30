@@ -38,8 +38,7 @@ interface ManagedDialogProps {
 }
 
 /**
- * ManagedDialog - Wrapper simplificado que usa o sistema global de fechamento.
- * O fechamento é gerenciado pelo GlobalModalCloseContext.
+ * ManagedDialog - Wrapper que fecha via ESC, clique no backdrop ou botão voltar do navegador.
  */
 export function ManagedDialog({
   id,

@@ -43,8 +43,7 @@ interface ManagedDrawerProps {
 }
 
 /**
- * ManagedDrawer - Wrapper simplificado que usa o sistema global de fechamento.
- * O fechamento é gerenciado pelo GlobalModalCloseContext.
+ * ManagedDrawer - Wrapper que fecha via ESC, clique no backdrop, drag down ou botão voltar do navegador.
  */
 export function ManagedDrawer({
   id,

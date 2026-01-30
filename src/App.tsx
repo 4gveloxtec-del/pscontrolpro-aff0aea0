@@ -20,7 +20,6 @@ import { useScrollPreservation } from "@/hooks/useScrollPreservation";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import { ScrollProvider, useScrollUserSync } from "@/contexts/ScrollContext";
 import { useGuardrails } from "@/hooks/useGuardrails";
-import { GlobalModalCloseProvider } from "@/contexts/GlobalModalCloseContext";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -281,31 +280,29 @@ function ScrollUserSyncWrapper({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <GlobalModalCloseProvider>
-        <div className="mobile-frame-outer">
-          <div className="mobile-frame-inner">
-            <OnlineRequired>
-              <AppInitializer>
-                <AuthProvider>
-                  <ScrollUserSyncWrapper>
-                    <PrivacyModeProvider>
-                      <MenuStyleProvider>
-                        <ExpirationNotificationProvider>
-                          <TooltipProvider>
-                            <Toaster />
-                            <Sonner />
-                            <AppRoutes />
-                          </TooltipProvider>
-                        </ExpirationNotificationProvider>
-                      </MenuStyleProvider>
-                    </PrivacyModeProvider>
-                  </ScrollUserSyncWrapper>
-                </AuthProvider>
-              </AppInitializer>
-            </OnlineRequired>
-          </div>
+      <div className="mobile-frame-outer">
+        <div className="mobile-frame-inner">
+          <OnlineRequired>
+            <AppInitializer>
+              <AuthProvider>
+                <ScrollUserSyncWrapper>
+                  <PrivacyModeProvider>
+                    <MenuStyleProvider>
+                      <ExpirationNotificationProvider>
+                        <TooltipProvider>
+                          <Toaster />
+                          <Sonner />
+                          <AppRoutes />
+                        </TooltipProvider>
+                      </ExpirationNotificationProvider>
+                    </MenuStyleProvider>
+                  </PrivacyModeProvider>
+                </ScrollUserSyncWrapper>
+              </AuthProvider>
+            </AppInitializer>
+          </OnlineRequired>
         </div>
-      </GlobalModalCloseProvider>
+      </div>
     </ThemeProvider>
   </QueryClientProvider>
 );
