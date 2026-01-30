@@ -209,6 +209,12 @@ export default function Clients() {
   const [decrypting, setDecrypting] = useState<string | null>(null);
   const [isDecryptingAll, setIsDecryptingAll] = useState(false);
   const [allCredentialsDecrypted, setAllCredentialsDecrypted] = useState(false);
+  
+  // ============= Busca por login criptografado =============
+  // Armazena logins descriptografados de TODOS os clientes para busca local
+  const [searchDecryptedLogins, setSearchDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
+  const [isDecryptingSearchLogins, setIsDecryptingSearchLogins] = useState(false);
+  const searchDecryptInitializedRef = useRef(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [serverFilter, setServerFilter] = useState<string>('all');
   const [dnsFilter, setDnsFilter] = useState<string>('all');
@@ -546,8 +552,172 @@ export default function Clients() {
     return () => window.clearTimeout(t);
   }, [user?.id, debouncedSearch, totalClientCount, AUTOLOAD_ALL_UP_TO, hasMoreClients, isFetching, isLoading, allLoadedClients.length, loadMoreClients]);
 
-  // Use accumulated clients for the rest of the component
-  const clients = allLoadedClients;
+  // Placeholder - clients será definido após clientsWithLoginMatches
+  // (movido para depois da lógica de busca por login criptografado)
+
+  // ============= Busca por login criptografado - Carregar TODOS os clientes =============
+  // Carrega todos os clientes (até 1000) para permitir busca por login descriptografado
+  const { data: allClientsForSearch = [] } = useQuery({
+    queryKey: ['clients-all-for-search', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, login, login_2')
+        .eq('seller_id', user.id)
+        .or('is_archived.is.null,is_archived.eq.false')
+        .limit(1000);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000, // 1 minute
+    gcTime: 1000 * 60 * 10, // 10 minutes cache
+    refetchOnWindowFocus: false,
+  });
+
+  // Heurística para detectar se valor está criptografado
+  const looksEncryptedForSearch = useCallback((value: string) => {
+    if (value.length < 20) return false;
+    const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+    if (!base64Regex.test(value)) return false;
+    // Logins puramente numéricos não são criptografados
+    if (!/[A-Za-z]/.test(value)) return false;
+    const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
+    const hasPadding = value.endsWith('=');
+    const hasSpecialBase64 = /[+/]/.test(value);
+    return hasUpperAndLower || hasPadding || hasSpecialBase64;
+  }, []);
+
+  // Descriptografar logins de todos os clientes para busca
+  useEffect(() => {
+    if (!user?.id) return;
+    if (allClientsForSearch.length === 0) return;
+    if (isDecryptingSearchLogins) return;
+    if (searchDecryptInitializedRef.current) return;
+    
+    // Verificar se já temos todos descriptografados
+    const missing = allClientsForSearch.filter((c: { id: string; login: string | null; login_2: string | null }) => !searchDecryptedLogins[c.id]);
+    if (missing.length === 0) return;
+    
+    searchDecryptInitializedRef.current = true;
+    
+    const run = async () => {
+      setIsDecryptingSearchLogins(true);
+      const next: Record<string, { login: string; login_2: string }> = { ...searchDecryptedLogins };
+      
+      const safeDecrypt = async (value: string | null): Promise<string> => {
+        if (!value) return '';
+        if (!looksEncryptedForSearch(value)) return value;
+        try {
+          const decrypted = await decrypt(value);
+          if (decrypted === value) return value;
+          if (looksEncryptedForSearch(decrypted)) return value;
+          return decrypted;
+        } catch {
+          return value;
+        }
+      };
+      
+      // Descriptografar em batches para evitar throttling
+      const batchSize = 30;
+      for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (client: { id: string; login: string | null; login_2: string | null }) => {
+            const [login, login_2] = await Promise.all([
+              safeDecrypt(client.login ?? null),
+              safeDecrypt(client.login_2 ?? null),
+            ]);
+            next[client.id] = { login, login_2 };
+          })
+        );
+      }
+      
+      setSearchDecryptedLogins(next);
+      setIsDecryptingSearchLogins(false);
+    };
+    
+    run();
+  }, [user?.id, allClientsForSearch, decrypt, searchDecryptedLogins, isDecryptingSearchLogins, looksEncryptedForSearch]);
+
+  // Identificar IDs de clientes que batem pela busca de login descriptografado
+  const loginMatchingClientIds = useMemo(() => {
+    if (!debouncedSearch.trim() || debouncedSearch.length < 2) return new Set<string>();
+    
+    const searchLower = debouncedSearch.toLowerCase().trim();
+    const matchingIds = new Set<string>();
+    
+    Object.entries(searchDecryptedLogins).forEach(([clientId, creds]) => {
+      const loginMatch = creds.login && creds.login.toLowerCase().includes(searchLower);
+      const login2Match = creds.login_2 && creds.login_2.toLowerCase().includes(searchLower);
+      if (loginMatch || login2Match) {
+        matchingIds.add(clientId);
+      }
+    });
+    
+    return matchingIds;
+  }, [debouncedSearch, searchDecryptedLogins]);
+
+  // Carregar clientes completos que batem pelo login mas não estão nos resultados paginados
+  const missingClientIds = useMemo(() => {
+    const loadedIds = new Set(allLoadedClients.map(c => c.id));
+    return Array.from(loginMatchingClientIds).filter(id => !loadedIds.has(id));
+  }, [loginMatchingClientIds, allLoadedClients]);
+
+  // Query para carregar clientes que batem pelo login descriptografado mas não estão carregados
+  const { data: loginMatchedClients = [] } = useQuery({
+    queryKey: ['clients-login-matched', user?.id, missingClientIds.join(',')],
+    queryFn: async () => {
+      if (!user?.id || missingClientIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select(`
+          id, name, phone, email, device, dns, expiration_date, expiration_datetime,
+          plan_id, plan_name, plan_price, premium_price,
+          server_id, server_name, login, password,
+          server_id_2, server_name_2, login_2, password_2,
+          premium_password, category, is_paid, pending_amount, notes,
+          has_paid_apps, paid_apps_duration, paid_apps_expiration,
+          telegram, is_archived, archived_at, created_at, renewed_at,
+          gerencia_app_mac, gerencia_app_devices,
+          app_name, app_type, device_model, additional_servers,
+          is_test, is_integrated
+        `)
+        .eq('seller_id', user.id)
+        .in('id', missingClientIds);
+      
+      if (error) throw error;
+      
+      // Cast JSON fields
+      const hydrated = (data || []).map(client => ({
+        ...client,
+        gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || [],
+        additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
+      })) as Client[];
+      
+      return hydrated;
+    },
+    enabled: !!user?.id && missingClientIds.length > 0,
+    staleTime: 30_000,
+  });
+
+  // Combinar clientes paginados com clientes que batem pelo login
+  const clientsWithLoginMatches = useMemo(() => {
+    if (loginMatchedClients.length === 0) return allLoadedClients;
+    
+    const loadedIds = new Set(allLoadedClients.map(c => c.id));
+    const extraClients = loginMatchedClients.filter(c => !loadedIds.has(c.id));
+    
+    if (extraClients.length === 0) return allLoadedClients;
+    return [...allLoadedClients, ...extraClients];
+  }, [allLoadedClients, loginMatchedClients]);
+
+  // Use combined clients (original + login-matched) for the rest of the component
+  const clients = clientsWithLoginMatches;
 
   // Get fresh client data from the clients array to ensure we always have the latest values (e.g., after editing expiration date)
   const renewClient = useMemo(() => {
@@ -2692,9 +2862,14 @@ export default function Clients() {
         const normalizedName = normalizeText(client.name);
 
         // Check decrypted credentials if available (safe string fallbacks)
+        // Primeiro verifica credenciais descriptografadas manualmente (quando usuário clica para ver)
         const clientCredentials = decryptedCredentials[client.id];
-        const decryptedLogin = clientCredentials?.login || '';
-        const decryptedLogin2 = clientCredentials?.login_2 || '';
+        // Depois verifica o cache de logins descriptografados para busca (pré-carregado)
+        const searchCreds = searchDecryptedLogins[client.id];
+        
+        // Usar login descriptografado - prioriza o que foi descriptografado, senão usa do cache de busca
+        const decryptedLogin = clientCredentials?.login || searchCreds?.login || '';
+        const decryptedLogin2 = clientCredentials?.login_2 || searchCreds?.login_2 || '';
         
         // Login matching - case insensitive, partial match
         const loginMatch = decryptedLogin.toLowerCase().includes(searchLower);
@@ -2703,14 +2878,17 @@ export default function Clients() {
         // Also check raw login for unencrypted/plain text data (legacy data)
         const rawLogin = client.login || '';
         const rawLogin2 = client.login_2 || '';
-        const rawLoginMatch = rawLogin.toLowerCase().includes(searchLower);
-        const rawLogin2Match = rawLogin2.toLowerCase().includes(searchLower);
+        // Só usa raw login se não parecer criptografado (evita match falso em ciphertext)
+        const rawLoginIsPlain = !looksEncryptedForSearch(rawLogin);
+        const rawLogin2IsPlain = !looksEncryptedForSearch(rawLogin2);
+        const rawLoginMatch = rawLoginIsPlain && rawLogin.toLowerCase().includes(searchLower);
+        const rawLogin2Match = rawLogin2IsPlain && rawLogin2.toLowerCase().includes(searchLower);
         
         // Exact login match (when user pastes the full login)
         const exactLoginMatch = decryptedLogin.toLowerCase() === searchLower ||
                                decryptedLogin2.toLowerCase() === searchLower ||
-                               rawLogin.toLowerCase() === searchLower ||
-                               rawLogin2.toLowerCase() === searchLower;
+                               (rawLoginIsPlain && rawLogin.toLowerCase() === searchLower) ||
+                               (rawLogin2IsPlain && rawLogin2.toLowerCase() === searchLower);
 
         // DNS match
         const dnsMatch = (client.dns || '').toLowerCase().includes(searchLower);
@@ -2800,7 +2978,7 @@ export default function Clients() {
           return true;
       }
     });
-  }, [activeClients, archivedClients, filter, debouncedSearch, categoryFilter, serverFilter, dnsFilter, dateFilter, decryptedCredentials, isSent, clientsWithPaidAppsSet, normalizePhoneForSearch]);
+  }, [activeClients, archivedClients, filter, debouncedSearch, categoryFilter, serverFilter, dnsFilter, dateFilter, decryptedCredentials, searchDecryptedLogins, looksEncryptedForSearch, isSent, clientsWithPaidAppsSet, normalizePhoneForSearch]);
 
   // Sort clients: recently added (last 2 hours) appear at top, then by expiration
   const sortedClients = useMemo(() => {
