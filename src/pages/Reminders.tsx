@@ -1,11 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -34,9 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Plus, Clock, Edit, Trash2, X, Send, Calendar, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { format, parseISO, isAfter, isBefore, startOfToday } from 'date-fns';
+import { Clock, Calendar, AlertTriangle, CheckCircle, XCircle, Bell, Settings, Zap, X } from 'lucide-react';
+import { format, addDays, startOfToday, parseISO, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface BillingReminder {
@@ -48,6 +47,7 @@ interface BillingReminder {
   scheduled_date: string;
   scheduled_time: string;
   status: 'scheduled' | 'sent' | 'failed' | 'cancelled';
+  reminder_type: 'd1' | 'd0' | 'custom';
   sent_at: string | null;
   error_message: string | null;
   created_at: string;
@@ -55,6 +55,10 @@ interface BillingReminder {
     id: string;
     name: string;
     phone: string | null;
+    expiration_date: string;
+    plan_name: string | null;
+    plan_price: number | null;
+    billing_mode: string | null;
   };
 }
 
@@ -72,31 +76,52 @@ interface Client {
   name: string;
   phone: string | null;
   billing_mode: string | null;
+  expiration_date: string;
+  plan_name: string | null;
+  plan_price: number | null;
 }
+
+interface ReminderSettings {
+  d1_enabled: boolean;
+  d1_time: string;
+  d1_template_id: string;
+  d0_enabled: boolean;
+  d0_time: string;
+  d0_template_id: string;
+}
+
+// Default settings key in localStorage
+const REMINDER_SETTINGS_KEY = 'reminder_settings';
 
 export default function Reminders() {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingReminder, setEditingReminder] = useState<BillingReminder | null>(null);
-  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<BillingReminderTemplate | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
-  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('scheduled');
 
-  const [formData, setFormData] = useState({
-    client_id: '',
-    template_id: '',
-    message: '',
-    scheduled_date: '',
-    scheduled_time: '09:00',
+  // Load settings from localStorage
+  const [settings, setSettings] = useState<ReminderSettings>(() => {
+    try {
+      const saved = localStorage.getItem(`${REMINDER_SETTINGS_KEY}_${user?.id}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      d1_enabled: true,
+      d1_time: '09:00',
+      d1_template_id: 'a0000001-0000-0000-0000-000000000001',
+      d0_enabled: true,
+      d0_time: '08:00',
+      d0_template_id: 'a0000002-0000-0000-0000-000000000002',
+    };
   });
 
-  const [templateFormData, setTemplateFormData] = useState({
-    name: '',
-    message: '',
-  });
+  // Save settings to localStorage when changed
+  useEffect(() => {
+    if (user?.id) {
+      localStorage.setItem(`${REMINDER_SETTINGS_KEY}_${user.id}`, JSON.stringify(settings));
+    }
+  }, [settings, user?.id]);
 
   // Redirect admin away - this page is resellers only
   if (isAdmin) {
@@ -119,13 +144,13 @@ export default function Reminders() {
         .from('billing_reminders')
         .select(`
           *,
-          clients:client_id (id, name, phone)
+          clients:client_id (id, name, phone, expiration_date, plan_name, plan_price, billing_mode)
         `)
         .eq('seller_id', user!.id)
         .order('scheduled_date', { ascending: true })
         .order('scheduled_time', { ascending: true });
       if (error) throw error;
-      return data as BillingReminder[];
+      return (data || []) as BillingReminder[];
     },
     enabled: !!user?.id && !isAdmin,
   });
@@ -146,21 +171,46 @@ export default function Reminders() {
     enabled: !!user?.id && !isAdmin,
   });
 
-  // Fetch clients with automatic billing mode
-  const { data: clients = [] } = useQuery({
-    queryKey: ['clients-for-reminders', user?.id],
+  // Fetch clients that can receive reminders (automatic mode)
+  const { data: eligibleClients = [] } = useQuery({
+    queryKey: ['clients-for-auto-reminders', user?.id],
     queryFn: async () => {
+      const today = startOfToday();
+      const tomorrow = addDays(today, 1);
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
+      
+      // Get clients expiring today or tomorrow with automatic billing mode
       const { data, error } = await supabase
         .from('clients')
-        .select('id, name, phone, billing_mode')
+        .select('id, name, phone, billing_mode, expiration_date, plan_name, plan_price')
         .eq('seller_id', user!.id)
         .eq('billing_mode', 'automatic')
-        .order('name');
+        .eq('is_archived', false)
+        .or(`expiration_date.eq.${todayStr},expiration_date.eq.${tomorrowStr}`)
+        .order('expiration_date');
       if (error) throw error;
       return data as Client[];
     },
     enabled: !!user?.id && !isAdmin,
   });
+
+  // Separate clients by D-1 and D-0
+  const { clientsD1, clientsD0 } = useMemo(() => {
+    const today = startOfToday();
+    const tomorrow = addDays(today, 1);
+    
+    return {
+      clientsD1: eligibleClients.filter(c => {
+        const expDate = new Date(c.expiration_date + 'T12:00:00');
+        return isSameDay(expDate, tomorrow);
+      }),
+      clientsD0: eligibleClients.filter(c => {
+        const expDate = new Date(c.expiration_date + 'T12:00:00');
+        return isSameDay(expDate, today);
+      }),
+    };
+  }, [eligibleClients]);
 
   // Filter reminders by status
   const filteredReminders = useMemo(() => {
@@ -168,58 +218,101 @@ export default function Reminders() {
     return reminders.filter(r => r.status === statusFilter);
   }, [reminders, statusFilter]);
 
-  // Create reminder mutation
-  const createReminderMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase
-        .from('billing_reminders')
-        .insert({
-          seller_id: user!.id,
-          client_id: data.client_id,
-          template_id: data.template_id || null,
-          message: data.message,
-          scheduled_date: data.scheduled_date,
-          scheduled_time: data.scheduled_time,
-          status: 'scheduled',
-        });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing-reminders'] });
-      toast.success('Lembrete agendado com sucesso!');
-      resetForm();
-      setIsDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro ao criar lembrete: ${error.message}`);
-    },
-  });
+  // Generate reminders for eligible clients
+  const generateRemindersMutation = useMutation({
+    mutationFn: async () => {
+      const today = startOfToday();
+      const tomorrow = addDays(today, 1);
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
+      
+      const remindersToCreate: Array<{
+        seller_id: string;
+        client_id: string;
+        template_id: string | null;
+        message: string;
+        scheduled_date: string;
+        scheduled_time: string;
+        reminder_type: 'd1' | 'd0';
+        status: 'scheduled';
+      }> = [];
 
-  // Update reminder mutation
-  const updateReminderMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      // Get templates
+      const d1Template = templates.find(t => t.id === settings.d1_template_id);
+      const d0Template = templates.find(t => t.id === settings.d0_template_id);
+
+      // Check existing reminders to avoid duplicates
+      const { data: existingReminders } = await supabase
+        .from('billing_reminders')
+        .select('client_id, reminder_type, scheduled_date')
+        .eq('seller_id', user!.id)
+        .in('scheduled_date', [todayStr, tomorrowStr])
+        .eq('status', 'scheduled');
+
+      const existingKeys = new Set(
+        (existingReminders || []).map(r => `${r.client_id}:${r.reminder_type}:${r.scheduled_date}`)
+      );
+
+      // D-1: Clients expiring TOMORROW - schedule for TODAY
+      if (settings.d1_enabled && d1Template) {
+        for (const client of clientsD1) {
+          const key = `${client.id}:d1:${todayStr}`;
+          if (existingKeys.has(key)) continue;
+
+          remindersToCreate.push({
+            seller_id: user!.id,
+            client_id: client.id,
+            template_id: settings.d1_template_id,
+            message: d1Template.message,
+            scheduled_date: todayStr,
+            scheduled_time: settings.d1_time,
+            reminder_type: 'd1',
+            status: 'scheduled',
+          });
+        }
+      }
+
+      // D-0: Clients expiring TODAY - schedule for TODAY
+      if (settings.d0_enabled && d0Template) {
+        for (const client of clientsD0) {
+          const key = `${client.id}:d0:${todayStr}`;
+          if (existingKeys.has(key)) continue;
+
+          remindersToCreate.push({
+            seller_id: user!.id,
+            client_id: client.id,
+            template_id: settings.d0_template_id,
+            message: d0Template.message,
+            scheduled_date: todayStr,
+            scheduled_time: settings.d0_time,
+            reminder_type: 'd0',
+            status: 'scheduled',
+          });
+        }
+      }
+
+      if (remindersToCreate.length === 0) {
+        return { created: 0 };
+      }
+
       const { error } = await supabase
         .from('billing_reminders')
-        .update({
-          client_id: data.client_id,
-          template_id: data.template_id || null,
-          message: data.message,
-          scheduled_date: data.scheduled_date,
-          scheduled_time: data.scheduled_time,
-        })
-        .eq('id', id)
-        .eq('status', 'scheduled'); // Only update if still scheduled
+        .insert(remindersToCreate);
+
       if (error) throw error;
+
+      return { created: remindersToCreate.length };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['billing-reminders'] });
-      toast.success('Lembrete atualizado!');
-      resetForm();
-      setIsDialogOpen(false);
-      setEditingReminder(null);
+      if (result.created > 0) {
+        toast.success(`${result.created} lembrete(s) criado(s) automaticamente!`);
+      } else {
+        toast.info('Nenhum novo lembrete para criar. Todos já foram agendados.');
+      }
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao atualizar: ${error.message}`);
+      toast.error(`Erro ao gerar lembretes: ${error.message}`);
     },
   });
 
@@ -243,151 +336,6 @@ export default function Reminders() {
     },
   });
 
-  // Create template mutation
-  const createTemplateMutation = useMutation({
-    mutationFn: async (data: typeof templateFormData) => {
-      const { error } = await supabase
-        .from('billing_reminder_templates')
-        .insert({
-          seller_id: user!.id,
-          name: data.name,
-          message: data.message,
-          is_global: false,
-        });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing-reminder-templates'] });
-      toast.success('Template criado!');
-      resetTemplateForm();
-      setIsTemplateDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro ao criar template: ${error.message}`);
-    },
-  });
-
-  // Update template mutation
-  const updateTemplateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof templateFormData }) => {
-      const { error } = await supabase
-        .from('billing_reminder_templates')
-        .update({ name: data.name, message: data.message })
-        .eq('id', id)
-        .eq('is_global', false); // Can only update non-global
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing-reminder-templates'] });
-      toast.success('Template atualizado!');
-      resetTemplateForm();
-      setIsTemplateDialogOpen(false);
-      setEditingTemplate(null);
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro ao atualizar: ${error.message}`);
-    },
-  });
-
-  // Delete template mutation
-  const deleteTemplateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('billing_reminder_templates')
-        .delete()
-        .eq('id', id)
-        .eq('is_global', false);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing-reminder-templates'] });
-      toast.success('Template excluído');
-      setDeleteTemplateId(null);
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro ao excluir: ${error.message}`);
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({
-      client_id: '',
-      template_id: '',
-      message: '',
-      scheduled_date: '',
-      scheduled_time: '09:00',
-    });
-  };
-
-  const resetTemplateForm = () => {
-    setTemplateFormData({ name: '', message: '' });
-  };
-
-  const handleTemplateSelect = (templateId: string) => {
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
-      setFormData(prev => ({
-        ...prev,
-        template_id: templateId,
-        message: template.message,
-      }));
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.client_id || !formData.message || !formData.scheduled_date || !formData.scheduled_time) {
-      toast.error('Preencha todos os campos obrigatórios');
-      return;
-    }
-
-    // Validate date is not in the past
-    const scheduledDateTime = new Date(`${formData.scheduled_date}T${formData.scheduled_time}`);
-    if (isBefore(scheduledDateTime, new Date())) {
-      toast.error('A data/hora deve ser futura');
-      return;
-    }
-
-    if (editingReminder) {
-      updateReminderMutation.mutate({ id: editingReminder.id, data: formData });
-    } else {
-      createReminderMutation.mutate(formData);
-    }
-  };
-
-  const handleTemplateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!templateFormData.name || !templateFormData.message) {
-      toast.error('Preencha todos os campos');
-      return;
-    }
-
-    if (editingTemplate) {
-      updateTemplateMutation.mutate({ id: editingTemplate.id, data: templateFormData });
-    } else {
-      createTemplateMutation.mutate(templateFormData);
-    }
-  };
-
-  const handleEditReminder = (reminder: BillingReminder) => {
-    setEditingReminder(reminder);
-    setFormData({
-      client_id: reminder.client_id,
-      template_id: reminder.template_id || '',
-      message: reminder.message,
-      scheduled_date: reminder.scheduled_date,
-      scheduled_time: reminder.scheduled_time,
-    });
-    setIsDialogOpen(true);
-  };
-
-  const handleEditTemplate = (template: BillingReminderTemplate) => {
-    setEditingTemplate(template);
-    setTemplateFormData({ name: template.name, message: template.message });
-    setIsTemplateDialogOpen(true);
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
@@ -403,15 +351,16 @@ export default function Reminders() {
     }
   };
 
-  // Available variables
-  const availableVariables = [
-    { name: '{nome}', desc: 'Nome do cliente' },
-    { name: '{vencimento}', desc: 'Data de vencimento' },
-    { name: '{valor}', desc: 'Valor do plano' },
-    { name: '{plano}', desc: 'Nome do plano' },
-    { name: '{pix}', desc: 'Chave PIX' },
-    { name: '{empresa}', desc: 'Sua empresa' },
-  ];
+  const getReminderTypeBadge = (type: string) => {
+    switch (type) {
+      case 'd1':
+        return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">D-1 (Amanhã)</Badge>;
+      case 'd0':
+        return <Badge variant="secondary" className="bg-orange-500/10 text-orange-600">D-0 (Hoje)</Badge>;
+      default:
+        return <Badge variant="secondary">Personalizado</Badge>;
+    }
+  };
 
   if (loadingReminders) {
     return (
@@ -428,204 +377,75 @@ export default function Reminders() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Lembretes de Cobrança</h1>
           <p className="text-muted-foreground">
-            Agende mensagens automáticas via WhatsApp para seus clientes
+            Agende mensagens automáticas para clientes próximos ao vencimento
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Dialog open={isTemplateDialogOpen} onOpenChange={(open) => {
-            setIsTemplateDialogOpen(open);
-            if (!open) { setEditingTemplate(null); resetTemplateForm(); }
-          }}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Novo Template
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingTemplate ? 'Editar Template' : 'Novo Template'}</DialogTitle>
-                <DialogDescription>
-                  Crie templates para reutilizar em lembretes
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleTemplateSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="template-name">Nome *</Label>
-                  <Input
-                    id="template-name"
-                    value={templateFormData.name}
-                    onChange={(e) => setTemplateFormData({ ...templateFormData, name: e.target.value })}
-                    placeholder="Ex: Lembrete 3 dias antes"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="template-message">Mensagem *</Label>
-                  <Textarea
-                    id="template-message"
-                    value={templateFormData.message}
-                    onChange={(e) => setTemplateFormData({ ...templateFormData, message: e.target.value })}
-                    placeholder="Olá {nome}, seu plano vence em {vencimento}..."
-                    rows={5}
-                    required
-                  />
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {availableVariables.map(v => (
-                      <Button
-                        key={v.name}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs"
-                        onClick={() => setTemplateFormData(prev => ({ ...prev, message: prev.message + v.name }))}
-                        title={v.desc}
-                      >
-                        {v.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}>
-                    {editingTemplate ? 'Atualizar' : 'Criar Template'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) { setEditingReminder(null); resetForm(); }
-          }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Novo Lembrete
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingReminder ? 'Editar Lembrete' : 'Novo Lembrete'}</DialogTitle>
-                <DialogDescription>
-                  Agende um lembrete de cobrança para um cliente
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Client Selection */}
-                <div className="space-y-2">
-                  <Label>Cliente *</Label>
-                  <Select
-                    value={formData.client_id}
-                    onValueChange={(v) => setFormData({ ...formData, client_id: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.length === 0 ? (
-                        <div className="p-2 text-sm text-muted-foreground text-center">
-                          Nenhum cliente com modo automático
-                        </div>
-                      ) : (
-                        clients.map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name} {client.phone ? `(${client.phone})` : ''}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {clients.length === 0 && (
-                    <p className="text-xs text-warning">
-                      Apenas clientes com modo de cobrança automático podem receber lembretes.
-                    </p>
-                  )}
-                </div>
-
-                {/* Template Selection */}
-                <div className="space-y-2">
-                  <Label>Template (opcional)</Label>
-                  <Select
-                    value={formData.template_id}
-                    onValueChange={handleTemplateSelect}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.is_global ? '🌐 ' : ''}{template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Message */}
-                <div className="space-y-2">
-                  <Label htmlFor="message">Mensagem *</Label>
-                  <Textarea
-                    id="message"
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="Escreva a mensagem do lembrete..."
-                    rows={5}
-                    required
-                  />
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {availableVariables.map(v => (
-                      <Button
-                        key={v.name}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs"
-                        onClick={() => setFormData(prev => ({ ...prev, message: prev.message + v.name }))}
-                        title={v.desc}
-                      >
-                        {v.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Date and Time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="scheduled_date">Data *</Label>
-                    <Input
-                      id="scheduled_date"
-                      type="date"
-                      value={formData.scheduled_date}
-                      onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
-                      min={format(new Date(), 'yyyy-MM-dd')}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="scheduled_time">Hora *</Label>
-                    <Input
-                      id="scheduled_time"
-                      type="time"
-                      value={formData.scheduled_time}
-                      onChange={(e) => setFormData({ ...formData, scheduled_time: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <Button type="submit" disabled={createReminderMutation.isPending || updateReminderMutation.isPending}>
-                    {editingReminder ? 'Atualizar' : 'Agendar Lembrete'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" className="gap-2" onClick={() => setIsSettingsOpen(true)}>
+            <Settings className="h-4 w-4" />
+            Configurar
+          </Button>
+          <Button 
+            className="gap-2" 
+            onClick={() => generateRemindersMutation.mutate()}
+            disabled={generateRemindersMutation.isPending}
+          >
+            <Zap className="h-4 w-4" />
+            {generateRemindersMutation.isPending ? 'Gerando...' : 'Gerar Lembretes'}
+          </Button>
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Bell className="h-4 w-4 text-yellow-500" />
+              D-1 (Vence Amanhã)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{clientsD1.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {settings.d1_enabled 
+                ? `Envio às ${settings.d1_time}` 
+                : 'Desativado'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Bell className="h-4 w-4 text-orange-500" />
+              D-0 (Vence Hoje)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{clientsD0.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {settings.d0_enabled 
+                ? `Envio às ${settings.d0_time}` 
+                : 'Desativado'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4 text-blue-500" />
+              Lembretes Agendados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {reminders.filter(r => r.status === 'scheduled').length}
+            </div>
+            <p className="text-xs text-muted-foreground">Pendentes de envio</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Info Banner */}
@@ -633,54 +453,18 @@ export default function Reminders() {
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-blue-500">Modo Automático</p>
-              <p className="text-muted-foreground">
-                Lembretes funcionam apenas para clientes com modo de cobrança <strong>Automático</strong>. 
-                A troca de modo é controlada pelo administrador.
-              </p>
+            <div className="text-sm space-y-1">
+              <p className="font-medium text-blue-500">Como funciona</p>
+              <ul className="text-muted-foreground list-disc list-inside space-y-1">
+                <li><strong>D-1:</strong> Clientes que vencem AMANHÃ recebem mensagem HOJE</li>
+                <li><strong>D-0:</strong> Clientes que vencem HOJE recebem mensagem HOJE</li>
+                <li>Apenas clientes com modo <strong>Automático</strong> são incluídos</li>
+                <li>Use o botão "Gerar Lembretes" para criar os agendamentos</li>
+              </ul>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Templates Section */}
-      {templates.filter(t => !t.is_global).length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Meus Templates</CardTitle>
-            <CardDescription>Templates personalizados para lembretes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {templates.filter(t => !t.is_global).map(template => (
-                <div
-                  key={template.id}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border"
-                >
-                  <span className="text-sm font-medium">{template.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => handleEditTemplate(template)}
-                  >
-                    <Edit className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-destructive"
-                    onClick={() => setDeleteTemplateId(template.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filter */}
       <div className="flex gap-2 items-center">
@@ -709,9 +493,14 @@ export default function Reminders() {
                 ? 'Nenhum lembrete agendado ainda' 
                 : `Nenhum lembrete com status "${statusFilter}"`}
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => setIsDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Criar primeiro lembrete
+            <Button 
+              variant="outline" 
+              className="mt-4" 
+              onClick={() => generateRemindersMutation.mutate()}
+              disabled={generateRemindersMutation.isPending}
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Gerar Lembretes Automaticamente
             </Button>
           </CardContent>
         </Card>
@@ -722,16 +511,17 @@ export default function Reminders() {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className="font-medium truncate">
                         {reminder.clients?.name || 'Cliente não encontrado'}
                       </span>
+                      {getReminderTypeBadge(reminder.reminder_type)}
                       {getStatusBadge(reminder.status)}
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                       {reminder.message}
                     </p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {format(parseISO(reminder.scheduled_date), "dd/MM/yyyy", { locale: ptBR })}
@@ -740,9 +530,14 @@ export default function Reminders() {
                         <Clock className="h-3 w-3" />
                         {reminder.scheduled_time.slice(0, 5)}
                       </span>
+                      {reminder.clients?.expiration_date && (
+                        <span className="text-warning">
+                          Vence: {format(parseISO(reminder.clients.expiration_date), "dd/MM", { locale: ptBR })}
+                        </span>
+                      )}
                       {reminder.sent_at && (
                         <span className="flex items-center gap-1 text-success">
-                          <Send className="h-3 w-3" />
+                          <CheckCircle className="h-3 w-3" />
                           Enviado {format(parseISO(reminder.sent_at), "dd/MM HH:mm", { locale: ptBR })}
                         </span>
                       )}
@@ -754,24 +549,14 @@ export default function Reminders() {
                     </div>
                   </div>
                   {reminder.status === 'scheduled' && (
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleEditReminder(reminder)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setCancelConfirmId(reminder.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => setCancelConfirmId(reminder.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   )}
                 </div>
               </CardContent>
@@ -779,6 +564,119 @@ export default function Reminders() {
           ))}
         </div>
       )}
+
+      {/* Settings Dialog */}
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Configurações de Lembretes
+            </DialogTitle>
+            <DialogDescription>
+              Configure os horários e templates para D-1 e D-0
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* D-1 Settings */}
+            <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-medium">D-1 (Vence Amanhã)</Label>
+                  <p className="text-xs text-muted-foreground">Enviar lembrete para clientes que vencem amanhã</p>
+                </div>
+                <Switch
+                  checked={settings.d1_enabled}
+                  onCheckedChange={(checked) => setSettings(s => ({ ...s, d1_enabled: checked }))}
+                />
+              </div>
+              
+              {settings.d1_enabled && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="d1_time">Horário</Label>
+                    <Input
+                      id="d1_time"
+                      type="time"
+                      value={settings.d1_time}
+                      onChange={(e) => setSettings(s => ({ ...s, d1_time: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    <Select
+                      value={settings.d1_template_id}
+                      onValueChange={(v) => setSettings(s => ({ ...s, d1_template_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.is_global ? '🌐 ' : ''}{t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* D-0 Settings */}
+            <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-medium">D-0 (Vence Hoje)</Label>
+                  <p className="text-xs text-muted-foreground">Enviar lembrete para clientes que vencem hoje</p>
+                </div>
+                <Switch
+                  checked={settings.d0_enabled}
+                  onCheckedChange={(checked) => setSettings(s => ({ ...s, d0_enabled: checked }))}
+                />
+              </div>
+              
+              {settings.d0_enabled && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="d0_time">Horário</Label>
+                    <Input
+                      id="d0_time"
+                      type="time"
+                      value={settings.d0_time}
+                      onChange={(e) => setSettings(s => ({ ...s, d0_time: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    <Select
+                      value={settings.d0_template_id}
+                      onValueChange={(v) => setSettings(s => ({ ...s, d0_template_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.is_global ? '🌐 ' : ''}{t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setIsSettingsOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={!!cancelConfirmId} onOpenChange={() => setCancelConfirmId(null)}>
@@ -796,27 +694,6 @@ export default function Reminders() {
               onClick={() => cancelConfirmId && cancelReminderMutation.mutate(cancelConfirmId)}
             >
               Cancelar Lembrete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Template Confirmation Dialog */}
-      <AlertDialog open={!!deleteTemplateId} onOpenChange={() => setDeleteTemplateId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Template?</AlertDialogTitle>
-            <AlertDialogDescription>
-              O template será excluído permanentemente. Lembretes já criados não serão afetados.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteTemplateId && deleteTemplateMutation.mutate(deleteTemplateId)}
-            >
-              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

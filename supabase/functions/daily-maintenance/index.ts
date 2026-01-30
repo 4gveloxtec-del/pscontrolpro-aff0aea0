@@ -310,6 +310,24 @@ Deno.serve(async (req) => {
 
     const now = new Date();
 
+    // 3.0 - PROCESSAR LEMBRETES DE COBRANÇA
+    console.log('[daily-maintenance] 📅 Processing billing reminders...');
+    try {
+      const reminderResponse = await fetch(`${supabaseUrl}/functions/v1/process-billing-reminders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+      });
+      
+      const reminderResult = await reminderResponse.json();
+      console.log(`[daily-maintenance] ✅ Billing reminders processed: ${reminderResult.processed || 0}`);
+    } catch (reminderErr) {
+      console.error('[daily-maintenance] ⚠️ Billing reminders error:', reminderErr);
+      report.errors.push(`Billing reminders: ${reminderErr instanceof Error ? reminderErr.message : String(reminderErr)}`);
+    }
+
     // 3.1 - ALERTAS 20MIN
     if (globalConfig?.api_url && globalConfig?.api_key) {
       const in20min = new Date(now.getTime() + 20 * 60 * 1000);
