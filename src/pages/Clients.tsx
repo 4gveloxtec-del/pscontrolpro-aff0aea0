@@ -203,7 +203,7 @@ export default function Clients() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [showPassword, setShowPassword] = useState<string | null>(null);
   const [messageClient, setMessageClient] = useState<Client | null>(null);
-  const [renewClient, setRenewClient] = useState<Client | null>(null);
+  const [renewClientId, setRenewClientId] = useState<string | null>(null);
   const [renewPlanId, setRenewPlanId] = useState<string>('');
   const [decryptedCredentials, setDecryptedCredentials] = useState<DecryptedCredentials>({});
   const [decrypting, setDecrypting] = useState<string | null>(null);
@@ -549,6 +549,11 @@ export default function Clients() {
   // Use accumulated clients for the rest of the component
   const clients = allLoadedClients;
 
+  // Get fresh client data from the clients array to ensure we always have the latest values (e.g., after editing expiration date)
+  const renewClient = useMemo(() => {
+    if (!renewClientId) return null;
+    return clients.find(c => c.id === renewClientId) || null;
+  }, [renewClientId, clients]);
   // Count archived clients for the tab badge (separate from main query)
   const { data: archivedClientsCount = 0 } = useQuery({
     queryKey: ['archived-clients-count', user?.id],
@@ -2410,7 +2415,7 @@ export default function Clients() {
   const handleRenew = (client: Client) => {
     // PERF: Enable plans lazy load for renewal dialog
     setPlansEnabled(true);
-    setRenewClient(client);
+    setRenewClientId(client.id);
     setRenewPlanId(client.plan_id || '');
   };
 
@@ -2422,7 +2427,7 @@ export default function Clients() {
     
     // Close dialog immediately for better UX
     const clientToRenew = renewClient;
-    setRenewClient(null);
+    setRenewClientId(null);
     setRenewPlanId('');
     
     // Execute renewal with the robust hook
@@ -4762,7 +4767,7 @@ export default function Clients() {
       )}
 
       {/* Renew Dialog */}
-      <Dialog open={!!renewClient} onOpenChange={(open) => !open && setRenewClient(null)}>
+      <Dialog open={!!renewClientId} onOpenChange={(open) => !open && setRenewClientId(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Renovar Cliente</DialogTitle>
@@ -4809,7 +4814,7 @@ export default function Clients() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenewClient(null)} disabled={isRenewing}>
+            <Button variant="outline" onClick={() => setRenewClientId(null)} disabled={isRenewing}>
               Cancelar
             </Button>
             <Button onClick={confirmRenew} disabled={!renewPlanId || isRenewing || isRenewalPending}>
