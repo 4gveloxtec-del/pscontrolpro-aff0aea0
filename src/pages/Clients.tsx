@@ -1195,14 +1195,14 @@ export default function Clients() {
     setIsDecryptingAll(false);
   }, [clients, decrypt, decryptedCredentials, allCredentialsDecrypted, isDecryptingAll]);
 
-  // Trigger decryption when user starts searching (immediately for better search)
+  // Auto-decrypt all credentials when clients load (enables instant search by login)
   useEffect(() => {
-    // Decrypt credentials as soon as user starts typing (1+ characters)
-    // This ensures login search works immediately
-    if (search.trim().length >= 1 && !allCredentialsDecrypted) {
+    // Start decryption as soon as clients are loaded, not just when user starts searching
+    // This ensures login search works immediately without waiting
+    if (clients.length > 0 && !allCredentialsDecrypted && !isDecryptingAll) {
       decryptAllCredentials();
     }
-  }, [search, allCredentialsDecrypted, decryptAllCredentials]);
+  }, [clients.length, allCredentialsDecrypted, isDecryptingAll, decryptAllCredentials]);
 
   // Reset decrypted state when clients change (refetch)
   useEffect(() => {
