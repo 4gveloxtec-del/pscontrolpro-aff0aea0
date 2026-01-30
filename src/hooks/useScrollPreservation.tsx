@@ -53,21 +53,28 @@ export function useScrollPreservation(options: UseScrollPreservationOptions = {}
       clearTimeout(preserveTimeoutRef.current);
     }
     
-    // Use RAF loop for smoother restoration
-    const restoreLoop = () => {
-      if (isPreservingRef.current) {
-        preserveScroll();
-        requestAnimationFrame(restoreLoop);
+    // Restore scroll once after a short delay (for dialog open/close)
+    // Instead of continuous loop which blocks user scrolling
+    const restoreOnce = () => {
+      if (isPreservingRef.current && savedScrollRef.current !== null) {
+        const diff = Math.abs(window.scrollY - savedScrollRef.current);
+        if (diff > 50) {
+          window.scrollTo({ top: savedScrollRef.current, behavior: 'instant' });
+        }
       }
     };
-    requestAnimationFrame(restoreLoop);
+    
+    // Restore at key moments: immediately, after 50ms, 150ms (covers most dialog transitions)
+    requestAnimationFrame(restoreOnce);
+    setTimeout(restoreOnce, 50);
+    setTimeout(restoreOnce, 150);
     
     // Stop preserving after duration
     preserveTimeoutRef.current = window.setTimeout(() => {
       isPreservingRef.current = false;
       savedScrollRef.current = null;
     }, duration);
-  }, [preserveScroll, scroll, preserveDuration]);
+  }, [scroll, preserveDuration]);
 
   // Wrap an async action with scroll preservation
   const withScrollPreservation = useCallback(async <T,>(
