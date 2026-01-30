@@ -17,6 +17,8 @@ import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { OnlineRequired } from "@/components/OnlineRequired";
 import { useClearOfflineData } from "@/hooks/useClearOfflineData";
 import { useScrollPreservation } from "@/hooks/useScrollPreservation";
+import { NavigationProvider } from "@/contexts/NavigationContext";
+import { useModalBackButtonHandler } from "@/hooks/useModalStack";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -156,101 +158,104 @@ function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
 const AppRoutes = () => {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AdminManifestProvider>
-      <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="/landing" element={<Landing />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/access-denied" element={<AccessDenied />} />
-        <Route path="/force-password-update" element={<ForcePasswordUpdate />} />
-        <Route path="/project-docs" element={<ProjectDocumentation />} />
-        {/* Redirect old routes */}
-        <Route path="/shared-panels" element={<Navigate to="/servers" replace />} />
-        <Route path="/clients" element={<Navigate to="/clientes" replace />} />
-        
-        {/* ============ ADMIN PWA ROUTES ============ */}
-        {/* Login do Admin */}
-        <Route path="/admin" element={<AdminAuth />} />
-        <Route path="/admin/access-denied" element={<AdminAccessDenied />} />
-        
-        {/* Rotas protegidas do Admin */}
-        <Route element={
-          <AdminProtectedRoute>
-            <AdminLayout />
-          </AdminProtectedRoute>
-        }>
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/sellers" element={<Sellers />} />
-          <Route path="/admin/reports" element={<Reports />} />
-          <Route path="/admin/backup" element={<Backup />} />
-          <Route path="/admin/server-icons" element={<ServerIcons />} />
-          <Route path="/admin/server-templates" element={<AdminServerTemplates />} />
-          <Route path="/admin/tutorials" element={<Tutorials />} />
-          <Route path="/admin/system-health" element={<SystemHealth />} />
-          <Route path="/admin/settings" element={<Settings />} />
-          <Route path="/admin/asaas" element={<AdminAsaas />} />
-        </Route>
-        {/* ============ FIM ADMIN PWA ROUTES ============ */}
-        
-        {/* Protected routes - require system access (admin or seller) */}
-        <Route element={
-          <PasswordUpdateGuard>
-            <AppLayout />
-          </PasswordUpdateGuard>
-        }>
-          {/* Dashboard - accessible to both admin and seller */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/tutorials" element={<Tutorials />} />
-          <Route path="/templates" element={<Templates />} />
-          <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
+      <NavigationProvider>
+        <AdminManifestProvider>
+        <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/landing" element={<Landing />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/access-denied" element={<AccessDenied />} />
+          <Route path="/force-password-update" element={<ForcePasswordUpdate />} />
+          <Route path="/project-docs" element={<ProjectDocumentation />} />
+          {/* Redirect old routes */}
+          <Route path="/shared-panels" element={<Navigate to="/servers" replace />} />
+          <Route path="/clients" element={<Navigate to="/clientes" replace />} />
           
-          {/* Seller-only routes (revendedor) */}
-          <Route path="/clientes" element={<Clients />} />
-          <Route path="/servers" element={<Servers />} />
-          <Route path="/panel-resellers" element={<PanelResellers />} />
-          <Route path="/panels" element={<Panels />} />
-          <Route path="/plans" element={<Plans />} />
-          <Route path="/bills" element={<Bills />} />
-          <Route path="/coupons" element={<Coupons />} />
-          <Route path="/referrals" element={<Referrals />} />
-          <Route path="/message-history" element={<MessageHistory />} />
-          <Route path="/external-apps" element={<ExternalApps />} />
-          <Route path="/my-apps" element={<MyApps />} />
-          <Route path="/test-commands" element={<TestCommands />} />
-          <Route path="/bot-engine" element={<BotEngine />} />
+          {/* ============ ADMIN PWA ROUTES ============ */}
+          {/* Login do Admin */}
+          <Route path="/admin" element={<AdminAuth />} />
+          <Route path="/admin/access-denied" element={<AdminAccessDenied />} />
           
-          {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
-          <Route path="/sellers" element={
-            <AdminOnly><Sellers /></AdminOnly>
-          } />
-          <Route path="/reports" element={
-            <AdminOnly><Reports /></AdminOnly>
-          } />
-          <Route path="/backup" element={
-            <AdminOnly><Backup /></AdminOnly>
-          } />
-          <Route path="/server-icons" element={
-            <AdminOnly><ServerIcons /></AdminOnly>
-          } />
-          <Route path="/server-templates" element={
-            <AdminOnly><AdminServerTemplates /></AdminOnly>
-          } />
-        </Route>
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-      </Suspense>
-      </AdminManifestProvider>
+          {/* Rotas protegidas do Admin */}
+          <Route element={
+            <AdminProtectedRoute>
+              <AdminLayout />
+            </AdminProtectedRoute>
+          }>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/sellers" element={<Sellers />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/backup" element={<Backup />} />
+            <Route path="/admin/server-icons" element={<ServerIcons />} />
+            <Route path="/admin/server-templates" element={<AdminServerTemplates />} />
+            <Route path="/admin/tutorials" element={<Tutorials />} />
+            <Route path="/admin/system-health" element={<SystemHealth />} />
+            <Route path="/admin/settings" element={<Settings />} />
+            <Route path="/admin/asaas" element={<AdminAsaas />} />
+          </Route>
+          {/* ============ FIM ADMIN PWA ROUTES ============ */}
+          
+          {/* Protected routes - require system access (admin or seller) */}
+          <Route element={
+            <PasswordUpdateGuard>
+              <AppLayout />
+            </PasswordUpdateGuard>
+          }>
+            {/* Dashboard - accessible to both admin and seller */}
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/tutorials" element={<Tutorials />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
+            
+            {/* Seller-only routes (revendedor) */}
+            <Route path="/clientes" element={<Clients />} />
+            <Route path="/servers" element={<Servers />} />
+            <Route path="/panel-resellers" element={<PanelResellers />} />
+            <Route path="/panels" element={<Panels />} />
+            <Route path="/plans" element={<Plans />} />
+            <Route path="/bills" element={<Bills />} />
+            <Route path="/coupons" element={<Coupons />} />
+            <Route path="/referrals" element={<Referrals />} />
+            <Route path="/message-history" element={<MessageHistory />} />
+            <Route path="/external-apps" element={<ExternalApps />} />
+            <Route path="/my-apps" element={<MyApps />} />
+            <Route path="/test-commands" element={<TestCommands />} />
+            <Route path="/bot-engine" element={<BotEngine />} />
+            
+            {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
+            <Route path="/sellers" element={
+              <AdminOnly><Sellers /></AdminOnly>
+            } />
+            <Route path="/reports" element={
+              <AdminOnly><Reports /></AdminOnly>
+            } />
+            <Route path="/backup" element={
+              <AdminOnly><Backup /></AdminOnly>
+            } />
+            <Route path="/server-icons" element={
+              <AdminOnly><ServerIcons /></AdminOnly>
+            } />
+            <Route path="/server-templates" element={
+              <AdminOnly><AdminServerTemplates /></AdminOnly>
+            } />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        </Suspense>
+        </AdminManifestProvider>
+      </NavigationProvider>
     </BrowserRouter>
   );
 };
 
-// App initialization hook for clearing offline data and scroll preservation
+// App initialization hook for clearing offline data, scroll preservation and modal back button
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useClearOfflineData();
   useScrollPreservation();
+  useModalBackButtonHandler();
   return <>{children}</>;
 }
 
