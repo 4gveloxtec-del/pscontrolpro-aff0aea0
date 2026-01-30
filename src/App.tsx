@@ -157,14 +157,21 @@ function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Guardrails wrapper - must be inside BrowserRouter
+function RouterGuardrails({ children }: { children: React.ReactNode }) {
+  useGuardrails();
+  return <>{children}</>;
+}
+
 const AppRoutes = () => {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <NavigationProvider>
         <ScrollProvider>
-          <AdminManifestProvider>
-          <Suspense fallback={<PageLoader />}>
-        <Routes>
+          <RouterGuardrails>
+            <AdminManifestProvider>
+            <Suspense fallback={<PageLoader />}>
+          <Routes>
           {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
           <Route path="/" element={<RootRedirect />} />
           <Route path="/landing" element={<Landing />} />
@@ -249,18 +256,19 @@ const AppRoutes = () => {
         </Routes>
         </Suspense>
         </AdminManifestProvider>
+        </RouterGuardrails>
         </ScrollProvider>
       </NavigationProvider>
     </BrowserRouter>
   );
 };
 
-// App initialization hook for clearing offline data, scroll preservation, modal back button and guardrails
+// App initialization hook for clearing offline data and scroll preservation
+// NOTE: useGuardrails moved to RouterGuardrails inside BrowserRouter
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useClearOfflineData();
   useScrollPreservation();
   useModalBackButtonHandler();
-  useGuardrails(); // Automatic architectural guardrails
   return <>{children}</>;
 }
 
