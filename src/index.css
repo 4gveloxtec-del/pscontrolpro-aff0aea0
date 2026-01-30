@@ -2,6 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   SCROLL FOCUS HIGHLIGHT SYSTEM
+   ============================================ */
+
+/* Base highlight animation for focused items */
+@keyframes scroll-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+  }
+}
+
+@keyframes scroll-focus-bg {
+  0% {
+    background-color: hsl(var(--primary) / 0.08);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Highlight class applied to focused items */
+.scroll-focus-highlight {
+  animation: 
+    scroll-focus-pulse 0.6s ease-out,
+    scroll-focus-bg 2s ease-out forwards;
+  position: relative;
+  z-index: 1;
+  border-radius: var(--radius, 0.5rem);
+  transition: box-shadow 0.3s ease;
+}
+
+/* Ensure smooth scroll behavior is disabled for programmatic scrolls */
+html {
+  scroll-behavior: auto !important;
+}
+
+/* Prevent focus-related scroll jumps */
+[data-item-id],
+[data-scroll-item] {
+  scroll-margin: 0;
+  scroll-margin-top: 1rem;
+  scroll-margin-bottom: 1rem;
+}
+
 /* Inter font loaded via system fonts for performance */
 
 /* Responsive frame layout - mobile first, full width on tablet+ */

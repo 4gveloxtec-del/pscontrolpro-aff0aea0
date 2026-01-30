@@ -18,7 +18,7 @@ import { OnlineRequired } from "@/components/OnlineRequired";
 import { useClearOfflineData } from "@/hooks/useClearOfflineData";
 import { useScrollPreservation } from "@/hooks/useScrollPreservation";
 import { NavigationProvider } from "@/contexts/NavigationContext";
-import { ScrollProvider } from "@/contexts/ScrollContext";
+import { ScrollProvider, useScrollUserSync } from "@/contexts/ScrollContext";
 import { useModalBackButtonHandler } from "@/hooks/useModalStack";
 
 // Lazy load pages for better performance
@@ -262,6 +262,13 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Component to sync user ID with scroll context for per-user memory
+function ScrollUserSyncWrapper({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  useScrollUserSync(user?.id || null);
+  return <>{children}</>;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -270,17 +277,19 @@ const App = () => (
           <OnlineRequired>
             <AppInitializer>
               <AuthProvider>
-                <PrivacyModeProvider>
-                  <MenuStyleProvider>
-                    <ExpirationNotificationProvider>
-                      <TooltipProvider>
-                        <Toaster />
-                        <Sonner />
-                        <AppRoutes />
-                      </TooltipProvider>
-                    </ExpirationNotificationProvider>
-                  </MenuStyleProvider>
-                </PrivacyModeProvider>
+                <ScrollUserSyncWrapper>
+                  <PrivacyModeProvider>
+                    <MenuStyleProvider>
+                      <ExpirationNotificationProvider>
+                        <TooltipProvider>
+                          <Toaster />
+                          <Sonner />
+                          <AppRoutes />
+                        </TooltipProvider>
+                      </ExpirationNotificationProvider>
+                    </MenuStyleProvider>
+                  </PrivacyModeProvider>
+                </ScrollUserSyncWrapper>
               </AuthProvider>
             </AppInitializer>
           </OnlineRequired>
