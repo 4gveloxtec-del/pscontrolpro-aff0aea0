@@ -2,6 +2,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { cn } from "@/lib/utils";
+import { DialogContextProvider } from "@/contexts/DialogContext";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -128,7 +129,7 @@ const DialogContent = React.forwardRef<
         >
           {/* Mobile drag indicator */}
           <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-2 flex-shrink-0" />
-          {children}
+          <DialogContextProvider>{children}</DialogContextProvider>
           {/* Close button - inline to avoid asChild DOM issues */}
           <DialogPrimitive.Close
             className={cn(

@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useIsInsideDialog } from "@/contexts/DialogContext";
 
 const Select = SelectPrimitive.Root;
 
@@ -65,11 +66,24 @@ const SelectPortal = ({ children, ...props }: SelectPrimitive.SelectPortalProps)
 };
 SelectPortal.displayName = "SelectPortal";
 
+interface SelectContentProps
+  extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> {
+  /**
+   * When true, the Select will not use a portal.
+   * Use this when the Select is inside a Dialog/Modal to avoid portal conflicts.
+   */
+  usePortal?: boolean;
+}
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPortal>
+  SelectContentProps
+>(({ className, children, position = "popper", usePortal, ...props }, ref) => {
+  // Auto-detect if inside a Dialog - disable portal to avoid conflicts
+  const isInsideDialog = useIsInsideDialog();
+  const shouldUsePortal = usePortal ?? !isInsideDialog;
+  
+  const content = (
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
@@ -96,8 +110,15 @@ const SelectContent = React.forwardRef<
       </SelectPrimitive.Viewport>
       <SelectScrollDownButton />
     </SelectPrimitive.Content>
-  </SelectPortal>
-));
+  );
+
+  // When not using portal, render directly to avoid conflicts with Dialog portals
+  if (!shouldUsePortal) {
+    return content;
+  }
+
+  return <SelectPortal>{content}</SelectPortal>;
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<
