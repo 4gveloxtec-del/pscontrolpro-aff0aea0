@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, Trash2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useModalStack } from "@/hooks/useModalStack";
+import { useCallback, useId } from "react";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -34,11 +36,34 @@ export function ConfirmDialog({
   variant = 'default',
   icon,
 }: ConfirmDialogProps) {
+  const dialogId = useId();
   const IconComponent = icon === 'trash' ? Trash2 : icon === 'info' ? Info : AlertTriangle;
   const showIcon = variant === 'destructive' || variant === 'warning' || icon;
+  
+  // Integrate with navigation stack
+  const { handleClose } = useModalStack({
+    id: `confirm-dialog-${dialogId}`,
+    isOpen: open,
+    onClose: () => onOpenChange(false),
+  });
+  
+  // Stack-aware open change handler
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen) {
+      handleClose();
+    } else {
+      onOpenChange(true);
+    }
+  }, [handleClose, onOpenChange]);
+  
+  // Handle confirm with stack-aware close
+  const handleConfirm = useCallback(() => {
+    onConfirm();
+    handleClose();
+  }, [onConfirm, handleClose]);
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className={cn(
@@ -67,7 +92,7 @@ export function ConfirmDialog({
         <AlertDialogFooter className="gap-2 sm:gap-0">
           <AlertDialogCancel className="mt-0">{cancelText}</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className={cn(
               variant === 'destructive' && "bg-destructive text-destructive-foreground hover:bg-destructive/90"
             )}
