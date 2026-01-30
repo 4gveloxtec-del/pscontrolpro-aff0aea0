@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
-import { OverlayCloseButton } from "./overlay-close-button";
+import { CloseButtonGlobal } from "./close-button-global";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -73,10 +73,10 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
           by DialogContent so Select auto-disables its Portal inside overlays.
         */}
         <DialogContextProvider>{children}</DialogContextProvider>
-        {/* Global close button - único padrão para toda a aplicação */}
+        {/* CloseButtonGlobal - ÚNICO botão de fechamento permitido */}
         {!hideCloseButton && (
           <SheetPrimitive.Close asChild>
-            <OverlayCloseButton />
+            <CloseButtonGlobal />
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Content>

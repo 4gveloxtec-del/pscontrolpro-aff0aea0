@@ -1,6 +1,12 @@
 /**
  * useGuardrails - Automatic architectural guardrails hook
- * Monitors and auto-corrects navigation, scroll, and state issues
+ * Monitors and auto-corrects navigation, scroll, state, and UI pattern issues
+ * 
+ * INCLUI:
+ * - Validação da pilha de navegação
+ * - Validação de scroll state
+ * - Detecção de modais órfãos
+ * - Validação do padrão CloseButtonGlobal
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -15,6 +21,7 @@ import {
   type NavigationState,
   type ScrollState,
 } from '@/lib/guardrails/stateValidator';
+import { initCloseButtonValidator } from '@/lib/guardrails/closeButtonValidator';
 
 interface GuardrailsConfig {
   /**
@@ -46,6 +53,12 @@ interface GuardrailsConfig {
    * @default true in development
    */
   enableLogging?: boolean;
+  
+  /**
+   * Enable close button pattern validation
+   * @default true in development
+   */
+  validateCloseButtons?: boolean;
 }
 
 const DEFAULT_CONFIG: Required<GuardrailsConfig> = {
@@ -54,6 +67,7 @@ const DEFAULT_CONFIG: Required<GuardrailsConfig> = {
   autoRecover: true,
   validationInterval: 30000,
   enableLogging: import.meta.env.DEV,
+  validateCloseButtons: import.meta.env.DEV,
 };
 
 /**
@@ -192,6 +206,19 @@ export function useGuardrails(config: GuardrailsConfig = {}) {
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, [validateAndRecoverNavigation, mergedConfig.enableLogging]);
+
+  // Close button pattern validator (development only)
+  useEffect(() => {
+    if (!mergedConfig.validateCloseButtons) return;
+    
+    const cleanup = initCloseButtonValidator();
+    
+    if (mergedConfig.enableLogging) {
+      debugLog('guardrail', 'CloseButtonGlobal validator initialized');
+    }
+    
+    return cleanup;
+  }, [mergedConfig.validateCloseButtons, mergedConfig.enableLogging]);
 
   return {
     validateNavigation: validateAndRecoverNavigation,

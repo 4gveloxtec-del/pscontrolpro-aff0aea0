@@ -3,7 +3,7 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
-import { OverlayCloseButton } from "./overlay-close-button";
+import { CloseButtonGlobal } from "./close-button-global";
 
 const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -51,10 +51,10 @@ const DrawerContent = React.forwardRef<
         and avoid DOM conflicts on unmount.
       */}
       <DialogContextProvider>{children}</DialogContextProvider>
-      {/* Global close button - único padrão para toda a aplicação */}
+      {/* CloseButtonGlobal - ÚNICO botão de fechamento permitido */}
       {!hideCloseButton && (
         <DrawerPrimitive.Close asChild>
-          <OverlayCloseButton size="sm" />
+          <CloseButtonGlobal size="sm" />
         </DrawerPrimitive.Close>
       )}
     </DrawerPrimitive.Content>
