@@ -4,8 +4,6 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
-import { CloseButtonGlobal } from "./close-button-global";
-import { useGlobalModalCloseSafe } from "@/contexts/GlobalModalCloseContext";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -51,75 +49,30 @@ const sheetVariants = cva(
   },
 );
 
-interface SheetContentProps
-  extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {
-  /** Hide the close button (useful for full-custom layouts like menus) */
-  hideCloseButton?: boolean;
-}
-
 /**
- * SheetContent com observação do estado global de fechamento
+ * SheetContent - fecha via ESC, clique no backdrop ou botão voltar do navegador
  */
-const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, hideCloseButton = false, ...props }, ref) => {
-    const contentRef = React.useRef<HTMLDivElement>(null);
-    const globalClose = useGlobalModalCloseSafe();
-    const lastCloseIdRef = React.useRef<number>(0);
-
-    // Observa o estado global e fecha quando shouldClose = true
-    React.useEffect(() => {
-      if (!globalClose) return;
-      
-      const { shouldClose, closeId, resetClose } = globalClose;
-      
-      if (shouldClose && closeId > lastCloseIdRef.current) {
-        console.log('[SheetContent] Global close triggered, closing sheet');
-        lastCloseIdRef.current = closeId;
-        
-        const closeButton = contentRef.current?.querySelector('[data-radix-dialog-close]') as HTMLButtonElement;
-        if (closeButton) {
-          closeButton.click();
-        }
-        
-        setTimeout(() => {
-          resetClose();
-        }, 50);
-      }
-    }, [globalClose?.shouldClose, globalClose?.closeId, globalClose?.resetClose]);
-
-    return (
-      <SheetPortal>
-        <SheetOverlay />
-        <SheetPrimitive.Content 
-          ref={(node) => {
-            // Compose refs
-            if (typeof ref === 'function') ref(node);
-            else if (ref) ref.current = node;
-            (contentRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-          }}
-          className={cn(sheetVariants({ side }), className)} 
-          {...props}
-        >
-          <DialogContextProvider>{children}</DialogContextProvider>
-          {/* Botão de fechar - dispara estado global */}
-          {!hideCloseButton && (
-            <>
-              {/* Botão invisível do Radix para manter a lógica de fechamento */}
-              <SheetPrimitive.Close 
-                data-radix-dialog-close
-                className="sr-only" 
-                aria-hidden="true"
-              />
-              {/* Botão visual que dispara o estado global */}
-              <CloseButtonGlobal />
-            </>
-          )}
-        </SheetPrimitive.Content>
-      </SheetPortal>
-    );
-  },
-);
+const SheetContent = React.forwardRef<
+  React.ElementRef<typeof SheetPrimitive.Content>, 
+  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & VariantProps<typeof sheetVariants>
+>(({ side = "right", className, children, ...props }, ref) => (
+  <SheetPortal>
+    <SheetOverlay />
+    <SheetPrimitive.Content 
+      ref={ref}
+      className={cn(sheetVariants({ side }), className)} 
+      {...props}
+    >
+      <DialogContextProvider>{children}</DialogContextProvider>
+      {/* Botão invisível do Radix para fechamento programático (ESC/backdrop/back) */}
+      <SheetPrimitive.Close 
+        data-radix-dialog-close
+        className="sr-only" 
+        aria-hidden="true"
+      />
+    </SheetPrimitive.Content>
+  </SheetPortal>
+));
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
