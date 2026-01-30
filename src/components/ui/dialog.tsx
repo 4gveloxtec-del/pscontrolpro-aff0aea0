@@ -2,7 +2,6 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { cn } from "@/lib/utils";
-import { CloseButton } from "@/components/ui/close-button";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -130,9 +129,42 @@ const DialogContent = React.forwardRef<
           {/* Mobile drag indicator */}
           <div className="sm:hidden w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-2 flex-shrink-0" />
           {children}
-          {/* Close button using global CloseButton component */}
-          <DialogPrimitive.Close asChild>
-            <CloseButton />
+          {/* Close button - inline to avoid asChild DOM issues */}
+          <DialogPrimitive.Close
+            className={cn(
+              // Positioning - high z-index to ensure clickability
+              "absolute top-3 right-3 z-[150]",
+              // Layout
+              "flex items-center justify-center shrink-0",
+              // Sizing
+              "h-8 w-8 sm:h-9 sm:w-9",
+              // Styling
+              "rounded-full bg-muted",
+              // States
+              "opacity-90 hover:opacity-100 hover:bg-muted-foreground/20",
+              // Focus
+              "ring-offset-background transition-opacity",
+              "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+              // Touch optimization
+              "touch-manipulation cursor-pointer select-none pointer-events-auto"
+            )}
+            aria-label="Fechar"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="pointer-events-none"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </DialogPrimitive.Close>
         </DialogPrimitive.Content>
       </DialogPortal>

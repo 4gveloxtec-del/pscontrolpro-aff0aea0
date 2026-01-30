@@ -2,7 +2,6 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
-import { CloseButton } from "@/components/ui/close-button";
 
 const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -40,9 +39,26 @@ const DrawerContent = React.forwardRef<
       {/* Drag indicator */}
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
       {children}
-      {/* Close button using global CloseButton component */}
-      <DrawerPrimitive.Close asChild>
-        <CloseButton />
+      {/* Close button - inline to avoid asChild DOM issues */}
+      <DrawerPrimitive.Close
+        className="absolute top-3 right-3 z-[150] flex items-center justify-center shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-muted opacity-90 hover:opacity-100 hover:bg-muted-foreground/20 ring-offset-background transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 touch-manipulation cursor-pointer select-none pointer-events-auto"
+        aria-label="Fechar"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="pointer-events-none"
+        >
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
       </DrawerPrimitive.Close>
     </DrawerPrimitive.Content>
   </DrawerPortal>
