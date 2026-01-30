@@ -18,6 +18,7 @@ import { OnlineRequired } from "@/components/OnlineRequired";
 import { useClearOfflineData } from "@/hooks/useClearOfflineData";
 import { useScrollPreservation } from "@/hooks/useScrollPreservation";
 import { NavigationProvider } from "@/contexts/NavigationContext";
+import { ScrollProvider } from "@/contexts/ScrollContext";
 import { useModalBackButtonHandler } from "@/hooks/useModalStack";
 
 // Lazy load pages for better performance
@@ -159,8 +160,9 @@ const AppRoutes = () => {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <NavigationProvider>
-        <AdminManifestProvider>
-        <Suspense fallback={<PageLoader />}>
+        <ScrollProvider>
+          <AdminManifestProvider>
+          <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
           <Route path="/" element={<RootRedirect />} />
@@ -246,6 +248,7 @@ const AppRoutes = () => {
         </Routes>
         </Suspense>
         </AdminManifestProvider>
+        </ScrollProvider>
       </NavigationProvider>
     </BrowserRouter>
   );
