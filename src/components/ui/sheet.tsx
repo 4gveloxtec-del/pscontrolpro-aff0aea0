@@ -70,16 +70,23 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
             <button
               type="button"
               aria-label="Fechar"
-              className="absolute top-3 right-3 z-[200] flex items-center justify-center shrink-0 h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-muted border-0 opacity-90 hover:opacity-100 hover:bg-muted-foreground/20 ring-offset-background transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 touch-manipulation cursor-pointer select-none pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.preventDefault()}
+              className="absolute top-2 right-2 z-[9999] flex items-center justify-center shrink-0 h-12 w-12 min-h-[48px] min-w-[48px] rounded-full bg-muted/90 backdrop-blur-sm border border-border/50 active:scale-95 active:bg-muted-foreground/30 hover:bg-muted-foreground/20 ring-offset-background transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer select-none pointer-events-auto"
+              style={{
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                isolation: 'isolate',
+              }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className="pointer-events-none"
