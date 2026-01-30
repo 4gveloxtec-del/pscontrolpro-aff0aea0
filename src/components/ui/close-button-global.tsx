@@ -25,9 +25,10 @@ import { cn } from "@/lib/utils";
  * =========================================================================
  */
 
-export interface CloseButtonGlobalProps {
+export interface CloseButtonGlobalProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "size"> {
   /** Tamanho do botão: 'sm' para drawers compactos, 'default' para dialogs/sheets */
-  size?: 'sm' | 'default';
+  size?: "sm" | "default";
   /** Classes CSS adicionais (apenas para posicionamento, NÃO para lógica) */
   className?: string;
 }
@@ -43,17 +44,28 @@ export interface CloseButtonGlobalProps {
  * O fechamento é gerenciado automaticamente pelo primitivo - NÃO adicione onClick.
  */
 export const CloseButtonGlobal = React.forwardRef<HTMLButtonElement, CloseButtonGlobalProps>(
-  ({ className, size = 'default' }, ref) => {
-    // Handler para prevenir propagação de eventos
-    const handleClick = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation();
-      // O fechamento real é gerenciado pelo primitivo Close do Radix/Vaul
-    }, []);
+  ({ className, size = "default", onClick, onContextMenu, style, type, ...props }, ref) => {
+    // IMPORTANTE: este componente é renderizado dentro do Primitive.Close (Radix/Vaul) via `asChild`.
+    // Portanto, precisamos PROPAGAR os handlers (ex: onClick) recebidos do Primitive para que o fechamento ocorra.
+
+    // Handler para prevenir propagação de eventos (sem bloquear o handler do Primitive.Close)
+    const handleClick = React.useCallback(
+      (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
+        onClick?.(e);
+        // O fechamento real é gerenciado pelo primitivo Close do Radix/Vaul
+      },
+      [onClick],
+    );
 
     // Handler para prevenir menu de contexto em long-press mobile
-    const handleContextMenu = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-      e.preventDefault();
-    }, []);
+    const handleContextMenu = React.useCallback(
+      (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        onContextMenu?.(e);
+      },
+      [onContextMenu],
+    );
 
     const sizeClasses = size === 'sm' 
       ? "h-10 w-10 min-h-[40px] min-w-[40px]"
@@ -64,8 +76,8 @@ export const CloseButtonGlobal = React.forwardRef<HTMLButtonElement, CloseButton
     return (
       <button
         ref={ref}
-        type="button"
-        aria-label="Fechar"
+        type={type ?? "button"}
+        aria-label={props["aria-label"] ?? "Fechar"}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         className={cn(
@@ -93,7 +105,9 @@ export const CloseButtonGlobal = React.forwardRef<HTMLButtonElement, CloseButton
           WebkitTapHighlightColor: 'transparent',
           // Isolamento de contexto para z-index
           isolation: 'isolate',
+          ...style,
         }}
+        {...props}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
