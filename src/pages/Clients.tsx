@@ -2836,41 +2836,44 @@ export default function Clients() {
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          if (!open && !editingClient && hasFormChanges()) {
-            // Show confirmation before closing if there are unsaved changes
-            confirm({
-              title: 'Descartar alterações?',
-              description: 'Você tem dados não salvos. Deseja sair sem salvar?',
-              confirmText: 'Sair sem salvar',
-              cancelText: 'Continuar editando',
-              variant: 'warning',
-              onConfirm: () => {
-                setIsDialogOpen(false);
-                setEditingClient(null);
-                resetForm();
-                setAddCategoryOpen(false);
-                setExpirationPopoverOpen(false);
-                setPaidAppsExpirationPopoverOpen(false);
-              },
-            });
-            return;
-          }
-          
-          // PERF: Enable lazy queries when dialog opens (ensures plans/servers/categories load immediately)
-          if (open) {
-            setPlansEnabled(true);
-            setServersEnabled(true);
-            setCategoriesEnabled(true);
-          }
-          
-          setIsDialogOpen(open);
+          // When closing (open = false)
           if (!open) {
+            // Only show confirmation for NEW clients (not editing) with unsaved changes
+            if (!editingClient && hasFormChanges()) {
+              confirm({
+                title: 'Descartar alterações?',
+                description: 'Você tem dados não salvos. Deseja sair sem salvar?',
+                confirmText: 'Sair sem salvar',
+                cancelText: 'Continuar editando',
+                variant: 'warning',
+                onConfirm: () => {
+                  setIsDialogOpen(false);
+                  setEditingClient(null);
+                  resetForm();
+                  setAddCategoryOpen(false);
+                  setExpirationPopoverOpen(false);
+                  setPaidAppsExpirationPopoverOpen(false);
+                },
+              });
+              return; // Don't close yet, wait for confirmation
+            }
+            
+            // Close directly (for editing or no changes)
+            setIsDialogOpen(false);
             setEditingClient(null);
             resetForm();
             setAddCategoryOpen(false);
             setExpirationPopoverOpen(false);
             setPaidAppsExpirationPopoverOpen(false);
+            return;
           }
+          
+          // When opening (open = true)
+          // PERF: Enable lazy queries when dialog opens
+          setPlansEnabled(true);
+          setServersEnabled(true);
+          setCategoriesEnabled(true);
+          setIsDialogOpen(true);
         }}>
           <div className="flex gap-2 flex-wrap">
             {clients.length > 0 && (
