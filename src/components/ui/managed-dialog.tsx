@@ -49,23 +49,16 @@ export function ManagedDialog({
   children,
   contentClassName,
 }: ManagedDialogProps) {
-  const { handleClose, isTopModal } = useModalStack({
+  // Register with stack - cleanup happens automatically when open becomes false
+  useModalStack({
     id,
     isOpen: open,
     onClose: () => onOpenChange(false),
   });
   
-  // Override onOpenChange to use stack-aware close
-  const handleOpenChange = React.useCallback((newOpen: boolean) => {
-    if (!newOpen) {
-      handleClose();
-    } else {
-      onOpenChange(true);
-    }
-  }, [handleClose, onOpenChange]);
-  
+  // Let Radix handle the close directly - stack cleanup happens via useEffect
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={contentClassName}>
         {children}
       </DialogContent>

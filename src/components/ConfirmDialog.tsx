@@ -40,30 +40,21 @@ export function ConfirmDialog({
   const IconComponent = icon === 'trash' ? Trash2 : icon === 'info' ? Info : AlertTriangle;
   const showIcon = variant === 'destructive' || variant === 'warning' || icon;
   
-  // Integrate with navigation stack
-  const { handleClose } = useModalStack({
+  // Register with stack - cleanup happens automatically when open becomes false
+  useModalStack({
     id: `confirm-dialog-${dialogId}`,
     isOpen: open,
     onClose: () => onOpenChange(false),
   });
   
-  // Stack-aware open change handler
-  const handleOpenChange = useCallback((newOpen: boolean) => {
-    if (!newOpen) {
-      handleClose();
-    } else {
-      onOpenChange(true);
-    }
-  }, [handleClose, onOpenChange]);
-  
-  // Handle confirm with stack-aware close
+  // Handle confirm - just close via onOpenChange, stack cleanup is automatic
   const handleConfirm = useCallback(() => {
     onConfirm();
-    handleClose();
-  }, [onConfirm, handleClose]);
+    onOpenChange(false);
+  }, [onConfirm, onOpenChange]);
 
   return (
-    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className={cn(

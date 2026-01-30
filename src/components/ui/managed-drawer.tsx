@@ -55,23 +55,16 @@ export function ManagedDrawer({
   contentClassName,
   shouldScaleBackground = true,
 }: ManagedDrawerProps) {
-  const { handleClose } = useModalStack({
+  // Register with stack - cleanup happens automatically when open becomes false
+  useModalStack({
     id,
     isOpen: open,
     onClose: () => onOpenChange(false),
   });
   
-  // Override onOpenChange to use stack-aware close
-  const handleOpenChange = React.useCallback((newOpen: boolean) => {
-    if (!newOpen) {
-      handleClose();
-    } else {
-      onOpenChange(true);
-    }
-  }, [handleClose, onOpenChange]);
-  
+  // Let Radix handle the close directly - stack cleanup happens via useEffect
   return (
-    <Drawer open={open} onOpenChange={handleOpenChange} shouldScaleBackground={shouldScaleBackground}>
+    <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground={shouldScaleBackground}>
       <DrawerContent className={contentClassName}>
         {children}
       </DrawerContent>

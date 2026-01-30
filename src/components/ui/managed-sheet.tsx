@@ -56,23 +56,16 @@ export function ManagedSheet({
   side = "right",
   contentClassName,
 }: ManagedSheetProps) {
-  const { handleClose } = useModalStack({
+  // Register with stack - cleanup happens automatically when open becomes false
+  useModalStack({
     id,
     isOpen: open,
     onClose: () => onOpenChange(false),
   });
   
-  // Override onOpenChange to use stack-aware close
-  const handleOpenChange = React.useCallback((newOpen: boolean) => {
-    if (!newOpen) {
-      handleClose();
-    } else {
-      onOpenChange(true);
-    }
-  }, [handleClose, onOpenChange]);
-  
+  // Let Radix handle the close directly - stack cleanup happens via useEffect
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={side} className={contentClassName}>
         {children}
       </SheetContent>
