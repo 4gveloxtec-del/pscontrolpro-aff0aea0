@@ -13,6 +13,7 @@ import * as React from "react";
  * 2. Todo botão X apenas chama `triggerClose()`
  * 3. Todos os modais observam `shouldClose` e fecham quando true
  * 4. Após fechar, o modal chama `resetClose()` para limpar o estado
+ * 5. O backdrop e botão voltar também usam `triggerClose()`
  * 
  * =========================================================================
  */
@@ -24,7 +25,7 @@ interface GlobalModalCloseContextValue {
   shouldClose: boolean;
   
   /**
-   * Dispara o fechamento global - chamado pelo CloseButtonGlobal
+   * Dispara o fechamento global - chamado pelo CloseButtonGlobal, backdrop e voltar
    */
   triggerClose: () => void;
   
@@ -55,6 +56,24 @@ export function GlobalModalCloseProvider({ children }: { children: React.ReactNo
     console.log('[GlobalModalClose] resetClose called');
     setShouldClose(false);
   }, []);
+
+  // Interceptar botão voltar do navegador
+  React.useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // Dispara o fechamento global
+      console.log('[GlobalModalClose] Back button detected, triggering close');
+      triggerClose();
+      
+      // Push state para prevenir navegação real
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    // Push um estado inicial para poder detectar o voltar
+    window.history.pushState(null, '', window.location.href);
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [triggerClose]);
 
   const value = React.useMemo(
     () => ({ shouldClose, triggerClose, resetClose, closeId }),
