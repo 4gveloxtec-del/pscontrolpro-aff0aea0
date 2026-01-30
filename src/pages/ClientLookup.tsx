@@ -172,9 +172,18 @@ function ClientLookup() {
 
   const looksEncrypted = useCallback((value: string) => {
     // Mirror backend heuristic: base64-ish and long enough to likely include IV+payload
-    // Keeps plaintext like "565655" from being treated as ciphertext.
+    // Must be long enough
+    if (value.length < 20) return false;
+    // Must match base64 pattern
     const base64Regex = /^[A-Za-z0-9+/]+=*$/;
-    return base64Regex.test(value) && value.length >= 20;
+    if (!base64Regex.test(value)) return false;
+    // Must contain at least one letter (pure numbers like "201061972" aren't encrypted)
+    if (!/[A-Za-z]/.test(value)) return false;
+    // Must have mix of upper/lower or have = padding or special base64 chars
+    const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
+    const hasPadding = value.endsWith('=');
+    const hasSpecialBase64 = /[+/]/.test(value);
+    return hasUpperAndLower || hasPadding || hasSpecialBase64;
   }, []);
   
   // Reset decrypted credentials when client changes
@@ -229,13 +238,14 @@ function ClientLookup() {
         if (!looksEncrypted(value)) return value;
         try {
           const decrypted = await decrypt(value);
-          // If decryption returns encrypted-looking data, it failed
-          if (decrypted === value || looksEncrypted(decrypted)) {
-            return ''; // Don't expose encrypted data
-          }
+          // If decryption returned same value, use original
+          if (decrypted === value) return value;
+          // If result still looks encrypted, decryption failed
+          if (looksEncrypted(decrypted)) return value;
           return decrypted;
         } catch {
-          return ''; // Decryption failed
+          // Decryption failed - return original (might be readable plain text)
+          return value;
         }
       };
       
