@@ -4,6 +4,7 @@ import { Drawer as DrawerPrimitive } from "vaul";
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
 import { CloseButtonGlobal } from "./close-button-global";
+import { useGlobalModalCloseSafe } from "@/contexts/GlobalModalCloseContext";
 
 const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -29,37 +30,73 @@ interface DrawerContentProps extends React.ComponentPropsWithoutRef<typeof Drawe
   hideCloseButton?: boolean;
 }
 
+/**
+ * DrawerContent com observação do estado global de fechamento
+ */
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, children, hideCloseButton = false, ...props }, ref) => (
-  <DrawerPortal>
-    <DrawerOverlay />
-    <DrawerPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background relative",
-        className,
-      )}
-      {...props}
-    >
-      {/* Drag indicator */}
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {/*
-        IMPORTANT: DialogContextProvider signals to nested Select components
-        that they're inside an overlay, so they disable their own Portal
-        and avoid DOM conflicts on unmount.
-      */}
-      <DialogContextProvider>{children}</DialogContextProvider>
-      {/* CloseButtonGlobal - ÚNICO botão de fechamento permitido */}
-      {!hideCloseButton && (
-        <DrawerPrimitive.Close asChild>
-          <CloseButtonGlobal size="sm" />
-        </DrawerPrimitive.Close>
-      )}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-));
+>(({ className, children, hideCloseButton = false, ...props }, ref) => {
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const globalClose = useGlobalModalCloseSafe();
+  const lastCloseIdRef = React.useRef<number>(0);
+
+  // Observa o estado global e fecha quando shouldClose = true
+  React.useEffect(() => {
+    if (!globalClose) return;
+    
+    const { shouldClose, closeId, resetClose } = globalClose;
+    
+    if (shouldClose && closeId > lastCloseIdRef.current) {
+      console.log('[DrawerContent] Global close triggered, closing drawer');
+      lastCloseIdRef.current = closeId;
+      
+      const closeButton = contentRef.current?.querySelector('[data-vaul-drawer-close]') as HTMLButtonElement;
+      if (closeButton) {
+        closeButton.click();
+      }
+      
+      setTimeout(() => {
+        resetClose();
+      }, 50);
+    }
+  }, [globalClose?.shouldClose, globalClose?.closeId, globalClose?.resetClose]);
+
+  return (
+    <DrawerPortal>
+      <DrawerOverlay />
+      <DrawerPrimitive.Content
+        ref={(node) => {
+          if (typeof ref === 'function') ref(node);
+          else if (ref) ref.current = node;
+          (contentRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }}
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background relative",
+          className,
+        )}
+        {...props}
+      >
+        {/* Drag indicator */}
+        <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+        <DialogContextProvider>{children}</DialogContextProvider>
+        {/* Botão de fechar - dispara estado global */}
+        {!hideCloseButton && (
+          <>
+            {/* Botão invisível do Vaul para manter a lógica de fechamento */}
+            <DrawerPrimitive.Close 
+              data-vaul-drawer-close
+              className="sr-only" 
+              aria-hidden="true"
+            />
+            {/* Botão visual que dispara o estado global */}
+            <CloseButtonGlobal size="sm" />
+          </>
+        )}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  );
+});
 DrawerContent.displayName = "DrawerContent";
 
 const DrawerHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
