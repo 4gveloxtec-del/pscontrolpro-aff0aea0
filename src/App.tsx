@@ -19,7 +19,6 @@ import { useClearOfflineData } from "@/hooks/useClearOfflineData";
 import { useScrollPreservation } from "@/hooks/useScrollPreservation";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import { ScrollProvider, useScrollUserSync } from "@/contexts/ScrollContext";
-import { useModalBackButtonHandler } from "@/hooks/useModalStack";
 import { useGuardrails } from "@/hooks/useGuardrails";
 import { GlobalModalCloseProvider } from "@/contexts/GlobalModalCloseContext";
 
@@ -269,7 +268,6 @@ const AppRoutes = () => {
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useClearOfflineData();
   useScrollPreservation();
-  useModalBackButtonHandler();
   return <>{children}</>;
 }
 

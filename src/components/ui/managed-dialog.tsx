@@ -9,11 +9,10 @@ import {
   DialogClose,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useModalStack } from "@/hooks/useModalStack";
 
 interface ManagedDialogProps {
   /**
-   * Unique identifier for this dialog. Required for stack management.
+   * Unique identifier for this dialog (legacy - kept for API compatibility)
    */
   id: string;
   
@@ -39,8 +38,8 @@ interface ManagedDialogProps {
 }
 
 /**
- * A Dialog component that integrates with the global navigation stack.
- * Use this when you need proper back button handling and stack ordering.
+ * ManagedDialog - Wrapper simplificado que usa o sistema global de fechamento.
+ * O fechamento é gerenciado pelo GlobalModalCloseContext.
  */
 export function ManagedDialog({
   id,
@@ -49,14 +48,6 @@ export function ManagedDialog({
   children,
   contentClassName,
 }: ManagedDialogProps) {
-  // Register with stack - cleanup happens automatically when open becomes false
-  useModalStack({
-    id,
-    isOpen: open,
-    onClose: () => onOpenChange(false),
-  });
-  
-  // Let Radix handle the close directly - stack cleanup happens via useEffect
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={contentClassName}>
