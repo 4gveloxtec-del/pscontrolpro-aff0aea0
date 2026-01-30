@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { useScrollSafe } from '@/contexts/ScrollContext';
+import { useScrollSafe, ActionType } from '@/contexts/ScrollContext';
 
 interface UseScrollPreservationOptions {
   /**
@@ -53,14 +53,14 @@ export function useScrollPreservation(options: UseScrollPreservationOptions = {}
       clearTimeout(preserveTimeoutRef.current);
     }
     
-    // Restore scroll multiple times to catch delayed scrolls
-    requestAnimationFrame(preserveScroll);
-    setTimeout(preserveScroll, 16);
-    setTimeout(preserveScroll, 50);
-    setTimeout(preserveScroll, 100);
-    setTimeout(preserveScroll, 200);
-    setTimeout(preserveScroll, 300);
-    setTimeout(preserveScroll, 400);
+    // Use RAF loop for smoother restoration
+    const restoreLoop = () => {
+      if (isPreservingRef.current) {
+        preserveScroll();
+        requestAnimationFrame(restoreLoop);
+      }
+    };
+    requestAnimationFrame(restoreLoop);
     
     // Stop preserving after duration
     preserveTimeoutRef.current = window.setTimeout(() => {
@@ -91,12 +91,30 @@ export function useScrollPreservation(options: UseScrollPreservationOptions = {}
   }, [scroll, startPreserving, preserveDuration]);
 
   // Mark an item as being edited (for smart restoration)
-  const markItemEdit = useCallback((itemId: string) => {
+  const markItemEdit = useCallback((itemId: string, actionType?: ActionType) => {
     if (scroll) {
-      scroll.markEditAction(itemId);
+      scroll.markEditAction(itemId, actionType);
     }
     startPreserving();
   }, [scroll, startPreserving]);
+
+  // Focus and highlight an item after action
+  const focusAfterAction = useCallback((
+    itemId: string,
+    options?: {
+      actionType?: ActionType;
+      highlightDuration?: number;
+    }
+  ) => {
+    if (scroll) {
+      scroll.focusItem(itemId, {
+        actionType: options?.actionType,
+        highlightDuration: options?.highlightDuration,
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [scroll]);
 
   useEffect(() => {
     if (!autoPreserve) return;
@@ -119,10 +137,7 @@ export function useScrollPreservation(options: UseScrollPreservationOptions = {}
     // Handle dialog open/close which often causes scroll reset
     const handleDialogChange = () => {
       if (savedScrollRef.current !== null && isPreservingRef.current) {
-        requestAnimationFrame(preserveScroll);
-        setTimeout(preserveScroll, 16);
-        setTimeout(preserveScroll, 50);
-        setTimeout(preserveScroll, 100);
+        preserveScroll();
       }
     };
 
@@ -159,6 +174,7 @@ export function useScrollPreservation(options: UseScrollPreservationOptions = {}
     startPreserving,
     withScrollPreservation,
     markItemEdit,
+    focusAfterAction,
     scrollContext: scroll,
   };
 }
