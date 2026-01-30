@@ -60,14 +60,15 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         <div className="pt-8">
           {children}
         </div>
-        {/* Close button - MUST be last child for highest z-index stacking and pointer-events */}
-        <SheetPrimitive.Close 
-          className="absolute top-3 right-3 z-[100] rounded-full opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 shrink-0 touch-manipulation"
-          type="button"
-          aria-label="Fechar"
-        >
-          <X className="h-4 w-4 sm:h-5 sm:w-5 pointer-events-none" />
-          <span className="sr-only">Fechar</span>
+        {/* Close button using Radix Close with asChild for full control */}
+        <SheetPrimitive.Close asChild>
+          <button
+            type="button"
+            className="absolute top-3 right-3 z-[100] rounded-full opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 shrink-0"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPortal>
