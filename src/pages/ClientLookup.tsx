@@ -154,7 +154,7 @@ interface DecryptedAppCredentials {
 }
 
 function ClientLookup() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { decrypt } = useCrypto();
   const { isPrivacyMode } = usePrivacyMode();
   const [searchQuery, setSearchQuery] = useState('');
@@ -203,15 +203,21 @@ function ClientLookup() {
   
   // Fetch all clients for client-side search (credentials are encrypted, so server-side search won't work for login fields)
   const { data: allClients = [], isLoading: isLoadingAllClients } = useQuery({
-    queryKey: ['client-lookup-all', user?.id],
+    queryKey: ['client-lookup-all', user?.id, isAdmin],
     queryFn: async () => {
       if (!user?.id) return [];
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('clients')
-        .select('id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived')
-        .eq('seller_id', user.id)
+        .select('id, seller_id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived')
         .order('expiration_date', { ascending: false });
+
+      // Resellers see only their own clients; admins can search across all resellers.
+      if (!isAdmin) {
+        query = query.eq('seller_id', user.id);
+      }
+
+      const { data, error } = await query;
         
       if (error) throw error;
       return data || [];
@@ -314,49 +320,66 @@ function ClientLookup() {
       if (!user?.id || !selectedClientId) return null;
       
       // Fetch client with all related data
-      const { data: client, error: clientError } = await supabase
+      let clientQuery = supabase
         .from('clients')
         .select(`
           *,
           plan:plans(name, price, duration_days, category),
           server:servers(name, icon_url)
         `)
-        .eq('id', selectedClientId)
-        .eq('seller_id', user.id)
-        .maybeSingle();
+        .eq('id', selectedClientId);
+
+      if (!isAdmin) {
+        clientQuery = clientQuery.eq('seller_id', user.id);
+      }
+
+      const { data: client, error: clientError } = await clientQuery.maybeSingle();
         
       if (clientError) throw clientError;
       if (!client) throw new Error('Client not found');
       
       // Fetch related data in parallel
+      let externalAppsQuery = supabase
+        .from('client_external_apps')
+        .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
+        .eq('client_id', selectedClientId);
+
+      let premiumAccountsQuery = supabase
+        .from('client_premium_accounts')
+        .select('id, plan_name, email, password, expiration_date, price, notes')
+        .eq('client_id', selectedClientId);
+
+      let deviceAppsQuery = supabase
+        .from('client_device_apps')
+        .select('id, app:reseller_device_apps(name, icon, download_url)')
+        .eq('client_id', selectedClientId);
+
+      let messageHistoryQuery = supabase
+        .from('message_history')
+        .select('id, message_type, message_content, sent_at')
+        .eq('client_id', selectedClientId)
+        .order('sent_at', { ascending: false })
+        .limit(10);
+
+      let panelClientsQuery = supabase
+        .from('panel_clients')
+        .select('id, slot_type, server:servers(name)')
+        .eq('client_id', selectedClientId);
+
+      if (!isAdmin) {
+        externalAppsQuery = externalAppsQuery.eq('seller_id', user.id);
+        premiumAccountsQuery = premiumAccountsQuery.eq('seller_id', user.id);
+        deviceAppsQuery = deviceAppsQuery.eq('seller_id', user.id);
+        messageHistoryQuery = messageHistoryQuery.eq('seller_id', user.id);
+        panelClientsQuery = panelClientsQuery.eq('seller_id', user.id);
+      }
+
       const [externalAppsResult, premiumAccountsResult, deviceAppsResult, messageHistoryResult, panelClientsResult] = await Promise.all([
-        supabase
-          .from('client_external_apps')
-          .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
-          .eq('client_id', selectedClientId)
-          .eq('seller_id', user.id),
-        supabase
-          .from('client_premium_accounts')
-          .select('id, plan_name, email, password, expiration_date, price, notes')
-          .eq('client_id', selectedClientId)
-          .eq('seller_id', user.id),
-        supabase
-          .from('client_device_apps')
-          .select('id, app:reseller_device_apps(name, icon, download_url)')
-          .eq('client_id', selectedClientId)
-          .eq('seller_id', user.id),
-        supabase
-          .from('message_history')
-          .select('id, message_type, message_content, sent_at')
-          .eq('client_id', selectedClientId)
-          .eq('seller_id', user.id)
-          .order('sent_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('panel_clients')
-          .select('id, slot_type, server:servers(name)')
-          .eq('client_id', selectedClientId)
-          .eq('seller_id', user.id),
+        externalAppsQuery,
+        premiumAccountsQuery,
+        deviceAppsQuery,
+        messageHistoryQuery,
+        panelClientsQuery,
       ]);
       
       return {

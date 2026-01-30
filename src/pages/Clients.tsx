@@ -726,49 +726,130 @@ export default function Clients() {
   });
 
   // ============= Consulta 360° Queries =============
-  // Search clients for 360° lookup - returns raw results
-  const { data: lookupSearchResultsRaw = [], isLoading: isLookupSearching } = useQuery({
-    queryKey: ['client-lookup-search', lookupSearchQuery, user?.id],
+  // IMPORTANT: server logins are stored encrypted, so we cannot rely on server-side `login.ilike.*`.
+  // We load a lookup dataset and filter client-side using decrypted logins.
+  const { data: lookupAllClients = [], isLoading: isLoadingLookupAllClients } = useQuery({
+    queryKey: ['client-lookup-all', user?.id, isAdmin],
     queryFn: async () => {
-      if (!user?.id || lookupSearchQuery.length < 2) return [];
-      const normalizedQuery = lookupSearchQuery.toLowerCase().trim();
-      const digits = normalizedQuery.replace(/\D/g, '');
-      
-      // Build phone search variants
-      const phoneVariants: string[] = [];
-      if (digits.length >= 4) {
-        phoneVariants.push(`phone.ilike.%${digits}%`);
-        // If user typed without 55, also search with 55 prefix
-        if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
-          phoneVariants.push(`phone.ilike.%55${digits}%`);
-        }
-        // If user typed with 55, also search without it
-        if (digits.startsWith('55') && digits.length >= 12) {
-          const withoutPrefix = digits.substring(2);
-          phoneVariants.push(`phone.ilike.%${withoutPrefix}%`);
-        }
-      }
-      
-      const orParts = [
-        `name.ilike.%${normalizedQuery}%`,
-        `email.ilike.%${normalizedQuery}%`,
-        `login.ilike.%${normalizedQuery}%`,
-        ...phoneVariants
-      ];
-      
-      const { data, error } = await supabase
+      if (!user?.id) return [];
+
+      let query = supabase
         .from('clients')
-        .select('id, name, phone, email, login, expiration_date, plan_name, is_archived, created_at')
-        .eq('seller_id', user.id)
-        .or(orParts.join(','))
+        .select('id, seller_id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived, created_at')
         .order('expiration_date', { ascending: false })
-        .limit(50); // Increase limit to allow grouping
+        .limit(1000);
+
+      // Resellers see only their own data; admins can search across all resellers.
+      if (!isAdmin) {
+        query = query.eq('seller_id', user.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id && lookupSearchQuery.length >= 2 && showLookupDialog,
-    staleTime: 30000,
+    enabled: !!user?.id && showLookupDialog,
+    staleTime: 60_000,
   });
+
+  const [lookupDecryptedLogins, setLookupDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
+  const [isDecryptingLookupLogins, setIsDecryptingLookupLogins] = useState(false);
+
+  // Reuse the lookup heuristic, but avoid classifying pure numeric logins as ciphertext.
+  const lookupLooksEncryptedForSearch = useCallback((value: string) => {
+    if (value.length < 20) return false;
+    const base64Regex = /^[A-Za-z0-9+/]+=*$/;
+    if (!base64Regex.test(value)) return false;
+    if (!/[A-Za-z]/.test(value)) return false;
+    const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
+    const hasPadding = value.endsWith('=');
+    const hasSpecialBase64 = /[+/]/.test(value);
+    return hasUpperAndLower || hasPadding || hasSpecialBase64;
+  }, []);
+
+  useEffect(() => {
+    if (!showLookupDialog) return;
+    if (lookupAllClients.length === 0) return;
+    if (isDecryptingLookupLogins) return;
+
+    // Only decrypt missing entries
+    const missing = lookupAllClients.filter((c: any) => !lookupDecryptedLogins[c.id]);
+    if (missing.length === 0) return;
+
+    const run = async () => {
+      setIsDecryptingLookupLogins(true);
+      const next: Record<string, { login: string; login_2: string }> = { ...lookupDecryptedLogins };
+
+      const safeDecrypt = async (value: string | null): Promise<string> => {
+        if (!value) return '';
+        if (!lookupLooksEncryptedForSearch(value)) return value;
+        try {
+          const decrypted = await decrypt(value);
+          if (decrypted === value) return value;
+          if (lookupLooksEncryptedForSearch(decrypted)) return value;
+          return decrypted;
+        } catch {
+          return value;
+        }
+      };
+
+      // Decrypt in small batches to avoid throttling
+      const batchSize = 20;
+      for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (client: any) => {
+            const [login, login_2] = await Promise.all([
+              safeDecrypt(client.login ?? null),
+              safeDecrypt(client.login_2 ?? null),
+            ]);
+            next[client.id] = { login, login_2 };
+          })
+        );
+      }
+
+      setLookupDecryptedLogins(next);
+      setIsDecryptingLookupLogins(false);
+    };
+
+    run();
+  }, [showLookupDialog, lookupAllClients, decrypt, lookupDecryptedLogins, isDecryptingLookupLogins, lookupLooksEncryptedForSearch]);
+
+  const lookupSearchResultsRaw = useMemo(() => {
+    if (!lookupSearchQuery || lookupSearchQuery.length < 2) return [];
+
+    const normalizedQuery = lookupSearchQuery.toLowerCase().trim();
+    const normalizedQueryDigits = normalizedQuery.replace(/\D/g, '');
+
+    return lookupAllClients
+      .filter((client: any) => {
+        // Name
+        if ((client.name || '').toLowerCase().includes(normalizedQuery)) return true;
+
+        // Email
+        if ((client.email || '').toLowerCase().includes(normalizedQuery)) return true;
+
+        // Phone (digits + plain text)
+        if (client.phone) {
+          const phoneText = String(client.phone).toLowerCase();
+          const phoneDigits = String(client.phone).replace(/\D/g, '');
+          if (normalizedQueryDigits.length >= 4 && phoneDigits.includes(normalizedQueryDigits)) return true;
+          if (normalizedQueryDigits.length >= 4 && phoneDigits.length >= 12 && phoneDigits.slice(2).includes(normalizedQueryDigits)) return true;
+          if (phoneText.includes(normalizedQuery)) return true;
+        }
+
+        // Login (decrypted first, raw fallback)
+        const decrypted = lookupDecryptedLogins[client.id];
+        const login = (decrypted?.login ?? client.login ?? '').toLowerCase();
+        const login2 = (decrypted?.login_2 ?? client.login_2 ?? '').toLowerCase();
+        if (login.includes(normalizedQuery) || login2.includes(normalizedQuery)) return true;
+
+        return false;
+      })
+      .slice(0, 50);
+  }, [lookupSearchQuery, lookupAllClients, lookupDecryptedLogins]);
+
+  const isLookupSearching = isLoadingLookupAllClients || isDecryptingLookupLogins;
 
   // Group lookup results by normalized phone number
   const lookupGroupedResults = useMemo(() => {
@@ -876,49 +957,68 @@ export default function Clients() {
     queryKey: ['client-full-data', selectedLookupClientId, user?.id],
     queryFn: async () => {
       if (!user?.id || !selectedLookupClientId) return null;
+
       // Fetch client with all related data
-      const { data: client, error: clientError } = await supabase
+      let clientQuery = supabase
         .from('clients')
         .select(`
           *,
           plan:plans(name, price, duration_days, category),
           server:servers(name, icon_url)
         `)
-        .eq('id', selectedLookupClientId)
-        .eq('seller_id', user.id)
-        .maybeSingle();
+        .eq('id', selectedLookupClientId);
+
+      // Resellers are restricted to their own data; admins can fetch any reseller client.
+      if (!isAdmin) {
+        clientQuery = clientQuery.eq('seller_id', user.id);
+      }
+
+      const { data: client, error: clientError } = await clientQuery.maybeSingle();
       if (clientError) throw clientError;
       if (!client) throw new Error('Cliente não encontrado');
       
       // Fetch related data in parallel
+      let externalAppsQuery = supabase
+        .from('client_external_apps')
+        .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
+        .eq('client_id', selectedLookupClientId);
+
+      let premiumAccountsQuery = supabase
+        .from('client_premium_accounts')
+        .select('id, plan_name, email, password, expiration_date, price, notes')
+        .eq('client_id', selectedLookupClientId);
+
+      let deviceAppsQuery = supabase
+        .from('client_device_apps')
+        .select('id, app:reseller_device_apps(name, icon, download_url)')
+        .eq('client_id', selectedLookupClientId);
+
+      let messageHistoryQuery = supabase
+        .from('message_history')
+        .select('id, message_type, message_content, sent_at')
+        .eq('client_id', selectedLookupClientId)
+        .order('sent_at', { ascending: false })
+        .limit(10);
+
+      let panelClientsQuery = supabase
+        .from('panel_clients')
+        .select('id, slot_type, server:servers(name)')
+        .eq('client_id', selectedLookupClientId);
+
+      if (!isAdmin) {
+        externalAppsQuery = externalAppsQuery.eq('seller_id', user.id);
+        premiumAccountsQuery = premiumAccountsQuery.eq('seller_id', user.id);
+        deviceAppsQuery = deviceAppsQuery.eq('seller_id', user.id);
+        messageHistoryQuery = messageHistoryQuery.eq('seller_id', user.id);
+        panelClientsQuery = panelClientsQuery.eq('seller_id', user.id);
+      }
+
       const [externalAppsResult, premiumAccountsResult, deviceAppsResult, messageHistoryResult, panelClientsResult] = await Promise.all([
-        supabase
-          .from('client_external_apps')
-          .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
-          .eq('client_id', selectedLookupClientId)
-          .eq('seller_id', user.id),
-        supabase
-          .from('client_premium_accounts')
-          .select('id, plan_name, email, password, expiration_date, price, notes')
-          .eq('client_id', selectedLookupClientId)
-          .eq('seller_id', user.id),
-        supabase
-          .from('client_device_apps')
-          .select('id, app:reseller_device_apps(name, icon, download_url)')
-          .eq('client_id', selectedLookupClientId)
-          .eq('seller_id', user.id),
-        supabase
-          .from('message_history')
-          .select('id, message_type, message_content, sent_at')
-          .eq('client_id', selectedLookupClientId)
-          .eq('seller_id', user.id)
-          .order('sent_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('panel_clients')
-          .select('id, slot_type, server:servers(name)')
-          .eq('client_id', selectedLookupClientId)
-          .eq('seller_id', user.id),
+        externalAppsQuery,
+        premiumAccountsQuery,
+        deviceAppsQuery,
+        messageHistoryQuery,
+        panelClientsQuery,
       ]);
       
       return {
@@ -936,8 +1036,15 @@ export default function Clients() {
 
   // ============= Consulta 360° - Auto-descriptografia de credenciais =============
   const lookupLooksEncrypted = useCallback((value: string) => {
+    // Avoid classifying numeric-only logins as ciphertext.
+    if (value.length < 20) return false;
     const base64Regex = /^[A-Za-z0-9+/]+=*$/;
-    return base64Regex.test(value) && value.length >= 20;
+    if (!base64Regex.test(value)) return false;
+    if (!/[A-Za-z]/.test(value)) return false;
+    const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
+    const hasPadding = value.endsWith('=');
+    const hasSpecialBase64 = /[+/]/.test(value);
+    return hasUpperAndLower || hasPadding || hasSpecialBase64;
   }, []);
 
   const lookupClientIdForDecrypt = (lookupClientData as any)?.id as string | undefined;
