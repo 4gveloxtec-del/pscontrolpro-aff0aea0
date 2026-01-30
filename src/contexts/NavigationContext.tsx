@@ -164,50 +164,32 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     });
   }, []);
   
-  // Track popped modals to prevent double-pop (idempotency guard)
-  const poppedModalsRef = useRef<Set<string>>(new Set());
-  
-  // Pop a modal from the stack with idempotency
+  // Pop a modal from the stack
   // skipCallback: when true, removes from stack without calling onClose (used when modal already closed via UI)
   const popModal = useCallback((id?: string, skipCallback?: boolean): boolean => {
-    // If specific id provided, check idempotency
-    if (id && poppedModalsRef.current.has(id)) {
-      return false; // Already popped, skip
-    }
-    
     let closedEntry: StackEntry | undefined;
-    let entryId: string | undefined;
     
     setModalStack(prev => {
       if (prev.length === 0) return prev;
       
       if (id) {
+        // Pop specific modal by id
         const index = prev.findIndex(entry => entry.id === id);
         if (index >= 0) {
           closedEntry = prev[index];
-          entryId = id;
           return [...prev.slice(0, index), ...prev.slice(index + 1)];
         }
         return prev;
       } else {
+        // Pop top modal
         closedEntry = prev[prev.length - 1];
-        entryId = closedEntry?.id;
         return prev.slice(0, -1);
       }
     });
     
-    // Mark as popped and call callback (unless skipCallback is true)
-    if (closedEntry && entryId) {
-      poppedModalsRef.current.add(entryId);
-      // Clear from set after a short delay to allow re-opening
-      setTimeout(() => {
-        poppedModalsRef.current.delete(entryId!);
-      }, 100);
-      
-      // Only call onClose if not skipping (i.e., when triggered by back button or programmatic close)
-      if (!skipCallback) {
-        closedEntry.onClose?.();
-      }
+    // Call onClose callback only if not skipped (i.e., triggered by back button)
+    if (closedEntry && !skipCallback) {
+      closedEntry.onClose?.();
     }
     
     return !!closedEntry;
