@@ -20,6 +20,7 @@ import {
   HeartPulse,
   Smartphone,
   Terminal,
+  Bell,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -79,6 +80,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: 'Conectar WhatsApp', href: '/whatsapp-automation', icon: Bot },
       { title: 'Chatbot', href: '/bot-engine', icon: MessageSquare },
+      { title: 'Lembretes', href: '/reminders', icon: Bell, sellerOnly: true },
       { title: 'Comandos de Teste', href: '/test-commands', icon: Terminal, sellerOnly: true },
       { title: 'Templates', href: '/templates', icon: MessageSquare },
       { title: 'Histórico', href: '/message-history', icon: History, sellerOnly: true },

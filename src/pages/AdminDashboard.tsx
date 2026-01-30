@@ -1,17 +1,20 @@
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Server, CreditCard, Shield, Activity, RefreshCw, Loader2 } from 'lucide-react';
+import { Users, Server, CreditCard, Shield, Activity, RefreshCw, Loader2, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdminBroadcastResellers } from '@/components/AdminBroadcastResellers';
 import { AdminNotificationCreator } from '@/components/AdminNotificationCreator';
+import { AdminBillingModeManager } from '@/components/AdminBillingModeManager';
 import { toast } from 'sonner';
 
 export default function AdminDashboard() {
   const { profile } = useAuth();
+  const [billingModeOpen, setBillingModeOpen] = useState(false);
 
   // Buscar estatísticas gerais
   const { data: stats } = useQuery({
@@ -119,6 +122,15 @@ export default function AdminDashboard() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setBillingModeOpen(true)}
+            className="border-slate-600 hover:bg-slate-700 gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Modo Cobrança
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => syncPlansMutation.mutate()}
             disabled={syncPlansMutation.isPending}
             className="border-slate-600 hover:bg-slate-700"
@@ -134,6 +146,9 @@ export default function AdminDashboard() {
           <AdminBroadcastResellers />
         </div>
       </div>
+
+      {/* Billing Mode Manager Dialog */}
+      <AdminBillingModeManager open={billingModeOpen} onOpenChange={setBillingModeOpen} />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -340,6 +340,99 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_reminder_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_global: boolean | null
+          message: string
+          name: string
+          seller_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_global?: boolean | null
+          message: string
+          name: string
+          seller_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_global?: boolean | null
+          message?: string
+          name?: string
+          seller_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      billing_reminders: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          error_message: string | null
+          id: string
+          message: string
+          scheduled_date: string
+          scheduled_time: string
+          seller_id: string
+          sent_at: string | null
+          status: string
+          template_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message: string
+          scheduled_date: string
+          scheduled_time: string
+          seller_id: string
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message?: string
+          scheduled_date?: string
+          scheduled_time?: string
+          seller_id?: string
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_reminders_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_reminders_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "billing_reminder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bills_to_pay: {
         Row: {
           amount: number
@@ -1427,6 +1520,7 @@ export type Database = {
           app_name: string | null
           app_type: string | null
           archived_at: string | null
+          billing_mode: string | null
           category: string | null
           created_at: string | null
           credentials_fingerprint: string | null
@@ -1481,6 +1575,7 @@ export type Database = {
           app_name?: string | null
           app_type?: string | null
           archived_at?: string | null
+          billing_mode?: string | null
           category?: string | null
           created_at?: string | null
           credentials_fingerprint?: string | null
@@ -1535,6 +1630,7 @@ export type Database = {
           app_name?: string | null
           app_type?: string | null
           archived_at?: string | null
+          billing_mode?: string | null
           category?: string | null
           created_at?: string | null
           credentials_fingerprint?: string | null
@@ -3927,6 +4023,10 @@ export type Database = {
       }
     }
     Functions: {
+      cancel_client_pending_reminders: {
+        Args: { p_client_id: string }
+        Returns: number
+      }
       check_and_block_expired_instances: {
         Args: never
         Returns: {
