@@ -3,6 +3,7 @@ import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useIsInsideDialog } from "@/contexts/DialogContext";
 
 const ContextMenu = ContextMenuPrimitive.Root;
 
@@ -52,11 +53,24 @@ const ContextMenuSubContent = React.forwardRef<
 ));
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
 
+interface ContextMenuContentProps
+  extends React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Content> {
+  /**
+   * When true, the ContextMenu will not use a portal.
+   * Use this when the ContextMenu is inside a Dialog/Modal to avoid portal conflicts.
+   */
+  usePortal?: boolean;
+}
+
 const ContextMenuContent = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <ContextMenuPrimitive.Portal>
+  ContextMenuContentProps
+>(({ className, usePortal, ...props }, ref) => {
+  // Auto-detect if inside a Dialog - disable portal to avoid conflicts
+  const isInsideDialog = useIsInsideDialog();
+  const shouldUsePortal = usePortal ?? !isInsideDialog;
+
+  const content = (
     <ContextMenuPrimitive.Content
       ref={ref}
       className={cn(
@@ -65,8 +79,15 @@ const ContextMenuContent = React.forwardRef<
       )}
       {...props}
     />
-  </ContextMenuPrimitive.Portal>
-));
+  );
+
+  // When not using portal, render directly to avoid conflicts with Dialog portals
+  if (!shouldUsePortal) {
+    return content;
+  }
+
+  return <ContextMenuPrimitive.Portal>{content}</ContextMenuPrimitive.Portal>;
+});
 ContextMenuContent.displayName = ContextMenuPrimitive.Content.displayName;
 
 const ContextMenuItem = React.forwardRef<

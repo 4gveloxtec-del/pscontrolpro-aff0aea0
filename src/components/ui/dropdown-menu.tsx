@@ -3,6 +3,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useIsInsideDialog } from "@/contexts/DialogContext";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
@@ -52,11 +53,24 @@ const DropdownMenuSubContent = React.forwardRef<
 ));
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
 
+interface DropdownMenuContentProps
+  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> {
+  /**
+   * When true, the DropdownMenu will not use a portal.
+   * Use this when the DropdownMenu is inside a Dialog/Modal to avoid portal conflicts.
+   */
+  usePortal?: boolean;
+}
+
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal>
+  DropdownMenuContentProps
+>(({ className, sideOffset = 4, usePortal, ...props }, ref) => {
+  // Auto-detect if inside a Dialog - disable portal to avoid conflicts
+  const isInsideDialog = useIsInsideDialog();
+  const shouldUsePortal = usePortal ?? !isInsideDialog;
+
+  const content = (
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
@@ -66,8 +80,15 @@ const DropdownMenuContent = React.forwardRef<
       )}
       {...props}
     />
-  </DropdownMenuPrimitive.Portal>
-));
+  );
+
+  // When not using portal, render directly to avoid conflicts with Dialog portals
+  if (!shouldUsePortal) {
+    return content;
+  }
+
+  return <DropdownMenuPrimitive.Portal>{content}</DropdownMenuPrimitive.Portal>;
+});
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 const DropdownMenuItem = React.forwardRef<
