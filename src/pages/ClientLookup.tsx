@@ -202,9 +202,9 @@ function ClientLookup() {
       
       const { data, error } = await supabase
         .from('clients')
-        .select('id, name, phone, email, login, expiration_date, plan_name, is_archived')
+        .select('id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived')
         .eq('seller_id', user.id)
-        .or(`name.ilike.%${normalizedQuery}%,phone.ilike.%${normalizedQuery}%,email.ilike.%${normalizedQuery}%,login.ilike.%${normalizedQuery}%`)
+        .or(`name.ilike.%${normalizedQuery}%,phone.ilike.%${normalizedQuery}%,email.ilike.%${normalizedQuery}%,login.ilike.%${normalizedQuery}%,login_2.ilike.%${normalizedQuery}%`)
         .order('expiration_date', { ascending: false })
         .limit(50);
         
