@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
+import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -31,11 +32,17 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background relative",
         className,
       )}
       {...props}
     >
+      {/* Close button - absolute positioned for reliable clickability */}
+      <DrawerPrimitive.Close className="absolute top-3 right-3 z-[60] rounded-full opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 shrink-0">
+        <X className="h-4 w-4 sm:h-5 sm:w-5" />
+        <span className="sr-only">Fechar</span>
+      </DrawerPrimitive.Close>
+      {/* Drag indicator */}
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
       {children}
     </DrawerPrimitive.Content>

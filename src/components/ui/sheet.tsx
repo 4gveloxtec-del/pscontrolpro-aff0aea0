@@ -55,13 +55,16 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
   ({ side = "right", className, children, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-        {/* Close button - sticky to stay visible during scroll */}
-        <SheetPrimitive.Close className="sticky top-0 right-0 z-50 ml-auto -mt-1 -mr-1 rounded-full opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none h-8 w-8 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 shrink-0">
-          <X className="h-4 w-4" />
+      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), "relative", className)} {...props}>
+        {/* Close button - absolute positioned for reliable clickability */}
+        <SheetPrimitive.Close className="absolute top-3 right-3 z-[60] rounded-full opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-muted hover:bg-muted-foreground/20 shrink-0">
+          <X className="h-4 w-4 sm:h-5 sm:w-5" />
           <span className="sr-only">Fechar</span>
         </SheetPrimitive.Close>
-        {children}
+        {/* Content wrapper with top padding to avoid overlap with close button */}
+        <div className="pt-8">
+          {children}
+        </div>
       </SheetPrimitive.Content>
     </SheetPortal>
   ),
