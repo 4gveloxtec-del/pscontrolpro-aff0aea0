@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId } from 'react';
+import { useCallback, useEffect, useId, useRef } from 'react';
 import { useNavigationSafe } from '@/contexts/NavigationContext';
 
 interface UseModalStackOptions {
@@ -32,12 +32,21 @@ export function useModalStack({ id, isOpen, onClose, data }: UseModalStackOption
   const modalId = id || generatedId;
   const navigation = useNavigationSafe();
   
+  // Use ref to avoid dependency issues with onClose callback
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  
+  // Stable callback that uses the ref
+  const stableOnClose = useCallback(() => {
+    onCloseRef.current();
+  }, []);
+  
   // Register/unregister modal with the stack when open state changes
   useEffect(() => {
     if (!navigation) return;
     
     if (isOpen) {
-      navigation.pushModal(modalId, onClose, data);
+      navigation.pushModal(modalId, stableOnClose, data);
     } else {
       // Only pop if this modal is in the stack
       if (navigation.isModalOpen(modalId)) {
@@ -51,7 +60,7 @@ export function useModalStack({ id, isOpen, onClose, data }: UseModalStackOption
         navigation.popModal(modalId);
       }
     };
-  }, [isOpen, modalId, navigation, onClose, data]);
+  }, [isOpen, modalId, navigation, stableOnClose, data]);
   
   // Safe close function that uses the stack
   const handleClose = useCallback(() => {
