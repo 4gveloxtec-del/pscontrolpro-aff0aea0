@@ -299,7 +299,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
             const isExpanded = expandedApps.has(appIndex);
             
             return (
-              <div key={appIndex} className="border rounded-lg bg-card overflow-hidden">
+              <div key={appIndex} className="border rounded-lg bg-card">
                 {/* Header - Always visible */}
                 <div 
                   className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors"
