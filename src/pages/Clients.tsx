@@ -557,17 +557,26 @@ export default function Clients() {
 
   // ============= Busca por login criptografado - Carregar TODOS os clientes =============
   // Carrega todos os clientes (até 1000) para permitir busca por login descriptografado
+  // IMPORTANT: Must filter by is_archived to match the current view
   const { data: allClientsForSearch = [] } = useQuery({
-    queryKey: ['clients-all-for-search', user?.id],
+    queryKey: ['clients-all-for-search', user?.id, isViewingArchived],
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('clients')
         .select('id, login, login_2')
         .eq('seller_id', user.id)
-        .or('is_archived.is.null,is_archived.eq.false')
         .limit(1000);
+      
+      // Filter by archived status to match the current view
+      if (isViewingArchived) {
+        query = query.eq('is_archived', true);
+      } else {
+        query = query.or('is_archived.is.null,is_archived.eq.false');
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       return data || [];
@@ -668,12 +677,13 @@ export default function Clients() {
   }, [loginMatchingClientIds, allLoadedClients]);
 
   // Query para carregar clientes que batem pelo login descriptografado mas não estão carregados
+  // IMPORTANT: Must filter by is_archived to match the current view and avoid counting extra clients
   const { data: loginMatchedClients = [] } = useQuery({
-    queryKey: ['clients-login-matched', user?.id, missingClientIds.join(',')],
+    queryKey: ['clients-login-matched', user?.id, missingClientIds.join(','), isViewingArchived],
     queryFn: async () => {
       if (!user?.id || missingClientIds.length === 0) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('clients')
         .select(`
           id, name, phone, email, device, dns, expiration_date, expiration_datetime,
@@ -689,6 +699,15 @@ export default function Clients() {
         `)
         .eq('seller_id', user.id)
         .in('id', missingClientIds);
+      
+      // Filter by archived status to match the current view
+      if (isViewingArchived) {
+        query = query.eq('is_archived', true);
+      } else {
+        query = query.or('is_archived.is.null,is_archived.eq.false');
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       
