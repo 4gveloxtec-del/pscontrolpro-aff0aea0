@@ -94,7 +94,7 @@ export function AppsSection({
   const showServerApps = (category === 'IPTV' || category === 'P2P') && serverId;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-4xl mx-auto">
       {/* Server Apps Section - Only for IPTV/P2P */}
       {showServerApps && (
         <div className="space-y-3 p-3 rounded-lg bg-card border border-border">
