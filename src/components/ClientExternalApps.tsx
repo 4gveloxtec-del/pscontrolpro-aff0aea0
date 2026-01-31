@@ -30,6 +30,7 @@ import { InlineExternalAppCreator, InlineResellerAppCreator } from './InlineAppC
 import { RESELLER_DEVICE_APPS_QUERY_KEY, useResellerDeviceApps } from '@/hooks/useResellerDeviceApps';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AppSelectorMobile } from './AppSelectorMobile';
+import { useIsInsideDialog } from '@/contexts/DialogContext';
 
 interface MacDevice {
   name: string;
@@ -62,6 +63,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
   const { decrypt } = useCrypto();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const isInsideDialog = useIsInsideDialog();
   
   const [localApps, setLocalApps] = useState<{ appId: string; devices: MacDevice[]; email: string; password: string; expirationDate: string }[]>(initialApps);
   const [expandedApps, setExpandedApps] = useState<Set<number>>(new Set());
@@ -306,7 +308,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                   onClick={() => app.appId && toggleExpanded(appIndex)}
                 >
                   <div className="flex-1 min-w-0">
-                    {isMobile ? (
+                    {/* Use inline selector when inside dialog to avoid portal conflicts */}
+                    {(isMobile || isInsideDialog) ? (
                       <AppSelectorMobile
                         value={app.appId}
                         onValueChange={(value) => {
