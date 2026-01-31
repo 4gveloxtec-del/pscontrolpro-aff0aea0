@@ -373,6 +373,9 @@ export default function Clients() {
           `telegram.ilike.${like}`,
           `app_name.ilike.${like}`,
           `login.ilike.${like}`,
+          // Also search in plan_name and category to find clients by their plan type
+          `plan_name.ilike.${like}`,
+          `category.ilike.${like}`,
         ];
         // Phone search with variants (with/without 55 prefix)
         if (digits.length >= 4) {
@@ -436,10 +439,11 @@ export default function Clients() {
         `)
         .eq('seller_id', user.id);
 
-      // Filter by archived status
+      // Filter by archived status - use explicit filter instead of .or() to avoid conflicts
       if (isViewingArchived) {
         query = query.eq('is_archived', true);
       } else {
+        // Use .is() for null check and .eq() for false - combine with .or()
         query = query.or('is_archived.is.null,is_archived.eq.false');
       }
 
@@ -455,6 +459,9 @@ export default function Clients() {
           `telegram.ilike.${like}`,
           `app_name.ilike.${like}`,
           `login.ilike.${like}`,
+          // Also search in plan_name and category to find clients by their plan type
+          `plan_name.ilike.${like}`,
+          `category.ilike.${like}`,
         ];
         // Phone search with variants (with/without 55 prefix)
         if (digits.length >= 4) {
@@ -1028,6 +1035,9 @@ export default function Clients() {
 
         // Email
         if ((client.email || '').toLowerCase().includes(normalizedQuery)) return true;
+
+        // Plan name (to find by plan type like "SSH", "IPTV")
+        if ((client.plan_name || '').toLowerCase().includes(normalizedQuery)) return true;
 
         // Phone (digits + plain text)
         if (client.phone) {
@@ -3025,6 +3035,10 @@ export default function Clients() {
           phoneMatch = client.phone.includes(rawSearch);
         }
 
+        // Plan name and category match (to find by plan type like "SSH", "IPTV")
+        const planNameMatch = (client.plan_name || '').toLowerCase().includes(searchLower);
+        const categoryMatch = (client.category || '').toLowerCase().includes(searchLower);
+
         const matchesSearch =
           nameMatch ||
           phoneMatch ||
@@ -3034,7 +3048,9 @@ export default function Clients() {
           login2Match ||
           rawLoginMatch ||
           rawLogin2Match ||
-          exactLoginMatch;
+          exactLoginMatch ||
+          planNameMatch ||
+          categoryMatch;
 
         if (!matchesSearch) return false;
       }
