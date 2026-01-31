@@ -106,13 +106,13 @@ const DialogContent = React.forwardRef<
             "max-h-[85vh] sm:max-h-[90vh]",
             "pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6",
             "pt-4 px-4 sm:p-6",
-            "overflow-y-auto",
-            "-webkit-overflow-scrolling-touch",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
             "sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:slide-in-from-bottom-0",
             "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
+            // Default overflow - can be overridden by className
+            !className?.includes("overflow-") && "overflow-y-auto",
             className,
           )}
           {...props}
