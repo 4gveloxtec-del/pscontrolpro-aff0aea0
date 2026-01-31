@@ -17,6 +17,7 @@ interface ServerApp {
   app_type: 'own' | 'partnership';
   auth_type: 'code' | 'user_password' | 'provider_user_password';
   provider_name: string | null;
+  provider_code: string | null;
   compatible_devices: string[];
   is_active: boolean;
 }
@@ -304,10 +305,13 @@ export function ServerPartnerAppsSection({
                                 )}
                                 disabled={isAdded}
                               >
-                                <span>{app.icon}</span>
-                                {app.name}
-                                {!isAdded && <Plus className="h-3 w-3" />}
-                              </Button>
+                                              <span>{app.icon}</span>
+                                                {app.name}
+                                                {app.provider_code && (
+                                                  <span className="text-muted-foreground">({app.provider_code})</span>
+                                                )}
+                                                {!isAdded && <Plus className="h-3 w-3" />}
+                                              </Button>
                             );
                           })}
                         </div>
@@ -334,9 +338,14 @@ export function ServerPartnerAppsSection({
                               className="p-3 rounded-lg bg-background border space-y-2"
                             >
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-lg">{app.icon}</span>
-                                  <span className="font-medium text-sm">{app.name}</span>
+                                  <span className="font-medium text-sm">
+                                    {app.name}
+                                    {app.provider_code && (
+                                      <span className="text-muted-foreground font-normal ml-1">({app.provider_code})</span>
+                                    )}
+                                  </span>
                                   <Badge variant="secondary" className="text-[10px]">
                                     {app.auth_type === 'code' && 'Código'}
                                     {app.auth_type === 'user_password' && 'Usuário/Senha'}
