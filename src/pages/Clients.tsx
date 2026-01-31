@@ -1767,14 +1767,13 @@ export default function Clients() {
             }
           }
           
-          // Run panel entries in background - don't block the response
+          // CRITICAL: Await panel entries to prevent race conditions with credit sync
           if (panelEntries.length > 0) {
-            supabase.from('panel_clients').insert(panelEntries).then(({ error: panelError }) => {
-              if (panelError) {
-                console.error('[Clients] Error registering credit slots:', panelError);
-                toast.error('Erro ao vincular créditos: ' + panelError.message);
-              }
-            });
+            const { error: panelError } = await supabase.from('panel_clients').insert(panelEntries);
+            if (panelError) {
+              console.error('[Clients] Error registering credit slots:', panelError);
+              toast.error('Erro ao vincular créditos: ' + panelError.message);
+            }
           }
         }
       }

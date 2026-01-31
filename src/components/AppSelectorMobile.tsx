@@ -171,8 +171,11 @@ export function AppSelectorMobile({
   groupedApps,
   availableApps
 }: AppSelectorMobileProps) {
-  // Detect if we're inside a Dialog to avoid portal conflicts
+  // CRITICAL: All hooks must be called before any conditional returns (Rules of Hooks)
   const isInsideDialog = useIsInsideDialog();
+  const [open, setOpen] = useState(false);
+  
+  const selectedApp = availableApps.find(a => a.id === value);
   
   // When inside a Dialog, use inline selector to prevent removeChild errors
   if (isInsideDialog) {
@@ -185,10 +188,6 @@ export function AppSelectorMobile({
       />
     );
   }
-  
-  // Standard Drawer-based selector for standalone use
-  const [open, setOpen] = useState(false);
-  const selectedApp = availableApps.find(a => a.id === value);
 
   const handleSelect = (appId: string) => {
     onValueChange(appId);
