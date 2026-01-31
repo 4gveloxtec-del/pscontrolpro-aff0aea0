@@ -94,7 +94,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative max-h-[60vh] sm:max-h-96 min-w-[8rem] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg",
+        "relative max-h-[70vh] sm:max-h-96 min-w-[8rem] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg",
         // Use higher z-index when inside dialog to ensure visibility
         isInsideDialog ? "z-[9999]" : "z-50",
         // Animations
