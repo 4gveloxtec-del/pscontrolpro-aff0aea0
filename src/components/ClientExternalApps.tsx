@@ -470,8 +470,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                 {/* Expanded Content */}
                 {app.appId && isExpanded && (
                   <div className="px-2 pb-2 space-y-2 border-t bg-muted/30">
-                    {/* Links Section */}
-                    {(appDetails?.website_url || appDetails?.download_url) && (
+                    {/* Links Section - Show for any app with download_url, website_url, or downloader_code */}
+                    {(appDetails?.website_url || appDetails?.download_url || (appDetails as any)?.downloader_code) && (
                       <div className="flex flex-wrap items-center gap-3 pt-2">
                         {/* Website link */}
                         {appDetails?.website_url && (
@@ -498,6 +498,21 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                             <ExternalLink className="h-3 w-3" />
                             Download do App
                           </a>
+                        )}
+                        {/* Downloader Code - for reseller apps */}
+                        {(appDetails as any)?.downloader_code && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText((appDetails as any).downloader_code);
+                              toast.success('Código copiado!');
+                            }}
+                            className="flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                          >
+                            <Copy className="h-3 w-3" />
+                            Código: {(appDetails as any).downloader_code}
+                          </button>
                         )}
                       </div>
                     )}
@@ -790,17 +805,35 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
             </div>
             
             {isMacType && app.devices?.length > 0 && (
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {app.devices.map((device, i) => (
-                  <div key={i} className="flex items-center gap-1 text-muted-foreground">
-                    <Monitor className="h-3 w-3 text-green-500 flex-shrink-0" />
-                    <span className="truncate">{device.name || `Disp ${i+1}`}:</span>
-                    <button
-                      onClick={() => copyToClipboard(device.mac, 'MAC')}
-                      className="font-mono text-foreground hover:text-primary"
-                    >
-                      {device.mac}
-                    </button>
+                  <div key={i} className="flex flex-col gap-0.5 bg-background/50 rounded p-1">
+                    {/* MAC Row */}
+                    {device.mac && (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Monitor className="h-3 w-3 text-green-500 flex-shrink-0" />
+                        <span className="text-[10px]">MAC:</span>
+                        <button
+                          onClick={() => copyToClipboard(device.mac, 'MAC')}
+                          className="font-mono text-foreground hover:text-primary text-[11px]"
+                        >
+                          {device.mac}
+                        </button>
+                      </div>
+                    )}
+                    {/* Device Key Row */}
+                    {device.device_key && (
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Key className="h-3 w-3 text-purple-500 flex-shrink-0" />
+                        <span className="text-[10px]">ID:</span>
+                        <button
+                          onClick={() => copyToClipboard(device.device_key!, 'ID/Key')}
+                          className="font-mono text-foreground hover:text-primary text-[11px]"
+                        >
+                          {device.device_key}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
