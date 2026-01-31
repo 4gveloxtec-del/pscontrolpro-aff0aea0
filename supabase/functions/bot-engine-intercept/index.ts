@@ -2178,19 +2178,54 @@ Deno.serve(async (req) => {
                   break;
                   
                 case 'command':
-                  // Executar comando - delegar para handler existente
+                  // Executar comando - chamar process-whatsapp-command diretamente
                   if (selection.targetCommand) {
-                    console.log(`[BotIntercept] Delegating to command: ${selection.targetCommand}`);
-                    // Marcar para continuar processamento com o comando
-                    await unlockSession(supabase, userId, sellerId);
-                    return new Response(
-                      JSON.stringify({ 
-                        intercepted: false, 
-                        should_continue: true,
-                        delegate_command: selection.targetCommand,
-                      }),
-                      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                    );
+                    console.log(`[BotIntercept] Executing command directly: ${selection.targetCommand}`);
+                    
+                    try {
+                      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+                      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+                      
+                      // Chamar a edge function de comandos
+                      const commandResponse = await fetch(`${supabaseUrl}/functions/v1/process-whatsapp-command`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${serviceRoleKey}`,
+                        },
+                        body: JSON.stringify({
+                          seller_id: sellerId,
+                          command_text: selection.targetCommand,
+                          sender_phone: userId, // userId é o telefone normalizado
+                          instance_name: null, // Será obtido pelo comando
+                          logs_enabled: true,
+                          from_attendant: false,
+                        }),
+                      });
+                      
+                      if (commandResponse.ok) {
+                        const commandResult = await commandResponse.json();
+                        console.log(`[BotIntercept] Command result:`, JSON.stringify(commandResult).substring(0, 500));
+                        
+                        if (commandResult.success && commandResult.response) {
+                          responseMessage = commandResult.response;
+                          console.log(`[BotIntercept] ✅ Command executed, returning response`);
+                        } else if (commandResult.error) {
+                          console.log(`[BotIntercept] ⚠️ Command failed: ${commandResult.error}`);
+                          responseMessage = `❌ Não foi possível processar o comando. Por favor, tente novamente mais tarde.`;
+                        } else {
+                          console.log(`[BotIntercept] ⚠️ Command returned no response`);
+                          responseMessage = `⏳ Seu pedido está sendo processado. Aguarde um momento.`;
+                        }
+                      } else {
+                        const errorText = await commandResponse.text();
+                        console.error(`[BotIntercept] ❌ Command HTTP error ${commandResponse.status}: ${errorText.substring(0, 200)}`);
+                        responseMessage = `❌ Erro ao processar comando. Tente novamente.`;
+                      }
+                    } catch (cmdError) {
+                      console.error(`[BotIntercept] ❌ Command execution error:`, cmdError);
+                      responseMessage = `❌ Erro interno. Por favor, tente novamente.`;
+                    }
                   }
                   break;
                   
