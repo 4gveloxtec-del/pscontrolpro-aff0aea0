@@ -298,7 +298,7 @@ export function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background w-full max-w-[100vw] overflow-x-hidden">
+    <div className="min-h-screen bg-background w-full max-w-[100vw]">
       {/* Expiration Banner - shows at 7, 3, 1, 0 days */}
       {showExpirationBanner && (
         <div 
@@ -358,7 +358,7 @@ export function AppLayout() {
         }}
       >
         <div className={cn(
-          "p-3 sm:p-4 lg:p-6 xl:p-8 animate-fade-in min-h-full w-full max-w-full overflow-x-hidden",
+          "p-3 sm:p-4 lg:p-6 xl:p-8 animate-fade-in min-h-full w-full max-w-full",
           isMobile ? "pb-4" : "content-container"
         )}>
           <Outlet />

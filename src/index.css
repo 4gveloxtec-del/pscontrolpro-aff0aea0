@@ -85,8 +85,7 @@ html {
   min-height: 100dvh;
   background-color: hsl(var(--background));
   position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* Removed overflow constraints to prevent clipping of floating UI (dropdowns, popovers, etc.) */
 }
 
 /* Mobile: keep centered frame look for small screens only if desired */
@@ -368,8 +367,7 @@ html {
     scroll-behavior: auto;
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
-    /* Prevent horizontal overflow */
-    overflow-x: hidden;
+    /* Note: overflow-x:hidden removed to prevent clipping of floating UI elements (portals) */
   }
 
   body {
@@ -377,9 +375,8 @@ html {
     font-family: 'Inter', system-ui, sans-serif;
     /* Mobile optimizations - allow native scrolling */
     -webkit-overflow-scrolling: touch;
-    /* Allow normal scroll behavior */
+    /* Allow normal scroll behavior - overflow-x hidden removed to prevent portal clipping */
     overflow-y: auto;
-    overflow-x: hidden;
     /* Safe area insets for notch/home indicator */
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);
