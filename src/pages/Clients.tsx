@@ -406,12 +406,19 @@ export default function Clients() {
     }
   }, [clientCount, allLoadedClients.length]);
 
+  // When searching, use larger page size to ensure we find all matches
+  const SEARCH_PAGE_SIZE = 200;
+  
   const { data: fetchedClients = [], isLoading, isFetching, isSuccess, dataUpdatedAt } = useQuery({
     queryKey: ['clients', user?.id, dbPage, debouncedSearch, isViewingArchived],
     queryFn: async () => {
       if (!user?.id) return [];
-      const from = dbPage * CLIENTS_PER_PAGE;
-      const to = from + CLIENTS_PER_PAGE - 1;
+      
+      // Use larger page size when searching to ensure all matches are returned
+      const hasActiveSearch = debouncedSearch.trim().length > 0;
+      const pageSize = hasActiveSearch ? SEARCH_PAGE_SIZE : CLIENTS_PER_PAGE;
+      const from = dbPage * pageSize;
+      const to = from + pageSize - 1;
 
       let query = supabase
         .from('clients')
@@ -500,10 +507,14 @@ export default function Clients() {
   useEffect(() => {
     if (!isSuccess) return;
     
+    // Determine page size based on whether we're searching
+    const hasActiveSearch = debouncedSearch.trim().length > 0;
+    const currentPageSize = hasActiveSearch ? SEARCH_PAGE_SIZE : CLIENTS_PER_PAGE;
+    
     if (dbPage === 0) {
       // Reset on first page (fresh load) - even if empty
       setAllLoadedClients(fetchedClients);
-      setHasMoreClients(fetchedClients.length >= CLIENTS_PER_PAGE);
+      setHasMoreClients(fetchedClients.length >= currentPageSize);
     } else {
       // Append new clients, avoiding duplicates by ID
       setAllLoadedClients(prev => {
@@ -514,9 +525,9 @@ export default function Clients() {
       });
       
       // Check if we've loaded all clients
-      setHasMoreClients(fetchedClients.length >= CLIENTS_PER_PAGE);
+      setHasMoreClients(fetchedClients.length >= currentPageSize);
     }
-  }, [fetchedClients, dbPage, isSuccess, dataUpdatedAt]);
+  }, [fetchedClients, dbPage, isSuccess, dataUpdatedAt, debouncedSearch]);
 
   // Reset pagination when user changes - only reset if user actually changes
   const prevUserIdRef = useRef<string | undefined>(undefined);
