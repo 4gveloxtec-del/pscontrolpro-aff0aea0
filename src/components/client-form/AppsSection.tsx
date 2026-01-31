@@ -115,7 +115,11 @@ export function AppsSection({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/servers')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/servers');
+                }}
                 className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary"
               >
                 <ExternalLink className="h-3 w-3" />
@@ -138,7 +142,11 @@ export function AppsSection({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => navigate('/servers')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/servers');
+                }}
                 className="h-7 text-xs gap-1"
               >
                 <Plus className="h-3 w-3" />
