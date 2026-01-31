@@ -373,9 +373,12 @@ export default function Clients() {
           `telegram.ilike.${like}`,
           `app_name.ilike.${like}`,
           `login.ilike.${like}`,
-          // Also search in plan_name and category to find clients by their plan type
+          `login_2.ilike.${like}`,
+          // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
           `plan_name.ilike.${like}`,
           `category.ilike.${like}`,
+          // Search in notes field as well
+          `notes.ilike.${like}`,
         ];
         // Phone search with variants (with/without 55 prefix)
         if (digits.length >= 4) {
@@ -459,9 +462,12 @@ export default function Clients() {
           `telegram.ilike.${like}`,
           `app_name.ilike.${like}`,
           `login.ilike.${like}`,
-          // Also search in plan_name and category to find clients by their plan type
+          `login_2.ilike.${like}`,
+          // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
           `plan_name.ilike.${like}`,
           `category.ilike.${like}`,
+          // Search in notes field as well
+          `notes.ilike.${like}`,
         ];
         // Phone search with variants (with/without 55 prefix)
         if (digits.length >= 4) {
@@ -3035,9 +3041,11 @@ export default function Clients() {
           phoneMatch = client.phone.includes(rawSearch);
         }
 
-        // Plan name and category match (to find by plan type like "SSH", "IPTV")
+        // Plan name and category match (to find by plan type like "SSH", "IPTV", "P2P")
         const planNameMatch = (client.plan_name || '').toLowerCase().includes(searchLower);
         const categoryMatch = (client.category || '').toLowerCase().includes(searchLower);
+        // Notes match
+        const notesMatch = (client.notes || '').toLowerCase().includes(searchLower);
 
         const matchesSearch =
           nameMatch ||
@@ -3050,7 +3058,8 @@ export default function Clients() {
           rawLogin2Match ||
           exactLoginMatch ||
           planNameMatch ||
-          categoryMatch;
+          categoryMatch ||
+          notesMatch;
 
         if (!matchesSearch) return false;
       }
