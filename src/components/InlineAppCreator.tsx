@@ -249,7 +249,9 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
       return data;
     },
     onSuccess: (data) => {
+      // Invalidate all server app queries
       queryClient.invalidateQueries({ queryKey: ['server-apps', serverId] });
+      queryClient.invalidateQueries({ queryKey: ['server-partner-apps'] });
       toast.success('App do servidor criado!');
       onCreated?.(data.id);
       resetForm();
