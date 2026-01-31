@@ -543,12 +543,16 @@ Deno.serve(async (req) => {
     let apiRequest: Record<string, unknown> = { url: api.api_url, method: api.api_method };
 
     // ===============================================================
-    // /teste e /testestar: garantir payload mínimo para geração de teste
+    // COMANDOS DE TESTE: qualquer comando com test_api vinculada
+    // Incluindo /teste, /testestar e comandos customizados como /azonixnt
     // ===============================================================
-    const isTestCommand = normalizedCommand === '/teste' || normalizedCommand === '/testestar';
+    // Um comando é de teste se:
+    // 1. É explicitamente /teste ou /testestar OU
+    // 2. Possui uma test_api vinculada (o que significa que tem API configurada)
+    const isTestCommand = normalizedCommand === '/teste' || normalizedCommand === '/testestar' || (api && api.is_active);
     let testConfig: { server_id: string | null; server_name: string | null; client_name_prefix: string | null; category: string | null } | null = null;
     
-    // Parse arguments from command text
+    // Parse arguments from command text - agora para qualquer comando de teste
     let { clientPhone, clientName } = isTestCommand
       ? parseTestCommandArgs(String(command_text || ''))
       : { clientPhone: '', clientName: '' };
