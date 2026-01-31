@@ -16,10 +16,11 @@ import { SystemAccessRequired, AdminOnly, SellerOnly } from "@/components/Protec
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { OnlineRequired } from "@/components/OnlineRequired";
 import { useClearOfflineData } from "@/hooks/useClearOfflineData";
-import { useScrollPreservation } from "@/hooks/useScrollPreservation";
-import { NavigationProvider } from "@/contexts/NavigationContext";
-import { ScrollProvider, useScrollUserSync } from "@/contexts/ScrollContext";
-import { useGuardrails } from "@/hooks/useGuardrails";
+// MINIMAL MODE: Removed problematic providers
+// import { useScrollPreservation } from "@/hooks/useScrollPreservation";
+// import { NavigationProvider } from "@/contexts/NavigationContext";
+// import { ScrollProvider, useScrollUserSync } from "@/contexts/ScrollContext";
+// import { useGuardrails } from "@/hooks/useGuardrails";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -157,125 +158,106 @@ function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Guardrails wrapper - must be inside BrowserRouter
-function RouterGuardrails({ children }: { children: React.ReactNode }) {
-  useGuardrails();
-  return <>{children}</>;
-}
-
 const AppRoutes = () => {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <NavigationProvider>
-        <ScrollProvider>
-          <RouterGuardrails>
-            <AdminManifestProvider>
-            <Suspense fallback={<PageLoader />}>
+      {/* MINIMAL MODE: Removed NavigationProvider, ScrollProvider, RouterGuardrails */}
+      <AdminManifestProvider>
+        <Suspense fallback={<PageLoader />}>
           <Routes>
-          {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
-          <Route path="/" element={<RootRedirect />} />
-          <Route path="/landing" element={<Landing />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/access-denied" element={<AccessDenied />} />
-          <Route path="/force-password-update" element={<ForcePasswordUpdate />} />
-          <Route path="/project-docs" element={<ProjectDocumentation />} />
-          {/* Redirect old routes */}
-          <Route path="/shared-panels" element={<Navigate to="/servers" replace />} />
-          <Route path="/clients" element={<Navigate to="/clientes" replace />} />
-          
-          {/* ============ ADMIN PWA ROUTES ============ */}
-          {/* Login do Admin */}
-          <Route path="/admin" element={<AdminAuth />} />
-          <Route path="/admin/access-denied" element={<AdminAccessDenied />} />
-          
-          {/* Rotas protegidas do Admin */}
-          <Route element={
-            <AdminProtectedRoute>
-              <AdminLayout />
-            </AdminProtectedRoute>
-          }>
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/sellers" element={<Sellers />} />
-            <Route path="/admin/reports" element={<Reports />} />
-            <Route path="/admin/backup" element={<Backup />} />
-            <Route path="/admin/server-icons" element={<ServerIcons />} />
-            <Route path="/admin/server-templates" element={<AdminServerTemplates />} />
-            <Route path="/admin/tutorials" element={<Tutorials />} />
-            <Route path="/admin/system-health" element={<SystemHealth />} />
-            <Route path="/admin/settings" element={<Settings />} />
-            <Route path="/admin/asaas" element={<AdminAsaas />} />
-          </Route>
-          {/* ============ FIM ADMIN PWA ROUTES ============ */}
-          
-          {/* Protected routes - require system access (admin or seller) */}
-          <Route element={
-            <PasswordUpdateGuard>
-              <AppLayout />
-            </PasswordUpdateGuard>
-          }>
-            {/* Dashboard - accessible to both admin and seller */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/tutorials" element={<Tutorials />} />
-            <Route path="/templates" element={<Templates />} />
-            <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
+            {/* Rota raiz: detecta ?panel=admin para PWA ADM, senão vai para auth */}
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/landing" element={<Landing />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/access-denied" element={<AccessDenied />} />
+            <Route path="/force-password-update" element={<ForcePasswordUpdate />} />
+            <Route path="/project-docs" element={<ProjectDocumentation />} />
+            {/* Redirect old routes */}
+            <Route path="/shared-panels" element={<Navigate to="/servers" replace />} />
+            <Route path="/clients" element={<Navigate to="/clientes" replace />} />
             
-            {/* Seller-only routes (revendedor) */}
-            <Route path="/clientes" element={<Clients />} />
-            <Route path="/servers" element={<Servers />} />
-            <Route path="/panel-resellers" element={<PanelResellers />} />
-            <Route path="/panels" element={<Panels />} />
-            <Route path="/plans" element={<Plans />} />
-            <Route path="/bills" element={<Bills />} />
-            <Route path="/coupons" element={<Coupons />} />
-            <Route path="/referrals" element={<Referrals />} />
-            <Route path="/message-history" element={<MessageHistory />} />
-            <Route path="/external-apps" element={<ExternalApps />} />
-            <Route path="/my-apps" element={<MyApps />} />
-            <Route path="/test-commands" element={<TestCommands />} />
-            <Route path="/bot-engine" element={<BotEngine />} />
-            <Route path="/reminders" element={<SellerOnly><Reminders /></SellerOnly>} />
+            {/* ============ ADMIN PWA ROUTES ============ */}
+            {/* Login do Admin */}
+            <Route path="/admin" element={<AdminAuth />} />
+            <Route path="/admin/access-denied" element={<AdminAccessDenied />} />
             
-            {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
-            <Route path="/sellers" element={
-              <AdminOnly><Sellers /></AdminOnly>
-            } />
-            <Route path="/reports" element={
-              <AdminOnly><Reports /></AdminOnly>
-            } />
-            <Route path="/backup" element={
-              <AdminOnly><Backup /></AdminOnly>
-            } />
-            <Route path="/server-icons" element={
-              <AdminOnly><ServerIcons /></AdminOnly>
-            } />
-            <Route path="/server-templates" element={
-              <AdminOnly><AdminServerTemplates /></AdminOnly>
-            } />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            {/* Rotas protegidas do Admin */}
+            <Route element={
+              <AdminProtectedRoute>
+                <AdminLayout />
+              </AdminProtectedRoute>
+            }>
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/sellers" element={<Sellers />} />
+              <Route path="/admin/reports" element={<Reports />} />
+              <Route path="/admin/backup" element={<Backup />} />
+              <Route path="/admin/server-icons" element={<ServerIcons />} />
+              <Route path="/admin/server-templates" element={<AdminServerTemplates />} />
+              <Route path="/admin/tutorials" element={<Tutorials />} />
+              <Route path="/admin/system-health" element={<SystemHealth />} />
+              <Route path="/admin/settings" element={<Settings />} />
+              <Route path="/admin/asaas" element={<AdminAsaas />} />
+            </Route>
+            {/* ============ FIM ADMIN PWA ROUTES ============ */}
+            
+            {/* Protected routes - require system access (admin or seller) */}
+            <Route element={
+              <PasswordUpdateGuard>
+                <AppLayout />
+              </PasswordUpdateGuard>
+            }>
+              {/* Dashboard - accessible to both admin and seller */}
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/tutorials" element={<Tutorials />} />
+              <Route path="/templates" element={<Templates />} />
+              <Route path="/whatsapp-automation" element={<WhatsAppAutomation />} />
+              
+              {/* Seller-only routes (revendedor) */}
+              <Route path="/clientes" element={<Clients />} />
+              <Route path="/servers" element={<Servers />} />
+              <Route path="/panel-resellers" element={<PanelResellers />} />
+              <Route path="/panels" element={<Panels />} />
+              <Route path="/plans" element={<Plans />} />
+              <Route path="/bills" element={<Bills />} />
+              <Route path="/coupons" element={<Coupons />} />
+              <Route path="/referrals" element={<Referrals />} />
+              <Route path="/message-history" element={<MessageHistory />} />
+              <Route path="/external-apps" element={<ExternalApps />} />
+              <Route path="/my-apps" element={<MyApps />} />
+              <Route path="/test-commands" element={<TestCommands />} />
+              <Route path="/bot-engine" element={<BotEngine />} />
+              <Route path="/reminders" element={<SellerOnly><Reminders /></SellerOnly>} />
+              
+              {/* Admin-only routes (legacy - mantidos para compatibilidade) */}
+              <Route path="/sellers" element={
+                <AdminOnly><Sellers /></AdminOnly>
+              } />
+              <Route path="/reports" element={
+                <AdminOnly><Reports /></AdminOnly>
+              } />
+              <Route path="/backup" element={
+                <AdminOnly><Backup /></AdminOnly>
+              } />
+              <Route path="/server-icons" element={
+                <AdminOnly><ServerIcons /></AdminOnly>
+              } />
+              <Route path="/server-templates" element={
+                <AdminOnly><AdminServerTemplates /></AdminOnly>
+              } />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </Suspense>
-        </AdminManifestProvider>
-        </RouterGuardrails>
-        </ScrollProvider>
-      </NavigationProvider>
+      </AdminManifestProvider>
     </BrowserRouter>
   );
 };
 
-// App initialization hook for clearing offline data and scroll preservation
-// NOTE: useGuardrails moved to RouterGuardrails inside BrowserRouter
+// App initialization hook for clearing offline data
+// MINIMAL MODE: Removed useScrollPreservation, useGuardrails
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useClearOfflineData();
-  useScrollPreservation();
-  return <>{children}</>;
-}
-
-// Component to sync user ID with scroll context for per-user memory
-function ScrollUserSyncWrapper({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  useScrollUserSync(user?.id || null);
   return <>{children}</>;
 }
 
@@ -287,19 +269,18 @@ const App = () => (
           <OnlineRequired>
             <AppInitializer>
               <AuthProvider>
-                <ScrollUserSyncWrapper>
-                  <PrivacyModeProvider>
-                    <MenuStyleProvider>
-                      <ExpirationNotificationProvider>
-                        <TooltipProvider>
-                          <Toaster />
-                          <Sonner />
-                          <AppRoutes />
-                        </TooltipProvider>
-                      </ExpirationNotificationProvider>
-                    </MenuStyleProvider>
-                  </PrivacyModeProvider>
-                </ScrollUserSyncWrapper>
+                {/* MINIMAL MODE: Removed ScrollUserSyncWrapper */}
+                <PrivacyModeProvider>
+                  <MenuStyleProvider>
+                    <ExpirationNotificationProvider>
+                      <TooltipProvider>
+                        <Toaster />
+                        <Sonner />
+                        <AppRoutes />
+                      </TooltipProvider>
+                    </ExpirationNotificationProvider>
+                  </MenuStyleProvider>
+                </PrivacyModeProvider>
               </AuthProvider>
             </AppInitializer>
           </OnlineRequired>
