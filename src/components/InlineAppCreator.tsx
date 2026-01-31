@@ -20,12 +20,18 @@ function InlineDropdown({
   trigger, 
   children,
   placement = 'bottom',
+  forcePortal = false,
 }: { 
   isOpen: boolean; 
   onOpenChange: (open: boolean) => void;
   trigger: ReactNode;
   children: ReactNode;
   placement?: 'top' | 'bottom';
+  /**
+   * When true, forces Popover portal even inside Dialog.
+   * Use this when the inline dropdown is being clipped by an overflow/scroll container.
+   */
+  forcePortal?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInsideDialog = useIsInsideDialog();
@@ -42,8 +48,8 @@ function InlineDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onOpenChange]);
 
-  // When inside Dialog, render inline to avoid portal conflicts
-  if (isInsideDialog) {
+  // When inside Dialog, render inline to avoid portal conflicts (unless forced)
+  if (isInsideDialog && !forcePortal) {
     const placementClasses =
       placement === 'top'
         ? 'right-0 bottom-full mb-1 top-auto'
@@ -70,9 +76,18 @@ function InlineDropdown({
   return (
     <Popover open={isOpen} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        {trigger}
+        <span onClick={(e) => e.stopPropagation()}>
+          {trigger}
+        </span>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-3" align="end">
+      <PopoverContent
+        usePortal={forcePortal ? true : undefined}
+        className="w-80 p-3"
+        align="end"
+        side={placement === 'top' ? 'top' : 'bottom'}
+        sideOffset={8}
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </PopoverContent>
     </Popover>
@@ -272,6 +287,7 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
       onOpenChange={setIsOpen}
       trigger={trigger}
       placement="top"
+      forcePortal
     >
       <div className="space-y-3 w-64">
         <Label className="text-sm font-medium">
