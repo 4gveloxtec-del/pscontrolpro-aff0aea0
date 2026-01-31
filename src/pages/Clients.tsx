@@ -3304,7 +3304,7 @@ export default function Clients() {
               </Button>
             </DialogTrigger>
           </div>
-          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] sm:max-h-[85vh] p-0 flex flex-col overflow-hidden">
+          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] sm:max-h-[85vh] p-0 flex flex-col">
             <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0 border-b">
               <DialogTitle className="text-base sm:text-lg">{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
@@ -5336,7 +5336,7 @@ export default function Clients() {
           }
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserSearch className="h-5 w-5 text-primary" />

@@ -1313,7 +1313,7 @@ Qualquer dúvida, estou à disposição!`;
         open={messageDialog.open} 
         onOpenChange={(open) => !open && setMessageDialog({ open: false, seller: null, selectedTemplate: '', message: '', sendingApi: false, apiStatus: 'idle', apiError: '' })}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-success" />

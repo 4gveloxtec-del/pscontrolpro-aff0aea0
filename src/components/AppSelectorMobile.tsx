@@ -74,7 +74,10 @@ function InlineAppSelector({
       </Button>
       
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-lg shadow-lg max-h-[300px] overflow-y-auto" style={{ zIndex: 99999 }}>
+        <div 
+          className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-lg shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" 
+          style={{ zIndex: 99999 }}
+        >
           <div className="p-2 space-y-3">
             {/* Apps do Revendedor */}
             <div>

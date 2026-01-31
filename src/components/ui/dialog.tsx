@@ -106,7 +106,7 @@ const DialogContent = React.forwardRef<
             "max-h-[85vh] sm:max-h-[90vh]",
             "pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6",
             "pt-4 px-4 sm:p-6",
-            "overflow-y-auto overflow-x-hidden",
+            "overflow-y-auto",
             "-webkit-overflow-scrolling-touch",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
