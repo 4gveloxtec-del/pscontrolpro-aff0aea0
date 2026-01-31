@@ -78,10 +78,13 @@ interface SelectContentProps
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   SelectContentProps
->(({ className, children, position = "popper", usePortal, ...props }, ref) => {
+>(({ className, children, position, usePortal, ...props }, ref) => {
   // Auto-detect if inside a Dialog - disable portal to avoid conflicts
   const isInsideDialog = useIsInsideDialog();
   const shouldUsePortal = usePortal ?? !isInsideDialog;
+  
+  // Use item-aligned position inside dialogs for better stability
+  const safePosition = position ?? (isInsideDialog ? "item-aligned" : "popper");
   
   const content = (
     <SelectPrimitive.Content
@@ -91,18 +94,18 @@ const SelectContent = React.forwardRef<
         // Animations
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" &&
+        safePosition === "popper" &&
           "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
         className,
       )}
-      position={position}
+      position={safePosition}
       {...props}
     >
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(
           "p-1.5 sm:p-1",
-          position === "popper" &&
+          safePosition === "popper" &&
             "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
         )}
       >
