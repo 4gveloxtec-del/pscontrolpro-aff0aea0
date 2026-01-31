@@ -3303,14 +3303,21 @@ export default function Clients() {
               </Button>
             </DialogTrigger>
           </div>
-          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] sm:max-h-[85vh] p-0 flex flex-col">
+          {/*
+            IMPORTANT (Scroll stability):
+            DialogContent already has overflow-y-auto by default. This dialog uses its own
+            internal scroll container, so we must disable the outer scroll to avoid
+            nested scroll containers fighting ("tremor"/jitter on touch + mouse wheel).
+          */}
+          <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] sm:max-h-[85vh] p-0 flex flex-col overflow-hidden">
             <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0 border-b">
               <DialogTitle className="text-base sm:text-lg">{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
                 {editingClient ? 'Atualize os dados do cliente' : 'Preencha os dados do novo cliente'}
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto px-4 sm:px-6" style={{ maxHeight: 'calc(85vh - 140px)' }}>
+            {/* Single scroll container for the whole form (prevents scroll jitter) */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6">
               <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* Category Select with Add Button */}
