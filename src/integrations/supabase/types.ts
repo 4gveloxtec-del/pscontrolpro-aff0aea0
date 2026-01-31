@@ -3005,6 +3005,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           notes: string | null
+          provider_code: string | null
           provider_name: string | null
           seller_id: string
           server_id: string
@@ -3023,6 +3024,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           notes?: string | null
+          provider_code?: string | null
           provider_name?: string | null
           seller_id: string
           server_id: string
@@ -3041,6 +3043,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           notes?: string | null
+          provider_code?: string | null
           provider_name?: string | null
           seller_id?: string
           server_id?: string
