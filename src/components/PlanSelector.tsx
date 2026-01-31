@@ -214,7 +214,7 @@ export function PlanSelector({
         <SelectTrigger className={compact ? "h-9" : ""}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="max-h-[300px]" position="popper" sideOffset={4}>
+        <SelectContent className="max-h-[70vh] sm:max-h-[350px]" position="popper" sideOffset={4}>
           {filteredPlans.length === 0 ? (
             <div className="p-2 text-sm text-muted-foreground text-center">
               Nenhum plano encontrado
