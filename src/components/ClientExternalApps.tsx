@@ -582,10 +582,31 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                             Clique em "Dispositivo" para adicionar
                           </p>
                         )}
+                        
+                        {/* Optional Email/Password for MAC apps */}
+                        <div className="pt-2 border-t border-dashed">
+                          <span className="text-[10px] text-muted-foreground mb-1 block">E-mail/Senha (opcional)</span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <Input
+                              type="email"
+                              value={app.email}
+                              onChange={(e) => updateApp(appIndex, { email: e.target.value })}
+                              placeholder="E-mail (opcional)"
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              type="text"
+                              value={app.password}
+                              onChange={(e) => updateApp(appIndex, { password: e.target.value })}
+                              placeholder="Senha (opcional)"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
 
-                    {/* Email + Password Authentication */}
+                    {/* Email + Password Authentication (for email-based apps) */}
                     {!isMacType && (
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <Input
