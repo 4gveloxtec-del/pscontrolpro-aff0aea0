@@ -83,8 +83,12 @@ const SelectContent = React.forwardRef<
   const isInsideDialog = useIsInsideDialog();
   const shouldUsePortal = usePortal ?? !isInsideDialog;
   
-  // Use item-aligned position inside dialogs for better stability
-  const safePosition = position ?? (isInsideDialog ? "item-aligned" : "popper");
+  // Stability fix:
+  // Radix Select in "popper" mode has been observed to occasionally crash with
+  // `removeChild` during unmount/reconciliation.
+  // We default to the more stable "item-aligned" mode everywhere, and only
+  // use "popper" when explicitly requested.
+  const safePosition = position ?? "item-aligned";
   
   const content = (
     <SelectPrimitive.Content
