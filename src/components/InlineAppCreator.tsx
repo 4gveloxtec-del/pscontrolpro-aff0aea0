@@ -18,12 +18,14 @@ function InlineDropdown({
   isOpen, 
   onOpenChange, 
   trigger, 
-  children 
+  children,
+  placement = 'bottom',
 }: { 
   isOpen: boolean; 
   onOpenChange: (open: boolean) => void;
   trigger: ReactNode;
   children: ReactNode;
+  placement?: 'top' | 'bottom';
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInsideDialog = useIsInsideDialog();
@@ -42,6 +44,11 @@ function InlineDropdown({
 
   // When inside Dialog, render inline to avoid portal conflicts
   if (isInsideDialog) {
+    const placementClasses =
+      placement === 'top'
+        ? 'right-0 bottom-full mb-1 top-auto'
+        : 'right-0 top-full mt-1';
+
     return (
       <div ref={containerRef} className="relative">
         <div onClick={(e) => { e.stopPropagation(); onOpenChange(!isOpen); }}>
@@ -49,7 +56,7 @@ function InlineDropdown({
         </div>
         {isOpen && (
           <div 
-            className="absolute z-[9999] right-0 top-full mt-1 bg-popover border rounded-lg shadow-lg p-3"
+            className={`absolute z-[9999] ${placementClasses} bg-popover border rounded-lg shadow-lg p-3`}
             onClick={(e) => e.stopPropagation()}
           >
             {children}
@@ -260,7 +267,12 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
   );
 
   return (
-    <InlineDropdown isOpen={isOpen} onOpenChange={setIsOpen} trigger={trigger}>
+    <InlineDropdown
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      trigger={trigger}
+      placement="top"
+    >
       <div className="space-y-3 w-64">
         <Label className="text-sm font-medium">
           Novo App do Servidor
