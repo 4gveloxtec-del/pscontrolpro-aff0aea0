@@ -764,13 +764,15 @@ Fico à disposição! 🚀📺`,
         
        console.log(`[process-command] 📞 API: ${api.name || api.id} | Phone digits: "${clientPhoneDigits}" | Phone formatted: "${clientPhoneFormatted}"`);
 
-        if (api.api_method === 'POST') {
+        if (api.api_method === 'POST' || api.api_method === 'BOTH') {
           fetchOptions.body = JSON.stringify(payload);
           apiRequest.body = payload;
          
          // LOG DETALHADO: Mostrar payload completo para debug
          console.log(`[process-command] 📤 POST Payload para ${api.name || 'API'}:`, JSON.stringify(payload, null, 2));
-        } else if (api.api_method === 'GET') {
+        }
+        
+        if (api.api_method === 'GET' || api.api_method === 'BOTH') {
           const url = new URL(finalUrl);
          // GET requests: enviar TODOS os formatos possíveis
          url.searchParams.set('phone', clientPhoneDigits);
@@ -794,7 +796,7 @@ Fico à disposição! 🚀📺`,
          
          console.log(`[process-command] 📤 GET URL para ${api.name || 'API'}: ${finalUrl}`);
         }
-      } else if (api.api_method === 'POST' && api.api_body_template) {
+      } else if ((api.api_method === 'POST' || api.api_method === 'BOTH') && api.api_body_template) {
         fetchOptions.body = JSON.stringify(api.api_body_template);
         apiRequest.body = api.api_body_template;
       }
@@ -805,6 +807,13 @@ Fico à disposição! 🚀📺`,
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      // For BOTH method: make POST request first, and GET in parallel
+      if (api.api_method === 'BOTH' && isTestCommand) {
+        // Use POST as primary method for BOTH
+        fetchOptions.method = 'POST';
+        console.log(`[process-command] BOTH mode: Using POST as primary with GET params in URL`);
+      }
       
       const response = await fetch(finalUrl, {
         ...fetchOptions,
