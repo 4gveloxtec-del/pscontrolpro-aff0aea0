@@ -245,7 +245,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
   const getAppDetails = (appId: string) => availableApps.find(a => a.id === appId);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 w-full max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-1.5 text-sm">
           <AppWindow className="h-3.5 w-3.5 text-muted-foreground" />
