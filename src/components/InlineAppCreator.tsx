@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,8 @@ function InlineDropdown({
 }: { 
   isOpen: boolean; 
   onOpenChange: (open: boolean) => void;
-  trigger: React.ReactNode;
-  children: React.ReactNode;
+  trigger: ReactNode;
+  children: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInsideDialog = useIsInsideDialog();
