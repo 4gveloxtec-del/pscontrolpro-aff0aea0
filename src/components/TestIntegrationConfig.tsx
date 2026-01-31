@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity, Clock, Globe } from 'lucide-react';
+import { Settings, Server, Link2, UserPlus, Loader2, Save, RefreshCw, Activity, Clock } from 'lucide-react';
 
 interface TestApi {
   id: string;
@@ -277,7 +277,12 @@ export function TestIntegrationConfig() {
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
           <Link2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>Cadastre uma API primeiro na aba "APIs".</p>
+          <p className="font-medium mb-2">Nenhuma API cadastrada</p>
+          <p className="text-sm">
+            1️⃣ Vá na aba <strong>"APIs"</strong> e cadastre a URL da API do seu servidor<br/>
+            2️⃣ Depois vá em <strong>"Comandos"</strong> e crie o comando (ex: /teste)<br/>
+            3️⃣ Por fim, volte aqui para configurar a integração
+          </p>
         </CardContent>
       </Card>
     );
@@ -459,116 +464,9 @@ export function TestIntegrationConfig() {
                       </div>
                     )}
 
-                    {/* API Endpoints Section */}
-                    <div className="border-t pt-6 mt-4 space-y-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Globe className="h-5 w-5 text-blue-500" />
-                        <h4 className="font-medium">Endpoints da API (POST/GET)</h4>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">POST</Badge>
-                            Endpoint para Criar Teste
-                          </Label>
-                          <Input
-                            value={formData.post_endpoint}
-                            onChange={(e) => setFormData({ ...formData, post_endpoint: e.target.value })}
-                            placeholder="https://api.servidor.com/api/create-test"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            URL que será chamada para criar testes automaticamente
-                          </p>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">GET</Badge>
-                            Endpoint para Listar Testes
-                          </Label>
-                          <Input
-                            value={formData.get_endpoint}
-                            onChange={(e) => setFormData({ ...formData, get_endpoint: e.target.value })}
-                            placeholder="https://api.servidor.com/api/list-tests"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            URL para buscar lista de testes ativos
-                          </p>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label>API Key (opcional)</Label>
-                          <Input
-                            type="password"
-                            value={formData.api_key}
-                            onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                            placeholder="sk-xxx..."
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Chave de autenticação enviada no header
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {(formData.post_endpoint || formData.get_endpoint) && (
-                        <div className="flex gap-2 mt-2">
-                          {formData.post_endpoint && (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                              ✓ POST configurado
-                            </Badge>
-                          )}
-                          {formData.get_endpoint && (
-                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                              ✓ GET configurado
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    {/* Nota: Endpoints POST/GET são configurados na aba "APIs" */}
 
-                    {/* Advanced Mapping */}
-                    <details className="space-y-4">
-                      <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                        ⚙️ Mapeamento Avançado (opcional)
-                      </summary>
-                      <div className="grid gap-4 mt-4 pt-4 border-t">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Campo Login</Label>
-                            <Input
-                              value={formData.map_login_path}
-                              onChange={(e) => setFormData({ ...formData, map_login_path: e.target.value })}
-                              placeholder="username"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Campo Senha</Label>
-                            <Input
-                              value={formData.map_password_path}
-                              onChange={(e) => setFormData({ ...formData, map_password_path: e.target.value })}
-                              placeholder="password"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Campo DNS</Label>
-                            <Input
-                              value={formData.map_dns_path}
-                              onChange={(e) => setFormData({ ...formData, map_dns_path: e.target.value })}
-                              placeholder="dns"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Campo Vencimento</Label>
-                            <Input
-                              value={formData.map_expiration_path}
-                              onChange={(e) => setFormData({ ...formData, map_expiration_path: e.target.value })}
-                              placeholder="expiresAtFormatted"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </details>
+                    {/* Mapeamento avançado oculto - usando valores padrão otimizados */}
                   </>
                 )}
 
