@@ -337,8 +337,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                         <SelectTrigger className="h-8 text-sm" onClick={(e) => e.stopPropagation()}>
                           <SelectValue placeholder="Selecione um app" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[400px] min-w-[500px] p-0">
-                          <div className="grid grid-cols-2 divide-x divide-border">
+                        <SelectContent className="max-h-[400px] w-[min(500px,calc(100vw-2rem))] p-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-border">
                             {/* Coluna Esquerda - Apps do Revendedor + Personalizados */}
                             <div className="max-h-[380px] overflow-y-auto">
                               <SelectGroup>
