@@ -377,11 +377,11 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                                 )}
                               </SelectGroup>
 
-                              {/* Meus Apps Personalizados */}
+                              {/* Apps Pagos */}
                               {groupedApps.custom.length > 0 && (
                                 <SelectGroup>
                                   <SelectLabel className="text-xs font-semibold text-accent-foreground sticky top-0 bg-popover py-2 px-2 border-y mt-1">
-                                    ⭐ Meus Apps
+                                    💰 Apps Pagos
                                   </SelectLabel>
                                   {groupedApps.custom.map((availableApp) => (
                                     <SelectItem key={availableApp.id} value={availableApp.id} className="py-2">

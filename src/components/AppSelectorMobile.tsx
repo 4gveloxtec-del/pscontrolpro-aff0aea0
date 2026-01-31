@@ -106,11 +106,11 @@ function InlineAppSelector({
               )}
             </div>
 
-            {/* Meus Apps Personalizados */}
+            {/* Apps Pagos */}
             {groupedApps.custom.length > 0 && (
               <div>
                 <div className="text-xs font-semibold text-accent-foreground py-1 px-1">
-                  ⭐ Meus Apps
+                  💰 Apps Pagos
                 </div>
                 <div className="space-y-0.5">
                   {groupedApps.custom.map((app) => (
@@ -240,11 +240,11 @@ export function AppSelectorMobile({
               )}
             </div>
 
-            {/* Meus Apps Personalizados */}
+            {/* Apps Pagos */}
             {groupedApps.custom.length > 0 && (
               <div>
                 <div className="text-xs font-semibold text-accent-foreground py-2 px-1 sticky top-0 bg-background">
-                  ⭐ Meus Apps
+                  💰 Apps Pagos
                 </div>
                 <div className="space-y-1">
                   {groupedApps.custom.map((app) => (
