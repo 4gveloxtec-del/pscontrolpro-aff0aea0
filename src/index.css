@@ -589,9 +589,11 @@ html, body {
   scroll-behavior: auto;
 }
 
-/* Ensure main content areas are scrollable */
+/* Ensure main content areas allow scroll passthrough - do NOT set overflow here
+   to prevent scroll fighting between body and main. Let body handle all scrolling. */
 main, [role="main"] {
-  overflow-y: visible;
+  overflow: visible;
+  min-height: 0;
 }
 
 /* Desktop scrollbar - always visible */
@@ -1299,15 +1301,15 @@ main, [role="main"] {
 }
 
 /* =============================================================================
-   Scroll Prevention for Buttons and Forms
-   Prevents automatic scroll after button clicks and form submissions
+   Touch Optimization for Buttons and Forms
+   Uses touch-action: manipulation to disable double-tap zoom without blocking scroll
    ============================================================================= */
 button,
 input[type="submit"],
 .btn,
 [role="button"] {
-  touch-action: manipulation !important;
-  overscroll-behavior: none !important;
+  touch-action: manipulation;
+  /* NOTE: overscroll-behavior removed - it was blocking page scroll when touching buttons */
 }
 
 button:active,
@@ -1316,19 +1318,6 @@ input[type="submit"]:active,
 [role="button"]:active {
   position: relative;
   transform: translateZ(0);
-}
-
-/* Maintain position after clicks */
-.action-button::after,
-[data-action-button]::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overscroll-behavior: none;
-  pointer-events: none;
 }
 
 /* =============================================================================
