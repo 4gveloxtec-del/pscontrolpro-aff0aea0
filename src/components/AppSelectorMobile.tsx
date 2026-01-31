@@ -50,15 +50,21 @@ function InlineAppSelector({
   };
 
   return (
-    <div ref={containerRef} className="relative" style={{ zIndex: 9999 }}>
+    <div 
+      ref={containerRef} 
+      className="relative" 
+      style={{ zIndex: 9999 }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <Button 
         type="button"
         variant="outline" 
         className="h-8 w-full justify-between text-sm font-normal"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setOpen(!open);
+          setOpen((prev) => !prev);
         }}
       >
         <span className="truncate">
