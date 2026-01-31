@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useCrypto } from '@/hooks/useCrypto';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -151,8 +151,17 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
     enabled: !!clientId,
   });
 
+  // CRITICAL: Use ref to track previous value to avoid calling onChange on every render
+  // This prevents infinite loops when onChange is not memoized by parent
+  const prevLocalAppsRef = useRef<string>('');
+  
   useEffect(() => {
-    onChange?.(localApps);
+    const serialized = JSON.stringify(localApps);
+    // Only call onChange if localApps actually changed (not just reference)
+    if (serialized !== prevLocalAppsRef.current) {
+      prevLocalAppsRef.current = serialized;
+      onChange?.(localApps);
+    }
   }, [localApps, onChange]);
 
   useEffect(() => {
