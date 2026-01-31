@@ -3336,7 +3336,7 @@ export default function Clients() {
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Selecione a categoria" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4}>
                         {allCategories.map((cat) => (
                           <SelectItem key={cat} value={cat}>
                             {cat}
@@ -3589,7 +3589,7 @@ export default function Clients() {
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um servidor" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent position="popper" sideOffset={4}>
                         <SelectItem value="manual">Nenhum</SelectItem>
                         {activeServers.map((server) => (
                           <SelectItem key={server.id} value={server.id}>
@@ -3635,7 +3635,7 @@ export default function Clients() {
                           <SelectTrigger className="bg-background">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent position="popper" sideOffset={4}>
                             {isWplayServer ? (
                               <>
                                 <SelectItem value="1">1 Tela (IPTV)</SelectItem>
