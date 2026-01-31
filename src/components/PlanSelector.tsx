@@ -180,7 +180,7 @@ export function PlanSelector({
               <SelectTrigger className="h-7 w-auto min-w-[90px] text-xs">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
-              <SelectContent className="max-h-[200px]">
+              <SelectContent className="max-h-[200px]" position="popper" sideOffset={4}>
                 <SelectItem value="all">Todas</SelectItem>
                 {allCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>
@@ -198,7 +198,7 @@ export function PlanSelector({
                 <SelectTrigger className="h-7 w-auto min-w-[80px] text-xs">
                   <SelectValue placeholder="Telas" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
+                <SelectContent className="max-h-[200px]" position="popper" sideOffset={4}>
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="1">1 Tela</SelectItem>
                   <SelectItem value="2">2 Telas</SelectItem>
@@ -214,7 +214,7 @@ export function PlanSelector({
         <SelectTrigger className={compact ? "h-9" : ""}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="max-h-[300px]">
+        <SelectContent className="max-h-[300px]" position="popper" sideOffset={4}>
           {filteredPlans.length === 0 ? (
             <div className="p-2 text-sm text-muted-foreground text-center">
               Nenhum plano encontrado
