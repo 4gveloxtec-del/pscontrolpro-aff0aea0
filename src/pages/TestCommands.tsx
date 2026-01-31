@@ -531,7 +531,7 @@ export default function TestCommands() {
         signal: controller.signal,
       };
       
-      if (apiForm.api_method === 'POST' && apiForm.api_body_template) {
+      if ((apiForm.api_method === 'POST' || apiForm.api_method === 'BOTH') && apiForm.api_body_template) {
         fetchOptions.body = apiForm.api_body_template;
       }
       
@@ -1198,6 +1198,7 @@ export default function TestCommands() {
                   <SelectContent>
                     <SelectItem value="GET">GET</SelectItem>
                     <SelectItem value="POST">POST</SelectItem>
+                    <SelectItem value="BOTH">GET e POST</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1222,7 +1223,7 @@ export default function TestCommands() {
                 rows={2}
               />
             </div>
-            {apiForm.api_method === 'POST' && (
+            {(apiForm.api_method === 'POST' || apiForm.api_method === 'BOTH') && (
               <div className="space-y-1.5">
                 <Label className="text-sm">Body Template (JSON)</Label>
                 <Textarea

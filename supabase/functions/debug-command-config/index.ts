@@ -92,19 +92,21 @@ Deno.serve(async (req) => {
       if (r.apis.length > 0) {
         for (const api of r.apis) {
           try {
+            // For BOTH method, use POST as the primary test method
+            const testMethod = api.api_method === 'BOTH' ? 'POST' : api.api_method;
             const fetchOptions: RequestInit = {
-              method: api.api_method,
+              method: testMethod,
               headers: { 
                 'Content-Type': 'application/json',
                 ...(api.api_headers || {})
               },
             };
 
-            if (api.api_method === 'POST' && api.api_body_template) {
+            if ((api.api_method === 'POST' || api.api_method === 'BOTH') && api.api_body_template) {
               fetchOptions.body = JSON.stringify(api.api_body_template);
             }
 
-            console.log(`Testing API: ${api.api_method} ${api.api_url}`);
+            console.log(`Testing API: ${testMethod} ${api.api_url} (configured as ${api.api_method})`);
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
