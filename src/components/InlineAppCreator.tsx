@@ -229,6 +229,7 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
   const [name, setName] = useState('');
   const [appType, setAppType] = useState<'own' | 'partnership'>('own');
   const [icon, setIcon] = useState('📱');
+  const [providerCode, setProviderCode] = useState('');
   const queryClient = useQueryClient();
 
   // AUDIT FIX: Use maybeSingle() instead of single() on insert
@@ -241,6 +242,7 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
         server_id: serverId,
         seller_id: sellerId,
         is_active: true,
+        provider_code: appType === 'partnership' && providerCode.trim() ? providerCode.trim() : null,
       }]).select('id').maybeSingle();
       if (error) throw error;
       if (!data) throw new Error('Falha ao criar app');
@@ -262,6 +264,7 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
     setName('');
     setAppType('own');
     setIcon('📱');
+    setProviderCode('');
   };
 
   const emojis = ['📱', '📺', '🎬', '🎮', '💎', '⭐', '🔥', '💫'];
@@ -328,6 +331,21 @@ export function InlineServerAppCreator({ sellerId, serverId, serverName, onCreat
             </div>
           </RadioGroup>
         </div>
+
+        {appType === 'partnership' && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              <Hash className="h-3 w-3" />
+              Código / Provedor (opcional)
+            </Label>
+            <Input
+              placeholder="Ex: SKY, CLARO, 12345"
+              value={providerCode}
+              onChange={(e) => setProviderCode(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Ícone</Label>
