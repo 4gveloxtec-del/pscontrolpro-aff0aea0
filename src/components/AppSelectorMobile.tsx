@@ -50,12 +50,13 @@ function InlineAppSelector({
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative" style={{ zIndex: 9999 }}>
       <Button 
         type="button"
         variant="outline" 
         className="h-8 w-full justify-between text-sm font-normal"
         onClick={(e) => {
+          e.preventDefault();
           e.stopPropagation();
           setOpen(!open);
         }}
@@ -67,7 +68,7 @@ function InlineAppSelector({
       </Button>
       
       {open && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border rounded-lg shadow-lg max-h-[300px] overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-lg shadow-lg max-h-[300px] overflow-y-auto" style={{ zIndex: 99999 }}>
           <div className="p-2 space-y-3">
             {/* Apps do Revendedor */}
             <div>
