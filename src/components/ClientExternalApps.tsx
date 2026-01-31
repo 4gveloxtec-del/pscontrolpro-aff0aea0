@@ -323,9 +323,13 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                         value={app.appId}
                         onValueChange={(value) => {
                           const newApp = availableApps.find(a => a.id === value);
+                          // Auto-add first device for MAC apps so fields appear immediately
+                          const newDevices = newApp?.auth_type === 'mac_key' 
+                            ? (app.devices.length > 0 ? app.devices : [{ name: '', mac: '', device_key: '' }])
+                            : app.devices;
                           updateApp(appIndex, { 
                             appId: value,
-                            devices: newApp?.auth_type === 'mac_key' ? [] : app.devices,
+                            devices: newDevices,
                             email: newApp?.auth_type === 'email_password' ? app.email : '',
                           });
                           if (value) setExpandedApps(new Set([...expandedApps, appIndex]));
@@ -338,9 +342,13 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                         value={app.appId}
                         onValueChange={(value) => {
                           const newApp = availableApps.find(a => a.id === value);
+                          // Auto-add first device for MAC apps so fields appear immediately
+                          const newDevices = newApp?.auth_type === 'mac_key' 
+                            ? (app.devices.length > 0 ? app.devices : [{ name: '', mac: '', device_key: '' }])
+                            : app.devices;
                           updateApp(appIndex, { 
                             appId: value,
-                            devices: newApp?.auth_type === 'mac_key' ? [] : app.devices,
+                            devices: newDevices,
                             email: newApp?.auth_type === 'email_password' ? app.email : '',
                           });
                           if (value) setExpandedApps(new Set([...expandedApps, appIndex]));
@@ -518,26 +526,26 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                         
                         {app.devices.map((device, deviceIndex) => (
                           <div key={deviceIndex} className="flex gap-1.5 items-start bg-background rounded p-1.5">
-                            <div className="flex-1 grid grid-cols-3 gap-1.5">
-                              <Input
-                                value={device.name}
-                                onChange={(e) => updateDevice(appIndex, deviceIndex, { name: e.target.value })}
-                                placeholder="Nome"
-                                className="h-7 text-xs"
-                              />
-                              <Input
-                                value={device.mac}
-                                onChange={(e) => updateDevice(appIndex, deviceIndex, { mac: formatMacAddress(e.target.value) })}
-                                placeholder="MAC"
-                                className="h-7 text-xs font-mono"
-                                maxLength={17}
-                              />
-                              <Input
-                                value={device.device_key || ''}
-                                onChange={(e) => updateDevice(appIndex, deviceIndex, { device_key: e.target.value })}
-                                placeholder="Key"
-                                className="h-7 text-xs"
-                              />
+                            <div className="flex-1 grid grid-cols-2 gap-1.5">
+                              <div className="space-y-0.5">
+                                <Label className="text-[10px] text-muted-foreground">MAC do App</Label>
+                                <Input
+                                  value={device.mac}
+                                  onChange={(e) => updateDevice(appIndex, deviceIndex, { mac: formatMacAddress(e.target.value) })}
+                                  placeholder="AA:BB:CC:DD:EE:FF"
+                                  className="h-7 text-xs font-mono"
+                                  maxLength={17}
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <Label className="text-[10px] text-muted-foreground">ID / Device Key</Label>
+                                <Input
+                                  value={device.device_key || ''}
+                                  onChange={(e) => updateDevice(appIndex, deviceIndex, { device_key: e.target.value })}
+                                  placeholder="Ex: ABC123"
+                                  className="h-7 text-xs"
+                                />
+                              </div>
                             </div>
                             <Button
                               type="button"
