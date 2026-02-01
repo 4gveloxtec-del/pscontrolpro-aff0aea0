@@ -290,16 +290,16 @@ export function TestIntegrationConfig() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Integração Automática de Testes
+      <CardHeader className="p-3 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+          <Settings className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <span className="truncate">Integração Automática de Testes</span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs sm:text-sm">
           Configure para criar clientes automaticamente quando um teste for gerado via WhatsApp
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0">
         {/* API Selection */}
         <div className="space-y-2">
           <Label>API de Teste</Label>
@@ -326,12 +326,12 @@ export function TestIntegrationConfig() {
             ) : (
               <>
                 {/* Auto Create Toggle */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <UserPlus className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="font-medium">Criar cliente automaticamente</p>
-                      <p className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                    <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-xs sm:text-sm">Criar cliente automaticamente</p>
+                      <p className="text-[10px] sm:text-sm text-muted-foreground">
                         Ao receber teste da API, criar cliente no app
                       </p>
                     </div>
@@ -339,6 +339,7 @@ export function TestIntegrationConfig() {
                   <Switch
                     checked={formData.auto_create_client}
                     onCheckedChange={(checked) => setFormData({ ...formData, auto_create_client: checked })}
+                    className="flex-shrink-0"
                   />
                 </div>
 
@@ -447,19 +448,21 @@ export function TestIntegrationConfig() {
 
                     {/* Counter Info */}
                     {config && (
-                      <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                        <div>
-                          <p className="font-medium">Testes criados</p>
-                          <p className="text-2xl font-bold text-primary">{config.test_counter || 0}</p>
+                      <div className="flex items-center justify-between gap-3 p-3 sm:p-4 bg-muted rounded-lg">
+                        <div className="min-w-0">
+                          <p className="font-medium text-xs sm:text-sm">Testes criados</p>
+                          <p className="text-xl sm:text-2xl font-bold text-primary">{config.test_counter || 0}</p>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => resetCounterMutation.mutate()}
                           disabled={resetCounterMutation.isPending}
+                          className="h-8 text-xs sm:text-sm"
                         >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${resetCounterMutation.isPending ? 'animate-spin' : ''}`} />
-                          Zerar
+                          <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${resetCounterMutation.isPending ? 'animate-spin' : ''}`} />
+                          <span className="hidden xs:inline">Zerar</span>
+                          <span className="xs:hidden">0</span>
                         </Button>
                       </div>
                     )}
@@ -471,20 +474,21 @@ export function TestIntegrationConfig() {
                 )}
 
                 {/* Renewal Detection Section */}
-                <div className="border-t pt-6 mt-6 space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
-                    <div className="flex items-center gap-3">
-                      <RefreshCw className="h-5 w-5 text-green-600" />
-                      <div>
-                        <p className="font-medium">Sincronizar renovação automática</p>
-                        <p className="text-sm text-muted-foreground">
-                          Quando a API do servidor enviar mensagem de renovação, renovar cliente no app (sem duplicar notificação)
+                <div className="border-t pt-4 sm:pt-6 mt-4 sm:mt-6 space-y-3 sm:space-y-4">
+                  <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-xs sm:text-sm">Sincronizar renovação automática</p>
+                        <p className="text-[10px] sm:text-sm text-muted-foreground">
+                          Renovar cliente no app quando API enviar renovação
                         </p>
                       </div>
                     </div>
                     <Switch
                       checked={formData.detect_renewal_enabled}
                       onCheckedChange={(checked) => setFormData({ ...formData, detect_renewal_enabled: checked })}
+                      className="flex-shrink-0"
                     />
                   </div>
 
@@ -503,22 +507,23 @@ export function TestIntegrationConfig() {
                   )}
 
                   {/* Logs Toggle */}
-                  <div className="flex items-center justify-between p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20">
-                    <div className="flex items-center gap-3">
-                      <Activity className="h-5 w-5 text-orange-600" />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">Salvar logs de comandos</p>
-                          <Badge variant="secondary" className="text-[10px]">BETA</Badge>
+                  <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                          <p className="font-medium text-xs sm:text-sm">Salvar logs de comandos</p>
+                          <Badge variant="secondary" className="text-[8px] sm:text-[10px] h-4">BETA</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          Quando ativado, registra cada execução de comando para debug
+                        <p className="text-[10px] sm:text-sm text-muted-foreground">
+                          Registra cada execução para debug
                         </p>
                       </div>
                     </div>
                     <Switch
                       checked={formData.logs_enabled}
                       onCheckedChange={(checked) => setFormData({ ...formData, logs_enabled: checked })}
+                      className="flex-shrink-0"
                     />
                   </div>
                 </div>

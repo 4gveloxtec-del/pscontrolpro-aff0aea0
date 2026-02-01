@@ -116,24 +116,24 @@ export function AsaasSettings() {
 
   return (
     <Card className="bg-slate-800/50 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
-          <Settings className="h-5 w-5 text-blue-500" />
-          Configurações ASAAS
+      <CardHeader className="p-3 sm:p-6">
+        <CardTitle className="text-white flex items-center gap-2 text-sm sm:text-base">
+          <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
+          <span className="truncate">Configurações ASAAS</span>
         </CardTitle>
-        <CardDescription className="text-slate-400">
+        <CardDescription className="text-slate-400 text-xs sm:text-sm">
           Configure a integração com o gateway de pagamentos ASAAS
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0">
         {/* Ambiente */}
-        <div className="space-y-2">
-          <Label className="text-slate-300">Ambiente</Label>
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label className="text-slate-300 text-xs sm:text-sm">Ambiente</Label>
           <Select
             value={localConfig.asaas_environment}
             onValueChange={(value) => setLocalConfig(prev => ({ ...prev, asaas_environment: value }))}
           >
-            <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+            <SelectTrigger className="bg-slate-700 border-slate-600 text-white h-9 sm:h-10">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -141,108 +141,109 @@ export function AsaasSettings() {
               <SelectItem value="production">Produção</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-slate-500">
+          <p className="text-[10px] sm:text-xs text-slate-500">
             Use Sandbox para testes. Mude para Produção apenas quando estiver pronto.
           </p>
         </div>
 
         {/* API Key */}
-        <div className="space-y-2">
-          <Label className="text-slate-300">Chave de API</Label>
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label className="text-slate-300 text-xs sm:text-sm">Chave de API</Label>
           <div className="relative">
             <Input
               type={showApiKey ? 'text' : 'password'}
               value={localConfig.asaas_api_key}
               onChange={(e) => setLocalConfig(prev => ({ ...prev, asaas_api_key: e.target.value }))}
               placeholder="$aact_..."
-              className="bg-slate-700 border-slate-600 text-white pr-10"
+              className="bg-slate-700 border-slate-600 text-white pr-10 h-9 sm:h-10 text-sm"
             />
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 p-0"
               onClick={() => setShowApiKey(!showApiKey)}
             >
               {showApiKey ? (
-                <EyeOff className="h-4 w-4 text-slate-400" />
+                <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
               ) : (
-                <Eye className="h-4 w-4 text-slate-400" />
+                <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
               )}
             </Button>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-[10px] sm:text-xs text-slate-500">
             Encontre sua API Key em: ASAAS → Configurações → Integrações → API
           </p>
         </div>
 
         {/* Webhook Token */}
-        <div className="space-y-2">
-          <Label className="text-slate-300">Token do Webhook (opcional)</Label>
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label className="text-slate-300 text-xs sm:text-sm">Token do Webhook (opcional)</Label>
           <div className="relative">
             <Input
               type={showWebhookToken ? 'text' : 'password'}
               value={localConfig.asaas_webhook_token}
               onChange={(e) => setLocalConfig(prev => ({ ...prev, asaas_webhook_token: e.target.value }))}
               placeholder="Token para validar webhooks"
-              className="bg-slate-700 border-slate-600 text-white pr-10"
+              className="bg-slate-700 border-slate-600 text-white pr-10 h-9 sm:h-10 text-sm"
             />
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 p-0"
               onClick={() => setShowWebhookToken(!showWebhookToken)}
             >
               {showWebhookToken ? (
-                <EyeOff className="h-4 w-4 text-slate-400" />
+                <EyeOff className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
               ) : (
-                <Eye className="h-4 w-4 text-slate-400" />
+                <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
               )}
             </Button>
           </div>
         </div>
 
         {/* Status */}
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-700/30">
+        <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-slate-700/30">
           {hasApiKey ? (
             <>
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-green-400">API Key configurada</span>
+              <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
+              <span className="text-xs sm:text-sm text-green-400">API Key configurada</span>
             </>
           ) : (
             <>
-              <AlertCircle className="h-5 w-5 text-yellow-500" />
-              <span className="text-sm text-yellow-400">API Key não configurada</span>
+              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500 flex-shrink-0" />
+              <span className="text-xs sm:text-sm text-yellow-400">API Key não configurada</span>
             </>
           )}
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex flex-col xs:flex-row gap-2 sm:gap-3">
           <Button
             onClick={handleSave}
             disabled={saveMutation.isPending}
-            className="flex-1"
+            className="flex-1 h-9 sm:h-10 text-xs sm:text-sm"
           >
             {saveMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" />
             ) : (
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
             )}
-            Salvar Configurações
+            Salvar
           </Button>
           <Button
             variant="outline"
             onClick={() => testConnectionMutation.mutate()}
             disabled={!hasApiKey || testConnectionMutation.isPending}
-            className="border-slate-600 hover:bg-slate-700"
+            className="border-slate-600 hover:bg-slate-700 h-9 sm:h-10 text-xs sm:text-sm"
           >
             {testConnectionMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
             ) : (
-              'Testar Conexão'
+              <span className="hidden xs:inline">Testar Conexão</span>
             )}
+            <span className="xs:hidden">Testar</span>
           </Button>
         </div>
       </CardContent>

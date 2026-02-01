@@ -191,67 +191,68 @@ export function AsaasResellerPayments() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-white">{stats.total}</div>
-            <p className="text-xs text-slate-400">Total Cobranças</p>
+          <CardContent className="p-3 sm:pt-6 sm:p-6">
+            <div className="text-lg sm:text-2xl font-bold text-white">{stats.total}</div>
+            <p className="text-[10px] sm:text-xs text-slate-400 truncate">Total</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-400">{stats.pending}</div>
-            <p className="text-xs text-slate-400">Pendentes</p>
+          <CardContent className="p-3 sm:pt-6 sm:p-6">
+            <div className="text-lg sm:text-2xl font-bold text-yellow-400">{stats.pending}</div>
+            <p className="text-[10px] sm:text-xs text-slate-400 truncate">Pendentes</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-400">{stats.received}</div>
-            <p className="text-xs text-slate-400">Recebidos</p>
+          <CardContent className="p-3 sm:pt-6 sm:p-6">
+            <div className="text-lg sm:text-2xl font-bold text-green-400">{stats.received}</div>
+            <p className="text-[10px] sm:text-xs text-slate-400 truncate">Recebidos</p>
           </CardContent>
         </Card>
         <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-400">
+          <CardContent className="p-3 sm:pt-6 sm:p-6">
+            <div className="text-lg sm:text-2xl font-bold text-green-400 truncate">
               R$ {stats.totalReceived.toFixed(2)}
             </div>
-            <p className="text-xs text-slate-400">Total Recebido</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 truncate">Total Recebido</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Main Card */}
       <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-white flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-green-500" />
-                Cobranças ASAAS
+        <CardHeader className="p-3 sm:p-6">
+          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-white flex items-center gap-2 text-sm sm:text-base">
+                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
+                <span className="truncate">Cobranças ASAAS</span>
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-slate-400 text-xs sm:text-sm">
                 Gerencie cobranças PIX para revendedores
               </CardDescription>
             </div>
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova Cobrança
+                <Button className="bg-green-600 hover:bg-green-700 w-full xs:w-auto h-8 sm:h-10 text-xs sm:text-sm">
+                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <span className="hidden xs:inline">Nova Cobrança</span>
+                  <span className="xs:hidden">Novo</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-800 border-slate-700">
+              <DialogContent className="w-[95vw] sm:max-w-md max-h-[85vh] bg-slate-800 border-slate-700 p-3 sm:p-6 overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="text-white">Criar Nova Cobrança</DialogTitle>
-                  <DialogDescription className="text-slate-400">
+                  <DialogTitle className="text-white text-base sm:text-lg">Criar Nova Cobrança</DialogTitle>
+                  <DialogDescription className="text-slate-400 text-xs sm:text-sm">
                     Gere uma cobrança PIX para um revendedor
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Revendedor</Label>
+                <div className="space-y-3 sm:space-y-4 mt-3 sm:mt-4">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-slate-300 text-xs sm:text-sm">Revendedor</Label>
                     <Select
                       value={formData.reseller_id}
                       onValueChange={(value) => setFormData(prev => ({ ...prev, reseller_id: value }))}
@@ -269,8 +270,8 @@ export function AsaasResellerPayments() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Valor (R$)</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-slate-300 text-xs sm:text-sm">Valor (R$)</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -278,39 +279,39 @@ export function AsaasResellerPayments() {
                       value={formData.amount}
                       onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                       placeholder="0.00"
-                      className="bg-slate-700 border-slate-600 text-white"
+                      className="bg-slate-700 border-slate-600 text-white h-9 sm:h-10"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Descrição</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-slate-300 text-xs sm:text-sm">Descrição</Label>
                     <Input
                       value={formData.description}
                       onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                       placeholder="Ex: Mensalidade Janeiro/2026"
-                      className="bg-slate-700 border-slate-600 text-white"
+                      className="bg-slate-700 border-slate-600 text-white h-9 sm:h-10"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Vencimento</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-slate-300 text-xs sm:text-sm">Vencimento</Label>
                     <Input
                       type="date"
                       value={formData.due_date}
                       onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                      className="bg-slate-700 border-slate-600 text-white"
+                      className="bg-slate-700 border-slate-600 text-white h-9 sm:h-10"
                     />
                   </div>
 
                   <Button
                     onClick={() => createPaymentMutation.mutate(formData)}
                     disabled={!formData.reseller_id || !formData.amount || createPaymentMutation.isPending}
-                    className="w-full bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700 h-9 sm:h-10 text-xs sm:text-sm"
                   >
                     {createPaymentMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" />
                     ) : (
-                      <DollarSign className="h-4 w-4 mr-2" />
+                      <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                     )}
                     Gerar Cobrança PIX
                   </Button>
@@ -319,24 +320,24 @@ export function AsaasResellerPayments() {
             </Dialog>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4 mb-4 sm:mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Buscar por nome ou email..."
+                placeholder="Buscar..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-slate-700 border-slate-600 text-white"
+                className="pl-9 bg-slate-700 border-slate-600 text-white h-9 sm:h-10 text-sm"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px] bg-slate-700 border-slate-600 text-white">
+              <SelectTrigger className="w-full sm:w-[180px] bg-slate-700 border-slate-600 text-white h-9 sm:h-10 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pending">Pendente</SelectItem>
                 <SelectItem value="confirmed">Confirmado</SelectItem>
                 <SelectItem value="received">Recebido</SelectItem>
