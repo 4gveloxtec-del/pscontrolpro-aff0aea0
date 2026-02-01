@@ -27,7 +27,6 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
-  FolderTree,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -50,7 +49,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { DynamicMenuManager } from '@/components/botEngine/DynamicMenuManager';
 
 export default function BotEngine() {
   const { user } = useAuth();
@@ -406,10 +404,6 @@ export default function BotEngine() {
             <Workflow className="h-4 w-4" />
             Fluxos
           </TabsTrigger>
-          <TabsTrigger value="menus" className="gap-2">
-            <FolderTree className="h-4 w-4" />
-            Menus Dinâmicos
-          </TabsTrigger>
         </TabsList>
 
         {/* Config Tab */}
@@ -691,11 +685,6 @@ export default function BotEngine() {
               ))}
             </div>
           )}
-        </TabsContent>
-
-        {/* Menus Tab */}
-        <TabsContent value="menus" className="space-y-4">
-          <DynamicMenuManager />
         </TabsContent>
       </Tabs>
 
