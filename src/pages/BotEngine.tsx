@@ -35,6 +35,9 @@ import {
   Copy,
   Globe,
   ScrollText,
+  FolderPlus,
+  Power,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -57,6 +60,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SimpleNodeEditor } from '@/components/botEngine/SimpleNodeEditor';
 import { BotEngineLogs } from '@/components/BotEngineLogs';
 
@@ -85,11 +95,16 @@ export default function BotEngine() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Fluxos IPTV']));
   
+  // State for creating new folders
+  const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  
   // Flow form states
   const [flowName, setFlowName] = useState('');
   const [flowDescription, setFlowDescription] = useState('');
   const [flowTriggerType, setFlowTriggerType] = useState<'keyword' | 'first_message' | 'default'>('keyword');
   const [flowKeywords, setFlowKeywords] = useState('');
+  const [flowCategory, setFlowCategory] = useState<string>('');
 
   // Form states for config
   const [welcomeMessage, setWelcomeMessage] = useState(config?.welcome_message || '');
@@ -142,6 +157,7 @@ export default function BotEngine() {
     setFlowDescription('');
     setFlowTriggerType('keyword');
     setFlowKeywords('');
+    setFlowCategory('');
   };
 
   // Populate form when editing
@@ -151,10 +167,47 @@ export default function BotEngine() {
       setFlowDescription(editingFlow.description || '');
       setFlowTriggerType(editingFlow.trigger_type || 'keyword');
       setFlowKeywords(editingFlow.trigger_keywords?.join(', ') || '');
+      setFlowCategory(editingFlow.category || '');
     } else {
       resetFlowForm();
     }
   }, [editingFlow]);
+  
+  // Get unique categories from flows
+  const existingCategories = Array.from(
+    new Set(flows.map(f => f.category).filter(Boolean) as string[])
+  ).sort();
+  
+  // Handle creating a new folder
+  const handleCreateFolder = () => {
+    if (!newFolderName.trim()) return;
+    
+    // Just add to expanded categories - the folder will appear when a flow uses it
+    setExpandedCategories(prev => new Set(prev).add(newFolderName.trim()));
+    setIsCreateFolderDialogOpen(false);
+    setNewFolderName('');
+    toast.success(`Pasta "${newFolderName.trim()}" criada! Agora você pode adicionar fluxos a ela.`);
+  };
+  
+  // Toggle all flows in a category
+  const handleToggleCategoryFlows = async (category: string, activate: boolean) => {
+    const categoryFlows = flows.filter(f => (f.category || 'Sem Categoria') === category);
+    const flowsToUpdate = categoryFlows.filter(f => f.is_active !== activate);
+    
+    if (flowsToUpdate.length === 0) {
+      toast.info(activate ? 'Todos os fluxos já estão ativos' : 'Todos os fluxos já estão inativos');
+      return;
+    }
+    
+    try {
+      for (const flow of flowsToUpdate) {
+        await toggleActive(flow.id, activate);
+      }
+      toast.success(`${flowsToUpdate.length} fluxo(s) ${activate ? 'ativado(s)' : 'desativado(s)'} na pasta "${category}"`);
+    } catch (error: any) {
+      toast.error('Erro ao alterar fluxos: ' + error.message);
+    }
+  };
 
   // Save flow handler
   const handleSaveFlow = async () => {
@@ -209,6 +262,7 @@ export default function BotEngine() {
             description: flowDescription.trim() || null,
             trigger_type: flowTriggerType,
             trigger_keywords: keywords,
+            category: flowCategory.trim() || null,
           }
         });
         console.log('[BotEngine] updateFlow completed');
@@ -220,6 +274,7 @@ export default function BotEngine() {
           description: flowDescription.trim() || null,
           trigger_type: flowTriggerType,
           trigger_keywords: keywords,
+          category: flowCategory.trim() || null,
         });
         console.log('[BotEngine] createFlow completed:', result);
         toast.success('Fluxo criado com sucesso!');
@@ -643,17 +698,27 @@ export default function BotEngine() {
 
         {/* Flows Tab */}
         <TabsContent value="flows" className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <div>
               <h3 className="text-lg font-medium">Fluxos de Atendimento</h3>
               <p className="text-sm text-muted-foreground">
                 Gerencie os fluxos de conversa do bot
               </p>
             </div>
-            <Button onClick={() => setIsFlowDialogOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Novo Fluxo
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => setIsCreateFolderDialogOpen(true)} 
+                className="gap-2"
+              >
+                <FolderPlus className="h-4 w-4" />
+                Nova Pasta
+              </Button>
+              <Button onClick={() => setIsFlowDialogOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Novo Fluxo
+              </Button>
+            </div>
           </div>
 
           {flows.length === 0 ? (
@@ -709,31 +774,56 @@ export default function BotEngine() {
                   return (
                     <div key={category} className="space-y-3">
                       {/* Category Header */}
-                      <button
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg border ${style.color} hover:bg-accent/50 transition-colors`}
-                        onClick={() => {
-                          setExpandedCategories(prev => {
-                            const newSet = new Set(prev);
-                            if (newSet.has(category)) {
-                              newSet.delete(category);
-                            } else {
-                              newSet.add(category);
-                            }
-                            return newSet;
-                          });
-                        }}
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="text-xl">{style.icon}</span>
-                        <span className="font-medium">{category}</span>
-                        <Badge variant="secondary" className="ml-auto">
+                      <div className={`flex items-center gap-3 p-3 rounded-lg border ${style.color} hover:bg-accent/50 transition-colors`}>
+                        <button
+                          className="flex items-center gap-3 flex-1"
+                          onClick={() => {
+                            setExpandedCategories(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(category)) {
+                                newSet.delete(category);
+                              } else {
+                                newSet.add(category);
+                              }
+                              return newSet;
+                            });
+                          }}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="text-xl">{style.icon}</span>
+                          <span className="font-medium">{category}</span>
+                        </button>
+                        <Badge variant="secondary">
                           {activeCount}/{categoryFlows.length} ativos
                         </Badge>
-                      </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              onClick={() => handleToggleCategoryFlows(category, true)}
+                              className="gap-2"
+                            >
+                              <Play className="h-4 w-4" />
+                              Ativar todos os fluxos
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleToggleCategoryFlows(category, false)}
+                              className="gap-2"
+                            >
+                              <Pause className="h-4 w-4" />
+                              Desativar todos os fluxos
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                       
                       {/* Category Flows */}
                       {isExpanded && (
@@ -979,6 +1069,24 @@ export default function BotEngine() {
                 />
               </div>
             )}
+            
+            <div className="space-y-2">
+              <Label>Pasta (opcional)</Label>
+              <Select value={flowCategory} onValueChange={setFlowCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma pasta..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sem Categoria</SelectItem>
+                  {existingCategories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Organize seus fluxos em pastas para melhor gerenciamento
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
@@ -1009,6 +1117,60 @@ export default function BotEngine() {
               onClose={() => setViewingFlow(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Create Folder Dialog */}
+      <Dialog open={isCreateFolderDialogOpen} onOpenChange={setIsCreateFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Pasta</DialogTitle>
+            <DialogDescription>
+              Crie uma pasta para organizar seus fluxos de atendimento
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome da Pasta</Label>
+              <Input 
+                placeholder="Ex: Fluxos de Vendas" 
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newFolderName.trim()) {
+                    handleCreateFolder();
+                  }
+                }}
+              />
+            </div>
+            
+            {existingCategories.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Pastas existentes</Label>
+                <div className="flex flex-wrap gap-2">
+                  {existingCategories.map((cat) => (
+                    <Badge key={cat} variant="outline">{cat}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsCreateFolderDialogOpen(false);
+              setNewFolderName('');
+            }}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateFolder}
+              disabled={!newFolderName.trim() || existingCategories.includes(newFolderName.trim())}
+            >
+              Criar Pasta
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
