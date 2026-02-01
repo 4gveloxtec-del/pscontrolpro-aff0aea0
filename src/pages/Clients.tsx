@@ -1952,18 +1952,26 @@ export default function Clients() {
       setDbPage(0);
       setAllLoadedClients([]);
       setHasMoreClients(true);
+      
+      // PERF: Critical invalidations immediately
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
-      // Go to page 1 to see the new client BUT don't scroll (user stays in place)
+      
+      // Go to page 1 to see the new client
       goToPage(1, false);
       toast.success(selectedSharedCredit 
         ? 'Cliente criado e vinculado ao crédito compartilhado! ✅' 
         : 'Cliente salvo com sucesso! ✅');
       resetForm();
       setIsDialogOpen(false);
+      
+      // PERF: Defer less critical invalidations (run after UI update)
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['server-credit-clients'] });
+        queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
+        queryClient.invalidateQueries({ queryKey: ['all-panel-clients'] });
+        queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+      }, 100);
     },
     onError: (error: Error) => {
       toast.dismiss('saving-client');
@@ -2210,12 +2218,22 @@ export default function Clients() {
     },
     onSuccess: () => {
       toast.dismiss('updating-client');
+      
+      // PERF: Critical invalidation only
       queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
+      
       toast.success('Cliente salvo com sucesso! ✅');
       resetForm();
       setIsDialogOpen(false);
       setEditingClient(null);
+      
+      // PERF: Defer less critical invalidations
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
+        queryClient.invalidateQueries({ queryKey: ['client-external-apps'] });
+        queryClient.invalidateQueries({ queryKey: ['client-premium-accounts'] });
+        queryClient.invalidateQueries({ queryKey: ['client-server-app-credentials'] });
+      }, 100);
     },
     onError: (error: Error, _variables, context) => {
       toast.dismiss('updating-client');
@@ -2255,19 +2273,24 @@ export default function Clients() {
       return { previousClients };
     },
     onSuccess: () => {
-      // Sync local count immediately (avoid stale count from query delay)
+      // Sync local count immediately
       setTotalClientCount(prev => Math.max(0, prev - 1));
-      setDbPage(0);
-      setAllLoadedClients([]);
-      setHasMoreClients(true);
-      // Invalidate ALL client-related queries to ensure full cache sync
+      
+      // PERF: Critical invalidations only
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
-      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
       toast.success('Cliente excluído!');
+      
+      // PERF: Defer non-critical invalidations
+      setTimeout(() => {
+        setDbPage(0);
+        setAllLoadedClients([]);
+        setHasMoreClients(true);
+        queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
+        queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
+        queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
+        queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
+      }, 50);
     },
     onError: (error: Error, _id, context) => {
       if (context?.previousClients) {
@@ -2530,45 +2553,60 @@ export default function Clients() {
 
     const screens = formData.screens || '1';
 
-    // Encrypt second server credentials if present
-    let encryptedLogin2 = null;
-    let encryptedPassword2 = null;
-    if (formData.login_2 || formData.password_2) {
-      try {
-        encryptedLogin2 = formData.login_2 ? await encrypt(formData.login_2) : null;
-        encryptedPassword2 = formData.password_2 ? await encrypt(formData.password_2) : null;
-      } catch (error) {
-        console.error('Encryption error for second server:', error);
-        encryptedLogin2 = formData.login_2 || null;
-        encryptedPassword2 = formData.password_2 || null;
+    // PERF: Encrypt ALL credentials in parallel
+    const encryptionPromises: Promise<any>[] = [];
+    
+    // Second server credentials
+    const hasSecondServer = formData.login_2 || formData.password_2;
+    if (hasSecondServer) {
+      encryptionPromises.push(
+        Promise.all([
+          formData.login_2 ? encrypt(formData.login_2).catch(() => formData.login_2) : Promise.resolve(null),
+          formData.password_2 ? encrypt(formData.password_2).catch(() => formData.password_2) : Promise.resolve(null),
+        ]).then(([login, password]) => ({ type: 'second', login, password }))
+      );
+    }
+    
+    // Additional servers credentials - all in parallel
+    for (let i = 0; i < additionalServers.length; i++) {
+      const server = additionalServers[i];
+      if (!server.server_id) continue;
+      encryptionPromises.push(
+        Promise.all([
+          server.login ? encrypt(server.login).catch(() => server.login) : Promise.resolve(null),
+          server.password ? encrypt(server.password).catch(() => server.password) : Promise.resolve(null),
+        ]).then(([login, password]) => ({
+          type: 'additional',
+          index: i,
+          server_id: server.server_id,
+          server_name: server.server_name,
+          login,
+          password,
+        }))
+      );
+    }
+    
+    // Execute all encryptions in parallel
+    const encryptionResults = await Promise.all(encryptionPromises);
+    
+    // Process results
+    let encryptedLogin2: string | null = null;
+    let encryptedPassword2: string | null = null;
+    const validAdditionalServers: { server_id: string; server_name: string; login: string | null; password: string | null }[] = [];
+    
+    for (const result of encryptionResults) {
+      if (result.type === 'second') {
+        encryptedLogin2 = result.login;
+        encryptedPassword2 = result.password;
+      } else if (result.type === 'additional') {
+        validAdditionalServers.push({
+          server_id: result.server_id,
+          server_name: result.server_name,
+          login: result.login,
+          password: result.password,
+        });
       }
     }
-
-    // Encrypt additional servers credentials
-    const encryptedAdditionalServers = await Promise.all(
-      additionalServers.map(async (server) => {
-        if (!server.server_id) return null;
-        try {
-          const encryptedLogin = server.login ? await encrypt(server.login) : null;
-          const encryptedPassword = server.password ? await encrypt(server.password) : null;
-          return {
-            server_id: server.server_id,
-            server_name: server.server_name,
-            login: encryptedLogin,
-            password: encryptedPassword,
-          };
-        } catch (error) {
-          console.error('Encryption error for additional server:', error);
-          return {
-            server_id: server.server_id,
-            server_name: server.server_name,
-            login: server.login || null,
-            password: server.password || null,
-          };
-        }
-      })
-    );
-    const validAdditionalServers = encryptedAdditionalServers.filter(Boolean);
 
     // For Contas Premium, calculate total price from premium accounts
     const isPremiumCategory = formData.category === 'Contas Premium';
@@ -2664,21 +2702,75 @@ export default function Clients() {
   const handleEdit = async (client: Client) => {
     setEditingClient(client);
     
-    // Reset external apps, premium accounts and shared credits so they reload from the database
+    // Reset state immediately
     setExternalApps([]);
     setPremiumAccounts([]);
     setSelectedSharedCredit(null);
+    setAdditionalServers([]);
+    setServerAppsConfig([]);
     
-    // Load premium accounts for this client
-    if (client.id) {
-      const { data: existingPremiumAccounts } = await supabase
-        .from('client_premium_accounts')
-        .select('*')
-        .eq('client_id', client.id);
-      
+    // PERF: Enable lazy queries and open dialog immediately
+    setPlansEnabled(true);
+    setServersEnabled(true);
+    setCategoriesEnabled(true);
+    setIsDialogOpen(true);
+
+    // PERF: Load ALL data in parallel (don't block UI)
+    const loadEditData = async () => {
+      if (!client.id) return;
+
+      // Start all async operations in parallel
+      const [
+        premiumAccountsResult,
+        serverAppCredsResult,
+        decryptedMainCreds,
+        decryptedSecondCreds,
+      ] = await Promise.all([
+        // Premium accounts
+        supabase
+          .from('client_premium_accounts')
+          .select('*')
+          .eq('client_id', client.id),
+        // Server app credentials
+        supabase
+          .from('client_server_app_credentials' as any)
+          .select('*, server_app:server_apps(*)')
+          .eq('client_id', client.id),
+        // Decrypt main credentials
+        (async () => {
+          if (!client.login && !client.password) return { login: '', password: '' };
+          try {
+            const existing = decryptedCredentials[client.id];
+            if (existing) return existing;
+            const [login, password] = await Promise.all([
+              client.login ? decrypt(client.login) : Promise.resolve(''),
+              client.password ? decrypt(client.password) : Promise.resolve(''),
+            ]);
+            return { login, password };
+          } catch {
+            return { login: client.login || '', password: client.password || '' };
+          }
+        })(),
+        // Decrypt second server credentials
+        (async () => {
+          if (!client.login_2 && !client.password_2) return { login_2: '', password_2: '' };
+          try {
+            const [login_2, password_2] = await Promise.all([
+              client.login_2 ? decrypt(client.login_2) : Promise.resolve(''),
+              client.password_2 ? decrypt(client.password_2) : Promise.resolve(''),
+            ]);
+            return { login_2, password_2 };
+          } catch {
+            return { login_2: client.login_2 || '', password_2: client.password_2 || '' };
+          }
+        })(),
+      ]);
+
+      // Process premium accounts
+      const existingPremiumAccounts = premiumAccountsResult.data;
       if (existingPremiumAccounts && existingPremiumAccounts.length > 0) {
         setPremiumAccounts(existingPremiumAccounts.map(acc => ({
-          planId: acc.plan_name || '', // Using plan_name as planId since we store the name
+          planId: acc.plan_name || '',
           planName: acc.plan_name || '',
           email: acc.email || '',
           password: acc.password || '',
@@ -2687,81 +2779,69 @@ export default function Clients() {
           notes: acc.notes || '',
         })));
       }
-      
-      // Load server partner app credentials for this client
-      const { data: existingServerAppCredentials } = await supabase
-        .from('client_server_app_credentials' as any)
-        .select('*, server_app:server_apps(*)')
-        .eq('client_id', client.id);
-      
+
+      // Process server app credentials (with password decryption in parallel)
+      const existingServerAppCredentials = serverAppCredsResult.data as any[] | null;
       if (existingServerAppCredentials && existingServerAppCredentials.length > 0) {
-        // Group by server_id
         const groupedByServer: Record<string, { serverId: string; serverName: string; apps: { serverAppId: string; authCode?: string; username?: string; password?: string; provider?: string }[] }> = {};
-        
-        for (const cred of existingServerAppCredentials as any[]) {
+
+        // Decrypt all passwords in parallel
+        const decryptedCreds = await Promise.all(
+          existingServerAppCredentials.map(async (cred) => {
+            let decryptedAppPassword = cred.password || '';
+            if (decryptedAppPassword) {
+              try { decryptedAppPassword = await decrypt(decryptedAppPassword); } catch { /* use raw */ }
+            }
+            return { ...cred, decryptedPassword: decryptedAppPassword };
+          })
+        );
+
+        for (const cred of decryptedCreds) {
           const serverId = cred.server_id;
           if (!groupedByServer[serverId]) {
-            // Try to get server name from server_app relationship or fallback
-            const serverName = cred.server_app?.server_id === serverId ? '' : '';
-            groupedByServer[serverId] = { serverId, serverName, apps: [] };
+            groupedByServer[serverId] = { serverId, serverName: '', apps: [] };
           }
-          
-          // Decrypt password if present
-          let decryptedAppPassword = cred.password || '';
-          if (decryptedAppPassword) {
-            try {
-              decryptedAppPassword = await decrypt(decryptedAppPassword);
-            } catch (e) {
-              // Use raw value if decryption fails
-            }
-          }
-          
           groupedByServer[serverId].apps.push({
             serverAppId: cred.server_app_id,
             authCode: cred.auth_code || '',
             username: cred.username || '',
-            password: decryptedAppPassword,
+            password: cred.decryptedPassword,
             provider: cred.provider || '',
           });
         }
-        
         setServerAppsConfig(Object.values(groupedByServer));
-      } else {
-        setServerAppsConfig([]);
       }
-    }
-    
-    // Decrypt credentials for editing
-    let decryptedLogin = '';
-    let decryptedPassword = '';
-    let decryptedLogin2 = '';
-    let decryptedPassword2 = '';
-    
-    if (client.login || client.password) {
-      try {
-        const decrypted = await decryptCredentialsForClient(client.id, client.login, client.password);
-        decryptedLogin = decrypted.login;
-        decryptedPassword = decrypted.password;
-      } catch (error) {
-        // Fallback to raw values (might be unencrypted old data)
-        decryptedLogin = client.login || '';
-        decryptedPassword = client.password || '';
+
+      // Decrypt and set additional servers in parallel
+      const clientAdditionalServers = (client as any).additional_servers || [];
+      if (Array.isArray(clientAdditionalServers) && clientAdditionalServers.length > 0) {
+        const decryptedServers = await Promise.all(
+          clientAdditionalServers.map(async (server: { server_id: string; server_name: string; login: string | null; password: string | null }) => {
+            try {
+              const [decLogin, decPassword] = await Promise.all([
+                server.login ? decrypt(server.login) : Promise.resolve(''),
+                server.password ? decrypt(server.password) : Promise.resolve(''),
+              ]);
+              return { server_id: server.server_id, server_name: server.server_name, login: decLogin, password: decPassword };
+            } catch {
+              return { server_id: server.server_id, server_name: server.server_name, login: server.login || '', password: server.password || '' };
+            }
+          })
+        );
+        setAdditionalServers(decryptedServers);
       }
-    }
-    
-    // Decrypt second server credentials
-    if (client.login_2 || client.password_2) {
-      try {
-        const decrypted2Login = client.login_2 ? await decrypt(client.login_2) : '';
-        const decrypted2Password = client.password_2 ? await decrypt(client.password_2) : '';
-        decryptedLogin2 = decrypted2Login;
-        decryptedPassword2 = decrypted2Password;
-      } catch (error) {
-        decryptedLogin2 = client.login_2 || '';
-        decryptedPassword2 = client.password_2 || '';
-      }
-    }
-    
+
+      // Update form with decrypted credentials
+      setFormData(prev => ({
+        ...prev,
+        login: decryptedMainCreds.login,
+        password: decryptedMainCreds.password,
+        login_2: decryptedSecondCreds.login_2,
+        password_2: decryptedSecondCreds.password_2,
+      }));
+    };
+
+    // Set form data immediately with encrypted values, then update with decrypted
     setFormData({
       name: client.name,
       phone: client.phone || '',
@@ -2776,12 +2856,12 @@ export default function Clients() {
       premium_price: (client as any).premium_price?.toString() || '',
       server_id: client.server_id || '',
       server_name: client.server_name || '',
-      login: decryptedLogin,
-      password: decryptedPassword,
+      login: '', // Will be updated by loadEditData
+      password: '', // Will be updated by loadEditData
       server_id_2: client.server_id_2 || '',
       server_name_2: client.server_name_2 || '',
-      login_2: decryptedLogin2,
-      password_2: decryptedPassword2,
+      login_2: '', // Will be updated by loadEditData
+      password_2: '', // Will be updated by loadEditData
       premium_password: client.premium_password || '',
       category: client.category || 'IPTV',
       is_paid: client.is_paid,
@@ -2801,39 +2881,9 @@ export default function Clients() {
       device_model: (client as any).device_model || '',
       has_adult_content: (client as any).has_adult_content || false,
     });
-    // Load and decrypt additional servers if client has them
-    const clientAdditionalServers = (client as any).additional_servers || [];
-    if (Array.isArray(clientAdditionalServers) && clientAdditionalServers.length > 0) {
-      const decryptedServers = await Promise.all(
-        clientAdditionalServers.map(async (server: { server_id: string; server_name: string; login: string | null; password: string | null }) => {
-          try {
-            const decryptedLogin = server.login ? await decrypt(server.login) : '';
-            const decryptedPassword = server.password ? await decrypt(server.password) : '';
-            return {
-              server_id: server.server_id,
-              server_name: server.server_name,
-              login: decryptedLogin,
-              password: decryptedPassword,
-            };
-          } catch (error) {
-            return {
-              server_id: server.server_id,
-              server_name: server.server_name,
-              login: server.login || '',
-              password: server.password || '',
-            };
-          }
-        })
-      );
-      setAdditionalServers(decryptedServers);
-    } else {
-      setAdditionalServers([]);
-    }
-    // PERF: Enable lazy queries when dialog opens
-    setPlansEnabled(true);
-    setServersEnabled(true);
-    setCategoriesEnabled(true);
-    setIsDialogOpen(true);
+
+    // Load remaining data in background (non-blocking)
+    loadEditData();
   };
 
   const handleRenew = (client: Client) => {
