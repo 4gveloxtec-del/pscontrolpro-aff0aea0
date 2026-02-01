@@ -554,29 +554,54 @@ export default function Dashboard() {
   // Uses subscription_expires_at if available, otherwise calculates from created_at + trial days
   const trialDaysFromSettings = parseInt(appSettings?.find(s => s.key === 'seller_trial_days')?.value || '5', 10);
   
+  // Debug: Log profile data to understand what's missing
+  useEffect(() => {
+    if (isSeller && profile) {
+      console.log('[Dashboard] Profile trial debug:', {
+        id: profile.id,
+        is_permanent: profile.is_permanent,
+        subscription_expires_at: profile.subscription_expires_at,
+        created_at: profile.created_at,
+        trialDaysFromSettings,
+      });
+    }
+  }, [profile, isSeller, trialDaysFromSettings]);
+  
   const subscriptionExpirationInfo = (() => {
-    if (!profile || profile.is_permanent) return null;
+    if (!profile) return null;
+    
+    // Permanent users don't show trial banner
+    if (profile.is_permanent) return null;
     
     // If has explicit subscription_expires_at, use it
     if (profile.subscription_expires_at) {
-      return {
-        expirationDate: new Date(profile.subscription_expires_at),
-        daysRemaining: differenceInDays(new Date(profile.subscription_expires_at), today),
-        isCalculatedFromCreatedAt: false,
-      };
+      const expirationDate = new Date(profile.subscription_expires_at);
+      // Validate date
+      if (!isNaN(expirationDate.getTime())) {
+        return {
+          expirationDate,
+          daysRemaining: differenceInDays(expirationDate, today),
+          isCalculatedFromCreatedAt: false,
+        };
+      }
     }
     
     // Fallback: calculate from created_at + trial days (for new users without subscription_expires_at)
     if (profile.created_at) {
       const createdAt = new Date(profile.created_at);
-      const trialEndDate = addDays(createdAt, trialDaysFromSettings);
-      return {
-        expirationDate: trialEndDate,
-        daysRemaining: differenceInDays(trialEndDate, today),
-        isCalculatedFromCreatedAt: true,
-      };
+      // Validate date
+      if (!isNaN(createdAt.getTime())) {
+        const trialEndDate = addDays(createdAt, trialDaysFromSettings);
+        return {
+          expirationDate: trialEndDate,
+          daysRemaining: differenceInDays(trialEndDate, today),
+          isCalculatedFromCreatedAt: true,
+        };
+      }
     }
     
+    // Final fallback: If we still don't have data, don't show anything
+    console.warn('[Dashboard] Could not calculate subscription info - missing dates in profile');
     return null;
   })();
   
