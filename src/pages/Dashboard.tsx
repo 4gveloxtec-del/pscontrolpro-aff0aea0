@@ -4,7 +4,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { MonthlyProfitHistory } from '@/components/dashboard/MonthlyProfitHistory';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter, MessageCircle } from 'lucide-react';
+import { Users, UserCheck, Clock, AlertTriangle, DollarSign, TrendingUp, Bell, Send, Copy, ExternalLink, Timer, Server, Archive, Smartphone, Settings, UserPlus, Eye, EyeOff, X, Filter, MessageCircle, Sparkles, Bot } from 'lucide-react';
 import { RecentAutoMessages } from '@/components/dashboard/RecentAutoMessages';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -692,53 +692,102 @@ export default function Dashboard() {
 
               {/* Renewal Info - Show when 3 days or less */}
               {needsRenewalWarning && (
-                <div className="flex flex-col gap-3 p-3 rounded-xl bg-card/80 border border-border">
-                  <p className="text-xs font-medium text-muted-foreground">Escolha seu plano:</p>
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card via-card to-muted/30 border border-border/50 shadow-lg">
+                  {/* Decorative background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 pointer-events-none" />
+                  <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
                   
-                  {/* Plan Options */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Manual Plan */}
-                    <div className="flex flex-col items-center p-3 rounded-lg border-2 border-muted bg-muted/30">
-                      <span className="text-[10px] uppercase text-muted-foreground font-medium">📱 Manual</span>
-                      <span className="text-xl font-bold text-foreground">R$ {appMonthlyPrice}</span>
-                      <span className="text-[10px] text-muted-foreground">/mês</span>
+                  <div className="relative p-4 space-y-4">
+                    {/* Header */}
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-primary/10">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">Escolha seu plano</span>
                     </div>
                     
-                    {/* WhatsApp Plan */}
-                    <div className="flex flex-col items-center p-3 rounded-lg border-2 border-primary bg-primary/10 relative">
-                      <Badge className="absolute -top-2 right-1 text-[8px] px-1.5 py-0 bg-primary">Popular</Badge>
-                      <span className="text-[10px] uppercase text-primary font-medium">🚀 Automático</span>
-                      <span className="text-xl font-bold text-primary">R$ {appWhatsAppPrice}</span>
-                      <span className="text-[10px] text-muted-foreground">/mês</span>
+                    {/* Plan Options */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Manual Plan */}
+                      <div className="group relative flex flex-col items-center p-4 rounded-xl bg-background/50 border border-border/50 hover:border-muted-foreground/30 transition-all duration-300 hover:shadow-md">
+                        <div className="absolute inset-0 bg-gradient-to-b from-muted/20 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative space-y-2 text-center">
+                          <div className="w-10 h-10 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
+                            <Bell className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Manual</span>
+                          <div className="flex items-baseline justify-center gap-0.5">
+                            <span className="text-xs text-muted-foreground">R$</span>
+                            <span className="text-2xl font-bold text-foreground">{appMonthlyPrice}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground/80">por mês</span>
+                          <p className="text-[9px] text-muted-foreground leading-tight pt-1">
+                            Notificações push
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* WhatsApp Plan - Featured */}
+                      <div className="group relative flex flex-col items-center p-4 rounded-xl bg-gradient-to-b from-primary/10 to-primary/5 border-2 border-primary/40 hover:border-primary/60 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+                        {/* Popular Badge */}
+                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                          <Badge className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-[9px] px-2.5 py-0.5 font-semibold shadow-md border-0">
+                            ⭐ Popular
+                          </Badge>
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative space-y-2 text-center pt-1">
+                          <div className="w-10 h-10 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
+                            <Bot className="h-5 w-5 text-primary" />
+                          </div>
+                          <span className="text-[11px] uppercase tracking-wider text-primary font-semibold">Automático</span>
+                          <div className="flex items-baseline justify-center gap-0.5">
+                            <span className="text-xs text-primary/70">R$</span>
+                            <span className="text-2xl font-bold text-primary">{appWhatsAppPrice}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground/80">por mês</span>
+                          <p className="text-[9px] text-primary/70 leading-tight pt-1">
+                            WhatsApp + Bot automático
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <p className="text-xs font-medium text-muted-foreground">Para renovar, envie o comprovante para:</p>
-                  
-                  {/* PIX Key */}
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 px-3 py-2 bg-muted rounded-lg text-sm font-mono truncate">
-                      {ADMIN_PIX}
-                    </code>
+                    
+                    {/* Divider */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Pagamento</span>
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                    </div>
+                    
+                    {/* PIX Section */}
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground text-center">Chave PIX para pagamento:</p>
+                      <div className="flex items-center gap-2 p-2 rounded-xl bg-muted/30 border border-border/50">
+                        <code className="flex-1 px-2 py-1.5 bg-background/50 rounded-lg text-xs font-mono truncate text-foreground">
+                          {ADMIN_PIX}
+                        </code>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={copyPixKey}
+                          className="gap-1.5 shrink-0 h-8 text-xs font-medium"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copiar
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* WhatsApp Button */}
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={copyPixKey}
-                      className="gap-1 shrink-0"
+                      onClick={openWhatsAppAdmin}
+                      className="w-full gap-2 h-11 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-600 text-white font-semibold shadow-lg shadow-green-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-green-500/30"
                     >
-                      <Copy className="h-3 w-3" />
-                      Copiar PIX
+                      <MessageCircle className="h-4 w-4" />
+                      Enviar Comprovante no WhatsApp
                     </Button>
                   </div>
-
-                  {/* WhatsApp Button */}
-                  <Button
-                    onClick={openWhatsAppAdmin}
-                    className="gap-2 bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Enviar Comprovante no WhatsApp
-                  </Button>
                 </div>
               )}
             </div>
