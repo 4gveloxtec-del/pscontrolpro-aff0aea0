@@ -153,13 +153,47 @@ export interface BotNode {
   updated_at: string;
 }
 
+// Tipos de ação para opções de menu
+export type MenuOptionActionType = 
+  | 'submenu'         // Abre um submenu (menu filho)
+  | 'message'         // Envia uma mensagem
+  | 'command'         // Executa um comando (/teste, /renovar, etc)
+  | 'goto_flow'       // Vai para outro fluxo
+  | 'goto_node'       // Vai para outro nó no mesmo fluxo
+  | 'transfer_human'  // Transfere para atendente
+  | 'end_session';    // Encerra a sessão
+
+// Opção individual de menu interativo
+export interface BotMenuOption {
+  id: string;
+  emoji?: string;
+  title: string;
+  description?: string;
+  action_type: MenuOptionActionType;
+  // Dados específicos da ação
+  submenu_options?: BotMenuOption[];  // Para submenu aninhado
+  message_text?: string;              // Para action_type = 'message'
+  command?: string;                   // Para action_type = 'command'
+  target_flow_id?: string;            // Para action_type = 'goto_flow'
+  target_node_id?: string;            // Para action_type = 'goto_node'
+}
+
 // Configurações específicas por tipo de nó
 export interface BotNodeConfig {
   // Para 'message'
   message_text?: string;
-  message_type?: 'text' | 'image' | 'document' | 'buttons';
+  message_type?: 'text' | 'image' | 'document' | 'buttons' | 'menu';
   buttons?: BotButton[];
   media_url?: string;
+  
+  // Para 'menu' interativo (novo!)
+  menu_title?: string;
+  menu_header?: string;
+  menu_footer?: string;
+  menu_options?: BotMenuOption[];
+  show_back_button?: boolean;
+  back_button_text?: string;
+  silent_on_invalid?: boolean;  // Não responder se opção inválida
   
   // Para 'input'
   variable_name?: string;
@@ -178,6 +212,8 @@ export interface BotNodeConfig {
   http_body?: string;
   variable_to_set?: string;
   variable_value?: string;
+  notification_title?: string;
+  notification_body?: string;
   
   // Para 'delay'
   delay_seconds?: number;

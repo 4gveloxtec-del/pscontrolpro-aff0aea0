@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { useBotEngineNodes } from '@/hooks/useBotEngineNodes';
+import { useBotEngineFlows } from '@/hooks/useBotEngineFlows';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,8 +41,10 @@ import {
   Check,
   ArrowRight,
   PlayCircle,
+  FolderTree,
 } from 'lucide-react';
 import type { BotNode, BotNodeType, BotNodeConfig } from '@/lib/botEngine/types';
+import { MenuNodeEditor } from './MenuNodeEditor';
 
 interface SimpleNodeEditorProps {
   flowId: string;
@@ -59,10 +62,26 @@ const NODE_TEMPLATES: Array<{
   defaultConfig: BotNodeConfig;
 }> = [
   {
+    id: 'interactive_menu',
+    emoji: '🌳',
+    title: 'Menu Interativo',
+    description: 'Menu com submenus infinitos',
+    type: 'message',
+    defaultConfig: {
+      message_type: 'menu',
+      menu_title: 'Menu Principal',
+      menu_header: '👋 Olá! Como posso ajudar?',
+      menu_footer: 'Escolha uma opção',
+      show_back_button: true,
+      back_button_text: '⬅️ Voltar',
+      menu_options: [],
+    },
+  },
+  {
     id: 'menu',
     emoji: '📋',
-    title: 'Menu de Opções',
-    description: 'Mostra opções para o cliente escolher',
+    title: 'Menu Simples (Texto)',
+    description: 'Menu tradicional em formato texto',
     type: 'message',
     defaultConfig: {
       message_text: '📋 *MENU PRINCIPAL*\n\n1️⃣ Ver Planos\n2️⃣ Teste Grátis\n3️⃣ Renovar\n4️⃣ Suporte\n\n_Digite o número da opção:_',
@@ -157,10 +176,14 @@ const NODE_STYLES: Record<BotNodeType, { emoji: string; label: string; bg: strin
 
 export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditorProps) {
   const { nodes, edges, isLoading, createNode, updateNode, deleteNode, isUpdatingNode } = useBotEngineNodes(flowId);
+  const { flows } = useBotEngineFlows();
   
   const [showTemplates, setShowTemplates] = useState(false);
   const [editingNode, setEditingNode] = useState<BotNode | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  
+  // Estado do config do nó sendo editado (para menu interativo)
+  const [editingConfig, setEditingConfig] = useState<BotNodeConfig>({});
   
   // Form states
   const [nodeName, setNodeName] = useState('');
@@ -179,6 +202,7 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
     setErrorMessage('');
     setConditionVariable('');
     setDelaySeconds(1);
+    setEditingConfig({});
   };
 
   // Criar nó a partir de template
@@ -202,6 +226,11 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
     }
   };
 
+  // Verificar se é um menu interativo
+  const isInteractiveMenu = (node: BotNode) => {
+    return node.node_type === 'message' && node.config?.message_type === 'menu';
+  };
+
   // Abrir editor de nó
   const openEditDialog = (node: BotNode) => {
     setEditingNode(node);
@@ -212,6 +241,8 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
     setErrorMessage((node.config?.error_message as string) || '');
     setConditionVariable((node.config?.condition_variable as string) || '');
     setDelaySeconds((node.config?.delay_seconds as number) || 1);
+    // Para menus interativos, carregar o config completo
+    setEditingConfig(node.config || {});
     setIsEditDialogOpen(true);
   };
 
@@ -219,27 +250,34 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
   const handleSaveEdit = async () => {
     if (!editingNode) return;
 
-    const config: BotNodeConfig = { ...editingNode.config };
+    let config: BotNodeConfig;
+    
+    // Para menus interativos, usar o editingConfig diretamente
+    if (isInteractiveMenu(editingNode)) {
+      config = { ...editingConfig };
+    } else {
+      config = { ...editingNode.config };
 
-    switch (editingNode.node_type) {
-      case 'message':
-        config.message_text = messageText;
-        break;
-      case 'input':
-        config.variable_name = variableName;
-        config.validation_type = 'option';
-        config.validation_options = validationOptions.split(',').map(s => s.trim()).filter(Boolean);
-        config.error_message = errorMessage;
-        break;
-      case 'condition':
-        config.condition_variable = conditionVariable;
-        break;
-      case 'delay':
-        config.delay_seconds = delaySeconds;
-        break;
-      case 'end':
-        config.end_message = messageText;
-        break;
+      switch (editingNode.node_type) {
+        case 'message':
+          config.message_text = messageText;
+          break;
+        case 'input':
+          config.variable_name = variableName;
+          config.validation_type = 'option';
+          config.validation_options = validationOptions.split(',').map(s => s.trim()).filter(Boolean);
+          config.error_message = errorMessage;
+          break;
+        case 'condition':
+          config.condition_variable = conditionVariable;
+          break;
+        case 'delay':
+          config.delay_seconds = delaySeconds;
+          break;
+        case 'end':
+          config.end_message = messageText;
+          break;
+      }
     }
 
     try {
@@ -286,6 +324,13 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
 
   // Extrair preview do conteúdo
   const getNodePreview = (node: BotNode): string => {
+    // Para menus interativos, mostrar quantidade de opções
+    if (isInteractiveMenu(node)) {
+      const menuOptions = (node.config?.menu_options as unknown[]) || [];
+      const title = (node.config?.menu_title as string) || 'Menu';
+      return `🌳 ${title} (${menuOptions.length} opção(ões))`;
+    }
+    
     const text = (node.config?.message_text as string) || (node.config?.end_message as string) || '';
     if (!text) {
       if (node.node_type === 'input') return `Aguarda: ${node.config?.variable_name || 'resposta'}`;
@@ -513,18 +558,23 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
 
       {/* Edit Node Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className={editingNode && isInteractiveMenu(editingNode) ? "max-w-3xl max-h-[90vh] overflow-y-auto" : "max-w-xl"}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editingNode && (
                 <>
-                  <span className="text-xl">{NODE_STYLES[editingNode.node_type]?.emoji}</span>
-                  Editar {NODE_STYLES[editingNode.node_type]?.label}
+                  <span className="text-xl">
+                    {isInteractiveMenu(editingNode) ? '🌳' : NODE_STYLES[editingNode.node_type]?.emoji}
+                  </span>
+                  {isInteractiveMenu(editingNode) ? 'Editar Menu Interativo' : `Editar ${NODE_STYLES[editingNode.node_type]?.label}`}
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
-              Personalize o conteúdo desta etapa
+              {editingNode && isInteractiveMenu(editingNode) 
+                ? 'Configure menus com submenus ilimitados'
+                : 'Personalize o conteúdo desta etapa'
+              }
             </DialogDescription>
           </DialogHeader>
 
@@ -541,8 +591,18 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
               />
             </div>
 
-            {/* Campos específicos por tipo */}
-            {editingNode?.node_type === 'message' && (
+            {/* Editor de Menu Interativo */}
+            {editingNode && isInteractiveMenu(editingNode) && (
+              <MenuNodeEditor
+                config={editingConfig}
+                onConfigChange={setEditingConfig}
+                availableFlows={flows.map(f => ({ id: f.id, name: f.name }))}
+                availableNodes={nodes.map(n => ({ id: n.id, name: n.name || 'Sem nome' }))}
+              />
+            )}
+
+            {/* Campos específicos por tipo - Mensagem simples (não menu interativo) */}
+            {editingNode?.node_type === 'message' && !isInteractiveMenu(editingNode) && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   💬 Mensagem para o Cliente
