@@ -840,8 +840,8 @@ export function SendMessageDialog({ client, open, onOpenChange, onMessageSent }:
             </TabsList>
           </Tabs>
 
-          {/* Filters - hidden on mobile for compactness */}
-          <div className="hidden sm:block space-y-3">
+          {/* Filters */}
+          <div className="space-y-2 sm:space-y-3">
             {/* Category Filter */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Categoria</Label>
