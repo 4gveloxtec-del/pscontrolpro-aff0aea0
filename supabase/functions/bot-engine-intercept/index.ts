@@ -701,7 +701,7 @@ async function getFlowMessage(
 
 /**
  * Processa entrada do usuário e determina próximo estado/resposta
- * ÚNICA FONTE: bot_engine_flows + nodes + edges
+ * ÚNICA FONTE: bot_engine_flows + nodes + edges + menu_options aninhados
  */
 async function processUserInput(
   supabase: SupabaseClient,
@@ -744,18 +744,23 @@ async function processUserInput(
   }
 
   // Encontrar nó atual por nome ou state_name
+  // O state pode incluir caminho do submenu: "MenuPrincipal:submenu_1:submenu_2"
+  const stateParts = currentState.split(':');
+  const baseNodeName = stateParts[0];
+  const submenuPath = stateParts.slice(1);
+  
   const currentNode = allNodes.find((n) => {
     const config = n.config as Record<string, unknown> || {};
     return (
-      n.name === currentState ||
-      config.state_name === currentState ||
-      (currentState === 'START' && n.node_type === 'start')
+      n.name === baseNodeName ||
+      config.state_name === baseNodeName ||
+      (baseNodeName === 'START' && n.node_type === 'start')
     );
   });
 
   if (!currentNode) {
     // Se estado é START, buscar entry point
-    if (currentState === 'START') {
+    if (baseNodeName === 'START') {
       const entryNode = allNodes.find(n => n.node_type === 'start') || 
                         allNodes.find(n => {
                           const cfg = n.config as Record<string, unknown> || {};
@@ -773,6 +778,189 @@ async function processUserInput(
     }
     console.log(`[BotIntercept] No node found for state: ${currentState}`);
     return { newState: currentState, response: null, pushToStack: false };
+  }
+
+  // =========================================================
+  // PROCESSAR MENU INTERATIVO (menu_options aninhados)
+  // =========================================================
+  const nodeConfig = currentNode.config as Record<string, unknown> || {};
+  const menuOptions = nodeConfig.menu_options as Array<{
+    id: string;
+    title: string;
+    emoji?: string;
+    description?: string;
+    action_type: string;
+    submenu_options?: unknown[];
+    message_text?: string;
+    command?: string;
+    target_flow_id?: string;
+    target_node_id?: string;
+  }>;
+  
+  if (menuOptions && menuOptions.length > 0) {
+    console.log(`[BotIntercept] Processing menu options for node ${currentNode.name}, submenu path: [${submenuPath.join(', ')}]`);
+    
+    // Navegar até o submenu correto baseado no path
+    let currentMenuOptions = menuOptions;
+    for (const submenuId of submenuPath) {
+      const parentOption = currentMenuOptions.find(opt => opt.id === submenuId);
+      if (parentOption?.submenu_options) {
+        currentMenuOptions = parentOption.submenu_options as typeof menuOptions;
+      } else {
+        console.log(`[BotIntercept] Submenu not found for path: ${submenuId}`);
+        break;
+      }
+    }
+    
+    // Verificar se o input corresponde a uma opção
+    // Aceita número (1, 2, 3...) ou ID da opção
+    let selectedOption: typeof currentMenuOptions[0] | undefined;
+    
+    if (parsed.isNumber && parsed.number !== null) {
+      // Seleção por número (1-indexed)
+      const index = parsed.number - 1;
+      if (index >= 0 && index < currentMenuOptions.length) {
+        selectedOption = currentMenuOptions[index];
+      }
+    } else {
+      // Seleção por texto (busca por título)
+      selectedOption = currentMenuOptions.find(opt => 
+        opt.title.toLowerCase() === parsed.normalized ||
+        opt.id === parsed.normalized
+      );
+    }
+    
+    if (selectedOption) {
+      console.log(`[BotIntercept] Selected menu option: ${selectedOption.title} (${selectedOption.action_type})`);
+      
+      switch (selectedOption.action_type) {
+        case 'submenu': {
+          // Navegar para o submenu - atualizar state com novo path
+          const newPath = [...submenuPath, selectedOption.id];
+          const newState = `${baseNodeName}:${newPath.join(':')}`;
+          
+          // Construir mensagem do submenu
+          const subOptions = selectedOption.submenu_options as typeof menuOptions || [];
+          const menuText = buildMenuText(
+            selectedOption.title,
+            nodeConfig.menu_header as string,
+            subOptions,
+            true // Mostrar botão voltar
+          );
+          
+          console.log(`[BotIntercept] Navigating to submenu: ${newState}`);
+          return { newState, response: menuText, pushToStack: true };
+        }
+        
+        case 'message': {
+          // Enviar mensagem e voltar ao menu atual
+          const response = selectedOption.message_text || 'Mensagem recebida!';
+          return { newState: currentState, response, pushToStack: false };
+        }
+        
+        case 'command': {
+          // Executar comando via delegação
+          const command = selectedOption.command || '';
+          console.log(`[BotIntercept] Delegating command: ${command}`);
+          
+          // Comandos que precisam de processamento especial
+          if (command.toLowerCase().includes('teste') || command === '/teste') {
+            // Gerar teste - delegar para o handler de teste
+            return { 
+              newState: 'GERANDO_TESTE', 
+              response: '⏳ Gerando seu teste... aguarde um momento!',
+              pushToStack: true
+            };
+          }
+          
+          // Para outros comandos, retornar mensagem indicando execução
+          return { 
+            newState: currentState, 
+            response: `⚡ Comando "${command}" executado!`,
+            pushToStack: false
+          };
+        }
+        
+        case 'transfer_human': {
+          return { 
+            newState: 'AGUARDANDO_HUMANO', 
+            response: '👤 Você será atendido por um de nossos atendentes em breve. Aguarde!',
+            pushToStack: true
+          };
+        }
+        
+        case 'end_session': {
+          return { 
+            newState: 'ENCERRADO', 
+            response: '👋 Atendimento encerrado. Até logo!',
+            pushToStack: false
+          };
+        }
+        
+        case 'goto_node': {
+          const targetNode = allNodes.find(n => n.id === selectedOption.target_node_id);
+          if (targetNode) {
+            const targetConfig = targetNode.config as Record<string, unknown> || {};
+            return { 
+              newState: targetNode.name || 'START', 
+              response: (targetConfig.message_text as string) || null,
+              pushToStack: true
+            };
+          }
+          break;
+        }
+        
+        case 'goto_flow': {
+          // TODO: Implementar navegação para outro fluxo
+          console.log(`[BotIntercept] goto_flow not yet implemented: ${selectedOption.target_flow_id}`);
+          return { newState: currentState, response: null, pushToStack: false };
+        }
+      }
+    }
+    
+    // Verificar se é comando de voltar (0) dentro de submenu
+    if (parsed.normalized === '0' && submenuPath.length > 0) {
+      // Voltar um nível no submenu
+      const newPath = submenuPath.slice(0, -1);
+      const newState = newPath.length > 0 ? `${baseNodeName}:${newPath.join(':')}` : baseNodeName;
+      
+      // Reconstruir menu do nível anterior
+      let parentMenuOptions = menuOptions;
+      for (const submenuId of newPath) {
+        const parentOption = parentMenuOptions.find(opt => opt.id === submenuId);
+        if (parentOption?.submenu_options) {
+          parentMenuOptions = parentOption.submenu_options as typeof menuOptions;
+        }
+      }
+      
+      const menuTitle = newPath.length > 0 
+        ? parentMenuOptions[0]?.title || 'Menu'
+        : (nodeConfig.menu_title as string) || 'Menu Principal';
+      
+      const menuText = buildMenuText(
+        menuTitle,
+        nodeConfig.menu_header as string,
+        parentMenuOptions,
+        newPath.length > 0
+      );
+      
+      console.log(`[BotIntercept] Going back to: ${newState}`);
+      return { newState, response: menuText, pushToStack: false };
+    }
+    
+    // Opção não encontrada - verificar se deve ficar silencioso
+    if (nodeConfig.silent_on_invalid) {
+      console.log(`[BotIntercept] Invalid option, staying silent (silent_on_invalid=true)`);
+      return { newState: currentState, response: null, pushToStack: false };
+    }
+    
+    // Retornar mensagem de erro padrão
+    console.log(`[BotIntercept] Invalid menu option: ${parsed.normalized}`);
+    return { 
+      newState: currentState, 
+      response: 'Opção inválida. Por favor, escolha uma das opções do menu.',
+      pushToStack: false
+    };
   }
 
   // =========================================================
@@ -847,6 +1035,34 @@ async function processUserInput(
   // =========================================================
   console.log(`[BotIntercept] No matching edge for input "${parsed.normalized}" - staying silent`);
   return { newState: currentState, response: null, pushToStack: false };
+}
+
+/**
+ * Constrói texto de menu a partir das opções
+ */
+function buildMenuText(
+  title: string,
+  header: string | undefined,
+  options: Array<{ title: string; emoji?: string; description?: string }>,
+  showBackButton: boolean = false
+): string {
+  let text = header ? `${header}\n\n` : '';
+  text += `*${title}*\n\n`;
+  
+  options.forEach((opt, index) => {
+    const emoji = opt.emoji || `${index + 1}️⃣`;
+    text += `${emoji} ${opt.title}`;
+    if (opt.description) {
+      text += ` - ${opt.description}`;
+    }
+    text += '\n';
+  });
+  
+  if (showBackButton) {
+    text += '\n0️⃣ Voltar';
+  }
+  
+  return text.trim();
 }
 
 /**
