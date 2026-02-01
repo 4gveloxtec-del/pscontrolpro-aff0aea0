@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Copy,
   Globe,
+  ScrollText,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -57,6 +58,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SimpleNodeEditor } from '@/components/botEngine/SimpleNodeEditor';
+import { BotEngineLogs } from '@/components/BotEngineLogs';
 
 export default function BotEngine() {
   const { user } = useAuth();
@@ -432,6 +434,10 @@ export default function BotEngine() {
           <TabsTrigger value="flows" className="gap-2">
             <Workflow className="h-4 w-4" />
             Fluxos
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2">
+            <ScrollText className="h-4 w-4" />
+            Logs
           </TabsTrigger>
         </TabsList>
 
@@ -909,6 +915,11 @@ export default function BotEngine() {
               })()}
             </>
           )}
+        </TabsContent>
+
+        {/* Logs Tab */}
+        <TabsContent value="logs" className="space-y-4">
+          <BotEngineLogs />
         </TabsContent>
       </Tabs>
 
