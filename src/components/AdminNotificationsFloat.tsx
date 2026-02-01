@@ -164,34 +164,35 @@ export function AdminNotificationsFloat() {
 
       {/* Notification Panel */}
       {isOpen && (
-        <div className="w-80 max-h-[70vh] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+        <div className="w-[calc(100vw-2rem)] xs:w-80 max-h-[70vh] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary/20 to-primary/10 px-4 py-3 flex items-center justify-between border-b border-border">
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-sm">Avisos do Sistema</span>
+          <div className="bg-gradient-to-r from-primary/20 to-primary/10 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between border-b border-border gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+              <span className="font-semibold text-xs sm:text-sm truncate">Avisos</span>
               {unreadCount > 0 && (
-                <Badge variant="destructive" className="text-xs">{unreadCount}</Badge>
+                <Badge variant="destructive" className="text-[10px] sm:text-xs">{unreadCount}</Badge>
               )}
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-shrink-0">
               {unreadCount > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-6 sm:h-7 text-[10px] sm:text-xs px-1.5 sm:px-2"
                   onClick={markAllAsRead}
                 >
-                  Marcar lidas
+                  <span className="hidden xs:inline">Marcar lidas</span>
+                  <span className="xs:hidden">✓</span>
                 </Button>
               )}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6 sm:h-7 sm:w-7"
                 onClick={() => setIsOpen(false)}
               >
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
           </div>

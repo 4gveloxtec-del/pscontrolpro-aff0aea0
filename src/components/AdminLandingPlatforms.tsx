@@ -215,29 +215,30 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-5 w-5" />
+      <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 sm:h-10 sm:w-10">
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
-          <div>
-            <h2 className="text-xl font-bold">Plataformas da Landing Page</h2>
-            <p className="text-sm text-muted-foreground">
-              Gerencie as plataformas exibidas na página inicial
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-bold truncate">Plataformas da Landing</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Gerencie as plataformas da página inicial
             </p>
           </div>
         </div>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar
+            <Button className="w-full xs:w-auto h-8 sm:h-10 text-sm">
+              <Plus className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Adicionar</span>
+              <span className="xs:hidden">Novo</span>
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:max-w-md p-3 sm:p-6">
             <DialogHeader>
               <DialogTitle>Nova Plataforma</DialogTitle>
             </DialogHeader>
@@ -301,7 +302,7 @@ export function AdminLandingPlatforms({ onBack }: AdminLandingPlatformsProps) {
       </div>
 
       {/* Platforms Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3">
         {platforms?.map((platform) => (
           <Card key={platform.id} className="overflow-hidden">
             <CardHeader className="pb-2">

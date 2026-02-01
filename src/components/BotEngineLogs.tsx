@@ -447,25 +447,26 @@ export function BotEngineLogs() {
 
       {/* Confirm Delete Dialog */}
       <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:max-w-md p-3 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="text-destructive">
+            <DialogTitle className="text-destructive text-base sm:text-lg">
               {clearType === 'all' ? 'Limpar Todas as Sessões' : 'Excluir Sessão'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               {clearType === 'all' 
-                ? 'Tem certeza que deseja excluir TODAS as sessões e logs de mensagens? Esta ação é irreversível.'
-                : 'Tem certeza que deseja excluir esta sessão e seus logs de mensagens?'
+                ? 'Excluir TODAS as sessões e logs? Ação irreversível.'
+                : 'Excluir esta sessão e seus logs?'
               }
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               onClick={() => {
                 setShowClearConfirm(false);
                 setSessionToDelete(null);
               }}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
@@ -473,14 +474,22 @@ export function BotEngineLogs() {
               variant="destructive"
               onClick={confirmDelete}
               disabled={deleteSessionMutation.isPending || deleteAllSessionsMutation.isPending}
+              className="w-full sm:w-auto"
             >
               {(deleteSessionMutation.isPending || deleteAllSessionsMutation.isPending) ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Excluindo...
+                  <Loader2 className="h-4 w-4 animate-spin mr-1 sm:mr-2" />
+                  <span className="hidden xs:inline">Excluindo...</span>
+                  <span className="xs:hidden">...</span>
                 </>
               ) : (
-                'Excluir'
+                <>
+                  <Trash2 className="h-4 w-4 mr-1 sm:mr-2" />
+                  <span className="hidden xs:inline">
+                    {clearType === 'all' ? 'Limpar Tudo' : 'Excluir'}
+                  </span>
+                  <span className="xs:hidden">Excluir</span>
+                </>
               )}
             </Button>
           </DialogFooter>
