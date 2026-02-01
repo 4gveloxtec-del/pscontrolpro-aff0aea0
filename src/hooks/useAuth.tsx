@@ -883,15 +883,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Calcular período de teste/assinatura
   // IMPORTANTE: Usa startOfToday() para cálculo correto dos dias restantes
   const trialInfo = (() => {
-    if (!profile) {
-      return { isInTrial: false, daysRemaining: 0, trialExpired: false };
-    }
-    
-    // Permanentes nunca estão em trial
-    if (profile.is_permanent) {
-      return { isInTrial: false, daysRemaining: 999, trialExpired: false };
-    }
-    
     // Helper para parsing seguro de datas (evita off-by-one de timezone)
     const safeParseDate = (dateStr: string) => {
       const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T12:00:00` : dateStr;
@@ -902,6 +893,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Usa meio-dia de hoje como referência para evitar problemas de timezone
     const today = new Date();
     today.setHours(12, 0, 0, 0);
+    
+    // Se o profile ainda não carregou, ainda conseguimos calcular um trial básico
+    // baseado no created_at do usuário (evita banner/rotas “sumirem” durante o fetch).
+    if (!profile) {
+      const createdAt = user?.created_at ? safeParseDate(user.created_at) : null;
+      if (!createdAt) {
+        return { isInTrial: false, daysRemaining: 0, trialExpired: false };
+      }
+
+      const trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      trialEndDate.setHours(12, 0, 0, 0);
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const daysRemainingRaw = Math.round((trialEndDate.getTime() - today.getTime()) / msPerDay);
+      const isExpired = daysRemainingRaw < 0;
+
+      return {
+        isInTrial: !isExpired,
+        daysRemaining: Math.max(0, daysRemainingRaw),
+        trialExpired: isExpired,
+        trialEndDate,
+      };
+    }
+    
+    // Permanentes nunca estão em trial
+    if (profile.is_permanent) {
+      return { isInTrial: false, daysRemaining: 999, trialExpired: false };
+    }
     
     let trialEndDate: Date | null = null;
     
