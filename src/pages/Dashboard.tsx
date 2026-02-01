@@ -393,7 +393,8 @@ export default function Dashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const appMonthlyPrice = appSettings?.find(s => s.key === 'app_monthly_price')?.value || '25';
+  const appMonthlyPrice = appSettings?.find(s => s.key === 'app_monthly_price')?.value || '20';
+  const appWhatsAppPrice = appSettings?.find(s => s.key === 'app_whatsapp_price')?.value || '35';
   const gerenciaAppPanelUrl = appSettings?.find(s => s.key === 'gerencia_app_panel_url')?.value || '';
   const gerenciaAppRegisterUrl = appSettings?.find(s => s.key === 'gerencia_app_register_url')?.value || '';
 
@@ -691,11 +692,27 @@ export default function Dashboard() {
 
               {/* Renewal Info - Show when 3 days or less */}
               {needsRenewalWarning && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl bg-card/80 border border-border">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs font-medium text-muted-foreground">Valor da renovação:</p>
-                    <p className="text-lg font-bold text-primary">R$ {appMonthlyPrice},00/mês</p>
+                <div className="flex flex-col gap-3 p-3 rounded-xl bg-card/80 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground">Escolha seu plano:</p>
+                  
+                  {/* Plan Options */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Manual Plan */}
+                    <div className="flex flex-col items-center p-3 rounded-lg border-2 border-muted bg-muted/30">
+                      <span className="text-[10px] uppercase text-muted-foreground font-medium">📱 Manual</span>
+                      <span className="text-xl font-bold text-foreground">R$ {appMonthlyPrice}</span>
+                      <span className="text-[10px] text-muted-foreground">/mês</span>
+                    </div>
+                    
+                    {/* WhatsApp Plan */}
+                    <div className="flex flex-col items-center p-3 rounded-lg border-2 border-primary bg-primary/10 relative">
+                      <Badge className="absolute -top-2 right-1 text-[8px] px-1.5 py-0 bg-primary">Popular</Badge>
+                      <span className="text-[10px] uppercase text-primary font-medium">🚀 Automático</span>
+                      <span className="text-xl font-bold text-primary">R$ {appWhatsAppPrice}</span>
+                      <span className="text-[10px] text-muted-foreground">/mês</span>
+                    </div>
                   </div>
+                  
                   <p className="text-xs font-medium text-muted-foreground">Para renovar, envie o comprovante para:</p>
                   
                   {/* PIX Key */}
