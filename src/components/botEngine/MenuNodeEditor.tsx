@@ -231,12 +231,17 @@ export function MenuNodeEditor({
   
   // Opções atuais (baseado na navegação)
   const getCurrentOptions = useCallback((): BotMenuOption[] => {
-    let options = config.menu_options || [];
+    // Garantir que menu_options é um array válido
+    let options: BotMenuOption[] = Array.isArray(config.menu_options) 
+      ? config.menu_options 
+      : [];
+    
     for (const nav of navigationPath) {
       const parent = options.find(o => o.id === nav.id);
-      if (parent && parent.submenu_options) {
+      if (parent && Array.isArray(parent.submenu_options)) {
         options = parent.submenu_options;
       } else {
+        // Se o caminho ficou inválido, resetar navegação
         break;
       }
     }
