@@ -54,7 +54,7 @@ interface ServerData {
 }
 
 export default function Dashboard() {
-  const { user, profile, isAdmin, isSeller } = useAuth();
+  const { user, profile, isAdmin, isSeller, trialInfo } = useAuth();
   const { isPrivacyMode, maskData, isMoneyHidden, toggleMoneyVisibility, isClientNumbersHidden, toggleClientNumbersVisibility } = usePrivacyMode();
   const [messageClient, setMessageClient] = useState<Client | null>(null);
   const [expirationFilter, setExpirationFilter] = useState<number | null>(null);
@@ -554,19 +554,6 @@ export default function Dashboard() {
   // Uses subscription_expires_at if available, otherwise calculates from created_at + trial days
   const trialDaysFromSettings = parseInt(appSettings?.find(s => s.key === 'seller_trial_days')?.value || '5', 10);
   
-  // Debug: Log profile data to understand what's missing
-  useEffect(() => {
-    if (isSeller && profile) {
-      console.log('[Dashboard] Profile trial debug:', {
-        id: profile.id,
-        is_permanent: profile.is_permanent,
-        subscription_expires_at: profile.subscription_expires_at,
-        created_at: profile.created_at,
-        trialDaysFromSettings,
-      });
-    }
-  }, [profile, isSeller, trialDaysFromSettings]);
-  
   const subscriptionExpirationInfo = (() => {
     if (!profile) return null;
     
@@ -605,11 +592,18 @@ export default function Dashboard() {
     return null;
   })();
   
-  const subscriptionDaysRemaining = subscriptionExpirationInfo?.daysRemaining ?? null;
-  const subscriptionExpirationDate = subscriptionExpirationInfo?.expirationDate ?? null;
+  // Use trialInfo from useAuth as primary source (consistent across app)
+  // Fall back to local calculation if trialInfo is not available
+  const subscriptionDaysRemaining = trialInfo.daysRemaining > 0 || trialInfo.trialEndDate
+    ? trialInfo.daysRemaining 
+    : subscriptionExpirationInfo?.daysRemaining ?? null;
+  const subscriptionExpirationDate = trialInfo.trialEndDate || subscriptionExpirationInfo?.expirationDate || null;
   
   const isOnTrial = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= trialDaysFromSettings && subscriptionDaysRemaining >= 0;
   const needsRenewalWarning = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= 3 && !profile?.is_permanent;
+  
+  // Show banner for any authenticated non-admin, non-permanent user
+  const shouldShowTrialBanner = !isAdmin && profile && !profile.is_permanent && subscriptionDaysRemaining !== null;
 
   const copyPixKey = () => {
     navigator.clipboard.writeText(ADMIN_PIX);
@@ -624,7 +618,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Subscription Counter Banner */}
-      {isSeller && !profile?.is_permanent && subscriptionDaysRemaining !== null && (
+      {shouldShowTrialBanner && (
         <Card className={cn(
           "border-2 overflow-hidden",
           subscriptionDaysRemaining <= 0 ? "border-destructive bg-destructive/10" :

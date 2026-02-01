@@ -588,7 +588,8 @@ export default function Settings() {
           description="Editar informações pessoais"
           onClick={() => setShowProfile(true)}
         />
-        {isSeller && (
+        {/* Show expiration for any non-admin user */}
+        {!isAdmin && (
           <SettingItem
             icon={Calendar}
             title="Vencimento"
