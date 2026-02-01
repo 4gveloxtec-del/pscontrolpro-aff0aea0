@@ -124,6 +124,7 @@ interface BotInterceptRequest {
   sender_phone: string;
   message_text: string;
   instance_name?: string;
+  contact_name?: string; // Nome do contato (pushName do WhatsApp)
 }
 
 interface BotInterceptResponse {
@@ -181,6 +182,106 @@ const GLOBAL_COMMANDS = [
   { keywords: ['sair', 'exit', 'encerrar', 'tchau', 'bye', 'fim'], action: 'sair', priority: 70 },
   { keywords: ['humano', 'atendente', 'pessoa', 'suporte', 'falar com alguem'], action: 'humano', priority: 60 },
 ];
+
+// =====================================================================
+// INTERPOLAÇÃO DE VARIÁVEIS - MENSAGENS PERSONALIZADAS
+// =====================================================================
+
+/**
+ * Interpola variáveis no texto
+ * Suporta múltiplos formatos:
+ * - {{variavel}} - formato padrão
+ * - {variavel} - formato simplificado
+ * - %variavel% - formato legado
+ * 
+ * Variáveis especiais:
+ * - {primeiro_nome} / {first_name} - primeiro nome do contato
+ * - {nome} / {name} - nome completo do contato
+ * - {empresa} / {company} - nome da empresa do revendedor
+ * - {telefone} / {phone} - telefone do contato
+ */
+function interpolateVariables(text: string, variables: Record<string, string | undefined>): string {
+  let result = text;
+  
+  // Criar mapa expandido com aliases
+  const expandedVars: Record<string, string | undefined> = { ...variables };
+  
+  // Aliases de variáveis
+  const aliases: Record<string, string[]> = {
+    primeiro_nome: ['first_name', 'firstName'],
+    nome: ['name', 'contact_name', 'contactName'],
+    empresa: ['company', 'company_name', 'companyName'],
+    telefone: ['phone', 'contact_phone', 'contactPhone'],
+  };
+  
+  // Propagar valores entre aliases
+  for (const [canonical, aliasList] of Object.entries(aliases)) {
+    if (expandedVars[canonical] !== undefined) {
+      for (const alias of aliasList) {
+        if (expandedVars[alias] === undefined) {
+          expandedVars[alias] = expandedVars[canonical];
+        }
+      }
+    } else {
+      for (const alias of aliasList) {
+        if (expandedVars[alias] !== undefined) {
+          expandedVars[canonical] = expandedVars[alias];
+          break;
+        }
+      }
+    }
+  }
+  
+  // Extrair primeiro nome se temos nome completo
+  if (expandedVars.nome && !expandedVars.primeiro_nome) {
+    expandedVars.primeiro_nome = expandedVars.nome.split(' ')[0];
+    expandedVars.first_name = expandedVars.primeiro_nome;
+  }
+  
+  // Substituir formato {{variavel}}
+  result = result.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+    const value = expandedVars[varName];
+    if (value === undefined || value === null) return match;
+    return String(value);
+  });
+  
+  // Substituir formato {variavel}
+  result = result.replace(/\{(\w+)\}/g, (match, varName) => {
+    const value = expandedVars[varName];
+    if (value === undefined || value === null) return match;
+    return String(value);
+  });
+  
+  // Substituir formato %variavel%
+  result = result.replace(/%(\w+)%/g, (match, varName) => {
+    const value = expandedVars[varName];
+    if (value === undefined || value === null) return match;
+    return String(value);
+  });
+  
+  return result;
+}
+
+/**
+ * Busca o perfil do revendedor para obter informações como nome da empresa
+ */
+async function fetchSellerProfile(
+  supabase: SupabaseClient,
+  sellerId: string
+): Promise<{ company_name?: string; full_name?: string; pix_key?: string } | null> {
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('company_name, full_name, pix_key')
+      .eq('id', sellerId)
+      .maybeSingle();
+    
+    return data;
+  } catch (error) {
+    console.error('[BotIntercept] Error fetching seller profile:', error);
+    return null;
+  }
+}
 
 // =====================================================================
 // SISTEMA ANTI-DUPLICAÇÃO - LOCK ATÔMICO + HASH DE MENSAGEM
@@ -1281,8 +1382,31 @@ Deno.serve(async (req) => {
         
         if (shouldSendWelcome) {
           console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE`);
-          console.log(`[BotIntercept] Message: "${welcomeMessage}"`);
-          responseMessage = welcomeMessage;
+          
+          // Buscar perfil do revendedor para variáveis
+          const sellerProfile = await fetchSellerProfile(supabase, sellerId);
+          const customVars = (config.custom_variables as Record<string, string>) || {};
+          
+          // Montar variáveis para interpolação
+          const messageVars: Record<string, string | undefined> = {
+            // Variáveis do contato (usa push_name se disponível, senão telefone)
+            nome: input.contact_name || `Cliente ${userId.slice(-4)}`,
+            primeiro_nome: input.contact_name ? input.contact_name.split(' ')[0] : `Cliente`,
+            telefone: userId,
+            phone: userId,
+            // Variáveis do revendedor
+            empresa: customVars.empresa || sellerProfile?.company_name || sellerProfile?.full_name || 'Sua Revenda',
+            company: customVars.empresa || sellerProfile?.company_name || sellerProfile?.full_name || 'Sua Revenda',
+            pix: sellerProfile?.pix_key || '',
+            // Variáveis customizadas do config
+            ...customVars,
+          };
+          
+          console.log(`[BotIntercept] Interpolation vars:`, JSON.stringify(messageVars));
+          
+          // Interpolar variáveis na mensagem
+          responseMessage = interpolateVariables(welcomeMessage, messageVars);
+          console.log(`[BotIntercept] Final message: "${responseMessage}"`);
           newState = 'START';
           
           const { error: upsertError } = await supabase

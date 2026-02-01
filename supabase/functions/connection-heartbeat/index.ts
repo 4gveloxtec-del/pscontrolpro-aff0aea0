@@ -1448,6 +1448,7 @@ Deno.serve(async (req: Request) => {
                   sender_phone: senderPhone,
                   message_text: messageText,
                   instance_name: instanceName,    // Para auditoria/logs
+                  contact_name: msg.pushName || undefined, // Nome do contato (pushName)
                 }),
               });
               
