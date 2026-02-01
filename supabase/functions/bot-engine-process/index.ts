@@ -60,6 +60,7 @@ interface BotEdge {
 
 interface BotSession {
   id: string;
+  seller_id: string;
   flow_id: string | null;
   current_node_id: string | null;
   variables: Record<string, unknown>;
@@ -216,6 +217,48 @@ async function processNode(
         if (varToSet) {
           variables[varToSet] = interpolateVariables(varValue || '', variables);
           sessionUpdates.variables = variables;
+        }
+      } else if (actionType === 'send_notification') {
+        // Enviar notificação push/interna para o seller
+        const notificationTitle = config.notification_title as string || 'Nova Notificação';
+        const notificationBody = interpolateVariables(config.notification_body as string || '', variables);
+        const notificationType = config.notification_type as string || 'bot_action';
+        
+        console.log(`[BotEngine] Sending notification: ${notificationTitle} - ${notificationBody}`);
+        
+        // Inserir notificação no banco (para push notifications)
+        try {
+          // Buscar telefone do contato da sessão
+          const contactPhone = variables.phone as string || '';
+          const contactName = variables.name as string || 'Cliente';
+          
+          // Chamar edge function de push notification
+          const notifyResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
+            },
+            body: JSON.stringify({
+              seller_id: session.seller_id,
+              title: notificationTitle,
+              body: `${notificationBody}\n📱 ${contactName} (${contactPhone})`,
+              data: {
+                type: notificationType,
+                contact_phone: contactPhone,
+                contact_name: contactName,
+                session_id: session.id
+              }
+            })
+          });
+          
+          if (!notifyResponse.ok) {
+            console.error('[BotEngine] Failed to send push notification:', await notifyResponse.text());
+          } else {
+            console.log('[BotEngine] Push notification sent successfully');
+          }
+        } catch (notifyError) {
+          console.error('[BotEngine] Error sending notification:', notifyError);
         }
       } else if (actionType === 'http_request') {
         // TODO: Implementar chamadas HTTP
