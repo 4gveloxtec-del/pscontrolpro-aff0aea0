@@ -595,6 +595,7 @@ export type Database = {
           timezone: string | null
           typing_simulation: boolean | null
           updated_at: string | null
+          use_text_menus: boolean | null
           welcome_cooldown_hours: number | null
           welcome_media_type: string | null
           welcome_media_url: string | null
@@ -626,6 +627,7 @@ export type Database = {
           timezone?: string | null
           typing_simulation?: boolean | null
           updated_at?: string | null
+          use_text_menus?: boolean | null
           welcome_cooldown_hours?: number | null
           welcome_media_type?: string | null
           welcome_media_url?: string | null
@@ -657,6 +659,7 @@ export type Database = {
           timezone?: string | null
           typing_simulation?: boolean | null
           updated_at?: string | null
+          use_text_menus?: boolean | null
           welcome_cooldown_hours?: number | null
           welcome_media_type?: string | null
           welcome_media_url?: string | null

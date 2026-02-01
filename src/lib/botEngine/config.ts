@@ -83,6 +83,9 @@ function normalizeConfig(data: Record<string, unknown>): BotEngineConfig {
     // Menu
     main_menu_key: data.main_menu_key as string ?? 'main',
     
+    // Modo de exibição de menus
+    use_text_menus: data.use_text_menus as boolean ?? false,
+    
     // Timeouts
     default_timeout_minutes: data.default_timeout_minutes as number ?? 30,
     session_expire_minutes: data.session_expire_minutes as number ?? 60,
@@ -232,6 +235,7 @@ Escolha uma opção:
     welcome_media_type: 'none',
     fallback_message: 'Desculpe, não entendi. Digite *menu* para ver as opções.',
     main_menu_key: 'main',
+    use_text_menus: false,
     business_hours_enabled: false,
     business_hours_start: '08:00',
     business_hours_end: '22:00',
