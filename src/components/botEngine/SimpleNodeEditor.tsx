@@ -57,21 +57,15 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
   const [nodeName, setNodeName] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Encontrar o nó de menu principal (entry point ou primeiro nó de menu)
+  // Encontrar o nó de menu principal (entry point ou primeiro nó)
   const findMainMenuNode = (): BotNode | null => {
-    // Primeiro, procurar entry point que seja menu
-    const entryMenu = nodes.find(n => 
-      n.is_entry_point && n.config?.message_type === 'menu'
-    );
-    if (entryMenu) return entryMenu;
+    // Primeiro, procurar entry point
+    const entryPoint = nodes.find(n => n.is_entry_point);
+    if (entryPoint) return entryPoint;
 
     // Depois, qualquer nó de menu
     const anyMenu = nodes.find(n => n.config?.message_type === 'menu');
     if (anyMenu) return anyMenu;
-
-    // Depois, entry point normal
-    const entryPoint = nodes.find(n => n.is_entry_point);
-    if (entryPoint) return entryPoint;
 
     // Por último, primeiro nó
     return nodes[0] || null;

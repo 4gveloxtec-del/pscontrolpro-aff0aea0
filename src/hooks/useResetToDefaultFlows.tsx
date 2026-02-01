@@ -339,13 +339,13 @@ export function useResetToDefaultFlows() {
         .insert({
           flow_id: flow.id,
           seller_id: user.id,
-          node_type: 'menu',
-          name: 'START',
+          node_type: 'message',
+          name: '🌳 Menu Principal',
           is_entry_point: true,
           config: {
+            message_type: 'menu',
             message_text: IPTV_MAIN_MENU.message_text,
             menu_options: IPTV_MAIN_MENU.menu_options,
-            menu_type: 'interactive',
             menu_title: 'Menu Principal',
             show_back_button: true,
             back_button_text: '↩️ Voltar',
