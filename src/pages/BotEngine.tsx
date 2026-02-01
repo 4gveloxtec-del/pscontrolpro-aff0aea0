@@ -154,8 +154,32 @@ export default function BotEngine() {
   const [outsideHoursMessage, setOutsideHoursMessage] = useState(config?.outside_hours_message || '');
 
   // Advanced settings states
-  const [welcomeCooldownHours, setWelcomeCooldownHours] = useState(config?.welcome_cooldown_hours ?? 24);
+  const [welcomeEnabled, setWelcomeEnabled] = useState(true); // Nova opção para ativar/desativar boas-vindas
+  const [welcomeCooldownValue, setWelcomeCooldownValue] = useState(config?.welcome_cooldown_hours ?? 24);
+  const [welcomeCooldownUnit, setWelcomeCooldownUnit] = useState<'seconds' | 'minutes' | 'hours' | 'days'>('hours');
   const [suppressFallbackFirstContact, setSuppressFallbackFirstContact] = useState(config?.suppress_fallback_first_contact ?? true);
+
+  // Converter para horas baseado na unidade selecionada
+  const calculateCooldownHours = (value: number, unit: typeof welcomeCooldownUnit): number => {
+    switch (unit) {
+      case 'seconds': return value / 3600;
+      case 'minutes': return value / 60;
+      case 'hours': return value;
+      case 'days': return value * 24;
+      default: return value;
+    }
+  };
+
+  // Converter de horas para a unidade selecionada (para exibir)
+  const hoursToUnit = (hours: number, unit: typeof welcomeCooldownUnit): number => {
+    switch (unit) {
+      case 'seconds': return Math.round(hours * 3600);
+      case 'minutes': return Math.round(hours * 60);
+      case 'hours': return hours;
+      case 'days': return Math.round(hours / 24);
+      default: return hours;
+    }
+  };
 
   // Update form when config loads or activeFlowFirstMessage changes
   useEffect(() => {
@@ -170,7 +194,30 @@ export default function BotEngine() {
       setBusinessHoursEnd(config.business_hours_end || '22:00');
       setBusinessDays(config.business_days || [1, 2, 3, 4, 5, 6]);
       setOutsideHoursMessage(config.outside_hours_message || '');
-      setWelcomeCooldownHours(config.welcome_cooldown_hours ?? 24);
+      
+      // Detectar se boas-vindas está desativada (cooldown muito alto = desativado)
+      const cooldownHours = config.welcome_cooldown_hours ?? 24;
+      if (cooldownHours >= 99999) {
+        setWelcomeEnabled(false);
+        setWelcomeCooldownValue(24);
+        setWelcomeCooldownUnit('hours');
+      } else {
+        setWelcomeEnabled(true);
+        // Detectar melhor unidade baseado no valor
+        if (cooldownHours >= 24 && cooldownHours % 24 === 0) {
+          setWelcomeCooldownValue(cooldownHours / 24);
+          setWelcomeCooldownUnit('days');
+        } else if (cooldownHours >= 1) {
+          setWelcomeCooldownValue(cooldownHours);
+          setWelcomeCooldownUnit('hours');
+        } else if (cooldownHours * 60 >= 1) {
+          setWelcomeCooldownValue(Math.round(cooldownHours * 60));
+          setWelcomeCooldownUnit('minutes');
+        } else {
+          setWelcomeCooldownValue(Math.round(cooldownHours * 3600));
+          setWelcomeCooldownUnit('seconds');
+        }
+      }
       setSuppressFallbackFirstContact(config.suppress_fallback_first_contact ?? true);
     } else if (activeFlowFirstMessage) {
       // Se ainda não tem config mas tem fluxo ativo, usar a mensagem do fluxo
@@ -356,6 +403,11 @@ export default function BotEngine() {
     
     setIsSaving(true);
     try {
+      // Se boas-vindas desativada, usar cooldown muito alto (99999 horas = ~11 anos)
+      const cooldownHours = welcomeEnabled 
+        ? calculateCooldownHours(welcomeCooldownValue, welcomeCooldownUnit)
+        : 99999;
+
       await upsertConfig({
         is_enabled: isEnabled,
         welcome_message: welcomeMessage,
@@ -365,7 +417,7 @@ export default function BotEngine() {
         business_hours_end: businessHoursEnd,
         business_days: businessDays,
         outside_hours_message: outsideHoursMessage,
-        welcome_cooldown_hours: welcomeCooldownHours,
+        welcome_cooldown_hours: cooldownHours,
         suppress_fallback_first_contact: suppressFallbackFirstContact,
       });
       toast.success('Configurações salvas com sucesso!');
@@ -555,7 +607,34 @@ export default function BotEngine() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
+              {/* Switch para ativar/desativar mensagem de boas-vindas */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="welcome-enabled"
+                    checked={welcomeEnabled}
+                    onCheckedChange={setWelcomeEnabled}
+                  />
+                  <Label htmlFor="welcome-enabled" className="font-medium">
+                    Mensagem de Boas-vindas Ativa
+                  </Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Se desativada, nenhuma mensagem de boas-vindas será enviada automaticamente. O fluxo será acionado por comandos ou palavras-chave.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Badge variant={welcomeEnabled ? 'default' : 'secondary'}>
+                  {welcomeEnabled ? 'Ativada' : 'Desativada'}
+                </Badge>
+              </div>
+
+              <div className={`space-y-2 ${!welcomeEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="welcome-message">Mensagem de Boas-vindas</Label>
                   {activeFlowFirstMessage && (
@@ -573,7 +652,7 @@ export default function BotEngine() {
                         <p>
                           {activeFlowFirstMessage 
                             ? 'Esta mensagem é sincronizada automaticamente com a primeira mensagem do fluxo ativo.'
-                            : `Enviada quando um cliente inicia a conversa (uma vez a cada ${welcomeCooldownHours}h)`
+                            : 'Enviada quando um cliente inicia a conversa pela primeira vez ou após o tempo de cooldown'
                           }
                         </p>
                       </TooltipContent>
@@ -589,23 +668,40 @@ export default function BotEngine() {
                   readOnly={!!activeFlowFirstMessage}
                   className={activeFlowFirstMessage ? 'bg-muted cursor-not-allowed' : ''}
                 />
-                <div className="flex items-center gap-4 mt-2">
+                
+                {/* Controle de cooldown com seletor de unidade */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-3 p-3 rounded-lg bg-muted/30 border">
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="cooldown-hours" className="text-sm text-muted-foreground">
-                      Enviar a cada
-                    </Label>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Reenviar após:</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <Input
-                      id="cooldown-hours"
+                      id="cooldown-value"
                       type="number"
                       min={1}
-                      max={168}
-                      value={welcomeCooldownHours}
-                      onChange={(e) => setWelcomeCooldownHours(Number(e.target.value))}
+                      max={welcomeCooldownUnit === 'seconds' ? 86400 : welcomeCooldownUnit === 'minutes' ? 1440 : welcomeCooldownUnit === 'hours' ? 720 : 30}
+                      value={welcomeCooldownValue}
+                      onChange={(e) => setWelcomeCooldownValue(Number(e.target.value))}
                       className="w-20"
                     />
-                    <span className="text-sm text-muted-foreground">horas</span>
+                    <Select value={welcomeCooldownUnit} onValueChange={(v) => setWelcomeCooldownUnit(v as typeof welcomeCooldownUnit)}>
+                      <SelectTrigger className="w-[130px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="seconds">Segundos</SelectItem>
+                        <SelectItem value="minutes">Minutos</SelectItem>
+                        <SelectItem value="hours">Horas</SelectItem>
+                        <SelectItem value="days">Dias</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <span className="text-xs text-muted-foreground">
+                    de inatividade
+                  </span>
                 </div>
+              </div>
 
                 {/* Variáveis copiáveis */}
                 <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
@@ -653,7 +749,6 @@ export default function BotEngine() {
                     ))}
                   </div>
                 </div>
-              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
