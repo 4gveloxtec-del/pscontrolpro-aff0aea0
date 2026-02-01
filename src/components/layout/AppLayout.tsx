@@ -243,10 +243,8 @@ export function AppLayout() {
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
   
-  // Mostrar banner fixo sempre que não for permanente e estiver em trial/período de teste
-  // (aparece todos os dias, não apenas 7/3/1/0)
-  const showExpirationBanner = !profile?.is_permanent && 
-    (trialInfo.isInTrial || trialInfo.trialExpired || trialInfo.daysRemaining >= 0);
+  // Banner desativado no layout - agora é exibido apenas no Dashboard
+  const showExpirationBanner = false;
 
   const sidebarWidth = getSidebarWidth(menuStyle);
   const isIconsOnly = menuStyle === 'icons-only';
