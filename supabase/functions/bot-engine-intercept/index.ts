@@ -673,8 +673,12 @@ async function getParentMenuV2(
 }
 
 /**
- * Renderiza menu dinâmico como LISTA INTERATIVA para WhatsApp
+ * Renderiza menu dinâmico como LISTA INTERATIVA ou TEXTO formatado para WhatsApp
  * Retorna resposta estruturada que será serializada para o connection-heartbeat
+ * 
+ * @param items - Itens do menu
+ * @param menuConfig - Configurações de exibição
+ * @param useTextMode - Se true, renderiza como texto formatado em vez de lista interativa
  */
 function renderMenuAsListV2(
   items: DynamicMenuItemV2[],
@@ -685,8 +689,21 @@ function renderMenuAsListV2(
     showBackButton?: boolean;
     backButtonText?: string;
     isRoot?: boolean;
-  } = {}
+  } = {},
+  useTextMode: boolean = false
 ): string {
+  // Se modo texto está ativo, usar renderização como texto formatado
+  if (useTextMode) {
+    return renderMenuAsTextV2(
+      items,
+      menuConfig.headerMessage,
+      menuConfig.footerMessage,
+      menuConfig.showBackButton ?? true,
+      menuConfig.backButtonText || '⬅️ Voltar'
+    );
+  }
+  
+  // Modo padrão: lista interativa
   // Converter DynamicMenuItemV2 para DynamicMenuItemForList
   const itemsForList: DynamicMenuItemForList[] = items.map(item => ({
     id: item.id,
@@ -1005,7 +1022,8 @@ async function processMenuSelection(
 async function getFlowMessage(
   supabase: SupabaseClient,
   sellerId: string,
-  state: string
+  state: string,
+  useTextMenus: boolean = false
 ): Promise<string | null> {
   // =========================================================
   // PRIORIDADE 1: Tentar menu dinâmico V2 (bot_engine_dynamic_menus)
@@ -1021,7 +1039,7 @@ async function getFlowMessage(
       showBackButton: menuV2.show_back_button,
       backButtonText: menuV2.back_button_text || 'Voltar',
       isRoot: menuV2.is_root,
-    });
+    }, useTextMenus);
   }
 
   // =========================================================
@@ -1083,7 +1101,8 @@ async function processUserInput(
   sellerId: string,
   currentState: string,
   parsed: ParsedInput,
-  currentStack: string[]
+  currentStack: string[],
+  useTextMenus: boolean = false
 ): Promise<{ newState: string; response: string | null; pushToStack: boolean }> {
   
   // =========================================================
@@ -1114,7 +1133,7 @@ async function processUserInput(
                   showBackButton: targetMenuV2.show_back_button,
                   backButtonText: targetMenuV2.back_button_text || 'Voltar',
                   isRoot: targetMenuV2.is_root,
-                }),
+                }, useTextMenus),
                 pushToStack: true,
               };
             }
@@ -1124,7 +1143,7 @@ async function processUserInput(
         case 'flow':
           if (selection.targetFlowId) {
             // Buscar mensagem do fluxo
-            const flowResponse = await getFlowMessage(supabase, sellerId, selection.targetFlowId);
+            const flowResponse = await getFlowMessage(supabase, sellerId, selection.targetFlowId, useTextMenus);
             return {
               newState: selection.targetFlowId,
               response: flowResponse,
@@ -1172,7 +1191,7 @@ async function processUserInput(
         showBackButton: currentMenuV2.show_back_button,
         backButtonText: currentMenuV2.back_button_text || 'Voltar',
         isRoot: currentMenuV2.is_root,
-      }),
+      }, useTextMenus),
       pushToStack: false,
     };
   }
@@ -1192,7 +1211,7 @@ async function processUserInput(
           footerMessage: rootMenuV2.footer_message || undefined,
           showBackButton: false,
           isRoot: true,
-        }),
+        }, useTextMenus),
         pushToStack: false,
       };
     }
@@ -1222,7 +1241,7 @@ async function processUserInput(
     
     if (selection.targetState) {
       // Navegar para estado específico (pode ser nó de fluxo ou outro menu)
-      const response = await getFlowMessage(supabase, sellerId, selection.targetState);
+      const response = await getFlowMessage(supabase, sellerId, selection.targetState, useTextMenus);
       return {
         newState: selection.targetState,
         response,
@@ -1806,6 +1825,9 @@ Deno.serve(async (req) => {
     const fallbackMessage = config.fallback_message || 'Desculpe, não entendi. Digite *menu* para ver as opções.';
     const welcomeCooldownHours = config.welcome_cooldown_hours ?? 24;
     const _suppressFallbackFirstContact = config.suppress_fallback_first_contact ?? true;
+    const useTextMenus = config.use_text_menus ?? false;
+    
+    console.log(`[BotIntercept] Menu mode: ${useTextMenus ? 'TEXT' : 'INTERACTIVE_LIST'}`);
 
     // =========================================================
     // PASSO 1: lockSession (ATÔMICO - previne processamento paralelo)
@@ -1974,14 +1996,14 @@ Deno.serve(async (req) => {
             }
             console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
             
-            // Renderizar menu como LISTA INTERATIVA
+            // Renderizar menu como LISTA INTERATIVA ou TEXTO
             responseMessage = renderMenuAsListV2(rootItems, {
               title: rootMenuV2!.title || 'Bem-vindo!',
               headerMessage: rootMenuV2!.header_message || 'Olá! 👋 Seja bem-vindo(a)!\n\nEscolha uma opção:',
               footerMessage: rootMenuV2!.footer_message || undefined,
               showBackButton: false, // Não mostrar voltar no menu raiz
               isRoot: true,
-            });
+            }, useTextMenus);
             
             console.log(`[BotIntercept] Generated LIST response (structured)`);
             
@@ -2049,7 +2071,7 @@ Deno.serve(async (req) => {
                         showBackButton: prevMenu.show_back_button,
                         backButtonText: prevMenu.back_button_text || 'Voltar',
                         isRoot: prevMenu.is_root,
-                      });
+                      }, useTextMenus);
                       
                       await supabase
                         .from('bot_sessions')
@@ -2075,7 +2097,7 @@ Deno.serve(async (req) => {
                       footerMessage: rootMenuV2!.footer_message || undefined,
                       showBackButton: false,
                       isRoot: true,
-                    });
+                    }, useTextMenus);
                     
                     await supabase
                       .from('bot_sessions')
@@ -2101,7 +2123,7 @@ Deno.serve(async (req) => {
                     footerMessage: rootMenuV2!.footer_message || undefined,
                     showBackButton: false,
                     isRoot: true,
-                  });
+                  }, useTextMenus);
                   
                   // Limpar stack e resetar para raiz
                   await supabase
@@ -2138,7 +2160,7 @@ Deno.serve(async (req) => {
                         showBackButton: targetMenu.show_back_button,
                         backButtonText: targetMenu.back_button_text || 'Voltar',
                         isRoot: targetMenu.is_root,
-                      });
+                      }, useTextMenus);
                       
                       newState = 'MENU_V2';
                       currentStack.push(currentMenuKey);
@@ -2265,7 +2287,7 @@ Deno.serve(async (req) => {
                   showBackButton: currentMenuV2.show_back_button,
                   backButtonText: currentMenuV2.back_button_text || 'Voltar',
                   isRoot: currentMenuV2.is_root,
-                });
+                }, useTextMenus);
               } else {
                 // Fallback para menu raiz
                 const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
@@ -2275,7 +2297,7 @@ Deno.serve(async (req) => {
                   footerMessage: rootMenuV2!.footer_message || undefined,
                   showBackButton: false,
                   isRoot: true,
-                });
+                }, useTextMenus);
               }
             }
             

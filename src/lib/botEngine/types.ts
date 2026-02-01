@@ -71,6 +71,9 @@ export interface BotEngineConfig {
   // Menu principal
   main_menu_key: string;
   
+  // Modo de exibição de menus
+  use_text_menus: boolean;  // Se true, envia menus como texto em vez de listas interativas
+  
   // Timeouts e delays
   default_timeout_minutes: number;
   session_expire_minutes: number;
