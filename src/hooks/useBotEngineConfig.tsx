@@ -163,29 +163,60 @@ export function useBotEngineConfig() {
     mutationFn: async (updates: Partial<BotEngineConfig>) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
       
+      // Buscar config existente para fazer merge correto
+      const { data: existing } = await supabase
+        .from('bot_engine_config')
+        .select('*')
+        .eq('seller_id', user.id)
+        .maybeSingle();
+      
+      // Construir objeto de atualização - apenas campos que existem na tabela
+      const updateData = {
+        seller_id: user.id,
+        is_enabled: updates.is_enabled ?? existing?.is_enabled ?? DEFAULT_CONFIG.is_enabled,
+        welcome_message: updates.welcome_message ?? existing?.welcome_message ?? DEFAULT_CONFIG.welcome_message,
+        fallback_message: updates.fallback_message ?? existing?.fallback_message ?? DEFAULT_CONFIG.fallback_message,
+        inactivity_message: updates.inactivity_message ?? existing?.inactivity_message ?? DEFAULT_CONFIG.inactivity_message,
+        outside_hours_message: updates.outside_hours_message ?? existing?.outside_hours_message ?? DEFAULT_CONFIG.outside_hours_message,
+        human_takeover_message: updates.human_takeover_message ?? existing?.human_takeover_message ?? DEFAULT_CONFIG.human_takeover_message,
+        welcome_cooldown_hours: updates.welcome_cooldown_hours ?? existing?.welcome_cooldown_hours ?? DEFAULT_CONFIG.welcome_cooldown_hours,
+        suppress_fallback_first_contact: updates.suppress_fallback_first_contact ?? existing?.suppress_fallback_first_contact ?? DEFAULT_CONFIG.suppress_fallback_first_contact,
+        business_hours_enabled: updates.business_hours_enabled ?? existing?.business_hours_enabled ?? DEFAULT_CONFIG.business_hours_enabled,
+        business_hours_start: updates.business_hours_start ?? existing?.business_hours_start ?? DEFAULT_CONFIG.business_hours_start,
+        business_hours_end: updates.business_hours_end ?? existing?.business_hours_end ?? DEFAULT_CONFIG.business_hours_end,
+        business_days: updates.business_days ?? existing?.business_days ?? DEFAULT_CONFIG.business_days,
+        timezone: updates.timezone ?? existing?.timezone ?? DEFAULT_CONFIG.timezone,
+        typing_simulation: updates.typing_simulation ?? existing?.typing_simulation ?? DEFAULT_CONFIG.typing_simulation,
+        human_takeover_enabled: updates.human_takeover_enabled ?? existing?.human_takeover_enabled ?? DEFAULT_CONFIG.human_takeover_enabled,
+        max_inactivity_minutes: updates.max_inactivity_minutes ?? existing?.max_inactivity_minutes ?? DEFAULT_CONFIG.max_inactivity_minutes,
+        session_expire_minutes: updates.session_expire_minutes ?? existing?.session_expire_minutes ?? DEFAULT_CONFIG.session_expire_minutes,
+        auto_reply_delay_ms: updates.auto_reply_delay_ms ?? existing?.auto_reply_delay_ms ?? DEFAULT_CONFIG.auto_reply_delay_ms,
+        updated_at: new Date().toISOString(),
+      };
+      
+      console.log('[BotEngine] Saving config:', updateData);
+      
       const { data, error } = await supabase
         .from('bot_engine_config')
-        .upsert({
-          seller_id: user.id,
-          ...DEFAULT_CONFIG,
-          ...updates,
-          updated_at: new Date().toISOString(),
-        }, {
+        .upsert(updateData, {
           onConflict: 'seller_id',
         })
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('[BotEngine] Upsert error:', error);
+        throw error;
+      }
       return data as BotEngineConfig;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success('Configuração salva!');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('[BotEngine] Config error:', error);
-      toast.error('Erro ao salvar configuração');
+      toast.error('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
     },
   });
 
