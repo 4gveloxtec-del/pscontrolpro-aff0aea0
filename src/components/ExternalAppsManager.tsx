@@ -313,11 +313,11 @@ export function ExternalAppsManager() {
               Novo App
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto p-3 sm:p-6">
             <DialogHeader>
-              <DialogTitle>{editingApp ? 'Editar Aplicativo' : 'Novo Aplicativo'}</DialogTitle>
-              <DialogDescription>
-                {editingApp ? 'Atualize os dados do aplicativo' : 'Cadastre um novo aplicativo externo'}
+              <DialogTitle className="text-sm sm:text-base">{editingApp ? 'Editar Aplicativo' : 'Novo Aplicativo'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
+                {editingApp ? 'Atualize os dados' : 'Cadastre um novo app externo'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -431,17 +431,19 @@ export function ExternalAppsManager() {
                   </p>
                 </div>
               )}
-              <DialogFooter>
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsDialogOpen(false)}
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
                   {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

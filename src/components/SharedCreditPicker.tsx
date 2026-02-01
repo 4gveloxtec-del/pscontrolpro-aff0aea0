@@ -479,23 +479,23 @@ export function SharedCreditPicker({
         key={`${slot.server.id}-${slot.decryptedLogin}-${index}`} 
         className="border-2 border-dashed border-amber-500/30 hover:border-amber-500/50 transition-colors"
       >
-        <CardContent className="p-4">
+        <CardContent className="p-2.5 sm:p-4">
           {/* Header with server name and expiration badge */}
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-bold text-lg">{slot.server.name}</p>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 mb-2">
+            <p className="font-bold text-sm sm:text-lg truncate">{slot.server.name}</p>
+            <div className="flex items-center gap-1 sm:gap-2">
               {slot.expirationDate && (
                 <Badge 
                   variant="outline" 
                   className={cn(
-                    "text-xs",
+                    "text-[10px] sm:text-xs",
                     getRemainingDaysFromExpiration(slot.expirationDate) <= 7 
                       ? "border-destructive text-destructive" 
                       : "border-amber-500 text-amber-600"
                   )}
                 >
-                  <Calendar className="h-3 w-3 mr-1" />
-                  Vence: {new Date(slot.expirationDate).toLocaleDateString('pt-BR')}
+                  <Calendar className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                  {new Date(slot.expirationDate).toLocaleDateString('pt-BR')}
                 </Badge>
               )}
               <AlertDialog>
@@ -504,20 +504,20 @@ export function SharedCreditPicker({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                     disabled={isDeleting}
                   >
                     {isDeleting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                     ) : (
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     )}
                   </Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="w-[95vw] sm:max-w-md p-3 sm:p-6">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Excluir Crédito Compartilhado</AlertDialogTitle>
-                    <AlertDialogDescription>
+                    <AlertDialogTitle className="text-sm sm:text-base">Excluir Crédito Compartilhado</AlertDialogTitle>
+                    <AlertDialogDescription className="text-xs sm:text-sm">
                       Isso irá excluir <strong>{slot.clientNames.length} cliente(s)</strong> que compartilham este crédito:
                       <br /><br />
                       <span className="font-medium">{slot.clientNames.join(', ')}</span>
@@ -525,13 +525,13 @@ export function SharedCreditPicker({
                       Esta ação não pode ser desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+                    <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
                     <AlertDialogAction 
                       onClick={() => handleDeleteSlot(slot)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      Excluir {slot.clientNames.length} cliente(s)
+                      Excluir {slot.clientNames.length}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -540,27 +540,27 @@ export function SharedCreditPicker({
           </div>
           
           {/* Clients sharing this credit */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-            <Users className="h-3 w-3" />
-            <span>Compartilhado com: {slot.clientNames.join(', ')}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground mb-2 sm:mb-3">
+            <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+            <span className="truncate">Compartilhado: {slot.clientNames.join(', ')}</span>
           </div>
 
           {/* Pricing info */}
-          <div className="flex items-center justify-between mb-3 p-2 rounded bg-muted/30">
-            <div className="text-xs text-muted-foreground">
-              Crédito: {totalUsed} de {totalSlots} telas usadas
+          <div className="flex items-center justify-between mb-2 sm:mb-3 p-1.5 sm:p-2 rounded bg-muted/30">
+            <div className="text-[10px] sm:text-xs text-muted-foreground">
+              {totalUsed}/{totalSlots} telas
             </div>
             <div className="text-right">
               {slot.server.credit_price > 0 && (
-                <p className="text-xs text-muted-foreground line-through">
-                  R$ {slot.server.credit_price.toFixed(2)}/mês
+                <p className="text-[10px] sm:text-xs text-muted-foreground line-through">
+                  R$ {slot.server.credit_price.toFixed(0)}/mês
                 </p>
               )}
-              <p className="text-lg font-bold text-success">
+              <p className="text-sm sm:text-lg font-bold text-success">
                 R$ {proRataCalc.price.toFixed(2)}
               </p>
-              <p className="text-xs text-amber-500">
-                ({proRataCalc.remainingDays} dias restantes do mês)
+              <p className="text-[9px] sm:text-xs text-amber-500">
+                {proRataCalc.remainingDays}d restantes
               </p>
             </div>
           </div>
@@ -568,43 +568,43 @@ export function SharedCreditPicker({
           {/* IPTV Slots */}
           {slot.iptvTotal > 0 && (
             <div className={cn(
-              "p-3 rounded-lg border-2 mb-2",
+              "p-2 sm:p-3 rounded-lg border-2 mb-2",
               "border-blue-500/50 bg-blue-500/5",
               categorySlotType === 'iptv' && "ring-2 ring-blue-500 ring-offset-2"
             )}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Monitor className="h-4 w-4 text-blue-500" />
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    IPTV / SSH
+              <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Monitor className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
+                  <span className="font-semibold text-xs sm:text-sm text-blue-600 dark:text-blue-400">
+                    IPTV/SSH
                   </span>
                   {categorySlotType === 'iptv' && (
-                    <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500">
-                      Recomendado
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] border-blue-500 text-blue-500 px-1">
+                      ★
                     </Badge>
                   )}
                 </div>
                 <Badge 
                   variant={slot.iptvAvailable > 0 ? "default" : "secondary"}
-                  className={slot.iptvAvailable > 0 ? "bg-blue-500" : ""}
+                  className={cn("text-[10px] sm:text-xs", slot.iptvAvailable > 0 ? "bg-blue-500" : "")}
                 >
-                  {slot.iptvAvailable} {slot.iptvAvailable === 1 ? 'vaga' : 'vagas'}
+                  {slot.iptvAvailable}
                 </Badge>
               </div>
               
-              <p className="text-xs text-muted-foreground mb-3">
-                {slot.iptvUsed} de {slot.iptvTotal} usado(s)
+              <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
+                {slot.iptvUsed}/{slot.iptvTotal} usado
               </p>
 
               <Button
                 type="button"
                 size="sm"
                 disabled={slot.iptvAvailable <= 0}
-                className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
+                className="w-full h-7 sm:h-8 text-xs bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
                 onClick={() => handleSelect(slot, 'iptv')}
               >
-                <Monitor className="h-4 w-4 mr-1" />
-                {slot.iptvAvailable > 0 ? 'Usar vaga IPTV' : 'Sem vagas'}
+                <Monitor className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                {slot.iptvAvailable > 0 ? 'Usar IPTV' : 'Sem vaga'}
               </Button>
             </div>
           )}
@@ -612,50 +612,50 @@ export function SharedCreditPicker({
           {/* P2P Slots */}
           {slot.p2pTotal > 0 && (
             <div className={cn(
-              "p-3 rounded-lg border-2 mb-3",
+              "p-2 sm:p-3 rounded-lg border-2 mb-2 sm:mb-3",
               "border-green-500/50 bg-green-500/5",
               categorySlotType === 'p2p' && "ring-2 ring-green-500 ring-offset-2"
             )}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Wifi className="h-4 w-4 text-green-500" />
-                  <span className="font-semibold text-green-600 dark:text-green-400">
+              <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Wifi className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
+                  <span className="font-semibold text-xs sm:text-sm text-green-600 dark:text-green-400">
                     P2P
                   </span>
                   {categorySlotType === 'p2p' && (
-                    <Badge variant="outline" className="text-[10px] border-green-500 text-green-500">
-                      Recomendado
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] border-green-500 text-green-500 px-1">
+                      ★
                     </Badge>
                   )}
                 </div>
                 <Badge 
                   variant={slot.p2pAvailable > 0 ? "default" : "secondary"}
-                  className={slot.p2pAvailable > 0 ? "bg-green-500" : ""}
+                  className={cn("text-[10px] sm:text-xs", slot.p2pAvailable > 0 ? "bg-green-500" : "")}
                 >
-                  {slot.p2pAvailable} {slot.p2pAvailable === 1 ? 'vaga' : 'vagas'}
+                  {slot.p2pAvailable}
                 </Badge>
               </div>
               
-              <p className="text-xs text-muted-foreground mb-3">
-                {slot.p2pUsed} de {slot.p2pTotal} usado(s)
+              <p className="text-[10px] sm:text-xs text-muted-foreground mb-2">
+                {slot.p2pUsed}/{slot.p2pTotal} usado
               </p>
 
               <Button
                 type="button"
                 size="sm"
                 disabled={slot.p2pAvailable <= 0}
-                className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-50"
+                className="w-full h-7 sm:h-8 text-xs bg-green-500 hover:bg-green-600 disabled:opacity-50"
                 onClick={() => handleSelect(slot, 'p2p')}
               >
-                <Wifi className="h-4 w-4 mr-1" />
-                {slot.p2pAvailable > 0 ? 'Usar vaga P2P' : 'Sem vagas'}
+                <Wifi className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                {slot.p2pAvailable > 0 ? 'Usar P2P' : 'Sem vaga'}
               </Button>
             </div>
           )}
 
-          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-            <Sparkles className="h-3 w-3" />
-            Credenciais serão compartilhadas automaticamente
+          <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+            <span className="truncate">Credenciais compartilhadas automaticamente</span>
           </p>
         </CardContent>
       </Card>
@@ -663,17 +663,17 @@ export function SharedCreditPicker({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-500" />
-          <h3 className="font-semibold text-amber-600 dark:text-amber-400">
-            Vagas Disponíveis em Créditos
+    <div className="space-y-2 sm:space-y-3 max-w-full overflow-hidden">
+      <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500 flex-shrink-0" />
+          <h3 className="font-semibold text-xs sm:text-sm text-amber-600 dark:text-amber-400 truncate">
+            Vagas em Créditos
           </h3>
         </div>
         {planDurationDays && (
-          <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
-            Planos {getDurationLabel(planDurationDays)}
+          <Badge variant="outline" className="text-[10px] sm:text-xs border-amber-500 text-amber-600 flex-shrink-0">
+            {getDurationLabel(planDurationDays)}
           </Badge>
         )}
       </div>

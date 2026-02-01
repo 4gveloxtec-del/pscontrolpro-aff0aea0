@@ -562,49 +562,49 @@ export function SmartMessageQueue() {
   const estimatedMinutes = Math.ceil(((queue.length - currentClientIndex) * (settings?.interval_seconds || 30)) / 60);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
       {/* Header Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-destructive" />
-              <div>
-                <div className="text-2xl font-bold">{expiredClients.length}</div>
-                <div className="text-xs text-muted-foreground">Expirados</div>
+          <CardContent className="p-2.5 sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold">{expiredClients.length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate">Expirados</div>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Calendar className="h-8 w-8 text-orange-500" />
-              <div>
-                <div className="text-2xl font-bold">{expiringTodayClients.length}</div>
-                <div className="text-xs text-muted-foreground">Vencem Hoje</div>
+          <CardContent className="p-2.5 sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-orange-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold">{expiringTodayClients.length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate">Hoje</div>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Clock className="h-8 w-8 text-yellow-500" />
-              <div>
-                <div className="text-2xl font-bold">{expiring1to3Days.length}</div>
-                <div className="text-xs text-muted-foreground">1-3 Dias</div>
+          <CardContent className="p-2.5 sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold">{expiring1to3Days.length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate">1-3 Dias</div>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-primary" />
-              <div>
-                <div className="text-2xl font-bold">{queue.length}</div>
-                <div className="text-xs text-muted-foreground">Total na Fila</div>
+          <CardContent className="p-2.5 sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-bold">{queue.length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground truncate">Total</div>
               </div>
             </div>
           </CardContent>
@@ -613,21 +613,22 @@ export function SmartMessageQueue() {
 
       {/* Settings Card */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Configurações da Fila
+        <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+            <Settings className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Configurações da Fila</span>
           </CardTitle>
-          <CardDescription>
-            Configure o intervalo e horário de envio das mensagens
+          <CardDescription className="text-xs sm:text-sm">
+            Configure intervalo e horário de envio
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Timer className="h-4 w-4" />
-                Intervalo (segundos)
+        <CardContent className="p-3 sm:p-6 pt-0 space-y-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Timer className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                <span className="hidden xs:inline">Intervalo</span>
+                <span className="xs:hidden">Int.</span>
               </Label>
               <Input
                 type="number"
@@ -635,26 +636,29 @@ export function SmartMessageQueue() {
                 max={300}
                 value={settings?.interval_seconds || 30}
                 onChange={(e) => saveSettingsMutation.mutate({ interval_seconds: parseInt(e.target.value) || 30 })}
+                className="h-8 sm:h-10 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Horário Início</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">Início</Label>
               <Input
                 type="number"
                 min={0}
                 max={23}
                 value={settings?.start_hour || 8}
                 onChange={(e) => saveSettingsMutation.mutate({ start_hour: parseInt(e.target.value) || 8 })}
+                className="h-8 sm:h-10 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Horário Fim</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">Fim</Label>
               <Input
                 type="number"
                 min={0}
                 max={23}
                 value={settings?.end_hour || 22}
                 onChange={(e) => saveSettingsMutation.mutate({ end_hour: parseInt(e.target.value) || 22 })}
+                className="h-8 sm:h-10 text-sm"
               />
             </div>
           </div>

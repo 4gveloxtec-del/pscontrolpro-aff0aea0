@@ -752,19 +752,19 @@ export function ImportClientsFromProject() {
   const selectedSeller = sellers.find(s => s.id === selectedSellerId);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Importar Clientes de Outro Projeto
+    <Card className="max-w-full overflow-hidden">
+      <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4">
+        <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+          <Users className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <span className="truncate">Importar Clientes de Outro Projeto</span>
         </CardTitle>
-        <CardDescription>
-          Importe clientes de outro projeto via JSON ou CSV
+        <CardDescription className="text-xs sm:text-sm">
+          Importe via JSON ou CSV
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Exporte os clientes do outro projeto (JSON/CSV) e importe aqui para um vendedor específico.
+      <CardContent className="p-3 sm:p-6 pt-0 space-y-3 sm:space-y-4">
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          Exporte clientes do outro projeto e importe aqui para um vendedor específico.
         </p>
         
         <Dialog open={isOpen} onOpenChange={(open) => {
@@ -772,21 +772,21 @@ export function ImportClientsFromProject() {
           else setIsOpen(true);
         }}>
           <DialogTrigger asChild>
-            <Button className="w-full">
+            <Button className="w-full h-9 sm:h-10">
               <Upload className="h-4 w-4 mr-2" />
               Importar Clientes
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Importar Clientes de Outro Projeto
+          <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-3 sm:p-6">
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Importar Clientes</span>
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs sm:text-sm">
                 {step === 'input' 
-                  ? 'Cole o JSON/CSV exportado do outro projeto ou carregue um arquivo' 
-                  : `Confirme os ${validCount} cliente(s) a serem importados`}
+                  ? 'Cole o JSON/CSV ou carregue um arquivo' 
+                  : `Confirme os ${validCount} cliente(s)`}
               </DialogDescription>
             </DialogHeader>
 

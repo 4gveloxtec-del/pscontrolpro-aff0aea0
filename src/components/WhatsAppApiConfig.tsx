@@ -224,45 +224,49 @@ export function WhatsAppApiConfig() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
       {/* Connection Status */}
       <div className={cn(
-        "p-4 rounded-lg border flex items-center gap-4",
+        "p-3 sm:p-4 rounded-lg border flex flex-col xs:flex-row items-start xs:items-center gap-3 xs:gap-4",
         formData.is_connected 
           ? "bg-success/10 border-success/30" 
           : "bg-destructive/10 border-destructive/30"
       )}>
-        <div className={cn(
-          "w-12 h-12 rounded-full flex items-center justify-center",
-          formData.is_connected ? "bg-success/20" : "bg-destructive/20"
-        )}>
-          {formData.is_connected ? (
-            <Wifi className="h-6 w-6 text-success" />
-          ) : (
-            <WifiOff className="h-6 w-6 text-destructive" />
-          )}
-        </div>
-        <div className="flex-1">
-          <p className="font-medium">
-            {formData.is_connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {formData.is_connected 
-              ? 'Mensagens automáticas ativas' 
-              : 'Configure a API para ativar'}
-          </p>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className={cn(
+            "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0",
+            formData.is_connected ? "bg-success/20" : "bg-destructive/20"
+          )}>
+            {formData.is_connected ? (
+              <Wifi className="h-5 w-5 sm:h-6 sm:w-6 text-success" />
+            ) : (
+              <WifiOff className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm sm:text-base truncate">
+              {formData.is_connected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
+            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+              {formData.is_connected 
+                ? 'Mensagens automáticas ativas' 
+                : 'Configure a API para ativar'}
+            </p>
+          </div>
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={checkConnection}
           disabled={isCheckingConnection}
+          className="w-full xs:w-auto"
         >
           {isCheckingConnection ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4 mr-2 xs:mr-0" />
           )}
+          <span className="xs:hidden">Verificar Conexão</span>
         </Button>
       </div>
 
@@ -326,26 +330,28 @@ export function WhatsAppApiConfig() {
           />
         </div>
 
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={handleSave} disabled={isSaving}>
+        <div className="flex flex-col xs:flex-row gap-2">
+          <Button className="flex-1 h-9 sm:h-10" onClick={handleSave} disabled={isSaving}>
             {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Salvar
           </Button>
           {formData.is_connected && (
-            <>
-              <Button variant="outline" onClick={sendTestMessage}>
-                <Send className="h-4 w-4 mr-2" />
-                Testar
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={sendTestMessage} className="flex-1 xs:flex-initial h-9 sm:h-10">
+                <Send className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden xs:inline">Testar</span>
+                <span className="xs:hidden">Test</span>
               </Button>
-              <Button variant="secondary" onClick={runAutomation} disabled={isRunningAutomation}>
+              <Button variant="secondary" onClick={runAutomation} disabled={isRunningAutomation} className="flex-1 xs:flex-initial h-9 sm:h-10">
                 {isRunningAutomation ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-1 sm:mr-2 animate-spin" />
                 ) : (
-                  <Play className="h-4 w-4 mr-2" />
+                  <Play className="h-4 w-4 mr-1 sm:mr-2" />
                 )}
-                Executar
+                <span className="hidden xs:inline">Executar</span>
+                <span className="xs:hidden">Run</span>
               </Button>
-            </>
+            </div>
           )}
         </div>
       </div>
