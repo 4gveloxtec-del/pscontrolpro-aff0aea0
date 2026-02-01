@@ -212,137 +212,142 @@ export function ServerCreditClients({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Créditos Compartilhados - {serverName}
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-3 sm:p-6">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Créditos - {serverName}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Gerencie os clientes vinculados aos créditos deste servidor
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto -mx-3 px-3 sm:-mx-6 sm:px-6 space-y-3 sm:space-y-4">
         {/* Slot usage summary */}
-        <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-muted/50">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 p-2.5 sm:p-4 rounded-lg bg-muted/50">
           {iptvPerCredit > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
+            <div className="space-y-1.5 sm:space-y-2">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="flex items-center gap-1 text-blue-500">
-                  <Monitor className="h-4 w-4" />
-                  IPTV
+                  <Monitor className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden xs:inline">IPTV</span>
                 </span>
                 <span className="font-medium">{usedIptvSlots} / {totalIptvSlots}</span>
               </div>
               <Progress 
                 value={(usedIptvSlots / totalIptvSlots) * 100} 
-                className="h-2 [&>div]:bg-blue-500"
+                className="h-1.5 sm:h-2 [&>div]:bg-blue-500"
               />
-              <p className="text-xs text-muted-foreground">{availableIptvSlots} vagas disponíveis</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">{availableIptvSlots} vagas</p>
             </div>
           )}
           {p2pPerCredit > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
+            <div className="space-y-1.5 sm:space-y-2">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="flex items-center gap-1 text-green-500">
-                  <Wifi className="h-4 w-4" />
-                  P2P
+                  <Wifi className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden xs:inline">P2P</span>
                 </span>
                 <span className="font-medium">{usedP2pSlots} / {totalP2pSlots}</span>
               </div>
               <Progress 
                 value={(usedP2pSlots / totalP2pSlots) * 100} 
-                className="h-2 [&>div]:bg-green-500"
+                className="h-1.5 sm:h-2 [&>div]:bg-green-500"
               />
-              <p className="text-xs text-muted-foreground">{availableP2pSlots} vagas disponíveis</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">{availableP2pSlots} vagas</p>
             </div>
           )}
         </div>
 
         {/* Pro-rata price display */}
         {creditPrice > 0 && (
-          <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-            <p className="text-sm">
-              <span className="font-medium">Preço Mensal:</span> R$ {creditPrice.toFixed(2)}
+          <div className="p-2 sm:p-3 rounded-lg bg-warning/10 border border-warning/20">
+            <p className="text-xs sm:text-sm">
+              <span className="font-medium">Mensal:</span> R$ {creditPrice.toFixed(2)}
             </p>
-            <p className="text-sm text-warning">
+            <p className="text-xs sm:text-sm text-warning">
               <span className="font-medium">Pro-rata (dia {daysUsed}):</span> R$ {proRataPrice.toFixed(2)}
-              <span className="text-xs text-muted-foreground ml-2">
-                ({30 - daysUsed} dias restantes)
+              <span className="text-[10px] sm:text-xs text-muted-foreground ml-1 sm:ml-2">
+                ({30 - daysUsed} dias)
               </span>
             </p>
           </div>
         )}
 
         {/* View mode tabs */}
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 sm:gap-2">
           <Button
             variant={viewMode === 'view' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('view')}
+            className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
           >
-            <Users className="h-4 w-4 mr-1" />
-            Clientes Vinculados ({serverClients.length})
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+            <span className="hidden xs:inline">Vinculados ({serverClients.length})</span>
+            <span className="xs:hidden">({serverClients.length})</span>
           </Button>
           <Button
             variant={viewMode === 'assign' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('assign')}
             disabled={!hasAvailableSlots}
+            className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
           >
-            <UserPlus className="h-4 w-4 mr-1" />
-            Adicionar Cliente
+            <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+            <span className="hidden xs:inline">Adicionar</span>
+            <span className="xs:hidden">+</span>
           </Button>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, usuário ou senha..."
+            placeholder="Buscar..."
             value={clientSearchTerm}
             onChange={(e) => setClientSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-8 sm:pl-10 h-8 sm:h-9 text-sm"
           />
         </div>
 
         {viewMode === 'view' ? (
           // View clients
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-1.5 sm:space-y-2 max-h-52 sm:max-h-64 overflow-y-auto">
             {getFilteredViewClients().length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
+              <p className="text-center text-muted-foreground py-4 text-xs sm:text-sm">
                 Nenhum cliente vinculado
               </p>
             ) : (
               getFilteredViewClients().map((sc) => (
                 <div
                   key={sc.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                  className="flex items-center justify-between p-2 sm:p-3 rounded-lg border bg-card gap-2"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     <div className={cn(
-                      "p-1.5 rounded",
+                      "p-1 sm:p-1.5 rounded flex-shrink-0",
                       sc.slot_type === 'iptv' ? 'bg-blue-500/10' : 'bg-green-500/10'
                     )}>
                       {sc.slot_type === 'iptv' ? (
-                        <Monitor className="h-4 w-4 text-blue-500" />
+                        <Monitor className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                       ) : (
-                        <Wifi className="h-4 w-4 text-green-500" />
+                        <Wifi className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
                       )}
                     </div>
-                    <div>
-                      <p className="font-medium">{sc.client?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {sc.client?.login && `Usuário: ${sc.client.login}`}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-xs sm:text-sm truncate">{sc.client?.name}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {sc.client?.login && `👤 ${sc.client.login}`}
                         {sc.client?.login && sc.client?.password && ' • '}
-                        {sc.client?.password && `Senha: ${sc.client.password}`}
+                        {sc.client?.password && `🔑 ****`}
                       </p>
                     </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-destructive hover:text-destructive"
+                    className="text-destructive hover:text-destructive h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0"
                     onClick={() => {
                       confirm({
                         title: 'Remover cliente',
@@ -353,7 +358,7 @@ export function ServerCreditClients({
                       });
                     }}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               ))
@@ -361,59 +366,67 @@ export function ServerCreditClients({
           </div>
         ) : (
           // Assign clients
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {/* Slot type selector */}
             {iptvPerCredit > 0 && p2pPerCredit > 0 && (
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 sm:gap-2">
                 <Button
                   variant={selectedSlotType === 'iptv' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setSelectedSlotType('iptv')}
                   disabled={availableIptvSlots <= 0}
-                  className={selectedSlotType === 'iptv' ? 'bg-blue-500 hover:bg-blue-600' : ''}
+                  className={cn(
+                    "h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3",
+                    selectedSlotType === 'iptv' ? 'bg-blue-500 hover:bg-blue-600' : ''
+                  )}
                 >
-                  <Monitor className="h-4 w-4 mr-1" />
-                  IPTV ({availableIptvSlots} vagas)
+                  <Monitor className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                  <span className="hidden xs:inline">IPTV ({availableIptvSlots})</span>
+                  <span className="xs:hidden">IPTV</span>
                 </Button>
                 <Button
                   variant={selectedSlotType === 'p2p' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setSelectedSlotType('p2p')}
                   disabled={availableP2pSlots <= 0}
-                  className={selectedSlotType === 'p2p' ? 'bg-green-500 hover:bg-green-600' : ''}
+                  className={cn(
+                    "h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3",
+                    selectedSlotType === 'p2p' ? 'bg-green-500 hover:bg-green-600' : ''
+                  )}
                 >
-                  <Wifi className="h-4 w-4 mr-1" />
-                  P2P ({availableP2pSlots} vagas)
+                  <Wifi className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                  <span className="hidden xs:inline">P2P ({availableP2pSlots})</span>
+                  <span className="xs:hidden">P2P</span>
                 </Button>
               </div>
             )}
 
             {/* Auto-select slot type if only one available */}
             {iptvPerCredit > 0 && p2pPerCredit === 0 && (
-              <p className="text-sm text-blue-500">Vinculando como IPTV</p>
+              <p className="text-xs sm:text-sm text-blue-500">Vinculando como IPTV</p>
             )}
             {p2pPerCredit > 0 && iptvPerCredit === 0 && (
-              <p className="text-sm text-green-500">Vinculando como P2P</p>
+              <p className="text-xs sm:text-sm text-green-500">Vinculando como P2P</p>
             )}
 
             {/* Available clients list */}
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-1.5 sm:space-y-2 max-h-52 sm:max-h-64 overflow-y-auto">
               {getAvailableClients().length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
+                <p className="text-center text-muted-foreground py-4 text-xs sm:text-sm">
                   {clientSearchTerm ? 'Nenhum cliente encontrado' : 'Todos os clientes já estão vinculados'}
                 </p>
               ) : (
                 getAvailableClients().map((client) => (
                   <div
                     key={client.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
+                    className="flex items-center justify-between p-2 sm:p-3 rounded-lg border bg-card hover:bg-accent transition-colors gap-2"
                   >
-                    <div>
-                      <p className="font-medium">{client.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {client.login && `Usuário: ${client.login}`}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-xs sm:text-sm truncate">{client.name}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {client.login && `👤 ${client.login}`}
                         {client.login && client.password && ' • '}
-                        {client.password && `Senha: ${client.password}`}
+                        {client.password && `🔑 ****`}
                       </p>
                     </div>
                     <Button
@@ -428,9 +441,11 @@ export function ServerCreditClients({
                         });
                       }}
                       disabled={assignClientMutation.isPending}
+                      className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 flex-shrink-0"
                     >
-                      <UserPlus className="h-4 w-4 mr-1" />
-                      Vincular
+                      <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                      <span className="hidden xs:inline">Vincular</span>
+                      <span className="xs:hidden">+</span>
                     </Button>
                   </div>
                 ))
@@ -438,6 +453,7 @@ export function ServerCreditClients({
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
       
       {/* Global Confirm Dialog */}

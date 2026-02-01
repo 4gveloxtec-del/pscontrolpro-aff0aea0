@@ -588,19 +588,19 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
       else setIsOpen(true);
     }}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Upload className="h-4 w-4" />
+        <Button variant="outline" size="sm" className="gap-2 h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3">
+          <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           <span className="hidden sm:inline">Importar em Massa</span>
           <span className="sm:hidden">Importar</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Importar Clientes em Massa
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-3 sm:p-6">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <FileSpreadsheet className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Importar Clientes em Massa</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {step === 'input' 
               ? 'Cole os dados: Nome, Telefone, Usuário, Senha, Categoria, Servidor, Valor, Validade' 
               : `Confirme os ${validCount} cliente(s) a serem importados`}
@@ -608,12 +608,12 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
         </DialogHeader>
 
         {step === 'input' ? (
-          <div className="space-y-4 flex-1 overflow-y-auto">
+          <div className="space-y-3 sm:space-y-4 flex-1 overflow-y-auto -mx-3 px-3 sm:-mx-6 sm:px-6">
             {/* Template section */}
-            <div className="bg-muted/50 rounded-lg p-3 sm:p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Template de exemplo</span>
+            <div className="bg-muted/50 rounded-lg p-2.5 sm:p-4 space-y-2 sm:space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <span className="text-xs sm:text-sm font-medium truncate">Template de exemplo</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
@@ -629,10 +629,11 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
                   variant="outline"
                   size="sm"
                   onClick={handleCopyTemplate}
-                  className="gap-1.5"
+                  className="gap-1 h-7 text-[10px] sm:text-xs px-2 flex-shrink-0"
                 >
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? 'Copiado!' : 'Copiar'}
+                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  <span className="hidden xs:inline">{copied ? 'Copiado!' : 'Copiar'}</span>
+                  <span className="xs:hidden">{copied ? '✓' : 'Copiar'}</span>
                 </Button>
               </div>
               <pre className="text-xs bg-background rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
@@ -699,17 +700,17 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={handleClose}>
+            <div className="flex justify-end gap-2 pt-2 flex-shrink-0">
+              <Button variant="outline" onClick={handleClose} className="h-8 sm:h-9 text-xs sm:text-sm">
                 Cancelar
               </Button>
-              <Button onClick={handlePreview} disabled={!inputText.trim()}>
+              <Button onClick={handlePreview} disabled={!inputText.trim()} className="h-8 sm:h-9 text-xs sm:text-sm">
                 Visualizar
               </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+          <div className="space-y-3 sm:space-y-4 flex-1 overflow-hidden flex flex-col -mx-3 px-3 sm:-mx-6 sm:px-6">
             {/* Summary */}
             <div className="flex gap-2 flex-wrap">
               <Badge variant="default" className="gap-1">
@@ -809,24 +810,26 @@ export function BulkImportClients({ plans }: BulkImportClientsProps) {
             )}
 
             {/* Actions */}
-            <div className="flex justify-between gap-2 pt-2">
-              <Button variant="outline" onClick={() => setStep('input')}>
+            <div className="flex justify-between gap-2 pt-2 flex-shrink-0">
+              <Button variant="outline" onClick={() => setStep('input')} className="h-8 sm:h-9 text-xs sm:text-sm">
                 Voltar
               </Button>
               <Button 
                 onClick={() => importMutation.mutate()} 
                 disabled={validCount === 0 || importMutation.isPending}
-                className="gap-2"
+                className="gap-2 h-8 sm:h-9 text-xs sm:text-sm"
               >
                 {importMutation.isPending ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Importando...
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="hidden xs:inline">Importando...</span>
+                    <span className="xs:hidden">...</span>
                   </>
                 ) : (
                   <>
-                    <Upload className="h-4 w-4" />
-                    Importar {validCount} Cliente(s)
+                    <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">Importar {validCount} Cliente(s)</span>
+                    <span className="xs:hidden">Importar ({validCount})</span>
                   </>
                 )}
               </Button>
