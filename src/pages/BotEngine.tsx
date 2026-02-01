@@ -137,7 +137,7 @@ export default function BotEngine() {
   // Flow form states
   const [flowName, setFlowName] = useState('');
   const [flowDescription, setFlowDescription] = useState('');
-  const [flowTriggerType, setFlowTriggerType] = useState<'keyword' | 'first_message' | 'default'>('keyword');
+  const [flowTriggerType, setFlowTriggerType] = useState<'keyword' | 'exact_keyword' | 'first_message' | 'default'>('keyword');
   const [flowKeywords, setFlowKeywords] = useState('');
   const [flowCategory, setFlowCategory] = useState<string>('');
 
@@ -283,12 +283,12 @@ export default function BotEngine() {
     try {
       // Garantir que trigger_keywords seja sempre um array válido
       let keywords: string[] = [];
-      if (flowTriggerType === 'keyword') {
+      if (flowTriggerType === 'keyword' || flowTriggerType === 'exact_keyword') {
         if (flowKeywords.trim()) {
           keywords = flowKeywords.split(',').map(k => k.trim()).filter(Boolean);
         }
         if (keywords.length === 0) {
-          toast.error('Palavras-chave são obrigatórias quando o tipo é "Palavra-chave"');
+          toast.error('Palavras-chave são obrigatórias quando o tipo é "Palavra-chave" ou "Palavra exata"');
           setIsSaving(false);
           return;
         }
@@ -954,7 +954,8 @@ export default function BotEngine() {
                           ) : categoryFlows.map((flow) => {
                             // Labels amigáveis para tipos de gatilho
                             const triggerLabels: Record<string, { emoji: string; text: string }> = {
-                              keyword: { emoji: '🔤', text: 'Por palavra-chave' },
+                              keyword: { emoji: '🔤', text: 'Palavra-chave (contém)' },
+                              exact_keyword: { emoji: '🎯', text: 'Palavra exata' },
                               first_message: { emoji: '👋', text: 'Primeira mensagem' },
                               default: { emoji: '📥', text: 'Padrão (fallback)' },
                               webhook: { emoji: '🔗', text: 'Webhook' },
@@ -1175,21 +1176,33 @@ export default function BotEngine() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="keyword">Palavra-chave</SelectItem>
+                  <SelectItem value="keyword">Palavra-chave (contém)</SelectItem>
+                  <SelectItem value="exact_keyword">Palavra exata</SelectItem>
                   <SelectItem value="first_message">Primeira mensagem</SelectItem>
                   <SelectItem value="default">Padrão (fallback)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {flowTriggerType === 'keyword' && (
+            {(flowTriggerType === 'keyword' || flowTriggerType === 'exact_keyword') && (
               <div className="space-y-2">
-                <Label>Palavras-chave (separadas por vírgula)</Label>
+                <Label>
+                  {flowTriggerType === 'exact_keyword' 
+                    ? 'Palavras exatas (separadas por vírgula)' 
+                    : 'Palavras-chave (separadas por vírgula)'}
+                </Label>
                 <Input 
-                  placeholder="menu, início, oi, olá" 
+                  placeholder={flowTriggerType === 'exact_keyword' 
+                    ? "1, 2, menu, renovar" 
+                    : "menu, início, oi, olá"} 
                   value={flowKeywords}
                   onChange={(e) => setFlowKeywords(e.target.value)}
                 />
+                {flowTriggerType === 'exact_keyword' && (
+                  <p className="text-xs text-muted-foreground">
+                    Ativa somente se a mensagem for exatamente igual. Ex: "1" não ativa com "11"
+                  </p>
+                )}
               </div>
             )}
             

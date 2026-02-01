@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
         };
       }
 
-      // Verificar keyword
+      // Verificar keyword (contém)
       if (!matchedFlow) {
         for (const flow of flows) {
           if (flow.trigger_type === 'keyword' && flow.trigger_keywords) {
@@ -153,7 +153,25 @@ Deno.serve(async (req) => {
               diagnostics.flow_match = {
                 matched: true,
                 flow: flow.name,
-                reason: `keyword matched: ${keywords.join(', ')}`,
+                reason: `keyword matched (contains): ${keywords.join(', ')}`,
+              };
+              break;
+            }
+          }
+        }
+      }
+
+      // Verificar exact_keyword (exato)
+      if (!matchedFlow) {
+        for (const flow of flows) {
+          if (flow.trigger_type === 'exact_keyword' && flow.trigger_keywords) {
+            const keywords = flow.trigger_keywords as string[];
+            if (keywords.some(k => lowerMessage === k.toLowerCase().trim())) {
+              matchedFlow = flow;
+              diagnostics.flow_match = {
+                matched: true,
+                flow: flow.name,
+                reason: `exact_keyword matched: ${keywords.join(', ')}`,
               };
               break;
             }

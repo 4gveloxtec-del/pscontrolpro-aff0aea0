@@ -18,11 +18,12 @@ export type BotNodeType =
   | 'end';        // Finaliza sessão
 
 export type BotTriggerType = 
-  | 'keyword'       // Palavra-chave na mensagem
-  | 'first_message' // Primeira mensagem do contato
-  | 'webhook'       // Chamada externa
-  | 'manual'        // Iniciado manualmente
-  | 'default';      // Fallback quando nenhum trigger bate
+  | 'keyword'         // Palavra-chave na mensagem (contém)
+  | 'exact_keyword'   // Palavra exata (match exato, "1" ≠ "11")
+  | 'first_message'   // Primeira mensagem do contato
+  | 'webhook'         // Chamada externa
+  | 'manual'          // Iniciado manualmente
+  | 'default';        // Fallback quando nenhum trigger bate
 
 export type BotConditionType = 
   | 'always'      // Sempre passa
