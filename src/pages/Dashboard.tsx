@@ -560,11 +560,17 @@ export default function Dashboard() {
     // Permanent users don't show trial banner
     if (profile.is_permanent) return null;
     
+    // Helper to safely parse dates (avoid off-by-one timezone issues)
+    const safeParseDate = (dateStr: string) => {
+      const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T12:00:00` : dateStr;
+      const d = new Date(normalized);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    
     // If has explicit subscription_expires_at, use it
     if (profile.subscription_expires_at) {
-      const expirationDate = new Date(profile.subscription_expires_at);
-      // Validate date
-      if (!isNaN(expirationDate.getTime())) {
+      const expirationDate = safeParseDate(profile.subscription_expires_at);
+      if (expirationDate) {
         return {
           expirationDate,
           daysRemaining: differenceInDays(expirationDate, today),
@@ -573,11 +579,11 @@ export default function Dashboard() {
       }
     }
     
-    // Fallback: calculate from created_at + trial days (for new users without subscription_expires_at)
-    if (profile.created_at) {
-      const createdAt = new Date(profile.created_at);
-      // Validate date
-      if (!isNaN(createdAt.getTime())) {
+    // Fallback: calculate from created_at + trial days
+    const createdAtStr = profile.created_at || user?.created_at || null;
+    if (createdAtStr) {
+      const createdAt = safeParseDate(createdAtStr);
+      if (createdAt) {
         const trialEndDate = addDays(createdAt, trialDaysFromSettings);
         return {
           expirationDate: trialEndDate,
@@ -588,7 +594,6 @@ export default function Dashboard() {
     }
     
     // Final fallback: If we still don't have data, don't show anything
-    console.warn('[Dashboard] Could not calculate subscription info - missing dates in profile');
     return null;
   })();
   
