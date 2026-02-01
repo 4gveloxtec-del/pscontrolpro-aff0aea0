@@ -196,11 +196,11 @@ export default function Coupons() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Cupons de Desconto</h1>
-          <p className="text-muted-foreground">Crie cupons promocionais para seus clientes</p>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Cupons de Desconto</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Crie cupons promocionais para seus clientes</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -351,7 +351,7 @@ export default function Coupons() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardContent className="p-6">
@@ -372,7 +372,7 @@ export default function Coupons() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {coupons.map((coupon) => (
             <Card
               key={coupon.id}

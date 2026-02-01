@@ -214,19 +214,19 @@ export default function WhatsAppAutomation() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <MessageCircle className="h-8 w-8 text-green-500" />
-            Automação WhatsApp
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <MessageCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 flex-shrink-0" />
+            <span className="truncate">Automação WhatsApp</span>
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm sm:text-base truncate">
             {isAdmin ? 'Configure a API global e gerencie revendedores' : 'Conecte seu WhatsApp e gerencie lembretes'}
           </p>
         </div>
         {canRunAutomation && (
-          <Button onClick={runManualAutomation} disabled={isRunningAutomation}>
+          <Button onClick={runManualAutomation} disabled={isRunningAutomation} className="w-full sm:w-auto">
             {isRunningAutomation ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Executar Agora
           </Button>
@@ -234,18 +234,20 @@ export default function WhatsAppAutomation() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full max-w-3xl ${isAdmin ? 'grid-cols-6' : 'grid-cols-4'}`}>
-          <TabsTrigger value="dashboard" className="gap-2"><Users className="h-4 w-4" />Dashboard</TabsTrigger>
-          <TabsTrigger value="queue" className="gap-2"><ListOrdered className="h-4 w-4" />Fila</TabsTrigger>
-          <TabsTrigger value="history" className="gap-2"><History className="h-4 w-4" />Enviados</TabsTrigger>
-          <TabsTrigger value="config" className="gap-2"><Settings className="h-4 w-4" />Instância</TabsTrigger>
-          {isAdmin && (
-            <>
-              <TabsTrigger value="sellers" className="gap-2"><Ban className="h-4 w-4" />Vendedores</TabsTrigger>
-              <TabsTrigger value="global" className="gap-2"><Shield className="h-4 w-4" />API</TabsTrigger>
-            </>
-          )}
-        </TabsList>
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className={`inline-flex min-w-max sm:grid sm:w-full sm:max-w-3xl ${isAdmin ? 'sm:grid-cols-6' : 'sm:grid-cols-4'}`}>
+            <TabsTrigger value="dashboard" className="gap-1 sm:gap-2 px-2 sm:px-3 text-xs sm:text-sm"><Users className="h-3 w-3 sm:h-4 sm:w-4" /><span className="hidden xs:inline">Dashboard</span><span className="xs:hidden">Dash</span></TabsTrigger>
+            <TabsTrigger value="queue" className="gap-1 sm:gap-2 px-2 sm:px-3 text-xs sm:text-sm"><ListOrdered className="h-3 w-3 sm:h-4 sm:w-4" />Fila</TabsTrigger>
+            <TabsTrigger value="history" className="gap-1 sm:gap-2 px-2 sm:px-3 text-xs sm:text-sm"><History className="h-3 w-3 sm:h-4 sm:w-4" /><span className="hidden xs:inline">Enviados</span><span className="xs:hidden">Hist</span></TabsTrigger>
+            <TabsTrigger value="config" className="gap-1 sm:gap-2 px-2 sm:px-3 text-xs sm:text-sm"><Settings className="h-3 w-3 sm:h-4 sm:w-4" /><span className="hidden xs:inline">Instância</span><span className="xs:hidden">Inst</span></TabsTrigger>
+            {isAdmin && (
+              <>
+                <TabsTrigger value="sellers" className="gap-1 sm:gap-2 px-2 sm:px-3 text-xs sm:text-sm"><Ban className="h-3 w-3 sm:h-4 sm:w-4" /><span className="hidden xs:inline">Vendedores</span><span className="xs:hidden">Vend</span></TabsTrigger>
+                <TabsTrigger value="global" className="gap-1 sm:gap-2 px-2 sm:px-3 text-xs sm:text-sm"><Shield className="h-3 w-3 sm:h-4 sm:w-4" />API</TabsTrigger>
+              </>
+            )}
+          </TabsList>
+        </div>
 
         <TabsContent value="dashboard" className="space-y-6">
           {/* Card de Status Modernizado */}
