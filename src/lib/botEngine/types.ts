@@ -121,6 +121,7 @@ export interface BotFlow {
   is_active: boolean;
   is_default: boolean;
   priority: number;
+  category?: string | null; // Categoria/pasta para organização (ex: "Fluxos IPTV")
   created_at: string;
   updated_at: string;
 }

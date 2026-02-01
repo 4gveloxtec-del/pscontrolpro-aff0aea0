@@ -28,6 +28,10 @@ import {
   CheckCircle2,
   HelpCircle,
   Eye,
+  FolderOpen,
+  Folder,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -63,6 +67,10 @@ export default function BotEngine() {
   
   // State for viewing flow nodes
   const [viewingFlow, setViewingFlow] = useState<{ id: string; name: string } | null>(null);
+  
+  // State for category/folder management
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Fluxos IPTV']));
   
   // Flow form states
   const [flowName, setFlowName] = useState('');
@@ -646,124 +654,196 @@ export default function BotEngine() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {flows.map((flow) => {
-                // Labels amigáveis para tipos de gatilho
-                const triggerLabels: Record<string, { emoji: string; text: string }> = {
-                  keyword: { emoji: '🔤', text: 'Por palavra-chave' },
-                  first_message: { emoji: '👋', text: 'Primeira mensagem' },
-                  default: { emoji: '📥', text: 'Padrão (fallback)' },
-                  webhook: { emoji: '🔗', text: 'Webhook' },
-                  manual: { emoji: '👆', text: 'Manual' },
-                };
-                const trigger = triggerLabels[flow.trigger_type] || { emoji: '❓', text: flow.trigger_type };
+            <>
+              {/* Fluxos agrupados por categoria */}
+              {(() => {
+                // Agrupar fluxos por categoria
+                const flowsByCategory = flows.reduce((acc, flow) => {
+                  const category = flow.category || 'Sem Categoria';
+                  if (!acc[category]) acc[category] = [];
+                  acc[category].push(flow);
+                  return acc;
+                }, {} as Record<string, typeof flows>);
                 
-                return (
-                  <Card 
-                    key={flow.id} 
-                    className={`transition-all hover:shadow-md ${!flow.is_active ? 'opacity-60' : ''}`}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-2xl">🤖</span>
-                          <CardTitle className="text-base truncate">{flow.name}</CardTitle>
-                        </div>
-                        <Badge 
-                          variant={flow.is_active ? 'default' : 'secondary'}
-                          className="shrink-0"
-                        >
-                          {flow.is_active ? '✅ Ativo' : '⏸️ Inativo'}
-                        </Badge>
-                      </div>
-                      <CardDescription className="line-clamp-2">
-                        {flow.description || 'Sem descrição'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Trigger info */}
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>{trigger.emoji}</span>
-                        <span className="text-muted-foreground">{trigger.text}</span>
-                        {flow.trigger_keywords?.length > 0 && (
-                          <Badge variant="outline" className="text-xs ml-auto">
-                            {flow.trigger_keywords.slice(0, 2).join(', ')}
-                            {flow.trigger_keywords.length > 2 && ` +${flow.trigger_keywords.length - 2}`}
-                          </Badge>
+                // Ordenar categorias: "Fluxos IPTV" primeiro, "Arquivo" por último, resto alfabético
+                const sortedCategories = Object.keys(flowsByCategory).sort((a, b) => {
+                  if (a === 'Fluxos IPTV') return -1;
+                  if (b === 'Fluxos IPTV') return 1;
+                  if (a === 'Arquivo') return 1;
+                  if (b === 'Arquivo') return -1;
+                  if (a === 'Sem Categoria') return 1;
+                  if (b === 'Sem Categoria') return -1;
+                  return a.localeCompare(b);
+                });
+                
+                return sortedCategories.map((category) => {
+                  const categoryFlows = flowsByCategory[category];
+                  const isExpanded = expandedCategories.has(category);
+                  const activeCount = categoryFlows.filter(f => f.is_active).length;
+                  
+                  // Ícone e cor baseados na categoria
+                  const getCategoryStyle = (cat: string) => {
+                    if (cat === 'Fluxos IPTV') return { icon: '📺', color: 'bg-blue-500/10 border-blue-500/30' };
+                    if (cat === 'Arquivo') return { icon: '📦', color: 'bg-gray-500/10 border-gray-500/30' };
+                    return { icon: '📁', color: 'bg-primary/10 border-primary/30' };
+                  };
+                  const style = getCategoryStyle(category);
+                  
+                  return (
+                    <div key={category} className="space-y-3">
+                      {/* Category Header */}
+                      <button
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border ${style.color} hover:bg-accent/50 transition-colors`}
+                        onClick={() => {
+                          setExpandedCategories(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(category)) {
+                              newSet.delete(category);
+                            } else {
+                              newSet.add(category);
+                            }
+                            return newSet;
+                          });
+                        }}
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         )}
-                      </div>
+                        <span className="text-xl">{style.icon}</span>
+                        <span className="font-medium">{category}</span>
+                        <Badge variant="secondary" className="ml-auto">
+                          {activeCount}/{categoryFlows.length} ativos
+                        </Badge>
+                      </button>
                       
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 pt-2 border-t">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="flex-1 gap-2"
-                          onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
-                        >
-                          <Eye className="h-4 w-4" />
-                          Editar Conversa
-                        </Button>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="shrink-0"
-                                onClick={() => handleToggleFlowActive(flow)}
+                      {/* Category Flows */}
+                      {isExpanded && (
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pl-4">
+                          {categoryFlows.map((flow) => {
+                            // Labels amigáveis para tipos de gatilho
+                            const triggerLabels: Record<string, { emoji: string; text: string }> = {
+                              keyword: { emoji: '🔤', text: 'Por palavra-chave' },
+                              first_message: { emoji: '👋', text: 'Primeira mensagem' },
+                              default: { emoji: '📥', text: 'Padrão (fallback)' },
+                              webhook: { emoji: '🔗', text: 'Webhook' },
+                              manual: { emoji: '👆', text: 'Manual' },
+                            };
+                            const trigger = triggerLabels[flow.trigger_type] || { emoji: '❓', text: flow.trigger_type };
+                            
+                            return (
+                              <Card 
+                                key={flow.id} 
+                                className={`transition-all hover:shadow-md ${!flow.is_active ? 'opacity-60' : ''}`}
                               >
-                                {flow.is_active ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {flow.is_active ? 'Pausar fluxo' : 'Ativar fluxo'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="shrink-0"
-                                onClick={() => {
-                                  setEditingFlow(flow);
-                                  setIsFlowDialogOpen(true);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Editar configurações</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="shrink-0 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteFlow(flow.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Excluir fluxo</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="text-2xl">🤖</span>
+                                      <CardTitle className="text-base truncate">{flow.name}</CardTitle>
+                                    </div>
+                                    <Badge 
+                                      variant={flow.is_active ? 'default' : 'secondary'}
+                                      className="shrink-0"
+                                    >
+                                      {flow.is_active ? '✅ Ativo' : '⏸️ Inativo'}
+                                    </Badge>
+                                  </div>
+                                  <CardDescription className="line-clamp-2">
+                                    {flow.description || 'Sem descrição'}
+                                  </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  {/* Trigger info */}
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <span>{trigger.emoji}</span>
+                                    <span className="text-muted-foreground">{trigger.text}</span>
+                                    {flow.trigger_keywords?.length > 0 && (
+                                      <Badge variant="outline" className="text-xs ml-auto">
+                                        {flow.trigger_keywords.slice(0, 2).join(', ')}
+                                        {flow.trigger_keywords.length > 2 && ` +${flow.trigger_keywords.length - 2}`}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Action buttons */}
+                                  <div className="flex items-center gap-2 pt-2 border-t">
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="flex-1 gap-2"
+                                      onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      Editar Conversa
+                                    </Button>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="shrink-0"
+                                            onClick={() => handleToggleFlowActive(flow)}
+                                          >
+                                            {flow.is_active ? (
+                                              <Pause className="h-4 w-4" />
+                                            ) : (
+                                              <Play className="h-4 w-4" />
+                                            )}
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {flow.is_active ? 'Pausar fluxo' : 'Ativar fluxo'}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="shrink-0"
+                                            onClick={() => {
+                                              setEditingFlow(flow);
+                                              setIsFlowDialogOpen(true);
+                                            }}
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar configurações</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="shrink-0 text-destructive hover:text-destructive"
+                                            onClick={() => handleDeleteFlow(flow.id)}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Excluir fluxo</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </>
           )}
         </TabsContent>
       </Tabs>
