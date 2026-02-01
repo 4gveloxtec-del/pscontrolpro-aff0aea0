@@ -14,7 +14,8 @@ interface RenewalData {
   planPrice?: number | null;
   currentExpirationDate: string;
   planId?: string | null;
-  durationDays: number;
+  durationDays?: number; // Optional when customExpirationDate is provided
+  customExpirationDate?: string; // yyyy-MM-dd format - takes precedence over durationDays
 }
 
 interface RenewalResult {
@@ -314,7 +315,16 @@ export function useRenewalMutation(userId: string | undefined) {
   }, [userId]);
 
   // Helper to calculate new expiration date - normalized to noon to avoid timezone issues
-  const calculateNewExpiration = useCallback((currentExpiration: string, durationDays: number): string => {
+  const calculateNewExpiration = useCallback((
+    currentExpiration: string, 
+    durationDays: number,
+    customExpirationDate?: string
+  ): string => {
+    // If custom date is provided, use it directly
+    if (customExpirationDate) {
+      return customExpirationDate;
+    }
+    
     // Parse date with noon time to avoid UTC conversion issues
     const baseDate = new Date(currentExpiration + 'T12:00:00');
     const today = new Date();
@@ -346,10 +356,10 @@ export function useRenewalMutation(userId: string | undefined) {
   // Main renewal mutation
   const renewMutation = useMutation({
     mutationFn: async (data: RenewalData): Promise<RenewalResult> => {
-      const { clientId, currentExpirationDate, planId, planName, planPrice, durationDays } = data;
+      const { clientId, currentExpirationDate, planId, planName, planPrice, durationDays = 30, customExpirationDate } = data;
 
-      // Calculate new expiration
-      const newExpirationDate = calculateNewExpiration(currentExpirationDate, durationDays);
+      // Calculate new expiration (custom date takes precedence)
+      const newExpirationDate = calculateNewExpiration(currentExpirationDate, durationDays, customExpirationDate);
 
       // Prepare update data - all fields in single transaction
       const updateData: Record<string, unknown> = {
@@ -393,7 +403,7 @@ export function useRenewalMutation(userId: string | undefined) {
 
       // Optimistic update
       if (previousClients) {
-        const newExpirationDate = calculateNewExpiration(data.currentExpirationDate, data.durationDays);
+        const newExpirationDate = calculateNewExpiration(data.currentExpirationDate, data.durationDays || 30, data.customExpirationDate);
         
         queryClient.setQueryData<any[]>(['clients', userId], (old) =>
           old?.map(client =>
