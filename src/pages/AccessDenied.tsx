@@ -55,16 +55,16 @@ export default function AccessDenied() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-3 sm:p-4 max-w-full overflow-x-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-destructive/5 via-transparent to-warning/10 pointer-events-none" />
 
-      <Card className="w-full max-w-md relative z-10 border-destructive/50">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-            <AlertTriangle className="w-8 h-8 text-destructive" />
+      <Card className="w-full max-w-md relative z-10 border-destructive/50 mx-auto">
+        <CardHeader className="text-center px-4 sm:px-6">
+          <div className="mx-auto w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-3 sm:mb-4">
+            <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-destructive" />
           </div>
-          <CardTitle className="text-2xl">Período de Teste Expirado</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-xl sm:text-2xl">Período de Teste Expirado</CardTitle>
+          <CardDescription className="text-sm">
             Seu teste gratuito de {trialDays || '5'} dias terminou. Entre em contato para continuar usando o sistema.
           </CardDescription>
         </CardHeader>

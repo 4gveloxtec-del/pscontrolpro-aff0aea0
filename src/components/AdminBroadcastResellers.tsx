@@ -540,19 +540,20 @@ Qualquer dúvida estamos à disposição!`;
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2 w-full sm:w-auto">
           <MessageSquare className="h-4 w-4" />
-          Broadcast para Revendedores
+          <span className="hidden xs:inline">Broadcast para Revendedores</span>
+          <span className="xs:hidden">Broadcast</span>
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5" />
-            Enviar Mensagem para Revendedores
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Send className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Enviar Mensagem para Revendedores</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Filtre revendedores por período de plano e tipo de mensagem
           </DialogDescription>
         </DialogHeader>
@@ -594,11 +595,11 @@ Qualquer dúvida estamos à disposição!`;
                   <Calendar className="h-4 w-4" />
                   Período do Plano
                 </Label>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                   {PLAN_PERIODS.map((period) => (
                     <div
                       key={period.value}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                      className={`flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
                         selectedPeriods.includes(period.value)
                           ? 'bg-primary text-primary-foreground border-primary'
                           : 'bg-background hover:bg-muted border-border'
@@ -609,7 +610,7 @@ Qualquer dúvida estamos à disposição!`;
                         checked={selectedPeriods.includes(period.value)}
                         className="pointer-events-none"
                       />
-                      <span className="text-sm">{period.label}</span>
+                      <span className="text-xs sm:text-sm truncate">{period.label}</span>
                     </div>
                   ))}
                 </div>

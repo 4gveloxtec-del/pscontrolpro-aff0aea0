@@ -292,14 +292,14 @@ export function ExternalAppsManager() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold flex items-center gap-2">
-            <AppWindow className="h-4 w-4" />
-            Apps Externos Cadastrados
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold flex items-center gap-2 text-sm sm:text-base">
+            <AppWindow className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Apps Externos Cadastrados</span>
           </h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
             Cadastre apps como IBO PRO, Bob Player, etc.
           </p>
         </div>
@@ -308,7 +308,7 @@ export function ExternalAppsManager() {
           if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2">
+            <Button size="sm" className="gap-2 w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Novo App
             </Button>

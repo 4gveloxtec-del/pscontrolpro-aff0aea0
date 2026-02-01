@@ -202,48 +202,48 @@ export function ExternalAppsExpirationReport() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Vencimentos de Apps Externos
+    <Card className="max-w-full overflow-hidden">
+      <CardHeader className="px-3 sm:px-6 py-4">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <Calendar className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <span className="truncate">Vencimentos de Apps Externos</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-6">
         <Tabs defaultValue="3days" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
-            <TabsTrigger value="3days" className="relative text-xs px-2">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              3d
+          <TabsList className="grid w-full grid-cols-4 mb-4 h-auto p-1">
+            <TabsTrigger value="3days" className="relative text-[10px] sm:text-xs px-1 sm:px-2 py-2 flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              <span>3d</span>
               {apps3Days.length > 0 && (
-                <Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
+                <Badge variant="destructive" className="h-4 px-1 text-[9px] sm:text-[10px]">
                   {apps3Days.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="7days" className="relative text-xs px-2">
-              <Clock className="h-3 w-3 mr-1" />
-              7d
+            <TabsTrigger value="7days" className="relative text-[10px] sm:text-xs px-1 sm:px-2 py-2 flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1">
+              <Clock className="h-3 w-3" />
+              <span>7d</span>
               {apps7Days.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                <Badge variant="secondary" className="h-4 px-1 text-[9px] sm:text-[10px]">
                   {apps7Days.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="15days" className="relative text-xs px-2">
-              <Calendar className="h-3 w-3 mr-1" />
-              15d
+            <TabsTrigger value="15days" className="relative text-[10px] sm:text-xs px-1 sm:px-2 py-2 flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1">
+              <Calendar className="h-3 w-3" />
+              <span>15d</span>
               {apps15Days.length > 0 && (
-                <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                <Badge variant="outline" className="h-4 px-1 text-[9px] sm:text-[10px]">
                   {apps15Days.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="30days" className="relative text-xs px-2">
-              <Bell className="h-3 w-3 mr-1" />
-              30d
+            <TabsTrigger value="30days" className="relative text-[10px] sm:text-xs px-1 sm:px-2 py-2 flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1">
+              <Bell className="h-3 w-3" />
+              <span>30d</span>
               {apps30Days.length > 0 && (
-                <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                <Badge variant="outline" className="h-4 px-1 text-[9px] sm:text-[10px]">
                   {apps30Days.length}
                 </Badge>
               )}

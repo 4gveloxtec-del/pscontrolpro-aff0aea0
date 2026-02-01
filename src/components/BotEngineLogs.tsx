@@ -234,11 +234,11 @@ export function BotEngineLogs() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-full overflow-x-hidden">
       {/* Controls */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 flex-1">
+          <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por telefone..."
@@ -248,7 +248,7 @@ export function BotEngineLogs() {
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-full sm:w-[140px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -266,23 +266,27 @@ export function BotEngineLogs() {
             size="sm"
             onClick={() => refetchSessions()}
             disabled={sessionsLoading}
+            className="flex-1 sm:flex-none"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${sessionsLoading ? 'animate-spin' : ''}`} />
-            Atualizar
+            <RefreshCw className={`h-4 w-4 mr-1 sm:mr-2 ${sessionsLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden xs:inline">Atualizar</span>
+            <span className="xs:hidden">Att</span>
           </Button>
           <Button
             variant="destructive"
             size="sm"
             onClick={handleClearAll}
             disabled={sessions.length === 0}
+            className="flex-1 sm:flex-none"
           >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Limpar Tudo
+            <Trash2 className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden xs:inline">Limpar Tudo</span>
+            <span className="xs:hidden">Limpar</span>
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         {/* Sessions List */}
         <Card>
           <CardHeader className="pb-3">

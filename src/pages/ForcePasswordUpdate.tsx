@@ -86,25 +86,25 @@ export default function ForcePasswordUpdate() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-3 sm:p-4 max-w-full overflow-x-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-warning/5 via-transparent to-warning/10 pointer-events-none" />
       
-      <div className="w-full max-w-md relative z-10 animate-fade-in">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-warning/10 mb-4">
-            <Shield className="w-8 h-8 text-warning" />
+      <div className="w-full max-w-md relative z-10 animate-fade-in mx-auto">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-warning/10 mb-3 sm:mb-4">
+            <Shield className="w-7 h-7 sm:w-8 sm:h-8 text-warning" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Atualização de Senha</h1>
-          <p className="text-muted-foreground mt-2">Você precisa criar uma nova senha para continuar</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Atualização de Senha</h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base">Você precisa criar uma nova senha para continuar</p>
         </div>
 
         <Card className="border-warning/30 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-warning">
-              <AlertTriangle className="h-5 w-5" />
-              Senha Temporária Detectada
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="flex items-center gap-2 text-warning text-base sm:text-lg">
+              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+              <span className="truncate">Senha Temporária Detectada</span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm">
               Sua conta está usando uma senha temporária. Por segurança, você deve criar uma nova senha.
             </CardDescription>
           </CardHeader>
