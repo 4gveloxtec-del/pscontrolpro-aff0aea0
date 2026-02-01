@@ -292,20 +292,20 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
   if (messageButtons.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5 sm:gap-2">
       {messageButtons.map((button) => {
         const isSent = isNotificationSent(button.type);
         const isSending = sendingType === button.type;
         
         return (
-          <div key={button.type} className="flex items-center gap-1">
+          <div key={button.type} className="flex items-center gap-0.5 sm:gap-1">
             {canSendViaApi ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={isSent ? "secondary" : "outline"}
-                    size="sm"
-                    className={cn("gap-1.5", isSent && "opacity-50")}
+                    <Button
+                      variant={isSent ? "secondary" : "outline"}
+                      size="sm"
+                      className={cn("gap-1 sm:gap-1.5 text-xs h-7 sm:h-8 px-2 sm:px-3", isSent && "opacity-50")}
                     disabled={isSent || isSending}
                   >
                     {isSending ? (
@@ -333,16 +333,16 @@ export function ManualMessageSender({ client, onMessageSent }: ManualMessageSend
               <Button
                 variant={isSent ? "secondary" : "outline"}
                 size="sm"
-                className={cn("gap-1.5", isSent && "opacity-50")}
+                className={cn("gap-1 sm:gap-1.5 text-xs h-7 sm:h-8 px-2 sm:px-3", isSent && "opacity-50")}
                 onClick={() => sendManualMessage(button.type, button.templateType)}
                 disabled={isSent}
               >
-                {isSent ? <Clock className="h-3 w-3" /> : <MessageCircle className="h-3 w-3" />}
+                {isSent ? <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <MessageCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                 {button.label}
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => copyMessage(button.templateType)}>
-              <Copy className="h-3 w-3" />
+            <Button variant="ghost" size="sm" className="h-6 w-6 sm:h-8 sm:w-8 p-0" onClick={() => copyMessage(button.templateType)}>
+              <Copy className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
             </Button>
           </div>
         );

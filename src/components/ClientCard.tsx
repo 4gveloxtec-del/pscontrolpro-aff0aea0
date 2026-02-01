@@ -176,12 +176,12 @@ export const ClientCard = memo(function ClientCard({
         status === 'expired' && 'bg-gradient-to-r from-red-500 to-rose-400'
       )} />
 
-      <CardContent className="p-4 pt-5">
+      <CardContent className="p-3 sm:p-4 pt-4 sm:pt-5">
         {/* Header Section */}
-        <div className="flex items-start gap-3 mb-4">
+        <div className="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
           {/* Avatar */}
           <div className={cn(
-            'flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold',
+            'flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-base sm:text-lg font-bold',
             'bg-gradient-to-br shadow-inner',
             status === 'active' && 'from-green-500/20 to-emerald-500/10 text-green-600 dark:text-green-400',
             status === 'expiring' && 'from-yellow-500/20 to-orange-500/10 text-yellow-600 dark:text-yellow-400',
@@ -260,20 +260,20 @@ export const ClientCard = memo(function ClientCard({
         </div>
 
         {/* Info Grid */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-1.5 sm:gap-2 mb-2 sm:mb-3">
           {/* Expiration */}
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
-            <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium">
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg bg-muted/30">
+            <CalendarIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="text-[10px] sm:text-xs font-medium truncate">
               {format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy")}
             </span>
           </div>
 
           {/* Phone */}
           {client.phone ? (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 group/phone">
-              <Phone className="h-3.5 w-3.5 text-green-500" />
-              <span className="text-xs truncate flex-1">{maskData(client.phone, 'phone')}</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg bg-muted/30 group/phone">
+              <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-500 flex-shrink-0" />
+              <span className="text-[10px] sm:text-xs truncate flex-1">{maskData(client.phone, 'phone')}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -288,18 +288,18 @@ export const ClientCard = memo(function ClientCard({
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/20">
-              <Phone className="h-3.5 w-3.5 text-muted-foreground/50" />
-              <span className="text-xs text-muted-foreground/50">Sem telefone</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg bg-muted/20">
+              <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground/50 flex-shrink-0" />
+              <span className="text-[10px] sm:text-xs text-muted-foreground/50 truncate">Sem telefone</span>
             </div>
           )}
         </div>
 
         {/* DNS */}
         {client.dns && (
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10 mb-3 group/dns">
-            <Globe className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium truncate flex-1">
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg bg-blue-500/5 border border-blue-500/10 mb-2 sm:mb-3 group/dns">
+            <Globe className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-500 flex-shrink-0" />
+            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-medium truncate flex-1">
               {client.dns}
             </span>
             <Button
@@ -314,7 +314,7 @@ export const ClientCard = memo(function ClientCard({
         )}
 
         {/* Badges Section - Plan, Server, Device, App */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
           {client.plan_name && (
             <Badge variant="secondary" className="text-[10px] gap-1 font-normal">
               <CreditCard className="h-3 w-3" />
@@ -408,7 +408,7 @@ export const ClientCard = memo(function ClientCard({
 
         {/* Credentials Section */}
         {hasCredentials && (
-          <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50 mb-3">
+          <div className="p-2 sm:p-2.5 rounded-lg bg-muted/40 border border-border/50 mb-2 sm:mb-3">
             {isDecrypted && decryptedCredentials ? (
               <div className="space-y-1.5">
                 {decryptedCredentials.login && (
