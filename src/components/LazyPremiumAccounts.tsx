@@ -67,12 +67,13 @@ const LazyPremiumAccountsComponent = forwardRef<HTMLDivElement, LazyPremiumAccou
       staleTime: 30000, // 30 seconds cache
     });
 
-    // Callback to trigger data fetch when user expands
+    // Stable callback to trigger data fetch when user expands
     const handleExpandChange = useCallback((expanded: boolean) => {
       if (expanded && !shouldFetch) {
         setShouldFetch(true);
       }
-    }, [shouldFetch]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Don't render anything if no accounts
     if (accountCount === 0) return null;
