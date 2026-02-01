@@ -701,6 +701,33 @@ export default function BotEngine() {
                     de inatividade
                   </span>
                 </div>
+
+                {/* Toggle para suprimir fallback no primeiro contato */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                  <Switch
+                    id="suppress-fallback-welcome"
+                    checked={suppressFallbackFirstContact}
+                    onCheckedChange={setSuppressFallbackFirstContact}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="suppress-fallback-welcome" className="text-sm font-medium cursor-pointer">
+                      Silenciar erros após boas-vindas
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Não enviar mensagem de erro se o cliente não responder corretamente ao menu
+                    </p>
+                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Se ativado, o bot ficará em silêncio quando o cliente enviar algo que não corresponda às opções do menu (evita loops de erro)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
 
                 {/* Variáveis copiáveis */}
@@ -771,26 +798,6 @@ export default function BotEngine() {
                   onChange={(e) => setFallbackMessage(e.target.value)}
                   rows={3}
                 />
-                <div className="flex items-center gap-2 mt-2">
-                  <Switch
-                    id="suppress-fallback"
-                    checked={suppressFallbackFirstContact}
-                    onCheckedChange={setSuppressFallbackFirstContact}
-                  />
-                  <Label htmlFor="suppress-fallback" className="text-sm">
-                    Não enviar erro no primeiro contato
-                  </Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Se ativado, a mensagem de erro só será enviada após o cliente já ter interagido pelo menos uma vez com o bot</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
               </div>
 
               <div className="flex justify-end">
