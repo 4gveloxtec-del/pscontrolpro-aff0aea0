@@ -4097,10 +4097,6 @@ export type Database = {
         Args: { p_seller_id: string }
         Returns: undefined
       }
-      create_default_dynamic_menus: {
-        Args: { p_seller_id: string }
-        Returns: undefined
-      }
       create_default_plans_for_seller: {
         Args: { seller_uuid: string }
         Returns: undefined
