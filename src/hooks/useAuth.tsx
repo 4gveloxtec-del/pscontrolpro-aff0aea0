@@ -893,13 +893,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const now = new Date();
     let trialEndDate: Date;
+
+     const safeParseDate = (dateStr: string) => {
+       const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T12:00:00` : dateStr;
+       const d = new Date(normalized);
+       return isNaN(d.getTime()) ? null : d;
+     };
     
     // Se tem subscription_expires_at, usa ele (seller com assinatura)
     if (profile.subscription_expires_at) {
-      trialEndDate = new Date(profile.subscription_expires_at);
+      const parsed = safeParseDate(profile.subscription_expires_at);
+      if (parsed) {
+        trialEndDate = parsed;
+      } else if (profile.created_at) {
+        const createdAt = safeParseDate(profile.created_at);
+        if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
+        trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      } else if (user?.created_at) {
+        const createdAt = safeParseDate(user.created_at);
+        if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
+        trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      } else {
+        return { isInTrial: false, daysRemaining: 0, trialExpired: false };
+      }
     } else if (profile.created_at) {
       // Senão, calcula baseado em created_at + trialDays (novo usuário/seller em trial)
-      const createdAt = new Date(profile.created_at);
+      const createdAt = safeParseDate(profile.created_at);
+      if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
+      trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+    } else if (user?.created_at) {
+      // Contas legadas: fallback para created_at do auth
+      const createdAt = safeParseDate(user.created_at);
+      if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
       trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
     } else {
       return { isInTrial: false, daysRemaining: 0, trialExpired: false };
