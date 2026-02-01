@@ -1,10 +1,8 @@
-import { useState, memo, forwardRef } from 'react';
+import { useState, memo, forwardRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabaseExternal as supabase } from '@/lib/supabase-external';
 import { LazyAccountsDisplay } from '@/components/LazyAccountsDisplay';
 import { PremiumAccount } from '@/components/ClientPremiumAccounts';
-import { ChevronDown, ChevronUp, Crown } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 
 interface LazyPremiumAccountsProps {
   clientId: string;
@@ -16,10 +14,13 @@ interface LazyPremiumAccountsProps {
 /**
  * Lazy loading component for client premium accounts
  * Only fetches data when the user expands the section
+ * 
+ * This component controls the data fetching, while LazyAccountsDisplay
+ * handles all the UI rendering (expand/collapse, display, etc.)
  */
 const LazyPremiumAccountsComponent = forwardRef<HTMLDivElement, LazyPremiumAccountsProps>(
   function LazyPremiumAccounts({ clientId, sellerId, isPrivacyMode = false, maskData }, ref) {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [shouldFetch, setShouldFetch] = useState(false);
 
     // Query to check if client has premium accounts (just count)
     const { data: accountCount = 0 } = useQuery({
@@ -38,7 +39,7 @@ const LazyPremiumAccountsComponent = forwardRef<HTMLDivElement, LazyPremiumAccou
       gcTime: 300000, // 5 minutes garbage collection
     });
 
-    // Only fetch full data when expanded (user clicked to expand)
+    // Only fetch full data when shouldFetch is true (user clicked to expand)
     const { data: accounts = [], isLoading } = useQuery({
       queryKey: ['client-premium-accounts', clientId],
       queryFn: async () => {
@@ -62,57 +63,30 @@ const LazyPremiumAccountsComponent = forwardRef<HTMLDivElement, LazyPremiumAccou
           notes: acc.notes || '',
         })) as PremiumAccount[];
       },
-      enabled: isExpanded && accountCount > 0,
+      enabled: shouldFetch && accountCount > 0,
       staleTime: 30000, // 30 seconds cache
     });
+
+    // Callback to trigger data fetch when user expands
+    const handleExpandChange = useCallback((expanded: boolean) => {
+      if (expanded && !shouldFetch) {
+        setShouldFetch(true);
+      }
+    }, [shouldFetch]);
 
     // Don't render anything if no accounts
     if (accountCount === 0) return null;
 
-    const handleToggle = () => {
-      setIsExpanded(!isExpanded);
-    };
-
     return (
-      <div ref={ref} className="w-full">
-        {/* Collapsed header - always visible */}
-        <button
-          type="button"
-          onClick={handleToggle}
-          className="w-full flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Crown className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium">Contas Premium</span>
-            <Badge variant="secondary" className="text-xs">
-              {accountCount}
-            </Badge>
-          </div>
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
-
-        {/* Expanded content */}
-        {isExpanded && (
-          <div className="mt-2">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-3">
-                <div className="animate-pulse text-xs text-muted-foreground">
-                  Carregando contas...
-                </div>
-              </div>
-            ) : (
-              <LazyAccountsDisplay
-                accounts={accounts}
-                isPrivacyMode={isPrivacyMode}
-                maskData={maskData}
-              />
-            )}
-          </div>
-        )}
+      <div ref={ref}>
+        <LazyAccountsDisplay
+          accounts={shouldFetch ? accounts : []}
+          isPrivacyMode={isPrivacyMode}
+          maskData={maskData}
+          title={`Contas Premium (${accountCount})`}
+          isLoading={isLoading && shouldFetch}
+          onExpandChange={handleExpandChange}
+        />
       </div>
     );
   }
