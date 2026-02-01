@@ -150,11 +150,11 @@ const ServerIcons = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Ícones de Servidores</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">Ícones de Servidores</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1 truncate">
             Ícones padrão que aparecem automaticamente para revendedores
           </p>
         </div>
@@ -223,11 +223,11 @@ const ServerIcons = () => {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">
-              <CardContent className="p-4">
-                <div className="h-16 w-16 bg-muted rounded-lg mx-auto mb-3" />
+              <CardContent className="p-3 sm:p-4">
+                <div className="h-12 w-12 sm:h-16 sm:w-16 bg-muted rounded-lg mx-auto mb-2 sm:mb-3" />
                 <div className="h-4 bg-muted rounded w-3/4 mx-auto" />
               </CardContent>
             </Card>
@@ -244,7 +244,7 @@ const ServerIcons = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5">
           {icons.map((icon) => (
             <Card key={icon.id} className="group hover:shadow-lg transition-shadow">
               <CardContent className="p-4 text-center">

@@ -207,19 +207,19 @@ const AdminServerTemplates = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
       {/* Bulk Import Toggle */}
       <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Upload className="h-5 w-5 text-primary" />
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="p-2 rounded-lg bg-primary/10 flex-shrink-0">
+                <Upload className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              <div>
-                <h3 className="font-medium">Importação em Massa para Revendedores</h3>
-                <p className="text-sm text-muted-foreground">
-                  Quando ativo, revendedores podem importar servidores em massa
+              <div className="min-w-0">
+                <h3 className="font-medium text-sm sm:text-base truncate">Importação em Massa</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                  Revendedores podem importar servidores
                 </p>
               </div>
             </div>
@@ -232,11 +232,11 @@ const AdminServerTemplates = () => {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Templates de Servidores</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Defina ícones e links padrão que aparecem automaticamente para revendedores
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">Templates de Servidores</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1 truncate">
+            Ícones e links padrão para revendedores
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -323,11 +323,11 @@ const AdminServerTemplates = () => {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">
-              <CardContent className="p-4">
-                <div className="h-16 w-16 bg-muted rounded-lg mx-auto mb-3" />
+              <CardContent className="p-3 sm:p-4">
+                <div className="h-12 w-12 sm:h-16 sm:w-16 bg-muted rounded-lg mx-auto mb-2 sm:mb-3" />
                 <div className="h-4 bg-muted rounded w-3/4 mx-auto mb-2" />
                 <div className="h-3 bg-muted rounded w-1/2 mx-auto" />
               </CardContent>
@@ -345,7 +345,7 @@ const AdminServerTemplates = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {templates.map((template) => (
               <Card key={template.id} className="group hover:shadow-lg transition-shadow">
                 <CardContent className="p-4">

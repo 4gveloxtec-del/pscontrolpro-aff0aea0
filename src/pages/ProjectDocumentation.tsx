@@ -401,17 +401,17 @@ export default function ProjectDocumentation() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen bg-background p-3 sm:p-4 md:p-8 max-w-full overflow-x-hidden">
       <Card className="max-w-5xl mx-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-primary" />
-            <CardTitle>Documentação do Projeto</CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-6">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary flex-shrink-0" />
+            <CardTitle className="text-lg sm:text-xl truncate">Documentação do Projeto</CardTitle>
           </div>
           <Button 
             onClick={handleCopy} 
-            size="lg"
-            className="gap-2"
+            size="sm"
+            className="gap-2 w-full sm:w-auto"
           >
             {copied ? (
               <>
@@ -426,9 +426,9 @@ export default function ProjectDocumentation() {
             )}
           </Button>
         </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[70vh] rounded-lg border bg-muted/30 p-4">
-            <pre className="text-sm whitespace-pre-wrap font-mono">
+        <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+          <ScrollArea className="h-[60vh] sm:h-[70vh] rounded-lg border bg-muted/30 p-2 sm:p-4">
+            <pre className="text-xs sm:text-sm whitespace-pre-wrap font-mono">
               {DOCUMENTATION}
             </pre>
           </ScrollArea>
