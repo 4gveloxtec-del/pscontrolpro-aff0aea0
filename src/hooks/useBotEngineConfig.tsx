@@ -12,24 +12,72 @@ import type { BotEngineConfig } from '@/lib/botEngine/types';
 const QUERY_KEY = 'bot-engine-config';
 const FLOW_FIRST_MESSAGE_KEY = 'bot-engine-first-message';
 
+// Valores padrão garantidos para toda nova configuração
+// Mensagem padrão com menu de opções para boas-vindas
+const DEFAULT_CONFIG = {
+  welcome_message: `Olá! 👋 Seja bem-vindo!
+
+Escolha uma opção:
+1️⃣ Testar IPTV
+2️⃣ Ver Planos
+3️⃣ Suporte`,
+  fallback_message: 'Desculpe, não entendi. Digite *menu* para ver as opções.',
+  inactivity_message: 'Sessão encerrada por inatividade.',
+  outside_hours_message: 'No momento estamos fora do horário de atendimento. Retornaremos em breve!',
+  human_takeover_message: 'Transferindo para um atendente humano...',
+  welcome_cooldown_hours: 24,
+  suppress_fallback_first_contact: true,
+  business_hours_enabled: false,
+  business_hours_start: '08:00',
+  business_hours_end: '22:00',
+  business_days: [1, 2, 3, 4, 5, 6],
+  timezone: 'America/Sao_Paulo',
+  typing_simulation: true,
+  human_takeover_enabled: true,
+  max_inactivity_minutes: 30,
+  session_expire_minutes: 60,
+  auto_reply_delay_ms: 500,
+  is_enabled: true,
+};
+
 export function useBotEngineConfig() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Buscar configuração
+  // Buscar configuração - se não existir, criar automaticamente com defaults
   const { data: config, isLoading, error } = useQuery({
     queryKey: [QUERY_KEY, user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
+      const { data: existing, error: fetchError } = await supabase
         .from('bot_engine_config')
         .select('*')
         .eq('seller_id', user.id)
         .maybeSingle();
       
-      if (error) throw error;
-      return data as BotEngineConfig | null;
+      if (fetchError) throw fetchError;
+      
+      // Se já existe, retornar
+      if (existing) return existing as BotEngineConfig;
+      
+      // Se não existe, criar configuração padrão automaticamente
+      console.log('[BotEngine] Creating default config for new user');
+      const { data: newConfig, error: insertError } = await supabase
+        .from('bot_engine_config')
+        .insert({
+          seller_id: user.id,
+          ...DEFAULT_CONFIG,
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error('[BotEngine] Failed to create default config:', insertError);
+        throw insertError;
+      }
+      
+      return newConfig as BotEngineConfig;
     },
     enabled: !!user?.id,
   });
@@ -102,32 +150,6 @@ export function useBotEngineConfig() {
     enabled: !!user?.id,
   });
 
-  // Valores padrão garantidos para toda nova configuração
-  // Mensagem padrão com menu de opções para boas-vindas
-  const DEFAULT_CONFIG = {
-    welcome_message: `Olá! 👋 Seja bem-vindo!
-
-Escolha uma opção:
-1️⃣ Testar IPTV
-2️⃣ Ver Planos
-3️⃣ Suporte`,
-    fallback_message: 'Desculpe, não entendi. Digite *menu* para ver as opções.',
-    inactivity_message: 'Sessão encerrada por inatividade.',
-    outside_hours_message: 'No momento estamos fora do horário de atendimento. Retornaremos em breve!',
-    human_takeover_message: 'Transferindo para um atendente humano...',
-    welcome_cooldown_hours: 24,
-    suppress_fallback_first_contact: true,
-    business_hours_enabled: false,
-    business_hours_start: '08:00',
-    business_hours_end: '22:00',
-    business_days: [1, 2, 3, 4, 5, 6],
-    timezone: 'America/Sao_Paulo',
-    typing_simulation: true,
-    human_takeover_enabled: true,
-    max_inactivity_minutes: 30,
-    session_expire_minutes: 60,
-    auto_reply_delay_ms: 500,
-  };
 
   // Criar ou atualizar configuração
   const upsertMutation = useMutation({
