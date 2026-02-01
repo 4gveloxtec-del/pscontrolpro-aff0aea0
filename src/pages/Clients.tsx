@@ -9,7 +9,11 @@ import { useRenewalMutation } from '@/hooks/useRenewalMutation';
 import { useClientValidation } from '@/hooks/useClientValidation';
 import { usePerformanceOptimization } from '@/hooks/usePerformanceOptimization';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { useAtomicClientSave } from '@/hooks/useAtomicClientSave';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Feature flag for atomic save - enable after testing
+const USE_ATOMIC_SAVE = true;
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -180,6 +184,26 @@ export default function Clients() {
   const { validateForCreate, validateForUpdate, validateForDelete, acquireLock, releaseLock } = useClientValidation();
   const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
+  
+  // Atomic save hook for transactional client operations
+  const { 
+    saveClient: atomicSaveClient, 
+    isSaving: isAtomicSaving,
+    invalidateClientCaches: atomicInvalidateCaches,
+  } = useAtomicClientSave({
+    onCreateSuccess: () => {
+      resetForm();
+      setIsDialogOpen(false);
+    },
+    onUpdateSuccess: () => {
+      resetForm();
+      setIsDialogOpen(false);
+      setEditingClient(null);
+    },
+    onError: (error) => {
+      console.error('[Clients] Atomic save error:', error);
+    },
+  });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -2553,6 +2577,207 @@ export default function Clients() {
 
     const screens = formData.screens || '1';
 
+    // ============ ATOMIC SAVE PATH (NEW) ============
+    if (USE_ATOMIC_SAVE) {
+      // For Contas Premium, calculate total price from premium accounts
+      const isPremiumCategory = formData.category === 'Contas Premium';
+      const premiumTotalPrice = isPremiumCategory 
+        ? premiumAccounts.reduce((sum, acc) => sum + (parseFloat(acc.price) || 0), 0)
+        : null;
+      
+      // Get the earliest expiration date from premium accounts if category is Premium
+      const premiumExpirationDate = isPremiumCategory && premiumAccounts.length > 0
+        ? premiumAccounts
+            .filter(acc => acc.expirationDate)
+            .sort((a, b) => new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime())[0]?.expirationDate
+        : null;
+
+      // Encrypt second server credentials in parallel
+      const hasSecondServer = formData.login_2 || formData.password_2;
+      let encryptedLogin2: string | null = null;
+      let encryptedPassword2: string | null = null;
+      
+      if (hasSecondServer) {
+        const [login2, password2] = await Promise.all([
+          formData.login_2 ? encrypt(formData.login_2).catch(() => formData.login_2) : Promise.resolve(null),
+          formData.password_2 ? encrypt(formData.password_2).catch(() => formData.password_2) : Promise.resolve(null),
+        ]);
+        encryptedLogin2 = login2;
+        encryptedPassword2 = password2;
+      }
+
+      // Encrypt additional servers in parallel
+      const validAdditionalServers = await Promise.all(
+        additionalServers
+          .filter(s => s.server_id)
+          .map(async (server) => {
+            const [login, password] = await Promise.all([
+              server.login ? encrypt(server.login).catch(() => server.login) : Promise.resolve(null),
+              server.password ? encrypt(server.password).catch(() => server.password) : Promise.resolve(null),
+            ]);
+            return { server_id: server.server_id, server_name: server.server_name, login, password };
+          })
+      );
+
+      // Build client data
+      const clientData: Record<string, unknown> = {
+        name: formData.name,
+        phone: formData.phone || null,
+        telegram: formData.telegram || null,
+        email: formData.email || null,
+        device: formData.device || null,
+        dns: formData.dns || null,
+        expiration_date: isPremiumCategory && premiumExpirationDate ? premiumExpirationDate : formData.expiration_date,
+        plan_id: formData.plan_id || null,
+        plan_name: formData.plan_name || null,
+        plan_price: isPremiumCategory ? premiumTotalPrice : (formData.plan_price ? parseFloat(formData.plan_price) : null),
+        premium_price: formData.premium_price ? parseFloat(formData.premium_price) : null,
+        server_id: formData.server_id || null,
+        server_name: formData.server_name || null,
+        login: formData.login || null, // Will be encrypted by atomic hook
+        password: formData.password || null, // Will be encrypted by atomic hook
+        server_id_2: formData.server_id_2 || null,
+        server_name_2: formData.server_name_2 || null,
+        login_2: encryptedLogin2,
+        password_2: encryptedPassword2,
+        premium_password: formData.premium_password || null,
+        category: formData.category || 'IPTV',
+        is_paid: formData.is_paid,
+        pending_amount: formData.pending_amount ? parseFloat(formData.pending_amount) : 0,
+        expected_payment_date: !formData.is_paid && formData.expected_payment_date ? formData.expected_payment_date : null,
+        notes: formData.notes || null,
+        has_paid_apps: formData.has_paid_apps || false,
+        paid_apps_duration: formData.paid_apps_duration || null,
+        paid_apps_expiration: formData.paid_apps_expiration || null,
+        paid_apps_email: formData.paid_apps_email || null,
+        paid_apps_password: formData.paid_apps_password || null,
+        gerencia_app_mac: formData.gerencia_app_devices.length > 0 ? formData.gerencia_app_devices[0].mac : (formData.gerencia_app_mac || null),
+        gerencia_app_devices: formData.gerencia_app_devices.filter(d => d.mac.trim() !== ''),
+        app_name: formData.app_name || null,
+        app_type: formData.app_type || 'server',
+        device_model: formData.device_model || null,
+        additional_servers: validAdditionalServers,
+        has_adult_content: formData.has_adult_content || false,
+      };
+
+      // Determine if server is credit-based
+      const server = servers.find(s => s.id === formData.server_id);
+      const isServerCreditBased = server?.is_credit_based || false;
+
+      if (editingClient) {
+        // Edit mode - save directly via atomic function
+        try {
+          await atomicSaveClient({
+            clientData,
+            clientId: editingClient.id,
+            sellerId: user!.id,
+            externalApps: externalApps.map(app => ({
+              appId: app.appId,
+              email: app.email,
+              password: app.password,
+              expirationDate: app.expirationDate,
+              devices: app.devices,
+            })),
+            premiumAccounts: premiumAccounts.map(acc => ({
+              planName: acc.planName,
+              email: acc.email,
+              password: acc.password,
+              price: acc.price,
+              expirationDate: acc.expirationDate,
+              notes: acc.notes,
+            })),
+            serverAppsConfig: serverAppsConfig.map(config => ({
+              serverId: config.serverId,
+              serverName: config.serverName,
+              apps: config.apps,
+            })),
+            selectedSharedCredit,
+          });
+          // Success callbacks are handled by the hook
+        } catch (error) {
+          console.error('[Clients] Atomic update failed:', error);
+        }
+      } else {
+        // Create mode - show welcome message preview if phone is provided
+        if (formData.phone) {
+          setPendingClientData({ 
+            data: {
+              ...clientData,
+              _atomicParams: {
+                externalApps: externalApps.map(app => ({
+                  appId: app.appId,
+                  email: app.email,
+                  password: app.password,
+                  expirationDate: app.expirationDate,
+                  devices: app.devices,
+                })),
+                premiumAccounts: premiumAccounts.map(acc => ({
+                  planName: acc.planName,
+                  email: acc.email,
+                  password: acc.password,
+                  price: acc.price,
+                  expirationDate: acc.expirationDate,
+                  notes: acc.notes,
+                })),
+                serverAppsConfig: serverAppsConfig.map(config => ({
+                  serverId: config.serverId,
+                  serverName: config.serverName,
+                  apps: config.apps,
+                })),
+                serverId: formData.server_id,
+                serverName: formData.server_name,
+                category: formData.category,
+                isServerCreditBased,
+                selectedSharedCredit,
+              },
+            }, 
+            screens 
+          });
+          setShowWelcomePreview(true);
+        } else {
+          // No phone - save directly without welcome message
+          try {
+            await atomicSaveClient({
+              clientData,
+              sellerId: user!.id,
+              externalApps: externalApps.map(app => ({
+                appId: app.appId,
+                email: app.email,
+                password: app.password,
+                expirationDate: app.expirationDate,
+                devices: app.devices,
+              })),
+              premiumAccounts: premiumAccounts.map(acc => ({
+                planName: acc.planName,
+                email: acc.email,
+                password: acc.password,
+                price: acc.price,
+                expirationDate: acc.expirationDate,
+                notes: acc.notes,
+              })),
+              serverAppsConfig: serverAppsConfig.map(config => ({
+                serverId: config.serverId,
+                serverName: config.serverName,
+                apps: config.apps,
+              })),
+              serverId: formData.server_id,
+              serverName: formData.server_name,
+              category: formData.category,
+              screens: parseInt(screens),
+              isServerCreditBased,
+              selectedSharedCredit,
+              sendWelcomeMessage: false,
+            });
+            // Success callbacks are handled by the hook
+          } catch (error) {
+            console.error('[Clients] Atomic create failed:', error);
+          }
+        }
+      }
+      return;
+    }
+
+    // ============ LEGACY SAVE PATH ============
     // PERF: Encrypt ALL credentials in parallel
     const encryptionPromises: Promise<any>[] = [];
     
@@ -2683,13 +2908,44 @@ export default function Clients() {
   };
 
   // Handle confirmation from welcome message preview
-  const handleWelcomeConfirm = (message: string | null, sendWelcome: boolean) => {
+  const handleWelcomeConfirm = async (message: string | null, sendWelcome: boolean) => {
     if (!pendingClientData) return;
     
     // Set the custom message (null means don't send, string means send with this content)
     setCustomWelcomeMessage(sendWelcome ? (message || '') : null);
     setShowWelcomePreview(false);
     
+    // ============ ATOMIC SAVE PATH (NEW) ============
+    if (USE_ATOMIC_SAVE && pendingClientData.data._atomicParams) {
+      const atomicParams = pendingClientData.data._atomicParams as any;
+      const { _atomicParams, ...clientData } = pendingClientData.data;
+      
+      try {
+        await atomicSaveClient({
+          clientData,
+          sellerId: user!.id,
+          externalApps: atomicParams.externalApps,
+          premiumAccounts: atomicParams.premiumAccounts,
+          serverAppsConfig: atomicParams.serverAppsConfig,
+          serverId: atomicParams.serverId,
+          serverName: atomicParams.serverName,
+          category: atomicParams.category,
+          screens: parseInt(pendingClientData.screens),
+          isServerCreditBased: atomicParams.isServerCreditBased,
+          selectedSharedCredit: atomicParams.selectedSharedCredit,
+          sendWelcomeMessage: sendWelcome,
+          customWelcomeMessage: message,
+        });
+        // Success callbacks are handled by the hook
+      } catch (error) {
+        console.error('[Clients] Atomic create with welcome failed:', error);
+      }
+      
+      setPendingClientData(null);
+      return;
+    }
+    
+    // ============ LEGACY SAVE PATH ============
     // Create the client
     createMutation.mutate({
       ...(pendingClientData.data as Parameters<typeof createMutation.mutate>[0]),
