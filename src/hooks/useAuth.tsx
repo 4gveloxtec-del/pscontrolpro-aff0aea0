@@ -947,8 +947,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   })();
   
-  // hasSystemAccess: admin, seller, ou user em período de teste
-  const hasSystemAccess = isVerifyingRole || isAdmin || isSeller || trialInfo.isInTrial;
+  // hasSystemAccess: admin sempre, seller/user apenas se não expirado ou permanente
+  // - Admin: sempre tem acesso
+  // - Permanente: sempre tem acesso (is_permanent = true)
+  // - Seller/User não permanente: só tem acesso se não expirou (trialInfo.isInTrial)
+  const isPermanent = profile?.is_permanent === true;
+  const hasSystemAccess = isVerifyingRole || isAdmin || isPermanent || (isSeller && trialInfo.isInTrial) || (!isSeller && !isAdmin && trialInfo.isInTrial);
 
   // loading is true when authState is 'loading'
   const loading = authState === 'loading';
