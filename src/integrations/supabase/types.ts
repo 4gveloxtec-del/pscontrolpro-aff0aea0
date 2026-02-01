@@ -824,11 +824,13 @@ export type Database = {
       bot_engine_flows: {
         Row: {
           category: string | null
+          cloned_from_template_id: string | null
           created_at: string | null
           description: string | null
           id: string
           is_active: boolean | null
           is_default: boolean | null
+          is_template: boolean | null
           name: string
           priority: number | null
           seller_id: string
@@ -838,11 +840,13 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          cloned_from_template_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
+          is_template?: boolean | null
           name: string
           priority?: number | null
           seller_id: string
@@ -852,11 +856,13 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          cloned_from_template_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           is_default?: boolean | null
+          is_template?: boolean | null
           name?: string
           priority?: number | null
           seller_id?: string
@@ -864,7 +870,15 @@ export type Database = {
           trigger_type?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bot_engine_flows_cloned_from_template_id_fkey"
+            columns: ["cloned_from_template_id"]
+            isOneToOne: false
+            referencedRelation: "bot_engine_flows"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bot_engine_menus: {
         Row: {

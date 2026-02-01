@@ -32,6 +32,8 @@ import {
   Folder,
   ChevronDown,
   ChevronRight,
+  Copy,
+  Globe,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -59,7 +61,16 @@ import { SimpleNodeEditor } from '@/components/botEngine/SimpleNodeEditor';
 export default function BotEngine() {
   const { user } = useAuth();
   const { config, isLoading: configLoading, upsertConfig, toggleEnabled, activeFlowFirstMessage } = useBotEngineConfig();
-  const { flows, isLoading: flowsLoading, createFlow, updateFlow, deleteFlow, toggleActive } = useBotEngineFlows();
+  const { 
+    flows, 
+    isLoading: flowsLoading, 
+    createFlow, 
+    updateFlow, 
+    deleteFlow, 
+    toggleActive,
+    cloneTemplate,
+    isCloning 
+  } = useBotEngineFlows();
   
   const [isFlowDialogOpen, setIsFlowDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<any>(null);
@@ -732,23 +743,42 @@ export default function BotEngine() {
                             };
                             const trigger = triggerLabels[flow.trigger_type] || { emoji: '❓', text: flow.trigger_type };
                             
+                            // Verificar se é template (de outro seller)
+                            const isTemplate = flow.is_template && flow.seller_id !== user?.id;
+                            
                             return (
                               <Card 
                                 key={flow.id} 
-                                className={`transition-all hover:shadow-md ${!flow.is_active ? 'opacity-60' : ''}`}
+                                className={`transition-all hover:shadow-md ${!flow.is_active ? 'opacity-60' : ''} ${isTemplate ? 'border-blue-500/50 bg-blue-500/5' : ''}`}
                               >
                                 <CardHeader className="pb-3">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
-                                      <span className="text-2xl">🤖</span>
+                                      <span className="text-2xl">{isTemplate ? '🌐' : '🤖'}</span>
                                       <CardTitle className="text-base truncate">{flow.name}</CardTitle>
                                     </div>
-                                    <Badge 
-                                      variant={flow.is_active ? 'default' : 'secondary'}
-                                      className="shrink-0"
-                                    >
-                                      {flow.is_active ? '✅ Ativo' : '⏸️ Inativo'}
-                                    </Badge>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {isTemplate && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger>
+                                              <Badge variant="outline" className="gap-1 text-blue-600 border-blue-500/50">
+                                                <Globe className="h-3 w-3" />
+                                                Template
+                                              </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                              <p>Este é um fluxo template universal. Clique em "Usar Template" para criar sua própria cópia editável.</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      <Badge 
+                                        variant={flow.is_active ? 'default' : 'secondary'}
+                                      >
+                                        {flow.is_active ? '✅ Ativo' : '⏸️ Inativo'}
+                                      </Badge>
+                                    </div>
                                   </div>
                                   <CardDescription className="line-clamp-2">
                                     {flow.description || 'Sem descrição'}
@@ -767,71 +797,105 @@ export default function BotEngine() {
                                     )}
                                   </div>
                                   
-                                  {/* Action buttons */}
+                                  {/* Action buttons - diferentes para templates vs próprios */}
                                   <div className="flex items-center gap-2 pt-2 border-t">
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="flex-1 gap-2"
-                                      onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      Editar Conversa
-                                    </Button>
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="shrink-0"
-                                            onClick={() => handleToggleFlowActive(flow)}
-                                          >
-                                            {flow.is_active ? (
-                                              <Pause className="h-4 w-4" />
-                                            ) : (
-                                              <Play className="h-4 w-4" />
-                                            )}
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          {flow.is_active ? 'Pausar fluxo' : 'Ativar fluxo'}
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="shrink-0"
-                                            onClick={() => {
-                                              setEditingFlow(flow);
-                                              setIsFlowDialogOpen(true);
-                                            }}
-                                          >
-                                            <Edit className="h-4 w-4" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar configurações</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="shrink-0 text-destructive hover:text-destructive"
-                                            onClick={() => handleDeleteFlow(flow.id)}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Excluir fluxo</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                    {isTemplate ? (
+                                      // Botões para templates: apenas visualizar e clonar
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="flex-1 gap-2"
+                                          onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          Visualizar
+                                        </Button>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          className="flex-1 gap-2"
+                                          onClick={async () => {
+                                            try {
+                                              await cloneTemplate(flow.id);
+                                            } catch (error) {
+                                              console.error('Clone error:', error);
+                                            }
+                                          }}
+                                          disabled={isCloning}
+                                        >
+                                          <Copy className="h-4 w-4" />
+                                          {isCloning ? 'Clonando...' : 'Usar Template'}
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      // Botões normais para fluxos próprios
+                                      <>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          className="flex-1 gap-2"
+                                          onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          Editar Conversa
+                                        </Button>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="shrink-0"
+                                                onClick={() => handleToggleFlowActive(flow)}
+                                              >
+                                                {flow.is_active ? (
+                                                  <Pause className="h-4 w-4" />
+                                                ) : (
+                                                  <Play className="h-4 w-4" />
+                                                )}
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              {flow.is_active ? 'Pausar fluxo' : 'Ativar fluxo'}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="shrink-0"
+                                                onClick={() => {
+                                                  setEditingFlow(flow);
+                                                  setIsFlowDialogOpen(true);
+                                                }}
+                                              >
+                                                <Edit className="h-4 w-4" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Editar configurações</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="shrink-0 text-destructive hover:text-destructive"
+                                                onClick={() => handleDeleteFlow(flow.id)}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Excluir fluxo</TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </>
+                                    )}
                                   </div>
                                 </CardContent>
                               </Card>
