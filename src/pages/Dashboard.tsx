@@ -550,12 +550,40 @@ export default function Dashboard() {
   const payingSellersCount = activeSellers.filter(s => !s.is_permanent).length;
   const adminEstimatedMonthlyProfit = payingSellersCount * pricePerMonth;
 
-  // Subscription days remaining for seller
-  const subscriptionDaysRemaining = profile?.subscription_expires_at 
-    ? differenceInDays(new Date(profile.subscription_expires_at), today)
-    : null;
+  // Subscription/trial days remaining for seller
+  // Uses subscription_expires_at if available, otherwise calculates from created_at + trial days
+  const trialDaysFromSettings = parseInt(appSettings?.find(s => s.key === 'seller_trial_days')?.value || '5', 10);
   
-  const isOnTrial = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= 5 && subscriptionDaysRemaining >= 0;
+  const subscriptionExpirationInfo = (() => {
+    if (!profile || profile.is_permanent) return null;
+    
+    // If has explicit subscription_expires_at, use it
+    if (profile.subscription_expires_at) {
+      return {
+        expirationDate: new Date(profile.subscription_expires_at),
+        daysRemaining: differenceInDays(new Date(profile.subscription_expires_at), today),
+        isCalculatedFromCreatedAt: false,
+      };
+    }
+    
+    // Fallback: calculate from created_at + trial days (for new users without subscription_expires_at)
+    if (profile.created_at) {
+      const createdAt = new Date(profile.created_at);
+      const trialEndDate = addDays(createdAt, trialDaysFromSettings);
+      return {
+        expirationDate: trialEndDate,
+        daysRemaining: differenceInDays(trialEndDate, today),
+        isCalculatedFromCreatedAt: true,
+      };
+    }
+    
+    return null;
+  })();
+  
+  const subscriptionDaysRemaining = subscriptionExpirationInfo?.daysRemaining ?? null;
+  const subscriptionExpirationDate = subscriptionExpirationInfo?.expirationDate ?? null;
+  
+  const isOnTrial = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= trialDaysFromSettings && subscriptionDaysRemaining >= 0;
   const needsRenewalWarning = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= 3 && !profile?.is_permanent;
 
   const copyPixKey = () => {
@@ -608,7 +636,9 @@ export default function Dashboard() {
                       ? 'Seu acesso foi suspenso. Renove para continuar usando.'
                       : subscriptionDaysRemaining <= 3
                         ? `Faltam apenas ${subscriptionDaysRemaining} dia${subscriptionDaysRemaining > 1 ? 's' : ''} para expirar!`
-                        : `Expira em ${format(new Date(profile.subscription_expires_at!), "dd 'de' MMMM", { locale: ptBR })}`
+                        : subscriptionExpirationDate 
+                          ? `Expira em ${format(subscriptionExpirationDate, "dd 'de' MMMM", { locale: ptBR })}`
+                          : 'Data não disponível'
                     }
                   </p>
                 </div>
