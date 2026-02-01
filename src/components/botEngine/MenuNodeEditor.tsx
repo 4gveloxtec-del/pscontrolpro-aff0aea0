@@ -1,6 +1,8 @@
 /**
- * Editor de Nós de Menu Interativo
- * Permite criar menus com submenus infinitos de forma visual
+ * Editor de Nós de Menu Interativo (v2 - SIMPLIFICADO)
+ * Permite criar menus com submenus de forma visual e intuitiva
+ * 
+ * PRINCÍPIO: Tão simples que uma criança de 5 anos consegue usar
  */
 
 import { useState, useCallback } from 'react';
@@ -11,13 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -32,17 +27,16 @@ import {
   Trash2,
   Edit2,
   ChevronRight,
-  ChevronDown,
   ArrowLeft,
-  FolderTree,
+  FolderPlus,
   MessageCircle,
   Terminal,
-  GitFork,
   UserCircle,
   XCircle,
-  GripVertical,
   Copy,
   Home,
+  FolderOpen,
+  Zap,
 } from 'lucide-react';
 import type { BotMenuOption, MenuOptionActionType, BotNodeConfig } from '@/lib/botEngine/types';
 import { cn } from '@/lib/utils';
@@ -54,153 +48,110 @@ interface MenuNodeEditorProps {
   availableNodes?: { id: string; name: string }[];
 }
 
-// Ações disponíveis para cada opção
-const ACTION_TYPES: { value: MenuOptionActionType; label: string; emoji: string; description: string }[] = [
-  { value: 'submenu', label: 'Submenu', emoji: '📂', description: 'Abre outro menu' },
-  { value: 'message', label: 'Mensagem', emoji: '💬', description: 'Envia uma mensagem' },
-  { value: 'command', label: 'Comando', emoji: '⚡', description: 'Executa /teste, /renovar, etc' },
-  { value: 'goto_flow', label: 'Ir para Fluxo', emoji: '↪️', description: 'Navega para outro fluxo' },
-  { value: 'goto_node', label: 'Ir para Nó', emoji: '🎯', description: 'Pula para outro nó' },
-  { value: 'transfer_human', label: 'Atendente', emoji: '👤', description: 'Transfere para humano' },
-  { value: 'end_session', label: 'Encerrar', emoji: '🏁', description: 'Finaliza conversa' },
-];
-
 // Gera ID único para opções
 const generateOptionId = () => `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-// Componente para exibir uma opção de menu
-function MenuOptionCard({
+// Mapeamento de tipos para exibição
+const ACTION_DISPLAY: Record<MenuOptionActionType, { emoji: string; label: string; color: string }> = {
+  submenu: { emoji: '📂', label: 'Submenu', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  message: { emoji: '💬', label: 'Mensagem', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  command: { emoji: '⚡', label: 'Comando', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
+  transfer_human: { emoji: '👤', label: 'Atendente', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  end_session: { emoji: '🏁', label: 'Encerrar', color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  goto_flow: { emoji: '↪️', label: 'Ir para Fluxo', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  goto_node: { emoji: '🎯', label: 'Ir para Nó', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+};
+
+// Card de opção simplificado
+function SimpleOptionCard({
   option,
   index,
-  depth = 0,
-  isExpanded,
-  onToggleExpand,
+  onNavigateIn,
   onEdit,
   onDelete,
   onDuplicate,
-  onAddChild,
 }: {
   option: BotMenuOption;
   index: number;
-  depth?: number;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
+  onNavigateIn?: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
-  onAddChild: () => void;
 }) {
-  const actionInfo = ACTION_TYPES.find(a => a.value === option.action_type);
-  const hasChildren = option.action_type === 'submenu' && option.submenu_options && option.submenu_options.length > 0;
+  const display = ACTION_DISPLAY[option.action_type] || ACTION_DISPLAY.message;
+  const hasChildren = option.action_type === 'submenu' && (option.submenu_options?.length || 0) > 0;
   
   return (
-    <div className={cn("relative", depth > 0 && "ml-6 border-l-2 border-muted pl-4")}>
-      <Card className={cn(
-        "transition-all hover:shadow-md group",
-        depth === 0 ? "border-2" : "border",
-        option.action_type === 'submenu' && "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20"
-      )}>
-        <CardContent className="p-3">
-          <div className="flex items-start gap-2">
-            {/* Grip for ordering */}
-            <div className="flex flex-col items-center gap-1 pt-1">
-              <span className="text-xs font-mono text-muted-foreground bg-background rounded px-1">
-                {index + 1}
-              </span>
-              <GripVertical className="h-4 w-4 text-muted-foreground/30 cursor-grab" />
-            </div>
-            
-            {/* Expand/Collapse for submenus */}
-            {option.action_type === 'submenu' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={onToggleExpand}
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </Button>
-            )}
-            
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{option.emoji || actionInfo?.emoji || '📌'}</span>
-                <span className="font-medium truncate">{option.title}</span>
-                <Badge variant="secondary" className="text-xs shrink-0">
-                  {actionInfo?.label || option.action_type}
-                </Badge>
-              </div>
-              
+    <Card className={cn(
+      "transition-all hover:shadow-md group cursor-pointer",
+      option.action_type === 'submenu' && "border-blue-300 dark:border-blue-700"
+    )}>
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3">
+          {/* Número da opção */}
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0">
+            {index + 1}
+          </div>
+          
+          {/* Emoji e título */}
+          <div 
+            className="flex-1 min-w-0 flex items-center gap-2"
+            onClick={() => option.action_type === 'submenu' && onNavigateIn?.()}
+          >
+            <span className="text-xl">{option.emoji || display.emoji}</span>
+            <div className="min-w-0">
+              <p className="font-medium truncate">{option.title}</p>
               {option.description && (
-                <p className="text-sm text-muted-foreground line-clamp-1">
-                  {option.description}
-                </p>
+                <p className="text-xs text-muted-foreground truncate">{option.description}</p>
               )}
-              
-              {/* Show action details */}
-              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                {option.action_type === 'command' && option.command && (
-                  <code className="bg-muted px-1 rounded">{option.command}</code>
-                )}
-                {option.action_type === 'submenu' && option.submenu_options && (
-                  <span>{option.submenu_options.length} opção(ões)</span>
-                )}
-                {option.action_type === 'message' && option.message_text && (
-                  <span className="truncate max-w-[200px]">"{option.message_text.slice(0, 50)}..."</span>
-                )}
-              </div>
-            </div>
-            
-            {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {option.action_type === 'submenu' && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={onAddChild}
-                  title="Adicionar sub-opção"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={onDuplicate}
-                title="Duplicar"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={onEdit}
-                title="Editar"
-              >
-                <Edit2 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={onDelete}
-                title="Excluir"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          
+          {/* Badge do tipo */}
+          <Badge variant="secondary" className={cn("shrink-0 text-xs", display.color)}>
+            {display.emoji} {display.label}
+            {hasChildren && ` (${option.submenu_options?.length})`}
+          </Badge>
+          
+          {/* Seta para submenu */}
+          {option.action_type === 'submenu' && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 shrink-0"
+              onClick={onNavigateIn}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          )}
+          
+          {/* Ações (visíveis no hover) */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDuplicate} title="Duplicar">
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit} title="Editar">
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onDelete} title="Excluir">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Preview do conteúdo */}
+        {option.action_type === 'command' && option.command && (
+          <div className="mt-2 ml-11">
+            <code className="text-xs bg-muted px-2 py-1 rounded">{option.command}</code>
+          </div>
+        )}
+        {option.action_type === 'message' && option.message_text && (
+          <div className="mt-2 ml-11 text-xs text-muted-foreground truncate">
+            "{option.message_text.slice(0, 60)}..."
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -210,39 +161,30 @@ export function MenuNodeEditor({
   availableFlows = [],
   availableNodes = [],
 }: MenuNodeEditorProps) {
-  // Estado local
-  const [expandedOptions, setExpandedOptions] = useState<Set<string>>(new Set());
-  const [editingOption, setEditingOption] = useState<BotMenuOption | null>(null);
-  const [editingPath, setEditingPath] = useState<number[]>([]);
-  const [isOptionDialogOpen, setIsOptionDialogOpen] = useState(false);
-  
-  // Navegação por breadcrumb para submenus
+  // Navegação simplificada
   const [navigationPath, setNavigationPath] = useState<{ id: string; title: string }[]>([]);
   
-  // Form states para editar opção
-  const [optTitle, setOptTitle] = useState('');
-  const [optEmoji, setOptEmoji] = useState('');
-  const [optDescription, setOptDescription] = useState('');
-  const [optActionType, setOptActionType] = useState<MenuOptionActionType>('message');
-  const [optCommand, setOptCommand] = useState('');
-  const [optMessage, setOptMessage] = useState('');
-  const [optTargetFlow, setOptTargetFlow] = useState('');
-  const [optTargetNode, setOptTargetNode] = useState('');
+  // Dialog de edição
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingOption, setEditingOption] = useState<BotMenuOption | null>(null);
+  const [dialogType, setDialogType] = useState<'submenu' | 'message' | 'command' | 'other'>('message');
   
-  // Opções atuais (baseado na navegação)
+  // Form states
+  const [formTitle, setFormTitle] = useState('');
+  const [formEmoji, setFormEmoji] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formMessage, setFormMessage] = useState('');
+  const [formCommand, setFormCommand] = useState('');
+  const [formActionType, setFormActionType] = useState<MenuOptionActionType>('message');
+  
+  // Obter opções do nível atual
   const getCurrentOptions = useCallback((): BotMenuOption[] => {
-    // Garantir que menu_options é um array válido
-    let options: BotMenuOption[] = Array.isArray(config.menu_options) 
-      ? config.menu_options 
-      : [];
+    let options: BotMenuOption[] = Array.isArray(config.menu_options) ? config.menu_options : [];
     
     for (const nav of navigationPath) {
       const parent = options.find(o => o.id === nav.id);
-      if (parent && Array.isArray(parent.submenu_options)) {
+      if (parent?.submenu_options) {
         options = parent.submenu_options;
-      } else {
-        // Se o caminho ficou inválido, resetar navegação
-        break;
       }
     }
     return options;
@@ -253,7 +195,6 @@ export function MenuNodeEditor({
     if (navigationPath.length === 0) {
       onConfigChange({ ...config, menu_options: newOptions });
     } else {
-      // Navegar até o nível correto e atualizar
       const updateNested = (options: BotMenuOption[], path: typeof navigationPath): BotMenuOption[] => {
         if (path.length === 0) return newOptions;
         
@@ -275,424 +216,377 @@ export function MenuNodeEditor({
     }
   }, [config, navigationPath, onConfigChange]);
   
-  // Navegar para submenu
+  // Navegação
   const navigateToSubmenu = (option: BotMenuOption) => {
     if (option.action_type === 'submenu') {
       setNavigationPath([...navigationPath, { id: option.id, title: option.title }]);
     }
   };
   
-  // Voltar um nível
-  const navigateBack = () => {
-    setNavigationPath(navigationPath.slice(0, -1));
-  };
+  const navigateBack = () => setNavigationPath(navigationPath.slice(0, -1));
+  const navigateToRoot = () => setNavigationPath([]);
   
-  // Voltar para raiz
-  const navigateToRoot = () => {
-    setNavigationPath([]);
-  };
-  
-  // Abrir dialog para nova opção
-  const openNewOptionDialog = () => {
+  // Abrir dialog para criar opção
+  const openCreateDialog = (type: 'submenu' | 'message' | 'command' | 'other') => {
     setEditingOption(null);
-    setOptTitle('');
-    setOptEmoji('');
-    setOptDescription('');
-    setOptActionType('message');
-    setOptCommand('');
-    setOptMessage('');
-    setOptTargetFlow('');
-    setOptTargetNode('');
-    setIsOptionDialogOpen(true);
+    setDialogType(type);
+    setFormTitle('');
+    setFormEmoji(type === 'submenu' ? '📂' : type === 'message' ? '💬' : type === 'command' ? '⚡' : '');
+    setFormDescription('');
+    setFormMessage('');
+    setFormCommand('');
+    setFormActionType(type === 'other' ? 'transfer_human' : type);
+    setIsDialogOpen(true);
   };
   
   // Abrir dialog para editar opção
-  const openEditOptionDialog = (option: BotMenuOption) => {
+  const openEditDialog = (option: BotMenuOption) => {
     setEditingOption(option);
-    setOptTitle(option.title);
-    setOptEmoji(option.emoji || '');
-    setOptDescription(option.description || '');
-    setOptActionType(option.action_type);
-    setOptCommand(option.command || '');
-    setOptMessage(option.message_text || '');
-    setOptTargetFlow(option.target_flow_id || '');
-    setOptTargetNode(option.target_node_id || '');
-    setIsOptionDialogOpen(true);
+    setDialogType(option.action_type === 'submenu' ? 'submenu' : 
+                   option.action_type === 'message' ? 'message' : 
+                   option.action_type === 'command' ? 'command' : 'other');
+    setFormTitle(option.title);
+    setFormEmoji(option.emoji || '');
+    setFormDescription(option.description || '');
+    setFormMessage(option.message_text || '');
+    setFormCommand(option.command || '');
+    setFormActionType(option.action_type);
+    setIsDialogOpen(true);
   };
   
   // Salvar opção
-  const handleSaveOption = () => {
+  const handleSave = () => {
     const currentOptions = getCurrentOptions();
+    
+    const actionType: MenuOptionActionType = dialogType === 'other' ? formActionType : dialogType;
     
     const newOption: BotMenuOption = {
       id: editingOption?.id || generateOptionId(),
-      title: optTitle.trim(),
-      emoji: optEmoji.trim() || undefined,
-      description: optDescription.trim() || undefined,
-      action_type: optActionType,
-      command: optActionType === 'command' ? optCommand.trim() : undefined,
-      message_text: optActionType === 'message' ? optMessage.trim() : undefined,
-      target_flow_id: optActionType === 'goto_flow' ? optTargetFlow : undefined,
-      target_node_id: optActionType === 'goto_node' ? optTargetNode : undefined,
-      submenu_options: editingOption?.submenu_options || (optActionType === 'submenu' ? [] : undefined),
+      title: formTitle.trim(),
+      emoji: formEmoji.trim() || undefined,
+      description: formDescription.trim() || undefined,
+      action_type: actionType,
+      command: actionType === 'command' ? formCommand.trim() : undefined,
+      message_text: actionType === 'message' ? formMessage.trim() : undefined,
+      submenu_options: editingOption?.submenu_options || (actionType === 'submenu' ? [] : undefined),
     };
     
     if (editingOption) {
-      // Atualizar opção existente
       setCurrentOptions(currentOptions.map(o => o.id === editingOption.id ? newOption : o));
     } else {
-      // Adicionar nova opção
       setCurrentOptions([...currentOptions, newOption]);
+      
+      // Se criou submenu, navegar automaticamente para dentro
+      if (actionType === 'submenu') {
+        setTimeout(() => navigateToSubmenu(newOption), 100);
+      }
     }
     
-    setIsOptionDialogOpen(false);
+    setIsDialogOpen(false);
   };
   
   // Deletar opção
-  const handleDeleteOption = (optionId: string) => {
-    const currentOptions = getCurrentOptions();
-    setCurrentOptions(currentOptions.filter(o => o.id !== optionId));
+  const handleDelete = (optionId: string) => {
+    setCurrentOptions(getCurrentOptions().filter(o => o.id !== optionId));
   };
   
   // Duplicar opção
-  const handleDuplicateOption = (option: BotMenuOption) => {
-    const currentOptions = getCurrentOptions();
+  const handleDuplicate = (option: BotMenuOption) => {
     const duplicate: BotMenuOption = {
       ...option,
       id: generateOptionId(),
       title: `${option.title} (cópia)`,
       submenu_options: option.submenu_options ? JSON.parse(JSON.stringify(option.submenu_options)) : undefined,
     };
-    setCurrentOptions([...currentOptions, duplicate]);
-  };
-  
-  // Adicionar opção filha (submenu)
-  const handleAddChildOption = (parentOption: BotMenuOption) => {
-    navigateToSubmenu(parentOption);
-    setTimeout(() => openNewOptionDialog(), 100);
-  };
-  
-  // Toggle expandir/colapsar
-  const toggleExpand = (optionId: string) => {
-    const newExpanded = new Set(expandedOptions);
-    if (newExpanded.has(optionId)) {
-      newExpanded.delete(optionId);
-    } else {
-      newExpanded.add(optionId);
-    }
-    setExpandedOptions(newExpanded);
+    setCurrentOptions([...getCurrentOptions(), duplicate]);
   };
   
   const currentOptions = getCurrentOptions();
+  const isInSubmenu = navigationPath.length > 0;
   
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Header do Menu */}
-      <div className="space-y-3">
-        <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:space-y-2">
-            <Label className="text-xs sm:text-sm">📋 Título do Menu</Label>
-            <Input
-              placeholder="Menu Principal"
-              value={config.menu_title || ''}
-              onChange={(e) => onConfigChange({ ...config, menu_title: e.target.value })}
-              className="text-base h-9 sm:h-10"
-            />
-          </div>
-          <div className="space-y-1.5 sm:space-y-2">
-            <Label className="text-xs sm:text-sm">🔙 Texto do Voltar</Label>
-            <Input
-              placeholder="⬅️ Voltar"
-              value={config.back_button_text || ''}
-              onChange={(e) => onConfigChange({ ...config, back_button_text: e.target.value })}
-              className="text-base h-9 sm:h-10"
-            />
-          </div>
+    <div className="space-y-4">
+      {/* Header simplificado */}
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">📋 Título do Menu</Label>
+          <Input
+            placeholder="Menu Principal"
+            value={config.menu_title || ''}
+            onChange={(e) => onConfigChange({ ...config, menu_title: e.target.value })}
+          />
         </div>
-        
-        <div className="space-y-1.5 sm:space-y-2">
-          <Label className="text-xs sm:text-sm">📝 Cabeçalho (opcional)</Label>
-          <Textarea
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">📝 Cabeçalho</Label>
+          <Input
             placeholder="Olá! Escolha uma opção:"
             value={config.menu_header || ''}
             onChange={(e) => onConfigChange({ ...config, menu_header: e.target.value })}
-            rows={2}
-            className="text-base resize-none"
           />
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={config.show_back_button ?? true}
-              onCheckedChange={(checked) => onConfigChange({ ...config, show_back_button: checked })}
-            />
-            <Label className="text-xs sm:text-sm">Voltar</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={config.silent_on_invalid ?? false}
-              onCheckedChange={(checked) => onConfigChange({ ...config, silent_on_invalid: checked })}
-            />
-            <Label className="text-xs sm:text-sm">Silenciar inválidas</Label>
-          </div>
         </div>
       </div>
       
-      {/* Breadcrumb de navegação */}
-      {navigationPath.length > 0 && (
-        <div className="flex items-center gap-1 p-2 bg-muted rounded-lg text-xs sm:text-sm overflow-x-auto">
-          <Button variant="ghost" size="sm" onClick={navigateToRoot} className="h-6 sm:h-7 px-1.5 sm:px-2 shrink-0">
-            <Home className="h-3 w-3 sm:h-4 sm:w-4 mr-0.5 sm:mr-1" />
-            <span className="hidden xs:inline">Raiz</span>
+      {/* Navegação (breadcrumb) - só aparece quando está em submenu */}
+      {isInSubmenu && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+          <Button variant="ghost" size="sm" onClick={navigateToRoot} className="h-8 gap-1">
+            <Home className="h-4 w-4" />
+            Menu Principal
           </Button>
           {navigationPath.map((nav, idx) => (
-            <div key={nav.id} className="flex items-center shrink-0">
-              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+            <div key={nav.id} className="flex items-center gap-1">
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
               <Button
-                variant="ghost"
+                variant={idx === navigationPath.length - 1 ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setNavigationPath(navigationPath.slice(0, idx + 1))}
-                className="h-6 sm:h-7 px-1.5 sm:px-2 max-w-[80px] sm:max-w-none"
+                className="h-8"
               >
-                <span className="truncate">{nav.title}</span>
+                📂 {nav.title}
               </Button>
             </div>
           ))}
         </div>
       )}
       
+      {/* ========================================= */}
+      {/* BOTÕES GRANDES DE AÇÃO - O PONTO CHAVE! */}
+      {/* ========================================= */}
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          className="h-16 flex-col gap-1 border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+          onClick={() => openCreateDialog('submenu')}
+        >
+          <FolderPlus className="h-6 w-6 text-blue-600" />
+          <span className="text-xs font-medium">Submenu</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-16 flex-col gap-1 border-2 border-dashed border-green-300 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/30"
+          onClick={() => openCreateDialog('message')}
+        >
+          <MessageCircle className="h-6 w-6 text-green-600" />
+          <span className="text-xs font-medium">Mensagem</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-16 flex-col gap-1 border-2 border-dashed border-purple-300 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+          onClick={() => openCreateDialog('command')}
+        >
+          <Zap className="h-6 w-6 text-purple-600" />
+          <span className="text-xs font-medium">Comando</span>
+        </Button>
+      </div>
+      
+      {/* Botão para outras ações */}
+      <div className="flex justify-center">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-muted-foreground"
+          onClick={() => openCreateDialog('other')}
+        >
+          + Outras ações (Atendente, Encerrar...)
+        </Button>
+      </div>
+      
       {/* Lista de opções */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-sm sm:text-base font-medium truncate">
-            {navigationPath.length === 0 ? '📋 Opções' : `📂 "${navigationPath[navigationPath.length - 1]?.title}"`}
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">
+            {isInSubmenu ? `📂 Itens de "${navigationPath[navigationPath.length - 1]?.title}"` : '📋 Opções do Menu'}
           </Label>
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {navigationPath.length > 0 && (
-              <Button variant="outline" size="sm" onClick={navigateBack} className="gap-1 h-7 sm:h-8 px-2">
-                <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden xs:inline">Voltar</span>
-              </Button>
-            )}
-            <Button size="sm" onClick={openNewOptionDialog} className="gap-1 h-7 sm:h-8 px-2 sm:px-3">
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Nova</span>
+          {isInSubmenu && (
+            <Button variant="outline" size="sm" onClick={navigateBack} className="h-8 gap-1">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
             </Button>
-          </div>
+          )}
         </div>
         
-        <ScrollArea className="max-h-[250px] sm:max-h-[350px]">
-          <div className="space-y-2 pr-2 sm:pr-4">
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2 pr-4">
             {currentOptions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center border-2 border-dashed rounded-lg">
-                <FolderTree className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/30 mb-2 sm:mb-3" />
-                <p className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">
-                  Nenhuma opção configurada
+              <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed rounded-lg bg-muted/30">
+                <FolderOpen className="h-12 w-12 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground mb-1">
+                  {isInSubmenu ? 'Este submenu está vazio' : 'Nenhuma opção ainda'}
                 </p>
-                <Button onClick={openNewOptionDialog} variant="outline" size="sm" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Adicionar
-                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Use os botões acima para adicionar opções
+                </p>
               </div>
             ) : (
               currentOptions.map((option, index) => (
-                <div key={option.id}>
-                  <MenuOptionCard
-                    option={option}
-                    index={index}
-                    isExpanded={expandedOptions.has(option.id)}
-                    onToggleExpand={() => {
-                      if (option.action_type === 'submenu') {
-                        navigateToSubmenu(option);
-                      }
-                    }}
-                    onEdit={() => openEditOptionDialog(option)}
-                    onDelete={() => handleDeleteOption(option.id)}
-                    onDuplicate={() => handleDuplicateOption(option)}
-                    onAddChild={() => handleAddChildOption(option)}
-                  />
-                </div>
+                <SimpleOptionCard
+                  key={option.id}
+                  option={option}
+                  index={index}
+                  onNavigateIn={() => navigateToSubmenu(option)}
+                  onEdit={() => openEditDialog(option)}
+                  onDelete={() => handleDelete(option.id)}
+                  onDuplicate={() => handleDuplicate(option)}
+                />
               ))
             )}
           </div>
         </ScrollArea>
       </div>
       
-      {/* Footer */}
-      <div className="space-y-1.5 sm:space-y-2">
-        <Label className="text-xs sm:text-sm">📝 Rodapé (opcional)</Label>
-        <Input
-          placeholder="Digite o número da opção"
-          value={config.menu_footer || ''}
-          onChange={(e) => onConfigChange({ ...config, menu_footer: e.target.value })}
-          className="text-base h-9 sm:h-10"
-        />
+      {/* Configurações extras */}
+      <div className="flex flex-wrap items-center gap-4 p-3 bg-muted/30 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={config.show_back_button ?? true}
+            onCheckedChange={(checked) => onConfigChange({ ...config, show_back_button: checked })}
+          />
+          <Label className="text-sm">Botão Voltar</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={config.silent_on_invalid ?? false}
+            onCheckedChange={(checked) => onConfigChange({ ...config, silent_on_invalid: checked })}
+          />
+          <Label className="text-sm">Ignorar inválidas</Label>
+        </div>
       </div>
       
-      {/* Dialog para editar/criar opção */}
-      <Dialog open={isOptionDialogOpen} onOpenChange={setIsOptionDialogOpen}>
-        <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="text-base sm:text-lg">
-              {editingOption ? '✏️ Editar Opção' : '➕ Nova Opção'}
+      {/* ========================================= */}
+      {/* DIALOG SIMPLIFICADO */}
+      {/* ========================================= */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {dialogType === 'submenu' && <><FolderPlus className="h-5 w-5 text-blue-600" /> {editingOption ? 'Editar Submenu' : 'Novo Submenu'}</>}
+              {dialogType === 'message' && <><MessageCircle className="h-5 w-5 text-green-600" /> {editingOption ? 'Editar Mensagem' : 'Nova Mensagem'}</>}
+              {dialogType === 'command' && <><Zap className="h-5 w-5 text-purple-600" /> {editingOption ? 'Editar Comando' : 'Novo Comando'}</>}
+              {dialogType === 'other' && <>{editingOption ? 'Editar Opção' : 'Nova Opção'}</>}
             </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              Configure os detalhes desta opção
+            <DialogDescription>
+              {dialogType === 'submenu' && 'Crie uma pasta para organizar mais opções dentro'}
+              {dialogType === 'message' && 'Envie uma mensagem quando o cliente escolher esta opção'}
+              {dialogType === 'command' && 'Execute um comando como /teste ou /renovar'}
+              {dialogType === 'other' && 'Configure uma ação especial'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-3 sm:space-y-4 py-2">
-            {/* Linha 1: Emoji + Título */}
-            <div className="grid gap-2 sm:gap-3 grid-cols-[60px_1fr] sm:grid-cols-[80px_1fr]">
-              <div className="space-y-1 sm:space-y-2">
-                <Label className="text-xs sm:text-sm">Emoji</Label>
+          <div className="space-y-4 py-2">
+            {/* Emoji + Título (sempre visível) */}
+            <div className="grid gap-3 grid-cols-[70px_1fr]">
+              <div className="space-y-2">
+                <Label className="text-sm">Emoji</Label>
                 <Input
-                  placeholder="📋"
-                  value={optEmoji}
-                  onChange={(e) => setOptEmoji(e.target.value)}
-                  className="text-center text-lg sm:text-xl h-9 sm:h-10"
+                  placeholder="📂"
+                  value={formEmoji}
+                  onChange={(e) => setFormEmoji(e.target.value)}
+                  className="text-center text-xl"
                   maxLength={4}
                 />
               </div>
-              <div className="space-y-1 sm:space-y-2">
-                <Label className="text-xs sm:text-sm">Título *</Label>
+              <div className="space-y-2">
+                <Label className="text-sm">Nome *</Label>
                 <Input
-                  placeholder="Ver Planos"
-                  value={optTitle}
-                  onChange={(e) => setOptTitle(e.target.value)}
-                  className="text-base h-9 sm:h-10"
+                  placeholder={dialogType === 'submenu' ? 'Ex: Suporte' : dialogType === 'command' ? 'Ex: Gerar Teste' : 'Ex: Ver Planos'}
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  autoFocus
                 />
               </div>
             </div>
             
-            {/* Descrição */}
-            <div className="space-y-1 sm:space-y-2">
-              <Label className="text-xs sm:text-sm">Descrição (menu interativo)</Label>
+            {/* Descrição (opcional) */}
+            <div className="space-y-2">
+              <Label className="text-sm">Descrição (opcional)</Label>
               <Input
-                placeholder="Conheça nossos planos"
-                value={optDescription}
-                onChange={(e) => setOptDescription(e.target.value)}
-                className="text-base h-9 sm:h-10"
+                placeholder="Aparece abaixo do título no WhatsApp"
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
               />
             </div>
             
-            {/* Tipo de Ação */}
-            <div className="space-y-1 sm:space-y-2">
-              <Label className="text-xs sm:text-sm">O que acontece?</Label>
-              <Select value={optActionType} onValueChange={(v) => setOptActionType(v as MenuOptionActionType)}>
-                <SelectTrigger className="h-9 sm:h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ACTION_TYPES.map(action => (
-                    <SelectItem key={action.value} value={action.value}>
-                      <div className="flex items-center gap-2">
-                        <span>{action.emoji}</span>
-                        <span className="text-sm">{action.label}</span>
-                        <span className="text-xs text-muted-foreground hidden sm:inline">- {action.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Campos específicos por tipo */}
-            {optActionType === 'message' && (
-              <div className="space-y-1 sm:space-y-2">
-                <Label className="text-xs sm:text-sm">💬 Mensagem</Label>
+            {/* Campo específico: Mensagem */}
+            {dialogType === 'message' && (
+              <div className="space-y-2">
+                <Label className="text-sm">💬 Mensagem para enviar</Label>
                 <Textarea
-                  placeholder="Mensagem para o cliente..."
-                  value={optMessage}
-                  onChange={(e) => setOptMessage(e.target.value)}
+                  placeholder="Digite a mensagem que será enviada..."
+                  value={formMessage}
+                  onChange={(e) => setFormMessage(e.target.value)}
                   rows={3}
-                  className="text-base resize-none"
                 />
               </div>
             )}
             
-            {optActionType === 'command' && (
-              <div className="space-y-1 sm:space-y-2">
-                <Label className="text-xs sm:text-sm">⚡ Comando</Label>
+            {/* Campo específico: Comando */}
+            {dialogType === 'command' && (
+              <div className="space-y-2">
+                <Label className="text-sm">⚡ Comando a executar</Label>
                 <Input
-                  placeholder="/teste, /renovar..."
-                  value={optCommand}
-                  onChange={(e) => setOptCommand(e.target.value)}
-                  className="text-base h-9 sm:h-10"
+                  placeholder="/teste, /renovar, /planos..."
+                  value={formCommand}
+                  onChange={(e) => setFormCommand(e.target.value)}
                 />
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  Executado ao escolher esta opção
+                <p className="text-xs text-muted-foreground">
+                  Este comando será executado automaticamente
                 </p>
               </div>
             )}
             
-            {optActionType === 'goto_flow' && (
-              <div className="space-y-2">
-                <Label>↪️ Fluxo de destino</Label>
-                <Select value={optTargetFlow} onValueChange={setOptTargetFlow}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um fluxo..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableFlows.map(flow => (
-                      <SelectItem key={flow.id} value={flow.id}>
-                        {flow.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {optActionType === 'goto_node' && (
-              <div className="space-y-2">
-                <Label>🎯 Nó de destino</Label>
-                <Select value={optTargetNode} onValueChange={setOptTargetNode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um nó..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableNodes.map(node => (
-                      <SelectItem key={node.id} value={node.id}>
-                        {node.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {optActionType === 'submenu' && (
+            {/* Info: Submenu */}
+            {dialogType === 'submenu' && (
               <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  📂 Um submenu será criado. Após salvar, clique na opção para adicionar suas sub-opções.
+                  📂 Após salvar, você será levado para adicionar as opções dentro deste submenu
                 </p>
               </div>
             )}
             
-            {optActionType === 'transfer_human' && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  👤 O cliente será transferido para atendimento humano e o bot será pausado.
-                </p>
-              </div>
-            )}
-            
-            {optActionType === 'end_session' && (
-              <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  🏁 A conversa será encerrada após esta opção.
-                </p>
+            {/* Seletor para "Outras ações" */}
+            {dialogType === 'other' && (
+              <div className="space-y-3">
+                <Label className="text-sm">Tipo de ação</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={formActionType === 'transfer_human' ? 'default' : 'outline'}
+                    className="h-12 flex-col gap-1"
+                    onClick={() => setFormActionType('transfer_human')}
+                  >
+                    <UserCircle className="h-5 w-5" />
+                    <span className="text-xs">Atendente</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formActionType === 'end_session' ? 'default' : 'outline'}
+                    className="h-12 flex-col gap-1"
+                    onClick={() => setFormActionType('end_session')}
+                  >
+                    <XCircle className="h-5 w-5" />
+                    <span className="text-xs">Encerrar</span>
+                  </Button>
+                </div>
+                
+                {formActionType === 'transfer_human' && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+                    👤 O cliente será transferido para atendimento humano
+                  </div>
+                )}
+                {formActionType === 'end_session' && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-lg text-sm text-red-700 dark:text-red-300">
+                    🏁 A conversa será encerrada
+                  </div>
+                )}
               </div>
             )}
           </div>
           
-          <DialogFooter className="shrink-0 pt-2 flex-col-reverse sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsOptionDialogOpen(false)} className="w-full sm:w-auto">
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveOption} disabled={!optTitle.trim()} className="w-full sm:w-auto">
+            <Button onClick={handleSave} disabled={!formTitle.trim()}>
               {editingOption ? 'Salvar' : 'Adicionar'}
             </Button>
           </DialogFooter>
