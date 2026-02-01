@@ -3,17 +3,20 @@
  * 
  * Uses atomic-client-upsert edge function for fast, transactional saves.
  * Implements optimistic updates and smart cache invalidation.
+ * 
+ * IMPORTANT: This hook expects data to be ALREADY ENCRYPTED by the caller.
+ * The Edge Function handles the atomic transaction, not the encryption.
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 
 interface ExternalAppData {
   appId: string;
   email?: string;
-  password?: string;
+  password?: string; // Already encrypted by caller
   expirationDate?: string;
   devices: Array<{ mac: string; model?: string }>;
 }
@@ -31,7 +34,7 @@ interface ServerAppCredential {
   serverAppId: string;
   authCode?: string;
   username?: string;
-  password?: string;
+  password?: string; // Already encrypted by caller
   provider?: string;
 }
 
@@ -71,26 +74,56 @@ interface SaveResult {
   };
 }
 
-// Debounce map to prevent double-submissions
-const pendingOperations = new Map<string, boolean>();
+// Debounce map to prevent double-submissions - use WeakMap alternative with Set for cleanup
+const pendingOperations = new Set<string>();
 
-export function useClientMutations(options?: {
+// Timeout for stale locks (prevent permanent blocks)
+const LOCK_TIMEOUT_MS = 30000;
+const lockTimestamps = new Map<string, number>();
+
+function acquireLock(key: string): boolean {
+  const now = Date.now();
+  
+  // Clean up stale locks
+  if (pendingOperations.has(key)) {
+    const timestamp = lockTimestamps.get(key) || 0;
+    if (now - timestamp > LOCK_TIMEOUT_MS) {
+      console.warn(`[useClientMutations] Stale lock detected for ${key}, releasing`);
+      pendingOperations.delete(key);
+      lockTimestamps.delete(key);
+    } else {
+      return false;
+    }
+  }
+  
+  pendingOperations.add(key);
+  lockTimestamps.set(key, now);
+  return true;
+}
+
+function releaseLock(key: string): void {
+  pendingOperations.delete(key);
+  lockTimestamps.delete(key);
+}
+
+export interface UseClientMutationsOptions {
   onSuccess?: (result: SaveResult, isUpdate: boolean) => void;
   onError?: (error: Error) => void;
-}) {
+  onCreateSuccess?: (result: SaveResult) => void;
+  onUpdateSuccess?: (result: SaveResult) => void;
+}
+
+export function useClientMutations(options?: UseClientMutationsOptions) {
   const queryClient = useQueryClient();
-  const lastOperationRef = useRef<string | null>(null);
 
   // Atomic save via Edge Function
   const atomicSave = useCallback(async (payload: ClientSavePayload): Promise<SaveResult> => {
-    const operationKey = payload.clientId || 'new-client';
+    const operationKey = payload.clientId || `new-${Date.now()}`;
     
     // Prevent double-click / rapid submissions
-    if (pendingOperations.has(operationKey)) {
+    if (!acquireLock(operationKey)) {
       throw new Error('Operação em andamento, aguarde...');
     }
-    
-    pendingOperations.set(operationKey, true);
     
     try {
       const { data, error } = await supabase.functions.invoke('atomic-client-upsert', {
@@ -98,24 +131,31 @@ export function useClientMutations(options?: {
       });
 
       if (error) {
-        throw new Error(error.message || 'Falha na operação');
+        // Parse edge function error message
+        const errorMsg = error.message || 'Falha na operação';
+        throw new Error(errorMsg);
       }
 
       if (!data?.success) {
-        throw new Error(data?.error || 'Operação falhou');
+        throw new Error(data?.error || 'Operação falhou sem mensagem de erro');
       }
 
       return data as SaveResult;
     } finally {
-      pendingOperations.delete(operationKey);
+      releaseLock(operationKey);
     }
   }, []);
 
   // Smart cache invalidation - only invalidate what's needed
-  const invalidateClientCaches = useCallback((isNew: boolean) => {
+  const invalidateClientCaches = useCallback((isNew: boolean, resetPagination?: () => void) => {
     // Critical invalidations (always needed)
     queryClient.invalidateQueries({ queryKey: ['clients'] });
     queryClient.invalidateQueries({ queryKey: ['clients-count'] });
+    
+    // Reset pagination if provided (for new clients)
+    if (isNew && resetPagination) {
+      resetPagination();
+    }
     
     // Only invalidate these for new clients
     if (isNew) {
@@ -145,6 +185,7 @@ export function useClientMutations(options?: {
       toast.success('Cliente salvo com sucesso! ✅');
       invalidateClientCaches(true);
       options?.onSuccess?.(result, false);
+      options?.onCreateSuccess?.(result);
     },
     onError: (error: Error) => {
       toast.dismiss('client-save');
@@ -156,7 +197,7 @@ export function useClientMutations(options?: {
   // Update mutation with optimistic updates
   const updateMutation = useMutation({
     mutationFn: atomicSave,
-    onMutate: async (payload) => {
+    onMutate: async () => {
       toast.loading('Salvando alterações...', { id: 'client-update' });
       
       // Cancel outgoing refetches
@@ -172,6 +213,7 @@ export function useClientMutations(options?: {
       toast.success('Cliente atualizado! ✅');
       invalidateClientCaches(false);
       options?.onSuccess?.(result, true);
+      options?.onUpdateSuccess?.(result);
     },
     onError: (error: Error, _variables, context) => {
       toast.dismiss('client-update');
@@ -186,17 +228,23 @@ export function useClientMutations(options?: {
     },
   });
 
-  // Delete mutation
+  // Delete mutation - direct DB call (not through edge function)
   const deleteMutation = useMutation({
     mutationFn: async (clientId: string) => {
-      const { error } = await supabase.from('clients').delete().eq('id', clientId);
-      if (error) throw error;
-      return clientId;
+      if (!acquireLock(`delete-${clientId}`)) {
+        throw new Error('Operação em andamento');
+      }
+      try {
+        const { error } = await supabase.from('clients').delete().eq('id', clientId);
+        if (error) throw error;
+        return clientId;
+      } finally {
+        releaseLock(`delete-${clientId}`);
+      }
     },
-    onMutate: async (clientId) => {
+    onMutate: async () => {
       toast.loading('Excluindo...', { id: 'client-delete' });
       await queryClient.cancelQueries({ queryKey: ['clients'] });
-      return { clientId };
     },
     onSuccess: () => {
       toast.dismiss('client-delete');
@@ -251,17 +299,27 @@ export function useClientMutations(options?: {
   });
 
   return {
+    // Main operations
     createClient: createMutation.mutateAsync,
     updateClient: updateMutation.mutateAsync,
     deleteClient: deleteMutation.mutateAsync,
     archiveClient: archiveMutation.mutateAsync,
     restoreClient: restoreMutation.mutateAsync,
+    
+    // Non-async versions for direct use
+    createClientMutate: createMutation.mutate,
+    updateClientMutate: updateMutation.mutate,
+    
+    // Status flags
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isArchiving: archiveMutation.isPending,
     isRestoring: restoreMutation.isPending,
     isSaving: createMutation.isPending || updateMutation.isPending,
+    
+    // Cache control
+    invalidateClientCaches,
   };
 }
 
