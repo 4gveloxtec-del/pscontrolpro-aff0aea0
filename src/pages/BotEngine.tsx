@@ -602,6 +602,53 @@ export default function BotEngine() {
                     <span className="text-sm text-muted-foreground">horas</span>
                   </div>
                 </div>
+
+                {/* Variáveis copiáveis */}
+                <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label className="text-sm font-medium">Variáveis Disponíveis</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Clique para copiar. Use essas variáveis nas mensagens do bot para personalização automática.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { var: '{primeiro_nome}', desc: 'Primeiro nome do cliente' },
+                      { var: '{nome}', desc: 'Nome completo do cliente' },
+                      { var: '{telefone}', desc: 'Telefone do cliente' },
+                      { var: '{empresa}', desc: 'Nome da sua empresa' },
+                      { var: '{pix}', desc: 'Sua chave PIX' },
+                    ].map((item) => (
+                      <TooltipProvider key={item.var}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(item.var);
+                                toast.success(`"${item.var}" copiado!`);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-background border rounded-md hover:bg-accent transition-colors cursor-pointer"
+                            >
+                              <Copy className="h-3 w-3" />
+                              {item.var}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{item.desc}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
