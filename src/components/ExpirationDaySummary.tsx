@@ -121,16 +121,16 @@ export function ExpirationDaySummary({
   };
 
   return (
-    <Card className="border-warning/30 bg-gradient-to-r from-warning/5 via-transparent to-warning/5">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-warning" />
-            <h3 className="font-semibold text-sm">Vencimentos Próximos</h3>
+    <Card className="border-warning/30 bg-gradient-to-r from-warning/5 via-transparent to-warning/5 max-w-full overflow-hidden">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <CalendarIcon className="h-4 w-4 text-warning flex-shrink-0" />
+            <h3 className="font-semibold text-xs sm:text-sm truncate">Vencimentos Próximos</h3>
             {selectedDate && (
               <Badge 
                 variant="outline" 
-                className="gap-1 text-xs cursor-pointer hover:bg-destructive/10 transition-colors"
+                className="gap-1 text-[10px] sm:text-xs cursor-pointer hover:bg-destructive/10 transition-colors flex-shrink-0"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -142,25 +142,25 @@ export function ExpirationDaySummary({
                 }}
               >
                 Filtrado
-                <X className="h-3 w-3" />
+                <X className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              {totalClients} cliente{totalClients !== 1 ? 's' : ''}
+              <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+              {totalClients} <span className="hidden xs:inline">cliente{totalClients !== 1 ? 's' : ''}</span>
             </span>
             {!isPrivacyMode && (
               <span className="flex items-center gap-1 text-success font-medium">
-                <DollarSign className="h-3 w-3" />
-                R$ {totalRevenue.toFixed(2)}
+                <DollarSign className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                R$ {totalRevenue.toFixed(0)}
               </span>
             )}
           </div>
         </div>
         
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 xs:grid-cols-6 gap-1.5 sm:gap-2">
           {daySummaries.map((summary, index) => {
             const isSelected = selectedDate === summary.dateString;
             const hasClients = summary.clients.length > 0;
@@ -170,7 +170,7 @@ export function ExpirationDaySummary({
                 key={index}
                 onClick={(e) => handleDateClick(e, summary.dateString, hasClients)}
                 className={`
-                  p-2.5 rounded-lg border transition-all
+                  p-1.5 sm:p-2.5 rounded-lg border transition-all
                   ${hasClients 
                     ? 'cursor-pointer hover:scale-[1.02]' 
                     : 'cursor-default'
@@ -184,17 +184,17 @@ export function ExpirationDaySummary({
                 `}
               >
                 <div className="text-center">
-                  <p className={`text-xs font-medium mb-0.5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <p className={`text-[10px] sm:text-xs font-medium mb-0.5 truncate ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
                     {summary.dayLabel}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70 mb-1">
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground/70 mb-1">
                     {format(summary.date, "dd/MM")}
                   </p>
-                  <div className="flex items-center justify-center gap-1.5">
+                  <div className="flex items-center justify-center gap-1">
                     <Badge 
                       variant={hasClients ? "default" : "secondary"}
                       className={`
-                        text-xs px-1.5 min-w-[24px] justify-center transition-all
+                        text-[10px] sm:text-xs px-1 sm:px-1.5 min-w-[20px] sm:min-w-[24px] justify-center transition-all
                         ${isSelected ? 'ring-2 ring-primary/50 scale-110' : ''}
                         ${index === 0 && hasClients && !isSelected ? 'bg-destructive hover:bg-destructive' : ''}
                         ${index === 1 && hasClients && !isSelected ? 'bg-warning hover:bg-warning text-warning-foreground' : ''}
@@ -205,7 +205,7 @@ export function ExpirationDaySummary({
                     </Badge>
                   </div>
                   {!isPrivacyMode && summary.totalRevenue > 0 && (
-                    <p className={`text-[10px] font-medium mt-1 ${isSelected ? 'text-primary' : 'text-success'}`}>
+                    <p className={`text-[9px] sm:text-[10px] font-medium mt-0.5 sm:mt-1 ${isSelected ? 'text-primary' : 'text-success'}`}>
                       R$ {summary.totalRevenue.toFixed(0)}
                     </p>
                   )}

@@ -476,21 +476,21 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
+        <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
+          <div className="flex items-start gap-3 p-2.5 sm:p-3 rounded-lg border bg-muted/30">
             <Checkbox
               id="generatePlans"
               checked={generatePlans}
               onCheckedChange={(checked) => setGeneratePlans(!!checked)}
             />
-            <div className="space-y-1">
-              <Label htmlFor="generatePlans" className="font-medium cursor-pointer flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Gerar {plans.length} Planos
+            <div className="space-y-1 min-w-0">
+              <Label htmlFor="generatePlans" className="font-medium cursor-pointer flex items-center gap-2 text-xs sm:text-sm">
+                <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="truncate">Gerar {plans.length} Planos</span>
               </Label>
               <div className="flex flex-wrap gap-1">
                 {[...new Set(plans.map(p => p.category))].map(cat => (
-                  <Badge key={cat} variant="secondary" className="text-xs">
+                  <Badge key={cat} variant="secondary" className="text-[9px] sm:text-xs">
                     {cat}
                   </Badge>
                 ))}
@@ -498,20 +498,20 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
+          <div className="flex items-start gap-3 p-2.5 sm:p-3 rounded-lg border bg-muted/30">
             <Checkbox
               id="generateTemplates"
               checked={generateTemplates}
               onCheckedChange={(checked) => setGenerateTemplates(!!checked)}
             />
-            <div className="space-y-1">
-              <Label htmlFor="generateTemplates" className="font-medium cursor-pointer flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Gerar {templates.length} Templates
+            <div className="space-y-1 min-w-0">
+              <Label htmlFor="generateTemplates" className="font-medium cursor-pointer flex items-center gap-2 text-xs sm:text-sm">
+                <MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="truncate">Gerar {templates.length} Templates</span>
               </Label>
               <div className="flex flex-wrap gap-1">
                 {[...new Set(templates.map(t => t.type))].map(type => (
-                  <Badge key={type} variant="outline" className="text-xs">
+                  <Badge key={type} variant="outline" className="text-[9px] sm:text-xs">
                     {type}
                   </Badge>
                 ))}
@@ -520,39 +520,42 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
           </div>
 
           {isAdmin && (
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-              <p className="text-sm text-amber-600 dark:text-amber-400">
-                <strong>Modo Administrador:</strong> Os planos e templates serão voltados para gerenciar <em>revendedores</em>, não clientes finais.
+            <div className="p-2.5 sm:p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <p className="text-xs sm:text-sm text-amber-600 dark:text-amber-400">
+                <strong>Admin:</strong> Planos/templates para <em>revendedores</em>.
               </p>
             </div>
           )}
 
           {!isAdmin && (
-            <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-              <p className="text-sm text-blue-600 dark:text-blue-400">
-                <strong>Modo Revendedor:</strong> Os planos e templates serão voltados para atender seus <em>clientes finais</em> (IPTV, P2P, Premium).
+            <div className="p-2.5 sm:p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+              <p className="text-xs sm:text-sm text-blue-600 dark:text-blue-400">
+                <strong>Revendedor:</strong> Planos/templates para <em>clientes finais</em>.
               </p>
             </div>
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full sm:w-auto">
             Cancelar
           </Button>
           <Button 
             onClick={() => mutation.mutate()} 
             disabled={mutation.isPending || (!generatePlans && !generateTemplates)}
+            className="w-full sm:w-auto"
           >
             {mutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Gerando...
+                <span className="hidden xs:inline">Gerando...</span>
+                <span className="xs:hidden">...</span>
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Gerar Agora
+                <span className="hidden xs:inline">Gerar Agora</span>
+                <span className="xs:hidden">Gerar</span>
               </>
             )}
           </Button>
