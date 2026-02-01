@@ -1320,10 +1320,18 @@ Deno.serve(async (req) => {
       // Verificar se deve enviar boas-vindas:
       // 1. É primeiro contato (sessão nova OU interaction_count = 0)
       // 2. OU cooldown expirou (última interação foi há mais de X horas)
-      // 3. OU número está na whitelist de testes (SEMPRE envia boas-vindas)
+      // 3. Para whitelist: se cooldown expirou (mesmo que seja menor), PODE reenviar boas-vindas
+      //    MAS se já houve interação recente (< 5 min), não reenvia para permitir teste do fluxo
       const cooldownExpired = lastInteraction && (now.getTime() - lastInteraction.getTime() > cooldownMs);
       const isTestWhitelisted = isPhoneWhitelisted(userId);
-      const shouldSendWelcome = isFirstContact || cooldownExpired || isTestWhitelisted;
+      
+      // Para whitelist, usar cooldown reduzido de 5 minutos para permitir reset rápido durante testes
+      // Mas NÃO enviar boas-vindas se houve interação recente (permitir navegar no fluxo)
+      const whitelistCooldownMs = 5 * 60 * 1000; // 5 minutos
+      const whitelistCooldownExpired = isTestWhitelisted && lastInteraction && 
+        (now.getTime() - lastInteraction.getTime() > whitelistCooldownMs);
+      
+      const shouldSendWelcome = isFirstContact || cooldownExpired || whitelistCooldownExpired;
       
       console.log(`[BotIntercept] ===============================================`);
       console.log(`[BotIntercept] WELCOME CHECK`);
@@ -1332,6 +1340,7 @@ Deno.serve(async (req) => {
       console.log(`[BotIntercept] - Last interaction: ${lastInteraction?.toISOString() || 'never'}`);
       console.log(`[BotIntercept] - Cooldown expired: ${cooldownExpired}`);
       console.log(`[BotIntercept] - Test whitelisted: ${isTestWhitelisted}`);
+      console.log(`[BotIntercept] - Whitelist cooldown (5min) expired: ${whitelistCooldownExpired}`);
       console.log(`[BotIntercept] - SHOULD SEND WELCOME: ${shouldSendWelcome}`);
       console.log(`[BotIntercept] - Welcome message: "${welcomeMessage?.substring(0, 50)}..."`);
       console.log(`[BotIntercept] ===============================================`);
