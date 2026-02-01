@@ -100,19 +100,33 @@ export default function BotEngine() {
   const [newFolderName, setNewFolderName] = useState('');
   
   // Pastas customizadas salvas em localStorage (para pastas vazias persistirem)
-  const [customFolders, setCustomFolders] = useState<string[]>(() => {
+  // Inicializa vazio e carrega via useEffect quando user estiver disponível
+  const [customFolders, setCustomFolders] = useState<string[]>([]);
+  
+  // Carregar pastas customizadas do localStorage quando user carregar
+  useEffect(() => {
+    if (!user?.id) return;
     try {
-      const stored = localStorage.getItem(`bot_folders_${user?.id}`);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+      const stored = localStorage.getItem(`bot_folders_${user.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setCustomFolders(parsed);
+        }
+      }
+    } catch (error) {
+      console.warn('[BotEngine] Failed to load custom folders from localStorage:', error);
     }
-  });
+  }, [user?.id]);
   
   // Salvar pastas customizadas no localStorage quando mudar
   useEffect(() => {
     if (user?.id && customFolders.length > 0) {
-      localStorage.setItem(`bot_folders_${user.id}`, JSON.stringify(customFolders));
+      try {
+        localStorage.setItem(`bot_folders_${user.id}`, JSON.stringify(customFolders));
+      } catch (error) {
+        console.warn('[BotEngine] Failed to save custom folders to localStorage:', error);
+      }
     }
   }, [customFolders, user?.id]);
   
