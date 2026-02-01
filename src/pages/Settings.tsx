@@ -124,7 +124,7 @@ export default function Settings() {
     pix_key: (profile as { pix_key?: string })?.pix_key || '',
   });
 
-  // Fetch app settings
+  // Fetch app settings (for both admin and seller to get trial days)
   const { data: appSettings } = useQuery({
     queryKey: ['app-settings'],
     queryFn: async () => {
@@ -134,7 +134,6 @@ export default function Settings() {
       if (error) throw error;
       return data || [];
     },
-    enabled: isAdmin,
   });
 
   useEffect(() => {
@@ -272,11 +271,30 @@ export default function Settings() {
     }
   };
 
+  // Get trial days from settings
+  const trialDaysFromSettings = parseInt(
+    appSettings?.find(s => s.key === 'seller_trial_days')?.value || '5', 
+    10
+  );
+
   const subscriptionStatus = () => {
     if (profile?.is_permanent) return { text: 'Permanente', color: 'success' as const };
-    if (!profile?.subscription_expires_at) return { text: 'Não definido', color: 'default' as const };
     
-    const expiresAt = new Date(profile.subscription_expires_at);
+    let expiresAt: Date | null = null;
+    
+    // Try to use subscription_expires_at first
+    if (profile?.subscription_expires_at) {
+      expiresAt = new Date(profile.subscription_expires_at);
+    } 
+    // Fallback: calculate from created_at + trial days
+    else if (profile?.created_at) {
+      const createdAt = new Date(profile.created_at);
+      expiresAt = new Date(createdAt);
+      expiresAt.setDate(expiresAt.getDate() + trialDaysFromSettings);
+    }
+    
+    if (!expiresAt) return { text: 'Não definido', color: 'default' as const };
+    
     const now = new Date();
     
     if (expiresAt < now) {
@@ -581,9 +599,25 @@ export default function Settings() {
         <SettingItem
           icon={Shield}
           title="Membro desde"
-          description={profile?.created_at
-            ? format(new Date(profile.created_at), "dd/MM/yyyy", { locale: ptBR })
-            : 'Não disponível'}
+          description={(() => {
+            // Try profile.created_at first
+            if (profile?.created_at) {
+              try {
+                return format(new Date(profile.created_at), "dd/MM/yyyy", { locale: ptBR });
+              } catch {
+                // fallback if parsing fails
+              }
+            }
+            // Try user.created_at as fallback
+            if (user?.created_at) {
+              try {
+                return format(new Date(user.created_at), "dd/MM/yyyy", { locale: ptBR });
+              } catch {
+                // fallback if parsing fails
+              }
+            }
+            return 'Não disponível';
+          })()}
         />
       </SettingSection>
 
