@@ -272,18 +272,18 @@ export default function MessageHistory() {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <History className="h-8 w-8 text-primary" />
-            Histórico de Mensagens
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+            <History className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" />
+            <span className="truncate">Histórico de Mensagens</span>
           </h1>
-          <p className="text-muted-foreground">
-            Todas as mensagens enviadas (automáticas e manuais) em um só lugar
+          <p className="text-muted-foreground text-sm sm:text-base">
+            Todas as mensagens enviadas em um só lugar
           </p>
         </div>
-        <Button 
+        <Button
           variant="outline" 
           onClick={handleRefresh}
           disabled={isFetching}
@@ -294,7 +294,7 @@ export default function MessageHistory() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5">
           <CardContent className="p-4 text-center">
             <div className="text-3xl font-bold text-primary">

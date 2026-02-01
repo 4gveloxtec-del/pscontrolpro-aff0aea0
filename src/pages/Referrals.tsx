@@ -71,14 +71,14 @@ export default function Referrals() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Sistema de Indicações</h1>
-        <p className="text-muted-foreground">Acompanhe as indicações dos seus clientes</p>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">Sistema de Indicações</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Acompanhe as indicações dos seus clientes</p>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-4 p-4">
             <div className="p-3 rounded-lg bg-primary/10">
@@ -142,7 +142,7 @@ export default function Referrals() {
               Nenhum cliente cadastrado ainda
             </p>
           ) : (
-            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3">
               {clients.filter(c => c.referral_code).map((client) => (
                 <div
                   key={client.id}

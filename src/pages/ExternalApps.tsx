@@ -9,15 +9,15 @@ export default function ExternalApps() {
   const [activeTab, setActiveTab] = useState('apps');
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <AppWindow className="h-5 w-5 text-primary" />
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <AppWindow className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Apps Pagos</h1>
-          <p className="text-sm text-muted-foreground">
-            Cadastre apps como IBO PRO, Bob Player para vincular aos clientes
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold truncate">Apps Pagos</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
+            Cadastre apps para vincular aos clientes
           </p>
         </div>
       </div>

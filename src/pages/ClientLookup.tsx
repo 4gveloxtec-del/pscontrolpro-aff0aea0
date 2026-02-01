@@ -627,16 +627,16 @@ function ClientLookup() {
   };
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl space-y-6">
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 max-w-6xl space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <UserSearch className="h-6 w-6 text-primary" />
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-primary/10 flex-shrink-0">
+            <UserSearch className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Consulta Avançada</h1>
-            <p className="text-muted-foreground text-sm">Visão 360° completa do cliente</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">Consulta Avançada</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm">Visão 360° completa do cliente</p>
           </div>
         </div>
       </div>

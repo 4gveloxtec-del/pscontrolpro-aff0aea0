@@ -106,7 +106,7 @@ const Panels = forwardRef<HTMLDivElement>((_, ref) => {
   const hasGerenciaApp = gerenciaAppSettings?.registerUrl && gerenciaAppSettings.registerUrl.trim() !== '';
 
   return (
-    <div ref={ref} className="p-4 md:p-6 space-y-6">
+    <div ref={ref} className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
       {/* GerenciaApp Card - PRIMEIRO NO TOPO */}
       {hasGerenciaApp && (
         <Card className="border-2 border-primary bg-gradient-to-br from-primary/10 via-primary/5 to-primary/10 overflow-hidden relative shadow-lg shadow-primary/20">
@@ -212,11 +212,11 @@ const Panels = forwardRef<HTMLDivElement>((_, ref) => {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Painéis</h1>
-          <p className="text-muted-foreground text-sm">
-            Acesse rapidamente os painéis dos seus servidores
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Painéis</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm">
+            Acesse rapidamente os painéis dos servidores
           </p>
         </div>
         
@@ -248,7 +248,7 @@ const Panels = forwardRef<HTMLDivElement>((_, ref) => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filteredServers.map((server) => (
             <Card 
               key={server.id} 
