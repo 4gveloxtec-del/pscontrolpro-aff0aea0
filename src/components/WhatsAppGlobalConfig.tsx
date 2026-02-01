@@ -148,36 +148,36 @@ export function WhatsAppGlobalConfig() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* API Status */}
       <div className={cn(
-        "p-4 rounded-lg border flex items-center gap-4",
+        "p-3 sm:p-4 rounded-lg border flex items-center gap-2 sm:gap-4",
         formData.is_active 
           ? "bg-success/10 border-success/30" 
           : "bg-destructive/10 border-destructive/30"
       )}>
         <div className={cn(
-          "w-12 h-12 rounded-full flex items-center justify-center",
+          "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0",
           formData.is_active ? "bg-success/20" : "bg-destructive/20"
         )}>
           {formData.is_active ? (
-            <Power className="h-6 w-6 text-success" />
+            <Power className="h-5 w-5 sm:h-6 sm:w-6 text-success" />
           ) : (
-            <PowerOff className="h-6 w-6 text-destructive" />
+            <PowerOff className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
           )}
         </div>
-        <div className="flex-1">
-          <p className="font-medium">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm sm:text-base truncate">
             {formData.is_active ? 'API WhatsApp Ativa' : 'API WhatsApp Inativa'}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
             {formData.is_active 
               ? 'Revendedores podem conectar suas instâncias' 
               : 'Todas as automações estão desativadas'}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <Badge variant={formData.is_active ? "default" : "destructive"}>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <Badge variant={formData.is_active ? "default" : "destructive"} className="text-[10px] sm:text-xs">
             {formData.is_active ? 'ATIVA' : 'INATIVA'}
           </Badge>
         </div>
@@ -186,8 +186,8 @@ export function WhatsAppGlobalConfig() {
       {/* Pending Sellers Alert */}
       {pendingSellersCount > 0 && !formData.is_active && (
         <Alert className="border-warning bg-warning/10">
-          <Clock className="h-4 w-4 text-warning" />
-          <AlertDescription className="text-warning-foreground">
+          <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-warning flex-shrink-0" />
+          <AlertDescription className="text-warning-foreground text-xs sm:text-sm">
             <strong>{pendingSellersCount} revendedor(es)</strong> configuraram suas instâncias 
             e estão aguardando a ativação da API para conectar o WhatsApp.
           </AlertDescription>
@@ -196,9 +196,9 @@ export function WhatsAppGlobalConfig() {
 
       {/* Active Sellers Info */}
       {pendingSellersCount > 0 && formData.is_active && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-muted/50 border">
+          <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+          <span className="text-xs sm:text-sm text-muted-foreground">
             <strong>{pendingSellersCount}</strong> instância(s) aguardando conexão via QR Code
           </span>
         </div>
@@ -215,27 +215,28 @@ export function WhatsAppGlobalConfig() {
 
       {/* Webhook Auto-Config Section */}
       {connectedSellersCount > 0 && (
-        <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3">
+        <div className="p-3 sm:p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2 sm:space-y-3">
           <div className="flex items-center gap-2">
-            <Webhook className="h-5 w-5 text-primary" />
-            <span className="font-medium">Configuração de Webhooks</span>
+            <Webhook className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+            <span className="font-medium text-sm sm:text-base">Configuração de Webhooks</span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Reconfigure os webhooks de todas as <strong>{connectedSellersCount}</strong> instâncias conectadas 
-            para usar o endpoint centralizado. Isso garante que mensagens e comandos funcionem corretamente.
+            para usar o endpoint centralizado.
           </p>
           <Button 
             variant="outline" 
             onClick={handleReconfigureWebhooks}
             disabled={isReconfiguringWebhooks}
-            className="w-full"
+            className="w-full h-8 sm:h-9 text-xs sm:text-sm"
           >
             {isReconfiguringWebhooks ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
             ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             )}
-            Reconfigurar Webhooks de Todas as Instâncias
+            <span className="hidden xs:inline">Reconfigurar Webhooks de Todas as Instâncias</span>
+            <span className="xs:hidden">Reconfigurar Webhooks</span>
           </Button>
         </div>
       )}
@@ -287,10 +288,10 @@ export function WhatsAppGlobalConfig() {
           </p>
         </div>
 
-        <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
-          <div>
-            <Label>API Ativa</Label>
-            <p className="text-sm text-muted-foreground">
+        <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-muted/50 border gap-3">
+          <div className="min-w-0 flex-1">
+            <Label className="text-sm">API Ativa</Label>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Desativar impede todos os revendedores de enviar mensagens
             </p>
           </div>
@@ -300,21 +301,22 @@ export function WhatsAppGlobalConfig() {
           />
         </div>
 
-        <Button className="w-full" onClick={handleSave} disabled={isSaving}>
+        <Button className="w-full h-9 sm:h-10 text-sm" onClick={handleSave} disabled={isSaving}>
           {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Salvar Configuração Global
+          <span className="hidden xs:inline">Salvar Configuração Global</span>
+          <span className="xs:hidden">Salvar</span>
         </Button>
       </div>
 
       {/* Info */}
-      <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
-        <span className="font-medium text-sm">Arquitetura Centralizada</span>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• <strong>Admin:</strong> Configura URL, Token e opcionalmente nome da instância</li>
-          <li>• <strong>Revendedores:</strong> Conectam suas próprias instâncias via QR Code</li>
-          <li>• <strong>Webhooks:</strong> Configurados automaticamente ao criar/conectar instância</li>
-          <li>• <strong>Chatbots:</strong> Cada um tem seu próprio chatbot independente</li>
-          <li>• <strong>Privacidade:</strong> Você não tem acesso às conversas dos revendedores</li>
+      <div className="p-3 sm:p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
+        <span className="font-medium text-xs sm:text-sm">Arquitetura Centralizada</span>
+        <ul className="text-[10px] sm:text-sm text-muted-foreground space-y-0.5 sm:space-y-1">
+          <li>• <strong>Admin:</strong> Configura URL, Token e nome da instância</li>
+          <li>• <strong>Revendedores:</strong> Conectam via QR Code</li>
+          <li>• <strong>Webhooks:</strong> Configurados automaticamente</li>
+          <li>• <strong>Chatbots:</strong> Cada um tem seu próprio chatbot</li>
+          <li>• <strong>Privacidade:</strong> Sem acesso às conversas</li>
         </ul>
       </div>
     </div>

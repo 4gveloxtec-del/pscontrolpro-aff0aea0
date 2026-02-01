@@ -109,14 +109,14 @@ export function PlanSelector({
   return (
     <div className={cn("space-y-2", className)}>
       {showFilters && (
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           {/* Duration Filter */}
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-0.5 sm:gap-1">
             <button
               type="button"
               onClick={() => setDurationFilter('all')}
               className={cn(
-                "px-2 py-1 text-xs rounded-md transition-colors",
+                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
                 durationFilter === 'all' 
                   ? "bg-primary text-primary-foreground" 
                   : "bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -128,56 +128,60 @@ export function PlanSelector({
               type="button"
               onClick={() => setDurationFilter('30')}
               className={cn(
-                "px-2 py-1 text-xs rounded-md transition-colors",
+                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
                 durationFilter === '30' 
                   ? "bg-blue-500 text-white" 
                   : "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
               )}
             >
-              Mensal
+              <span className="hidden xs:inline">Mensal</span>
+              <span className="xs:hidden">30d</span>
             </button>
             <button
               type="button"
               onClick={() => setDurationFilter('90')}
               className={cn(
-                "px-2 py-1 text-xs rounded-md transition-colors",
+                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
                 durationFilter === '90' 
                   ? "bg-emerald-500 text-white" 
                   : "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
               )}
             >
-              Trimestral
+              <span className="hidden xs:inline">Trimestral</span>
+              <span className="xs:hidden">90d</span>
             </button>
             <button
               type="button"
               onClick={() => setDurationFilter('180')}
               className={cn(
-                "px-2 py-1 text-xs rounded-md transition-colors",
+                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
                 durationFilter === '180' 
                   ? "bg-amber-500 text-white" 
                   : "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
               )}
             >
-              Semestral
+              <span className="hidden xs:inline">Semestral</span>
+              <span className="xs:hidden">180d</span>
             </button>
             <button
               type="button"
               onClick={() => setDurationFilter('365')}
               className={cn(
-                "px-2 py-1 text-xs rounded-md transition-colors",
+                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
                 durationFilter === '365' 
                   ? "bg-purple-500 text-white" 
                   : "bg-purple-500/10 text-purple-500 hover:bg-purple-500/20"
               )}
             >
-              Anual
+              <span className="hidden xs:inline">Anual</span>
+              <span className="xs:hidden">365d</span>
             </button>
           </div>
 
           {/* Category and Screens Filters */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as CategoryFilter)}>
-              <SelectTrigger className="h-7 w-auto min-w-[90px] text-xs">
+              <SelectTrigger className="h-6 sm:h-7 w-auto min-w-[70px] sm:min-w-[90px] text-[10px] sm:text-xs">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent className="max-h-[200px]" position="popper" sideOffset={4}>
@@ -195,7 +199,7 @@ export function PlanSelector({
 
             {hasScreens && (
               <Select value={screensFilter} onValueChange={(v) => setScreensFilter(v as ScreensFilter)}>
-                <SelectTrigger className="h-7 w-auto min-w-[80px] text-xs">
+                <SelectTrigger className="h-6 sm:h-7 w-auto min-w-[60px] sm:min-w-[80px] text-[10px] sm:text-xs">
                   <SelectValue placeholder="Telas" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]" position="popper" sideOffset={4}>

@@ -90,29 +90,30 @@ export function CircuitBreakerStatus({ compact = false, showQueue = true }: Circ
       ${isOpen ? 'border-destructive bg-destructive/5' : ''}
       ${isHalfOpen ? 'border-yellow-500 bg-yellow-500/5' : ''}
     `}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-base">
-          <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            Status da API WhatsApp
+      <CardHeader className="pb-2 p-3 sm:p-6 sm:pb-2">
+        <CardTitle className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 text-sm sm:text-base">
+          <div className="flex items-center gap-2 min-w-0">
+            <Zap className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Status da API WhatsApp</span>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             {isClosed && (
-              <Badge variant="default" className="bg-green-600 gap-1">
-                <CheckCircle className="h-3 w-3" />
+              <Badge variant="default" className="bg-green-600 gap-1 text-[10px] sm:text-xs">
+                <CheckCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 Normal
               </Badge>
             )}
             {isOpen && (
-              <Badge variant="destructive" className="gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Circuito Aberto
+              <Badge variant="destructive" className="gap-1 text-[10px] sm:text-xs">
+                <AlertTriangle className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                <span className="hidden xs:inline">Circuito Aberto</span>
+                <span className="xs:hidden">Aberto</span>
               </Badge>
             )}
             {isHalfOpen && (
-              <Badge variant="secondary" className="gap-1 bg-yellow-500 text-white">
-                <Clock className="h-3 w-3" />
+              <Badge variant="secondary" className="gap-1 bg-yellow-500 text-white text-[10px] sm:text-xs">
+                <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 Testando
               </Badge>
             )}
@@ -120,24 +121,24 @@ export function CircuitBreakerStatus({ compact = false, showQueue = true }: Circ
         </CardTitle>
       </CardHeader>
       
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6 pt-0 sm:pt-0">
         {/* Status details */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-          <div className="bg-muted/50 rounded p-2">
-            <div className="text-muted-foreground text-xs">Falhas</div>
-            <div className="font-medium">{circuitState?.failure_count || 0}/{circuitState?.failure_threshold || 5}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 text-xs sm:text-sm">
+          <div className="bg-muted/50 rounded p-1.5 sm:p-2">
+            <div className="text-muted-foreground text-[10px] sm:text-xs">Falhas</div>
+            <div className="font-medium text-sm sm:text-base">{circuitState?.failure_count || 0}/{circuitState?.failure_threshold || 5}</div>
           </div>
-          <div className="bg-muted/50 rounded p-2">
-            <div className="text-muted-foreground text-xs">Sucessos</div>
-            <div className="font-medium">{circuitState?.success_count || 0}/{circuitState?.success_threshold || 3}</div>
+          <div className="bg-muted/50 rounded p-1.5 sm:p-2">
+            <div className="text-muted-foreground text-[10px] sm:text-xs">Sucessos</div>
+            <div className="font-medium text-sm sm:text-base">{circuitState?.success_count || 0}/{circuitState?.success_threshold || 3}</div>
           </div>
-          <div className="bg-muted/50 rounded p-2">
-            <div className="text-muted-foreground text-xs">Na Fila</div>
-            <div className="font-medium">{queueLength}</div>
+          <div className="bg-muted/50 rounded p-1.5 sm:p-2">
+            <div className="text-muted-foreground text-[10px] sm:text-xs">Na Fila</div>
+            <div className="font-medium text-sm sm:text-base">{queueLength}</div>
           </div>
-          <div className="bg-muted/50 rounded p-2">
-            <div className="text-muted-foreground text-xs">Última Falha</div>
-            <div className="font-medium text-xs">
+          <div className="bg-muted/50 rounded p-1.5 sm:p-2">
+            <div className="text-muted-foreground text-[10px] sm:text-xs">Última Falha</div>
+            <div className="font-medium text-[10px] sm:text-xs truncate">
               {circuitState?.last_failure_at 
                 ? formatDistanceToNow(new Date(circuitState.last_failure_at), { addSuffix: true, locale: ptBR })
                 : '-'
@@ -154,16 +155,18 @@ export function CircuitBreakerStatus({ compact = false, showQueue = true }: Circ
         )}
         
         {/* Actions */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {(isOpen || isHalfOpen) && (
             <Button 
               size="sm" 
               variant="outline"
               onClick={handleReset}
               disabled={isResetting}
+              className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
             >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isResetting ? 'animate-spin' : ''}`} />
-              Resetar Circuit
+              <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 ${isResetting ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline">Resetar Circuit</span>
+              <span className="xs:hidden">Reset</span>
             </Button>
           )}
           
@@ -173,16 +176,19 @@ export function CircuitBreakerStatus({ compact = false, showQueue = true }: Circ
               variant="default"
               onClick={() => processQueue()}
               disabled={isOpen}
+              className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
             >
-              <Play className="h-4 w-4 mr-1" />
-              Processar Fila ({queueLength})
+              <Play className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden xs:inline">Processar Fila ({queueLength})</span>
+              <span className="xs:hidden">Fila ({queueLength})</span>
             </Button>
           )}
           
           {isProcessingQueue && (
-            <Button size="sm" variant="secondary" disabled>
-              <Pause className="h-4 w-4 mr-1 animate-pulse" />
-              Processando...
+            <Button size="sm" variant="secondary" disabled className="h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3">
+              <Pause className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-pulse" />
+              <span className="hidden xs:inline">Processando...</span>
+              <span className="xs:hidden">...</span>
             </Button>
           )}
           
@@ -192,10 +198,11 @@ export function CircuitBreakerStatus({ compact = false, showQueue = true }: Circ
               variant="ghost"
               onClick={handleClearQueue}
               disabled={isClearing}
-              className="text-destructive hover:text-destructive"
+              className="text-destructive hover:text-destructive h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3"
             >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Limpar Fila
+              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden xs:inline">Limpar Fila</span>
+              <span className="xs:hidden">Limpar</span>
             </Button>
           )}
         </div>
