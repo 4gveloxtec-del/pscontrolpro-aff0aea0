@@ -1144,12 +1144,12 @@ export default function BotEngine() {
             
             <div className="space-y-2">
               <Label>Pasta (opcional)</Label>
-              <Select value={flowCategory} onValueChange={setFlowCategory}>
+              <Select value={flowCategory || '_none'} onValueChange={(v) => setFlowCategory(v === '_none' ? '' : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma pasta..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem Categoria</SelectItem>
+                  <SelectItem value="_none">Sem Categoria</SelectItem>
                   {existingCategories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
