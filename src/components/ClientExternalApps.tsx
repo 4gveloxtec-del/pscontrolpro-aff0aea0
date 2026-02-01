@@ -825,6 +825,21 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
               )}
             </div>
             
+            {/* Email/Senha - Show for all app types when available */}
+            {app.email && (
+              <div className="flex items-center gap-1 text-muted-foreground bg-background/50 rounded p-1">
+                <Mail className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                <span className="text-[10px]">Email:</span>
+                <button
+                  onClick={() => copyToClipboard(app.email!, 'Email')}
+                  className="font-mono text-foreground hover:text-primary text-[11px] truncate"
+                >
+                  {app.email}
+                </button>
+              </div>
+            )}
+            
+            {/* MAC/Device Key - Show for MAC type apps */}
             {isMacType && app.devices?.length > 0 && (
               <div className="space-y-1">
                 {app.devices.map((device, i) => (
@@ -857,18 +872,6 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
                     )}
                   </div>
                 ))}
-              </div>
-            )}
-            
-            {!isMacType && app.email && (
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Mail className="h-3 w-3 flex-shrink-0" />
-                <button
-                  onClick={() => copyToClipboard(app.email!, 'Email')}
-                  className="hover:text-primary truncate"
-                >
-                  {app.email}
-                </button>
               </div>
             )}
           </div>
