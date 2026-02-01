@@ -122,6 +122,10 @@ export interface BotFlow {
   is_default: boolean;
   priority: number;
   category?: string | null; // Categoria/pasta para organização (ex: "Fluxos IPTV")
+  /** Indica se é um template universal visível para todos os revendedores */
+  is_template?: boolean;
+  /** ID do template original se este fluxo foi clonado */
+  cloned_from_template_id?: string | null;
   created_at: string;
   updated_at: string;
 }

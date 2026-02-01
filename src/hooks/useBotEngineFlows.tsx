@@ -107,7 +107,7 @@ export function useBotEngineFlows() {
     },
   });
 
-  // Duplicar fluxo
+  // Duplicar fluxo (também usado para clonar templates)
   const duplicateMutation = useMutation({
     mutationFn: async (flowId: string) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
@@ -121,17 +121,23 @@ export function useBotEngineFlows() {
       
       if (fetchError) throw fetchError;
       
-      // Criar cópia
+      // Verificar se é um template sendo clonado
+      const isTemplate = original.is_template === true;
+      
+      // Criar cópia para o seller atual
       const { data: newFlow, error: insertError } = await supabase
         .from('bot_engine_flows')
         .insert({
           seller_id: user.id,
-          name: `${original.name} (cópia)`,
+          name: isTemplate ? original.name : `${original.name} (cópia)`,
           description: original.description,
           trigger_type: original.trigger_type,
           trigger_keywords: original.trigger_keywords,
+          category: original.category,
           is_active: false, // Cópia começa desativada
           is_default: false,
+          is_template: false, // Cópia nunca é template
+          cloned_from_template_id: isTemplate ? flowId : null,
           priority: original.priority,
         })
         .select()
@@ -139,19 +145,76 @@ export function useBotEngineFlows() {
       
       if (insertError) throw insertError;
       
-      // TODO: Duplicar nós e edges também
+      // Duplicar nós do fluxo original
+      const { data: originalNodes } = await supabase
+        .from('bot_engine_nodes')
+        .select('*')
+        .eq('flow_id', flowId);
+      
+      if (originalNodes && originalNodes.length > 0) {
+        const nodeIdMap = new Map<string, string>(); // Mapeia ID antigo -> novo
+        
+        // Criar novos nós
+        for (const node of originalNodes) {
+          const newNodeId = crypto.randomUUID();
+          nodeIdMap.set(node.id, newNodeId);
+          
+          await supabase.from('bot_engine_nodes').insert({
+            id: newNodeId,
+            flow_id: newFlow.id,
+            seller_id: user.id,
+            node_type: node.node_type,
+            name: node.name,
+            config: node.config,
+            position_x: node.position_x,
+            position_y: node.position_y,
+            is_entry_point: node.is_entry_point,
+          });
+        }
+        
+        // Duplicar edges atualizando referências de nós
+        const { data: originalEdges } = await supabase
+          .from('bot_engine_edges')
+          .select('*')
+          .eq('flow_id', flowId);
+        
+        if (originalEdges && originalEdges.length > 0) {
+          for (const edge of originalEdges) {
+            const newSourceId = nodeIdMap.get(edge.source_node_id);
+            const newTargetId = nodeIdMap.get(edge.target_node_id);
+            
+            if (newSourceId && newTargetId) {
+              await supabase.from('bot_engine_edges').insert({
+                flow_id: newFlow.id,
+                seller_id: user.id,
+                source_node_id: newSourceId,
+                target_node_id: newTargetId,
+                condition_type: edge.condition_type,
+                condition_value: edge.condition_value,
+                label: edge.label,
+                priority: edge.priority,
+              });
+            }
+          }
+        }
+      }
       
       return newFlow as BotFlow;
     },
-    onSuccess: () => {
+    onSuccess: (_, flowId) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast.success('Fluxo duplicado!');
+      toast.success('Fluxo clonado com sucesso! Agora você pode editá-lo.');
     },
     onError: (error) => {
       console.error('[BotEngine] Duplicate flow error:', error);
-      toast.error('Erro ao duplicar fluxo');
+      toast.error('Erro ao clonar fluxo');
     },
   });
+  
+  // Clonar template para uso próprio
+  const cloneTemplate = async (templateId: string) => {
+    return duplicateMutation.mutateAsync(templateId);
+  };
 
   // Toggle ativo
   const toggleActive = async (id: string, isActive: boolean) => {
@@ -181,10 +244,12 @@ export function useBotEngineFlows() {
     updateFlow: updateMutation.mutateAsync,
     deleteFlow: deleteMutation.mutateAsync,
     duplicateFlow: duplicateMutation.mutateAsync,
+    cloneTemplate, // Nova função para clonar templates
     toggleActive,
     setAsDefault,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isCloning: duplicateMutation.isPending,
   };
 }
