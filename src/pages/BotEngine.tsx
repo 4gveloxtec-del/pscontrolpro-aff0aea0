@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useBotEngineConfig } from '@/hooks/useBotEngineConfig';
 import { useBotEngineFlows } from '@/hooks/useBotEngineFlows';
 import { useDefaultIPTVFlows } from '@/hooks/useDefaultIPTVFlows';
+import { useResetToDefaultFlows } from '@/hooks/useResetToDefaultFlows';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -39,6 +40,7 @@ import {
   FolderPlus,
   Power,
   MoreHorizontal,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -87,6 +89,9 @@ export default function BotEngine() {
   
   // Inicializar fluxos IPTV padrão para novos usuários
   const { isInitializing: isInitializingFlows } = useDefaultIPTVFlows();
+  
+  // Hook para restaurar fluxos ao padrão
+  const { resetToDefault, isResetting } = useResetToDefaultFlows();
   
   const [isFlowDialogOpen, setIsFlowDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<any>(null);
@@ -903,7 +908,22 @@ export default function BotEngine() {
                 Gerencie os fluxos de conversa do bot
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button 
+                variant="outline"
+                onClick={async () => {
+                  if (!confirm('Isso irá remover todos os fluxos atuais e restaurar o fluxo IPTV hierárquico padrão. Deseja continuar?')) {
+                    return;
+                  }
+                  await resetToDefault();
+                }}
+                disabled={isResetting}
+                className="gap-2"
+                title="Restaurar fluxos para o padrão hierárquico"
+              >
+                <RotateCcw className={`h-4 w-4 ${isResetting ? 'animate-spin' : ''}`} />
+                {isResetting ? 'Restaurando...' : 'Restaurar Padrão'}
+              </Button>
               <Button 
                 variant="outline"
                 onClick={() => setIsCreateFolderDialogOpen(true)} 
