@@ -826,40 +826,40 @@ export default function Servers() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
         <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="flex items-center justify-between p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-primary/10">
-                <DollarSign className="h-6 w-6 text-primary" />
+          <CardContent className="flex items-center justify-between p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <div className="p-2 sm:p-3 rounded-lg bg-primary/10 flex-shrink-0">
+                <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Custo Mensal Total</p>
-                <p className="text-2xl font-bold">R$ {totalMonthlyCost.toFixed(2)}</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Custo Mensal</p>
+                <p className="text-lg sm:text-2xl font-bold">R$ {totalMonthlyCost.toFixed(2)}</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Servidores Ativos</p>
-              <p className="text-2xl font-bold">{servers.filter(s => s.is_active).length}/{servers.length}</p>
+            <div className="text-right flex-shrink-0">
+              <p className="text-xs sm:text-sm text-muted-foreground">Ativos</p>
+              <p className="text-lg sm:text-2xl font-bold">{servers.filter(s => s.is_active).length}/{servers.length}</p>
             </div>
           </CardContent>
         </Card>
 
         {totalCredits > 0 && (
           <Card className="bg-warning/5 border-warning/20">
-            <CardContent className="flex items-center justify-between p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg bg-warning/10">
-                  <Coins className="h-6 w-6 text-warning" />
+            <CardContent className="flex items-center justify-between p-3 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                <div className="p-2 sm:p-3 rounded-lg bg-warning/10 flex-shrink-0">
+                  <Coins className="h-5 w-5 sm:h-6 sm:w-6 text-warning" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Créditos Totais</p>
-                  <p className="text-2xl font-bold">{usedCredits} / {totalCredits}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Créditos</p>
+                  <p className="text-lg sm:text-2xl font-bold">{usedCredits} / {totalCredits}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Disponíveis</p>
-                <p className="text-2xl font-bold">{totalCredits - usedCredits}</p>
+              <div className="text-right flex-shrink-0">
+                <p className="text-xs sm:text-sm text-muted-foreground">Livres</p>
+                <p className="text-lg sm:text-2xl font-bold">{totalCredits - usedCredits}</p>
               </div>
             </CardContent>
           </Card>
@@ -904,14 +904,14 @@ export default function Servers() {
                   !server.is_active && 'opacity-60'
                 )}
               >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
+                <CardHeader className="pb-2 p-3 sm:p-6 sm:pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                       {server.icon_url ? (
                         <img 
                           src={server.icon_url} 
                           alt={server.name}
-                          className="w-10 h-10 rounded-lg object-cover border border-border"
+                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover border border-border flex-shrink-0"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                             (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
@@ -919,21 +919,21 @@ export default function Servers() {
                         />
                       ) : null}
                       <div className={cn(
-                        'p-2 rounded-lg',
+                        'p-1.5 sm:p-2 rounded-lg flex-shrink-0',
                         server.is_active ? 'bg-success/10' : 'bg-muted',
                         server.icon_url && 'hidden'
                       )}>
                         <Server className={cn(
-                          'h-5 w-5',
+                          'h-4 w-4 sm:h-5 sm:w-5',
                           server.is_active ? 'text-success' : 'text-muted-foreground'
                         )} />
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{server.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-sm sm:text-lg truncate">{server.name}</CardTitle>
+                        <CardDescription className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
                           {server.is_active ? 'Ativo' : 'Inativo'}
                           {server.is_credit_based && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning">
+                            <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full bg-warning/10 text-warning">
                               Créditos
                             </span>
                           )}
@@ -945,17 +945,18 @@ export default function Servers() {
                       onCheckedChange={(checked) => 
                         toggleStatusMutation.mutate({ id: server.id, is_active: checked })
                       }
+                      className="flex-shrink-0"
                     />
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-lg font-semibold">R$ {server.monthly_cost.toFixed(2)}/mês</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                      <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm sm:text-lg font-semibold truncate">R$ {server.monthly_cost.toFixed(2)}<span className="hidden xs:inline">/mês</span></span>
                     </div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Users className="h-4 w-4" />
+                    <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground flex-shrink-0">
+                      <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       <span>{clientCountsMap[server.id] || 0}</span>
                     </div>
                   </div>
@@ -979,36 +980,36 @@ export default function Servers() {
                           creditPercentage > 80 ? "[&>div]:bg-destructive" : "[&>div]:bg-warning"
                         )}
                       />
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Valor: R$ {(server.credit_value || 0).toFixed(2)}/crédito</span>
-                        <span>{remainingCredits} disponíveis</span>
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
+                        <span className="truncate">R$ {(server.credit_value || 0).toFixed(2)}/cred</span>
+                        <span className="flex-shrink-0">{remainingCredits} livres</span>
                       </div>
                       
                       {/* Shared credits config display */}
                       {((server.iptv_per_credit || 0) > 0 || (server.p2p_per_credit || 0) > 0) && (
                         <div className="pt-2 border-t border-border/50 mt-2">
-                          <div className="flex items-center gap-2 text-xs mb-1">
-                            <span className="text-muted-foreground">Crédito Compartilhado:</span>
-                            <div className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-1 text-[10px] sm:text-xs mb-1">
+                            <span className="text-muted-foreground hidden sm:inline">Crédito:</span>
+                            <div className="flex items-center gap-1 flex-wrap">
                               {(server.iptv_per_credit || 0) > 0 && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
-                                  <Monitor className="h-3 w-3" />
-                                  {server.iptv_per_credit} IPTV
+                                <span className="flex items-center gap-0.5 px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
+                                  <Monitor className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                  {server.iptv_per_credit}
                                 </span>
                               )}
                               {(server.p2p_per_credit || 0) > 0 && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
-                                  <Wifi className="h-3 w-3" />
-                                  {server.p2p_per_credit} P2P
+                                <span className="flex items-center gap-0.5 px-1 sm:px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
+                                  <Wifi className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                  {server.p2p_per_credit}
                                 </span>
                               )}
                             </div>
                           </div>
                           {(server.credit_price || 0) > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>Mensal: R$ {(server.credit_price || 0).toFixed(2)}</span>
-                              <span className="text-warning">
+                            <div className="flex flex-wrap items-center gap-1 text-[10px] sm:text-xs text-muted-foreground">
+                              <Calendar className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                              <span>R$ {(server.credit_price || 0).toFixed(2)}</span>
+                              <span className="text-warning hidden xs:inline">
                                 (Pro-rata: R$ {calculateProRataPrice(server.credit_price || 0, 0, 30).toFixed(2)})
                               </span>
                             </div>
@@ -1021,36 +1022,42 @@ export default function Servers() {
                   {server.notes && (
                     <p className="text-sm text-muted-foreground mb-4">{server.notes}</p>
                   )}
-                  <div className="flex items-center gap-2 pt-3 border-t border-border">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-3 border-t border-border">
                     {/* Apps Button */}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 min-w-[60px] h-8 text-xs sm:text-sm px-2 sm:px-3"
                       onClick={() => setAppsServer(server)}
                     >
-                      <Smartphone className="h-4 w-4 mr-1" />
+                      <Smartphone className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                       Apps
                     </Button>
                     {((server.iptv_per_credit || 0) > 0 || (server.p2p_per_credit || 0) > 0) && (
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="flex-1"
+                        className="flex-1 min-w-[60px] h-8 text-xs sm:text-sm px-2 sm:px-3"
                         onClick={() => setCreditClientsServer(server)}
                       >
-                        <Users className="h-4 w-4 mr-1" />
-                        Clientes
+                        <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                        <span className="hidden xs:inline">Clientes</span>
+                        <span className="xs:hidden">Cred</span>
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(server)}>
-                      <Edit className="h-4 w-4 mr-1" />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 min-w-[60px] h-8 text-xs sm:text-sm px-2 sm:px-3" 
+                      onClick={() => handleEdit(server)}
+                    >
+                      <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                       Editar
                     </Button>
                     <Button
                       variant="outline"
                       size="icon"
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive hover:text-destructive h-8 w-8 flex-shrink-0"
                       onClick={() => {
                         confirm({
                           title: 'Excluir servidor',
@@ -1061,7 +1068,7 @@ export default function Servers() {
                         });
                       }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </Button>
                   </div>
                 </CardContent>
