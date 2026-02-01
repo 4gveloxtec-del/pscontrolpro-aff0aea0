@@ -40,6 +40,21 @@ export interface StateTransitionResult {
   testType?: 'tv' | 'celular';
   deviceInfo?: string;
   transferToHuman?: boolean;
+  /** Indica que é uma resposta silenciosa (não enviar mensagem) */
+  silent?: boolean;
+  /** Indica que é um erro de validação */
+  isValidationError?: boolean;
+}
+
+export interface SessionContext {
+  /** Se o usuário já interagiu ativamente com o fluxo */
+  hasEngaged?: boolean;
+  /** Contador de erros consecutivos (para evitar spam) */
+  consecutiveErrors?: number;
+  /** Último input inválido (para não repetir erro) */
+  lastInvalidInput?: string;
+  /** Outros dados da sessão */
+  [key: string]: unknown;
 }
 
 // =====================================================================
@@ -293,20 +308,31 @@ function matchOption(input: string, option: StateOption): boolean {
 
 /**
  * Processa a transição de estado baseado no input do usuário
+ * 
+ * LÓGICA INTELIGENTE DE FALLBACK:
+ * 1. No estado START (menu inicial), se o cliente digitar algo inválido,
+ *    NÃO enviamos erro - ficamos em silêncio (silent: true)
+ * 2. Só mostramos erro APÓS o cliente ter engajado ativamente (clicou em alguma opção)
+ * 3. Erro de validação só é enviado UMA VEZ por sequência de inputs inválidos
+ * 4. Se o mesmo input inválido for repetido, ficamos em silêncio
  */
 export function processStateTransition(
   currentState: string,
   userInput: string,
-  _sessionContext: Record<string, unknown> = {}
+  sessionContext: SessionContext = {}
 ): StateTransitionResult {
   const stateConfig = STATE_MESSAGES[currentState];
+  const hasEngaged = sessionContext.hasEngaged === true;
+  const consecutiveErrors = sessionContext.consecutiveErrors || 0;
+  const lastInvalidInput = sessionContext.lastInvalidInput || '';
   
-  // Estado não encontrado - voltar ao START
+  // Estado não encontrado - voltar ao START silenciosamente
   if (!stateConfig) {
     return {
       newState: 'START',
       response: STATE_MESSAGES.START.message,
       awaitingInput: false,
+      silent: !hasEngaged, // Silencioso se não engajou ainda
     };
   }
 
@@ -372,13 +398,49 @@ export function processStateTransition(
     }
   }
 
-  // Nenhuma opção correspondeu - mostrar mensagem de erro
+  // =====================================================================
+  // LÓGICA INTELIGENTE DE FALLBACK
+  // =====================================================================
+  
+  const normalizedInput = userInput.toLowerCase().trim();
+  
+  // REGRA 1: No estado START, se não engajou, ficar em SILÊNCIO
+  if (currentState === 'START' && !hasEngaged) {
+    return {
+      newState: currentState,
+      response: '',
+      silent: true, // Não enviar nada
+    };
+  }
+  
+  // REGRA 2: Se o mesmo input inválido foi repetido, ficar em silêncio
+  if (normalizedInput === lastInvalidInput) {
+    return {
+      newState: currentState,
+      response: '',
+      silent: true,
+    };
+  }
+  
+  // REGRA 3: Se já enviamos 1 erro consecutivo, ficar em silêncio
+  // (Não ficar repetindo "opção inválida" toda hora)
+  if (consecutiveErrors >= 1) {
+    return {
+      newState: currentState,
+      response: '',
+      silent: true,
+      isValidationError: true,
+    };
+  }
+  
+  // REGRA 4: Primeira vez com input inválido APÓS engajamento - mostrar erro UMA VEZ
   const fallbackCollect = stateConfig.collectInput;
   return {
     newState: currentState,
     response: `❌ Opção inválida. Por favor, escolha uma das opções disponíveis.\n\n${stateConfig.message}`,
     awaitingInput: !!fallbackCollect,
     inputVariableName: fallbackCollect ? fallbackCollect.variableName : undefined,
+    isValidationError: true,
   };
 }
 
@@ -401,4 +463,43 @@ export function stateRequiresInput(state: string): boolean {
  */
 export function getInputVariableName(state: string): string | null {
   return STATE_MESSAGES[state]?.collectInput?.variableName || null;
+}
+
+/**
+ * Verifica se o usuário está no estado inicial (não engajou ainda)
+ */
+export function isInitialState(state: string): boolean {
+  return state === 'START';
+}
+
+/**
+ * Atualiza o contexto da sessão após uma transição
+ */
+export function updateSessionContext(
+  context: SessionContext,
+  result: StateTransitionResult,
+  userInput: string
+): SessionContext {
+  const normalizedInput = userInput.toLowerCase().trim();
+  
+  // Se houve transição válida (não foi erro), marcar como engajado e resetar erros
+  if (!result.isValidationError && !result.silent) {
+    return {
+      ...context,
+      hasEngaged: true,
+      consecutiveErrors: 0,
+      lastInvalidInput: '',
+    };
+  }
+  
+  // Se foi erro de validação, incrementar contador
+  if (result.isValidationError) {
+    return {
+      ...context,
+      consecutiveErrors: (context.consecutiveErrors || 0) + 1,
+      lastInvalidInput: normalizedInput,
+    };
+  }
+  
+  return context;
 }
