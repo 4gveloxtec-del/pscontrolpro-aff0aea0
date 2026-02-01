@@ -447,9 +447,18 @@ Deno.serve(async (req) => {
       const lowerMessage = message_text.toLowerCase().trim();
       
       for (const flow of flows) {
+        // Palavra-chave: verifica se contém
         if (flow.trigger_type === 'keyword' && flow.trigger_keywords) {
           const keywords = flow.trigger_keywords as string[];
           if (keywords.some(k => lowerMessage.includes(k.toLowerCase()))) {
+            selectedFlow = flow;
+            break;
+          }
+        }
+        // Palavra exata: match exato (ideal para números como "1" não casar com "11")
+        if (flow.trigger_type === 'exact_keyword' && flow.trigger_keywords) {
+          const keywords = flow.trigger_keywords as string[];
+          if (keywords.some(k => lowerMessage === k.toLowerCase().trim())) {
             selectedFlow = flow;
             break;
           }
