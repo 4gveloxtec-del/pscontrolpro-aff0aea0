@@ -82,12 +82,80 @@ function normalizePhone(phone: string): string {
   return digits;
 }
 
+/**
+ * Interpola variáveis no texto
+ * Suporta múltiplos formatos:
+ * - {{variavel}} - formato padrão
+ * - {variavel} - formato simplificado
+ * - %variavel% - formato legado
+ * 
+ * Variáveis especiais:
+ * - {primeiro_nome} / {first_name} - primeiro nome do contato
+ * - {nome} / {name} - nome completo do contato
+ * - {empresa} / {company} - nome da empresa do revendedor
+ * - {telefone} / {phone} - telefone do contato
+ */
 function interpolateVariables(text: string, variables: Record<string, unknown>): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-    const value = variables[varName];
+  let result = text;
+  
+  // Primeiro, processar variáveis especiais de alias
+  const aliases: Record<string, string[]> = {
+    primeiro_nome: ['first_name', 'firstName'],
+    nome: ['name', 'contact_name', 'contactName'],
+    empresa: ['company', 'company_name', 'companyName'],
+    telefone: ['phone', 'contact_phone', 'contactPhone'],
+  };
+  
+  // Criar mapa expandido com todos os aliases
+  const expandedVars: Record<string, unknown> = { ...variables };
+  for (const [canonical, aliasList] of Object.entries(aliases)) {
+    // Se já temos o valor canônico, propagar para aliases
+    if (expandedVars[canonical] !== undefined) {
+      for (const alias of aliasList) {
+        if (expandedVars[alias] === undefined) {
+          expandedVars[alias] = expandedVars[canonical];
+        }
+      }
+    } else {
+      // Tentar encontrar valor em qualquer alias
+      for (const alias of aliasList) {
+        if (expandedVars[alias] !== undefined) {
+          expandedVars[canonical] = expandedVars[alias];
+          break;
+        }
+      }
+    }
+  }
+  
+  // Extrair primeiro nome se temos nome completo
+  if (expandedVars.nome && !expandedVars.primeiro_nome) {
+    const fullName = String(expandedVars.nome);
+    expandedVars.primeiro_nome = fullName.split(' ')[0];
+    expandedVars.first_name = expandedVars.primeiro_nome;
+  }
+  
+  // Substituir formato {{variavel}}
+  result = result.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+    const value = expandedVars[varName];
     if (value === undefined || value === null) return match;
     return String(value);
   });
+  
+  // Substituir formato {variavel}
+  result = result.replace(/\{(\w+)\}/g, (match, varName) => {
+    const value = expandedVars[varName];
+    if (value === undefined || value === null) return match;
+    return String(value);
+  });
+  
+  // Substituir formato %variavel%
+  result = result.replace(/%(\w+)%/g, (match, varName) => {
+    const value = expandedVars[varName];
+    if (value === undefined || value === null) return match;
+    return String(value);
+  });
+  
+  return result;
 }
 
 function evaluateCondition(
