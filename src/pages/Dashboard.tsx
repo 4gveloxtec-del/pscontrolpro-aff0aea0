@@ -607,8 +607,12 @@ export default function Dashboard() {
   const isOnTrial = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= trialDaysFromSettings && subscriptionDaysRemaining >= 0;
   const needsRenewalWarning = subscriptionDaysRemaining !== null && subscriptionDaysRemaining <= 3 && !profile?.is_permanent;
   
-  // Show banner for any authenticated non-admin, non-permanent user
-  const shouldShowTrialBanner = !isAdmin && profile && !profile.is_permanent && subscriptionDaysRemaining !== null;
+  const isPermanentAccount = !!profile?.is_permanent;
+
+  // Mostrar banner para qualquer usuário logado (exceto ADM).
+  // - Permanente: mostra "Permanente"
+  // - Mensal/Trial: mostra dias restantes
+  const shouldShowSubscriptionBanner = !isAdmin && !!profile && (isPermanentAccount || subscriptionDaysRemaining !== null);
 
   const copyPixKey = () => {
     navigator.clipboard.writeText(ADMIN_PIX);
@@ -623,12 +627,13 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Subscription Counter Banner */}
-      {shouldShowTrialBanner && (
+      {shouldShowSubscriptionBanner && (
         <Card className={cn(
           "border-2 overflow-hidden",
-          subscriptionDaysRemaining <= 0 ? "border-destructive bg-destructive/10" :
-          subscriptionDaysRemaining <= 3 ? "border-warning bg-gradient-to-r from-warning/20 to-destructive/20" :
-          subscriptionDaysRemaining <= 5 ? "border-warning/50 bg-warning/10" :
+          isPermanentAccount ? "border-success/40 bg-success/10" :
+          (subscriptionDaysRemaining ?? 0) <= 0 ? "border-destructive bg-destructive/10" :
+          (subscriptionDaysRemaining ?? 0) <= 3 ? "border-warning bg-gradient-to-r from-warning/20 to-destructive/20" :
+          (subscriptionDaysRemaining ?? 0) <= 5 ? "border-warning/50 bg-warning/10" :
           "border-primary/30 bg-primary/5"
         )}>
           <CardContent className="p-4">
@@ -637,33 +642,46 @@ export default function Dashboard() {
               <div className="flex items-center gap-4">
                 <div className={cn(
                   "flex flex-col items-center justify-center w-20 h-20 rounded-2xl",
-                  subscriptionDaysRemaining <= 0 ? "bg-destructive text-destructive-foreground" :
-                  subscriptionDaysRemaining <= 3 ? "bg-warning text-warning-foreground" :
+                  isPermanentAccount ? "bg-success text-success-foreground" :
+                  (subscriptionDaysRemaining ?? 0) <= 0 ? "bg-destructive text-destructive-foreground" :
+                  (subscriptionDaysRemaining ?? 0) <= 3 ? "bg-warning text-warning-foreground" :
                   "bg-primary text-primary-foreground"
                 )}>
                   <Timer className="h-5 w-5 mb-1" />
-                  <span className="text-3xl font-bold">{Math.max(0, subscriptionDaysRemaining)}</span>
-                  <span className="text-[10px] uppercase">dias</span>
+                  {isPermanentAccount ? (
+                    <span className="text-xl font-bold">PERM</span>
+                  ) : (
+                    <span className="text-3xl font-bold">{Math.max(0, subscriptionDaysRemaining ?? 0)}</span>
+                  )}
+                  <span className="text-[10px] uppercase">{isPermanentAccount ? 'ativo' : 'dias'}</span>
                 </div>
                 <div>
                   <h3 className={cn(
                     "font-bold text-lg",
-                    subscriptionDaysRemaining <= 0 ? "text-destructive" :
-                    subscriptionDaysRemaining <= 3 ? "text-warning" : "text-foreground"
+                    isPermanentAccount ? "text-success" :
+                    (subscriptionDaysRemaining ?? 0) <= 0 ? "text-destructive" :
+                    (subscriptionDaysRemaining ?? 0) <= 3 ? "text-warning" : "text-foreground"
                   )}>
-                    {subscriptionDaysRemaining <= 0 ? 'Assinatura Expirada!' :
-                     subscriptionDaysRemaining <= 3 ? 'Renove sua Assinatura!' :
-                     isOnTrial ? 'Período de Teste' : 'Sua Assinatura'}
+                    {isPermanentAccount
+                      ? 'Assinatura Permanente'
+                      : (subscriptionDaysRemaining ?? 0) <= 0
+                        ? 'Assinatura Expirada!'
+                        : (subscriptionDaysRemaining ?? 0) <= 3
+                          ? 'Renove sua Assinatura!'
+                          : isOnTrial
+                            ? 'Período de Teste'
+                            : 'Sua Assinatura'}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {subscriptionDaysRemaining <= 0 
-                      ? 'Seu acesso foi suspenso. Renove para continuar usando.'
-                      : subscriptionDaysRemaining <= 3
-                        ? `Faltam apenas ${subscriptionDaysRemaining} dia${subscriptionDaysRemaining > 1 ? 's' : ''} para expirar!`
-                        : subscriptionExpirationDate 
-                          ? `Expira em ${format(subscriptionExpirationDate, "dd 'de' MMMM", { locale: ptBR })}`
-                          : 'Data não disponível'
-                    }
+                    {isPermanentAccount
+                      ? 'Sua conta é permanente (sem vencimento).'
+                      : (subscriptionDaysRemaining ?? 0) <= 0
+                        ? 'Seu acesso foi suspenso. Renove para continuar usando.'
+                        : (subscriptionDaysRemaining ?? 0) <= 3
+                          ? `Faltam apenas ${subscriptionDaysRemaining} dia${(subscriptionDaysRemaining ?? 0) > 1 ? 's' : ''} para expirar!`
+                          : subscriptionExpirationDate
+                            ? `Expira em ${format(subscriptionExpirationDate, "dd 'de' MMMM", { locale: ptBR })}`
+                            : 'Data não disponível'}
                   </p>
                 </div>
               </div>

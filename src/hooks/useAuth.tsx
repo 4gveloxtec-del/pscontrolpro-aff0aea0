@@ -930,15 +930,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!trialEndDate) {
       return { isInTrial: false, daysRemaining: 0, trialExpired: false };
     }
+
+    // Normaliza para meio-dia local (evita off-by-one quando o timestamp cai no limite do dia)
+    trialEndDate.setHours(12, 0, 0, 0);
     
-    // Calcula diferença em dias usando Math.floor para dias completos
+    // Calcula diferença em dias com base em datas normalizadas
     const msPerDay = 1000 * 60 * 60 * 24;
-    const daysRemaining = Math.floor((trialEndDate.getTime() - today.getTime()) / msPerDay);
+    const daysRemainingRaw = Math.round((trialEndDate.getTime() - today.getTime()) / msPerDay);
+    const isExpired = daysRemainingRaw < 0;
     
     return {
-      isInTrial: daysRemaining >= 0,
-      daysRemaining: Math.max(0, daysRemaining),
-      trialExpired: daysRemaining < 0,
+      isInTrial: !isExpired,
+      daysRemaining: Math.max(0, daysRemainingRaw),
+      trialExpired: isExpired,
       trialEndDate
     };
   })();
