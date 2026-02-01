@@ -48,16 +48,38 @@ export interface StateTransitionResult {
 
 export const STATE_MESSAGES: Record<string, StateConfig> = {
   START: {
-    message: `Olá! 👋 Seja bem-vindo!
+    message: `👋 Olá! Seja bem-vindo(a)! 🎬📺
 
-Escolha uma opção:
-1️⃣ Testar IPTV
-2️⃣ Ver Planos
-3️⃣ Suporte`,
+Qualidade, estabilidade e o melhor do entretenimento para você!
+
+Escolha uma opção abaixo 👇
+
+1️⃣ Conhecer os Planos
+2️⃣ Teste Grátis 🎁
+3️⃣ Renovar Assinatura 🫰
+4️⃣ Suporte Técnico 🛠️
+5️⃣ Falar com Atendente 👨‍💻
+6️⃣ Revenda ⭐`,
     options: [
-      { input: ['1', 'testar', 'teste', 'iptv'], nextState: 'TESTE', label: 'Testar IPTV' },
-      { input: ['2', 'planos', 'plano', 'preços', 'precos', 'valores'], nextState: 'PLANOS', label: 'Ver Planos' },
-      { input: ['3', 'suporte', 'ajuda', 'problema', 'atendente'], nextState: 'SUPORTE', label: 'Suporte' },
+      { input: ['1', 'planos', 'plano', 'preços', 'precos', 'valores', 'conhecer'], nextState: 'PLANOS', label: 'Conhecer os Planos' },
+      { input: ['2', 'teste', 'testar', 'gratis', 'grátis', 'free'], nextState: 'TESTE', label: 'Teste Grátis' },
+      { input: ['3', 'renovar', 'renovação', 'renovacao', 'assinatura', 'pagar'], nextState: 'RENOVAR', label: 'Renovar Assinatura' },
+      { input: ['4', 'suporte', 'tecnico', 'técnico', 'problema', 'ajuda'], nextState: 'SUPORTE', label: 'Suporte Técnico' },
+      { input: ['5', 'atendente', 'humano', 'falar', 'pessoa'], nextState: 'ATENDENTE', label: 'Falar com Atendente' },
+      { input: ['6', 'revenda', 'revendedor', 'parceiro', 'ps control'], nextState: 'REVENDA', label: 'Revenda' },
+    ],
+  },
+
+  PLANOS: {
+    message: `📋 *Nossos Planos*
+
+{plans_list}
+
+Para contratar, entre em contato pelo suporte!
+
+0️⃣ Voltar ao menu`,
+    options: [
+      { input: ['0', 'voltar', 'menu', 'inicio'], nextState: 'START', label: 'Voltar' },
     ],
   },
 
@@ -154,21 +176,60 @@ Por favor, tente novamente ou entre em contato com o suporte.
     ],
   },
 
-  PLANOS: {
-    message: `📋 *Nossos Planos*
+  RENOVAR: {
+    message: `🫰 *Renovar Assinatura*
 
-{plans_list}
+Para renovar sua assinatura, informe seu login ou telefone cadastrado:`,
+    collectInput: {
+      variableName: 'client_identifier',
+      nextState: 'RENOVAR_PIX',
+      prompt: 'Digite seu login ou telefone:',
+    },
+  },
 
-Para contratar, entre em contato pelo suporte!
+  RENOVAR_PIX: {
+    message: `💰 *Pagamento via PIX*
+
+Valor: R$ {valor}
+Chave PIX: {pix_key}
+
+Após o pagamento, envie o comprovante aqui!
 
 0️⃣ Voltar ao menu`,
     options: [
-      { input: ['0', 'voltar', 'menu', 'inicio'], nextState: 'START', label: 'Voltar' },
+      { input: ['0', 'voltar', 'menu'], nextState: 'START', label: 'Voltar' },
+    ],
+  },
+
+  ATENDENTE: {
+    message: `👨‍💻 *Falar com Atendente*
+
+Você será transferido para um atendente humano.
+Por favor, aguarde...`,
+    action: 'transfer_to_human',
+  },
+
+  REVENDA: {
+    message: `⭐ *Programa de Revenda*
+
+Quer se tornar um revendedor e ter seu próprio negócio?
+
+📌 Benefícios:
+• Painel de controle exclusivo
+• Suporte técnico prioritário
+• Materiais de divulgação
+• Preços especiais
+
+Para mais informações, fale com nosso suporte!
+
+0️⃣ Voltar ao menu`,
+    options: [
+      { input: ['0', 'voltar', 'menu'], nextState: 'START', label: 'Voltar' },
     ],
   },
 
   SUPORTE: {
-    message: `🆘 *Suporte*
+    message: `🛠️ *Suporte Técnico*
 
 Por favor, descreva brevemente seu problema ou dúvida:`,
     collectInput: {
