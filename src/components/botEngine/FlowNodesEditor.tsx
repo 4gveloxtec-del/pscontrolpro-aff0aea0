@@ -221,21 +221,21 @@ export function FlowNodesEditor({ flowId, flowName, onClose }: FlowNodesEditorPr
   }
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">Editor de Nós</CardTitle>
-            <CardDescription>
-              Fluxo: <span className="font-medium text-foreground">{flowName}</span>
+    <Card className="h-full flex flex-col overflow-hidden">
+      <CardHeader className="pb-3 sm:pb-4 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-base sm:text-lg">Editor de Nós</CardTitle>
+            <CardDescription className="text-xs sm:text-sm truncate">
+              <span className="font-medium text-foreground">{flowName}</span>
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={openCreateDialog}>
-              <Plus className="h-4 w-4 mr-1" />
-              Novo Nó
+          <div className="flex gap-1 sm:gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={openCreateDialog} className="h-8 px-2 sm:px-3">
+              <Plus className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Novo Nó</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -244,8 +244,8 @@ export function FlowNodesEditor({ flowId, flowName, onClose }: FlowNodesEditorPr
 
       <Separator />
 
-      <CardContent className="flex-1 p-0">
-        <ScrollArea className="h-[600px]">
+      <CardContent className="flex-1 p-0 overflow-hidden">
+        <ScrollArea className="h-full max-h-[60vh] sm:max-h-[600px]">
           {nodes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4">
               <CircleDot className="h-12 w-12 text-muted-foreground mb-4" />
@@ -393,30 +393,31 @@ export function FlowNodesEditor({ flowId, flowName, onClose }: FlowNodesEditorPr
 
       {/* Node Edit Dialog */}
       <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-base sm:text-lg">
               {isCreating ? 'Novo Nó' : 'Editar Nó'}
             </DialogTitle>
-            <DialogDescription>
-              Configure os detalhes do nó de conversa
+            <DialogDescription className="text-xs sm:text-sm">
+              Configure os detalhes do nó
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Nome do Nó</Label>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4 py-2">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Nome do Nó</Label>
                 <Input
                   placeholder="Ex: MESSAGE_MENU_PRINCIPAL"
                   value={nodeName}
                   onChange={(e) => setNodeName(e.target.value)}
+                  className="text-base h-9 sm:h-10"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Tipo do Nó</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Tipo do Nó</Label>
                 <Select value={nodeType} onValueChange={(v) => setNodeType(v as BotNodeType)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 sm:h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -434,86 +435,91 @@ export function FlowNodesEditor({ flowId, flowName, onClose }: FlowNodesEditorPr
 
             {/* Type-specific fields */}
             {nodeType === 'message' && (
-              <div className="space-y-2">
-                <Label>Texto da Mensagem</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Texto da Mensagem</Label>
                 <Textarea
-                  placeholder="Digite a mensagem que será enviada ao cliente..."
+                  placeholder="Digite a mensagem..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  rows={8}
-                  className="font-mono text-sm"
+                  rows={6}
+                  className="font-mono text-sm resize-none"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Use {"{{variavel}}"} para inserir variáveis dinâmicas. Ex: {"{{first_name}}"}, {"{{phone}}"}
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  Use {"{{variavel}}"} para inserir variáveis. Ex: {"{{first_name}}"}
                 </p>
               </div>
             )}
 
             {nodeType === 'input' && (
               <>
-                <div className="space-y-2">
-                  <Label>Nome da Variável</Label>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Nome da Variável</Label>
                   <Input
                     placeholder="Ex: menu_principal_opcao"
                     value={variableName}
                     onChange={(e) => setVariableName(e.target.value)}
+                    className="text-base h-9 sm:h-10"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    A resposta do usuário será salva nesta variável
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    A resposta será salva nesta variável
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Opções Válidas (separadas por vírgula)</Label>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Opções Válidas</Label>
                   <Input
                     placeholder="1, 2, 3, 4, 5"
                     value={validationOptions}
                     onChange={(e) => setValidationOptions(e.target.value)}
+                    className="text-base h-9 sm:h-10"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Mensagem de Erro</Label>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Mensagem de Erro</Label>
                   <Input
-                    placeholder="❌ Opção inválida. Digite uma opção válida."
+                    placeholder="❌ Opção inválida."
                     value={errorMessage}
                     onChange={(e) => setErrorMessage(e.target.value)}
+                    className="text-base h-9 sm:h-10"
                   />
                 </div>
               </>
             )}
 
             {nodeType === 'condition' && (
-              <div className="space-y-2">
-                <Label>Variável de Condição</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Variável de Condição</Label>
                 <Input
                   placeholder="Ex: menu_principal_opcao"
                   value={conditionVariable}
                   onChange={(e) => setConditionVariable(e.target.value)}
+                  className="text-base h-9 sm:h-10"
                 />
-                <p className="text-xs text-muted-foreground">
-                  O valor desta variável determinará qual caminho seguir
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  O valor determinará qual caminho seguir
                 </p>
               </div>
             )}
 
             {nodeType === 'delay' && (
-              <div className="space-y-2">
-                <Label>Tempo de Espera (segundos)</Label>
+              <div className="space-y-1.5 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Tempo de Espera (segundos)</Label>
                 <Input
                   type="number"
                   min={1}
                   max={60}
                   value={delaySeconds}
                   onChange={(e) => setDelaySeconds(Number(e.target.value))}
+                  className="text-base h-9 sm:h-10"
                 />
               </div>
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNodeDialogOpen(false)}>
+          <DialogFooter className="shrink-0 pt-2 flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsNodeDialogOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={isUpdatingNode}>
+            <Button onClick={handleSave} disabled={isUpdatingNode} className="w-full sm:w-auto">
               <Save className="h-4 w-4 mr-1" />
               {isUpdatingNode ? 'Salvando...' : 'Salvar'}
             </Button>
