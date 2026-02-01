@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useBotEngineConfig } from '@/hooks/useBotEngineConfig';
 import { useBotEngineFlows } from '@/hooks/useBotEngineFlows';
+import { useDefaultIPTVFlows } from '@/hooks/useDefaultIPTVFlows';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -83,6 +84,9 @@ export default function BotEngine() {
     cloneTemplate,
     isCloning 
   } = useBotEngineFlows();
+  
+  // Inicializar fluxos IPTV padrão para novos usuários
+  const { isInitializing: isInitializingFlows } = useDefaultIPTVFlows();
   
   const [isFlowDialogOpen, setIsFlowDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<any>(null);
@@ -401,7 +405,7 @@ export default function BotEngine() {
     }
   };
 
-  const isLoading = configLoading || flowsLoading;
+  const isLoading = configLoading || flowsLoading || isInitializingFlows;
 
   if (isLoading) {
     return (
