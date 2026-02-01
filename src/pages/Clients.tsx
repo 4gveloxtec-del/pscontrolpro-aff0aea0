@@ -205,6 +205,9 @@ export default function Clients() {
   const [messageClient, setMessageClient] = useState<Client | null>(null);
   const [renewClientId, setRenewClientId] = useState<string | null>(null);
   const [renewPlanId, setRenewPlanId] = useState<string>('');
+  const [renewCustomDate, setRenewCustomDate] = useState<Date | undefined>(undefined);
+  const [renewUseCustomDate, setRenewUseCustomDate] = useState(false);
+  const [renewExpirationPopoverOpen, setRenewExpirationPopoverOpen] = useState(false);
   const [decryptedCredentials, setDecryptedCredentials] = useState<DecryptedCredentials>({});
   const [decrypting, setDecrypting] = useState<string | null>(null);
   const [isDecryptingAll, setIsDecryptingAll] = useState(false);
@@ -2838,6 +2841,10 @@ export default function Clients() {
     setPlansEnabled(true);
     setRenewClientId(client.id);
     setRenewPlanId(client.plan_id || '');
+    // Reset custom date state when opening dialog
+    setRenewCustomDate(undefined);
+    setRenewUseCustomDate(false);
+    setRenewExpirationPopoverOpen(false);
   };
 
   const confirmRenew = async () => {
@@ -2848,8 +2855,14 @@ export default function Clients() {
     
     // Close dialog immediately for better UX
     const clientToRenew = renewClient;
+    const useCustom = renewUseCustomDate && renewCustomDate;
+    const customDateStr = useCustom ? format(renewCustomDate!, 'yyyy-MM-dd') : undefined;
+    
     setRenewClientId(null);
     setRenewPlanId('');
+    setRenewCustomDate(undefined);
+    setRenewUseCustomDate(false);
+    setRenewExpirationPopoverOpen(false);
     
     // Execute renewal with the robust hook
     await executeRenewal({
@@ -2858,7 +2871,8 @@ export default function Clients() {
       clientPhone: clientToRenew.phone,
       clientCategory: clientToRenew.category,
       currentExpirationDate: clientToRenew.expiration_date,
-      durationDays: days,
+      durationDays: useCustom ? undefined : days,
+      customExpirationDate: customDateStr,
       planId: renewPlanId !== clientToRenew.plan_id ? selectedPlan?.id || null : undefined,
       planName: renewPlanId !== clientToRenew.plan_id ? selectedPlan?.name || clientToRenew.plan_name : clientToRenew.plan_name,
       planPrice: renewPlanId !== clientToRenew.plan_id ? selectedPlan?.price || clientToRenew.plan_price : clientToRenew.plan_price,
@@ -5220,7 +5234,14 @@ export default function Clients() {
       )}
 
       {/* Renew Dialog */}
-      <Dialog open={!!renewClientId} onOpenChange={(open) => !open && setRenewClientId(null)}>
+      <Dialog open={!!renewClientId} onOpenChange={(open) => {
+        if (!open) {
+          setRenewClientId(null);
+          setRenewCustomDate(undefined);
+          setRenewUseCustomDate(false);
+          setRenewExpirationPopoverOpen(false);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Renovar Cliente</DialogTitle>
@@ -5234,27 +5255,89 @@ export default function Clients() {
               <PlanSelector
                 plans={plans}
                 value={renewPlanId}
-                onValueChange={setRenewPlanId}
+                onValueChange={(val) => {
+                  setRenewPlanId(val);
+                  // Reset custom date when plan changes
+                  if (!renewUseCustomDate) {
+                    setRenewCustomDate(undefined);
+                  }
+                }}
                 placeholder="Selecione o plano"
                 showFilters={true}
                 defaultCategory={renewClient?.category}
               />
-              <p className="text-xs text-muted-foreground">
-                {renewPlanId ? 
-                  `Será adicionado ${plans.find(p => p.id === renewPlanId)?.duration_days || 30} dias ao vencimento` :
-                  'Selecione um plano para renovar'
-                }
-              </p>
+              {!renewUseCustomDate && (
+                <p className="text-xs text-muted-foreground">
+                  {renewPlanId ? 
+                    `Será adicionado ${plans.find(p => p.id === renewPlanId)?.duration_days || 30} dias ao vencimento` :
+                    'Selecione um plano para renovar'
+                  }
+                </p>
+              )}
             </div>
+            
+            {/* Custom Date Option */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="use-custom-date"
+                  checked={renewUseCustomDate}
+                  onCheckedChange={(checked) => {
+                    setRenewUseCustomDate(checked === true);
+                    if (!checked) {
+                      setRenewCustomDate(undefined);
+                    }
+                  }}
+                />
+                <Label htmlFor="use-custom-date" className="text-sm font-normal cursor-pointer">
+                  Escolher data personalizada
+                </Label>
+              </div>
+              
+              {renewUseCustomDate && (
+                <Popover open={renewExpirationPopoverOpen} onOpenChange={setRenewExpirationPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !renewCustomDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {renewCustomDate ? format(renewCustomDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione a data de vencimento"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
+                    <CalendarPicker
+                      mode="single"
+                      selected={renewCustomDate}
+                      onSelect={(date) => {
+                        setRenewCustomDate(date);
+                        setRenewExpirationPopoverOpen(false);
+                      }}
+                      disabled={(date) => isBefore(date, startOfToday())}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+            
             <div className="p-3 bg-muted rounded-lg text-sm">
-              <p><strong>Vencimento atual:</strong> {renewClient?.expiration_date ? format(new Date(renewClient.expiration_date), "dd/MM/yyyy", { locale: ptBR }) : '-'}</p>
-              {renewPlanId && renewClient && (
+              <p><strong>Vencimento atual:</strong> {renewClient?.expiration_date ? format(new Date(renewClient.expiration_date + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR }) : '-'}</p>
+              {renewUseCustomDate && renewCustomDate ? (
+                <p className="text-success mt-1">
+                  <strong>Novo vencimento:</strong> {format(renewCustomDate, "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              ) : renewPlanId && renewClient && (
                 <p className="text-success mt-1">
                   <strong>Novo vencimento:</strong> {
                     format(
                       addDays(
-                        isAfter(new Date(renewClient.expiration_date), new Date()) 
-                          ? new Date(renewClient.expiration_date) 
+                        isAfter(new Date(renewClient.expiration_date + 'T12:00:00'), new Date()) 
+                          ? new Date(renewClient.expiration_date + 'T12:00:00') 
                           : new Date(), 
                         plans.find(p => p.id === renewPlanId)?.duration_days || 30
                       ), 
@@ -5267,10 +5350,18 @@ export default function Clients() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenewClientId(null)} disabled={isRenewing}>
+            <Button variant="outline" onClick={() => {
+              setRenewClientId(null);
+              setRenewCustomDate(undefined);
+              setRenewUseCustomDate(false);
+              setRenewExpirationPopoverOpen(false);
+            }} disabled={isRenewing}>
               Cancelar
             </Button>
-            <Button onClick={confirmRenew} disabled={!renewPlanId || isRenewing || isRenewalPending}>
+            <Button 
+              onClick={confirmRenew} 
+              disabled={(!renewPlanId && !renewUseCustomDate) || (renewUseCustomDate && !renewCustomDate) || isRenewing || isRenewalPending}
+            >
               {isRenewing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
