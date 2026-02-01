@@ -189,23 +189,23 @@ function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-3 sm:p-4 max-w-full overflow-x-hidden">
       {/* Background gradient effect */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10 pointer-events-none" />
       
       <div className="w-full max-w-md relative z-10 animate-fade-in">
         {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
-            <Users className="w-8 h-8 text-primary" />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-primary/10 mb-3 sm:mb-4">
+            <Users className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">PSControl</h1>
-          <p className="text-muted-foreground mt-2">Sistema de gestão para revendedores</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">PSControl</h1>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">Sistema de gestão para revendedores</p>
           <Link 
             to="/landing" 
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-2"
+            className="inline-flex items-center gap-1 text-xs sm:text-sm text-primary hover:underline mt-2"
           >
-            <Info className="h-4 w-4" />
+            <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Saiba mais sobre o sistema
           </Link>
         </div>

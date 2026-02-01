@@ -106,27 +106,27 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Shield className="h-6 w-6 text-blue-500" />
-            Painel Administrativo
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500 flex-shrink-0" />
+            <span className="truncate">Painel Administrativo</span>
           </h1>
-          <p className="text-slate-400 mt-1">
+          <p className="text-slate-400 mt-1 text-sm sm:text-base truncate">
           Bem-vindo, {profile?.full_name || 'Administrador'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setBillingModeOpen(true)}
-            className="border-slate-600 hover:bg-slate-700 gap-2"
+            className="border-slate-600 hover:bg-slate-700 gap-1 sm:gap-2"
           >
             <Settings className="h-4 w-4" />
-            Modo Cobrança
+            <span className="hidden xs:inline">Modo Cobrança</span>
           </Button>
           <Button
             variant="outline"
@@ -136,11 +136,11 @@ export default function AdminDashboard() {
             className="border-slate-600 hover:bg-slate-700"
           >
             {syncPlansMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
             ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
             )}
-            Sincronizar Planos
+            <span className="hidden sm:inline">Sincronizar Planos</span>
           </Button>
           <AdminNotificationCreator />
           <AdminBroadcastResellers />
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
       <AdminBillingModeManager open={billingModeOpen} onOpenChange={setBillingModeOpen} />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((stat) => (
           <Card key={stat.title} className="bg-slate-800/50 border-slate-700">
             <CardHeader className="flex flex-row items-center justify-between pb-2">

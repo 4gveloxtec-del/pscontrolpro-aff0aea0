@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope, Users, Rocket } from 'lucide-react';
+import { Plus, Edit, Trash2, Terminal, Link2, Activity, Clock, CheckCircle, XCircle, Loader2, Settings, Play, Eye, MessageSquare, AlertTriangle, Stethoscope, Users, Rocket, Beaker } from 'lucide-react';
 import { TestIntegrationConfig } from '@/components/TestIntegrationConfig';
 import { TestLogsManager } from '@/components/TestLogsManager';
 import { TestGeneratorPanel } from '@/components/TestGeneratorPanel';
@@ -695,15 +695,15 @@ export default function TestCommands() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fade-in max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Terminal className="h-5 w-5 text-primary" />
-            Comandos de Teste
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 min-w-0">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Terminal className="h-5 w-5 sm:h-6 sm:w-6 text-primary flex-shrink-0" />
+            <span className="truncate">Comandos de Teste</span>
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">
             Configure comandos para gerar testes via WhatsApp
           </p>
         </div>

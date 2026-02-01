@@ -142,7 +142,7 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen bg-background landing-mesh-bg">
+    <div className="min-h-screen bg-background landing-mesh-bg max-w-full overflow-x-hidden">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -278,10 +278,10 @@ export default function Landing() {
 
       {/* Platform Icons Section */}
       <section className="py-10 border-y border-border bg-card/30">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-3 sm:px-4">
           <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">Gerencie todas as plataformas em um só lugar</p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
+            <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Gerencie todas as plataformas em um só lugar</p>
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
               {platforms?.map((platform) => (
                 <div key={platform.id} className="flex flex-col items-center gap-1">
                   <div className="landing-platform-icon">
