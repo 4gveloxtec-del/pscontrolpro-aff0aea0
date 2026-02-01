@@ -109,46 +109,46 @@ export function AdminBillingModeControl({
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto p-3 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Modo de Cobrança</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Modo de Cobrança</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Configure como a cobrança será feita para <strong>{clientName}</strong>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="space-y-4 sm:space-y-6 py-3 sm:py-4">
             {/* Current Mode Display */}
-            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-muted/50 gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {effectiveMode === 'manual' ? (
-                  <Bell className="h-5 w-5 text-blue-500" />
+                  <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
                 ) : (
-                  <Bot className="h-5 w-5 text-success" />
+                  <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-success flex-shrink-0" />
                 )}
-                <div>
-                  <p className="font-medium">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm sm:text-base truncate">
                     {effectiveMode === 'manual' ? 'Modo Manual' : 'Modo Automático'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {effectiveMode === 'manual'
                       ? 'Notificações push quando vencer'
                       : 'Lembretes via WhatsApp API'}
                   </p>
                 </div>
               </div>
-              <Badge variant={effectiveMode === 'manual' ? 'secondary' : 'default'}>
-                {effectiveMode === 'manual' ? 'Manual' : 'Automático'}
+              <Badge variant={effectiveMode === 'manual' ? 'secondary' : 'default'} className="flex-shrink-0 text-xs">
+                {effectiveMode === 'manual' ? 'Manual' : 'Auto'}
               </Badge>
             </div>
 
             {/* Toggle Switch */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="billing-mode" className="text-base">
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-0.5 min-w-0">
+                <Label htmlFor="billing-mode" className="text-sm sm:text-base">
                   Cobrança Automática
                 </Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Ativar lembretes via WhatsApp
                 </p>
               </div>
@@ -161,10 +161,10 @@ export function AdminBillingModeControl({
             </div>
 
             {/* Mode Explanation */}
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+            <div className="space-y-2 sm:space-y-3">
+              <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                 <Bell className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
+                <div className="text-xs sm:text-sm">
                   <p className="font-medium text-blue-500">Manual</p>
                   <p className="text-muted-foreground">
                     Você recebe notificações push quando o cliente vencer. Nenhuma mensagem automática é enviada.
@@ -172,9 +172,9 @@ export function AdminBillingModeControl({
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/20">
+              <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg bg-success/5 border border-success/20">
                 <Bot className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
+                <div className="text-xs sm:text-sm">
                   <p className="font-medium text-success">Automático</p>
                   <p className="text-muted-foreground">
                     Lembretes são enviados via WhatsApp nas datas agendadas. Sem notificações push.
@@ -184,8 +184,8 @@ export function AdminBillingModeControl({
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full sm:w-auto">
               Fechar
             </Button>
           </DialogFooter>

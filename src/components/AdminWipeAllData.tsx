@@ -85,38 +85,38 @@ export function AdminWipeAllData() {
           Apagar Tudo
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[95vw] sm:max-w-md p-3 sm:p-6">
         {step === 'warning' ? (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-500">
-                <AlertTriangle className="h-5 w-5" />
-                Atenção! Ação Irreversível
+              <DialogTitle className="flex items-center gap-2 text-red-500 text-base sm:text-lg">
+                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Atenção! Ação Irreversível</span>
               </DialogTitle>
-              <DialogDescription className="pt-2">
+              <DialogDescription className="pt-2 text-xs sm:text-sm">
                 Esta ação irá apagar <strong>permanentemente</strong>:
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-3 py-4">
+            <div className="space-y-3 py-3 sm:py-4">
               <Alert variant="destructive">
-                <AlertDescription className="space-y-2">
+                <AlertDescription className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                   <p>• <strong>Todos os clientes</strong> de todos os revendedores</p>
-                  <p>• <strong>Todos os revendedores</strong> (exceto você, o admin)</p>
-                  <p>• <strong>Todos os dados relacionados:</strong> servidores, planos, templates, painéis, etc.</p>
+                  <p>• <strong>Todos os revendedores</strong> (exceto você)</p>
+                  <p>• <strong>Dados relacionados:</strong> servidores, planos, templates, etc.</p>
                 </AlertDescription>
               </Alert>
               
-              <p className="text-sm text-muted-foreground">
-                Seu perfil de administrador será preservado, mas todos os seus clientes também serão removidos.
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Seu perfil de admin será preservado, mas seus clientes também serão removidos.
               </p>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={handleClose}>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
                 Cancelar
               </Button>
-              <Button variant="destructive" onClick={handleProceed}>
+              <Button variant="destructive" onClick={handleProceed} className="w-full sm:w-auto">
                 Entendi, continuar
               </Button>
             </DialogFooter>
@@ -124,48 +124,51 @@ export function AdminWipeAllData() {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-500">
-                <Trash2 className="h-5 w-5" />
-                Confirmar Exclusão Total
+              <DialogTitle className="flex items-center gap-2 text-red-500 text-base sm:text-lg">
+                <Trash2 className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Confirmar Exclusão Total</span>
               </DialogTitle>
-              <DialogDescription>
-                Digite o código abaixo para confirmar a exclusão de todos os dados.
+              <DialogDescription className="text-xs sm:text-sm">
+                Digite o código abaixo para confirmar a exclusão.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
               <div className="space-y-2">
-                <Label htmlFor="confirm-code">
-                  Digite: <code className="bg-destructive/20 text-destructive px-2 py-1 rounded font-mono">APAGAR-TUDO</code>
+                <Label htmlFor="confirm-code" className="text-xs sm:text-sm">
+                  Digite: <code className="bg-destructive/20 text-destructive px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-mono text-xs sm:text-sm">APAGAR-TUDO</code>
                 </Label>
                 <Input
                   id="confirm-code"
                   value={confirmCode}
                   onChange={(e) => setConfirmCode(e.target.value.toUpperCase())}
-                  placeholder="Digite o código de confirmação"
-                  className="font-mono"
+                  placeholder="Código de confirmação"
+                  className="font-mono text-sm"
                 />
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setStep('warning')}>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setStep('warning')} className="w-full sm:w-auto">
                 Voltar
               </Button>
               <Button 
                 variant="destructive" 
                 onClick={handleWipe}
                 disabled={confirmCode !== 'APAGAR-TUDO' || wipeMutation.isPending}
+                className="w-full sm:w-auto"
               >
                 {wipeMutation.isPending ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Apagando...
+                    <Loader2 className="h-4 w-4 mr-1 sm:mr-2 animate-spin" />
+                    <span className="hidden xs:inline">Apagando...</span>
+                    <span className="xs:hidden">...</span>
                   </>
                 ) : (
                   <>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Apagar Tudo Permanentemente
+                    <Trash2 className="h-4 w-4 mr-1 sm:mr-2" />
+                    <span className="hidden xs:inline">Apagar Permanentemente</span>
+                    <span className="xs:hidden">Apagar</span>
                   </>
                 )}
               </Button>

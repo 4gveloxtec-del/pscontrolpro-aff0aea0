@@ -236,39 +236,38 @@ export function AdminBillingModeManager({ open, onOpenChange }: AdminBillingMode
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Gerenciar Modo de Cobrança
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-3 sm:p-6">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Settings className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+              <span className="truncate">Gerenciar Modo de Cobrança</span>
             </DialogTitle>
-            <DialogDescription>
-              Defina se cada cliente usa cobrança manual (push) ou automática (WhatsApp). 
-              Apenas você pode alterar essa configuração.
+            <DialogDescription className="text-xs sm:text-sm">
+              Defina se cada cliente usa cobrança manual (push) ou automática (WhatsApp).
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4 min-h-0">
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <Card className="bg-blue-500/5 border-blue-500/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Bell className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="text-sm font-medium">Modo Manual</p>
-                      <p className="text-2xl font-bold">{modeCounts.manual}</p>
+                <CardContent className="p-2 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-medium truncate">Manual</p>
+                      <p className="text-lg sm:text-2xl font-bold">{modeCounts.manual}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <Card className="bg-success/5 border-success/20">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Bot className="h-5 w-5 text-success" />
-                    <div>
-                      <p className="text-sm font-medium">Modo Automático</p>
-                      <p className="text-2xl font-bold">{modeCounts.automatic}</p>
+                <CardContent className="p-2 sm:p-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-success flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-medium truncate">Automático</p>
+                      <p className="text-lg sm:text-2xl font-bold">{modeCounts.automatic}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -276,24 +275,24 @@ export function AdminBillingModeManager({ open, onOpenChange }: AdminBillingMode
             </div>
 
             {/* Filters */}
-            <div className="flex gap-3">
+            <div className="flex flex-col xs:flex-row gap-2 sm:gap-3">
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar cliente por nome ou telefone..."
-                    className="pl-9"
+                    placeholder="Buscar cliente..."
+                    className="pl-9 h-9 text-sm"
                   />
                 </div>
               </div>
               <Select value={selectedSeller} onValueChange={setSelectedSeller}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filtrar por revendedor" />
+                <SelectTrigger className="w-full xs:w-[180px] h-9 text-sm">
+                  <SelectValue placeholder="Revendedor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os revendedores</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {sellers.map(seller => (
                     <SelectItem key={seller.id} value={seller.id}>
                       {seller.full_name || seller.email}
@@ -305,79 +304,76 @@ export function AdminBillingModeManager({ open, onOpenChange }: AdminBillingMode
 
             {/* Bulk Actions */}
             {selectedSeller !== 'all' && (
-              <div className="flex gap-2 p-3 rounded-lg bg-muted/50">
-                <span className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Ações em massa para este revendedor:
+              <div className="flex flex-col xs:flex-row gap-2 p-2 sm:p-3 rounded-lg bg-muted/50">
+                <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden xs:inline">Ações em massa:</span>
+                  <span className="xs:hidden">Em massa:</span>
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1 text-blue-500"
-                  onClick={() => bulkUpdateMutation.mutate({ sellerId: selectedSeller, newMode: 'manual' })}
-                  disabled={bulkUpdateMutation.isPending}
-                >
-                  <Bell className="h-3 w-3" />
-                  Todos Manual
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1 text-success"
-                  onClick={() => bulkUpdateMutation.mutate({ sellerId: selectedSeller, newMode: 'automatic' })}
-                  disabled={bulkUpdateMutation.isPending}
-                >
-                  <Bot className="h-3 w-3" />
-                  Todos Automático
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 text-blue-500 flex-1 xs:flex-none h-7 sm:h-8 text-xs"
+                    onClick={() => bulkUpdateMutation.mutate({ sellerId: selectedSeller, newMode: 'manual' })}
+                    disabled={bulkUpdateMutation.isPending}
+                  >
+                    <Bell className="h-3 w-3" />
+                    Manual
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 text-success flex-1 xs:flex-none h-7 sm:h-8 text-xs"
+                    onClick={() => bulkUpdateMutation.mutate({ sellerId: selectedSeller, newMode: 'automatic' })}
+                    disabled={bulkUpdateMutation.isPending}
+                  >
+                    <Bot className="h-3 w-3" />
+                    Auto
+                  </Button>
+                </div>
               </div>
             )}
 
             {/* Client List */}
-            <ScrollArea className="h-[400px] rounded-lg border">
+            <ScrollArea className="h-[280px] sm:h-[350px] rounded-lg border">
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : filteredClients.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  {search ? 'Nenhum cliente encontrado' : 'Selecione um revendedor ou busque um cliente'}
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">
+                  {search ? 'Nenhum cliente encontrado' : 'Selecione um revendedor ou busque'}
                 </div>
               ) : (
                 <div className="divide-y">
                   {filteredClients.map(client => {
                     const effectiveMode = client.billing_mode || 'manual';
                     return (
-                      <div key={client.id} className="flex items-center justify-between p-3 hover:bg-muted/30">
+                      <div key={client.id} className="flex items-center justify-between p-2 sm:p-3 hover:bg-muted/30 gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">{client.name}</span>
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <span className="font-medium text-sm truncate max-w-[120px] sm:max-w-none">{client.name}</span>
                             <Badge 
                               variant="outline" 
-                              className={effectiveMode === 'automatic' 
-                                ? 'bg-success/10 text-success text-[10px]' 
-                                : 'bg-blue-500/10 text-blue-500 text-[10px]'
-                              }
+                              className={`text-[9px] sm:text-[10px] ${effectiveMode === 'automatic' 
+                                ? 'bg-success/10 text-success' 
+                                : 'bg-blue-500/10 text-blue-500'
+                              }`}
                             >
-                              {effectiveMode === 'automatic' ? <Bot className="h-3 w-3 mr-1" /> : <Bell className="h-3 w-3 mr-1" />}
+                              {effectiveMode === 'automatic' ? <Bot className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5" /> : <Bell className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5" />}
                               {effectiveMode === 'automatic' ? 'Auto' : 'Manual'}
                             </Badge>
                           </div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-2">
-                            {client.phone && <span>{client.phone}</span>}
-                            <span>•</span>
-                            <span>Vence: {format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })}</span>
-                            {client.profiles && (
-                              <>
-                                <span>•</span>
-                                <span>{client.profiles.full_name || client.profiles.email}</span>
-                              </>
-                            )}
+                          <div className="text-[10px] sm:text-xs text-muted-foreground flex flex-wrap items-center gap-1 sm:gap-2 mt-0.5">
+                            {client.phone && <span className="truncate max-w-[80px]">{client.phone}</span>}
+                            <span className="hidden xs:inline">•</span>
+                            <span>Vence: {format(new Date(client.expiration_date + 'T12:00:00'), "dd/MM/yy", { locale: ptBR })}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor={`mode-${client.id}`} className="text-xs text-muted-foreground">
-                            {effectiveMode === 'automatic' ? 'Automático' : 'Manual'}
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                          <Label htmlFor={`mode-${client.id}`} className="text-[10px] sm:text-xs text-muted-foreground hidden xs:block">
+                            {effectiveMode === 'automatic' ? 'Auto' : 'Manual'}
                           </Label>
                           <Switch
                             id={`mode-${client.id}`}
@@ -394,20 +390,20 @@ export function AdminBillingModeManager({ open, onOpenChange }: AdminBillingMode
             </ScrollArea>
 
             {/* Legend */}
-            <div className="flex gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-col xs:flex-row gap-1 xs:gap-4 text-[10px] sm:text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
-                <Bell className="h-3 w-3 text-blue-500" />
-                <span>Manual: Notificações push de vencimento</span>
+                <Bell className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                <span>Manual: Push de vencimento</span>
               </div>
               <div className="flex items-center gap-1">
-                <Bot className="h-3 w-3 text-success" />
-                <span>Automático: Cobrança via WhatsApp</span>
+                <Bot className="h-3 w-3 text-success flex-shrink-0" />
+                <span>Automático: WhatsApp</span>
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="flex-shrink-0 pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Fechar
             </Button>
           </DialogFooter>

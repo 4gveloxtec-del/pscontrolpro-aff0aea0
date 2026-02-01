@@ -126,54 +126,54 @@ export function BackupImportNotification({ jobId, onComplete, onClose }: BackupI
 
   return (
     <div className={cn(
-      "fixed bottom-20 left-4 z-50 md:bottom-6 md:left-6",
+      "fixed bottom-20 left-2 right-2 xs:left-4 xs:right-auto z-50 md:bottom-6 md:left-6",
       "bg-card border border-border rounded-xl shadow-2xl overflow-hidden",
       "transition-all duration-300",
-      isExpanded ? "w-80" : "w-auto"
+      isExpanded ? "xs:w-80" : "w-auto"
     )}>
       {/* Header */}
       <div className={cn(
-        "px-4 py-3 flex items-center gap-3",
+        "px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2 sm:gap-3",
         isCompleted && "bg-green-500/10",
         isFailed && "bg-destructive/10",
         isProcessing && "bg-primary/10"
       )}>
         {isProcessing ? (
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-primary flex-shrink-0" />
         ) : isCompleted ? (
-          <CheckCircle className="h-5 w-5 text-green-500" />
+          <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
         ) : (
-          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-destructive flex-shrink-0" />
         )}
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">Importação de Backup</span>
+            <span className="font-medium text-xs sm:text-sm truncate">Importação</span>
             {isProcessing && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-[10px] sm:text-xs">
                 {job?.progress || 0}%
               </Badge>
             )}
           </div>
         </div>
 
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-6 w-6 sm:h-7 sm:w-7"
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <ChevronUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
           </Button>
           {(isCompleted || isFailed) && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6 sm:h-7 sm:w-7"
               onClick={handleDismiss}
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           )}
         </div>
@@ -181,23 +181,23 @@ export function BackupImportNotification({ jobId, onComplete, onClose }: BackupI
 
       {/* Content */}
       {isExpanded && (
-        <div className="px-4 py-3 space-y-3">
+        <div className="px-3 sm:px-4 py-2 sm:py-3 space-y-2 sm:space-y-3">
           {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="space-y-1.5 sm:space-y-2">
+            <div className="flex justify-between text-[10px] sm:text-xs text-muted-foreground">
               <span>{getStatusLabel()}</span>
               <span>{job?.processed_items || 0} / {job?.total_items || 0}</span>
             </div>
-            <Progress value={job?.progress || 0} className="h-2" />
+            <Progress value={job?.progress || 0} className="h-1.5 sm:h-2" />
           </div>
 
           {/* Real-time restored items */}
           {restoredCount > 0 && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground font-medium">Restaurados em tempo real:</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Restaurados:</p>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(restoredItems).slice(0, 8).map(([key, count]) => (
-                  <Badge key={key} variant="outline" className="text-xs">
+                {Object.entries(restoredItems).slice(0, 6).map(([key, count]) => (
+                  <Badge key={key} variant="outline" className="text-[9px] sm:text-xs">
                     {key}: {count}
                   </Badge>
                 ))}
@@ -207,11 +207,11 @@ export function BackupImportNotification({ jobId, onComplete, onClose }: BackupI
 
           {/* Errors preview */}
           {(job?.errors?.length || 0) > 0 && (
-            <div className="p-2 bg-destructive/10 rounded-lg">
-              <p className="text-xs text-destructive font-medium">
+            <div className="p-1.5 sm:p-2 bg-destructive/10 rounded-lg">
+              <p className="text-[10px] sm:text-xs text-destructive font-medium">
                 {job?.errors?.length} erro(s)
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                 {job?.errors?.[0]}
               </p>
             </div>
@@ -219,18 +219,18 @@ export function BackupImportNotification({ jobId, onComplete, onClose }: BackupI
 
           {/* Final result */}
           {isCompleted && (
-            <div className="p-2 bg-green-500/10 rounded-lg">
-              <p className="text-xs text-green-600 font-medium">
-                ✓ {restoredCount} itens restaurados com sucesso!
+            <div className="p-1.5 sm:p-2 bg-green-500/10 rounded-lg">
+              <p className="text-[10px] sm:text-xs text-green-600 font-medium">
+                ✓ {restoredCount} itens restaurados!
               </p>
-              <p className="text-xs text-muted-foreground">
-                Seus dados já estão disponíveis no app.
+              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                Seus dados já estão disponíveis.
               </p>
             </div>
           )}
 
           {isFailed && (
-            <Button variant="outline" size="sm" className="w-full" onClick={handleDismiss}>
+            <Button variant="outline" size="sm" className="w-full h-7 sm:h-8 text-xs" onClick={handleDismiss}>
               Fechar
             </Button>
           )}
