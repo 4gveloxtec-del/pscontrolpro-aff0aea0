@@ -612,7 +612,7 @@ export default function Dashboard() {
   // Mostrar banner para qualquer usuário logado (exceto ADM).
   // - Permanente: mostra "Permanente"
   // - Mensal/Trial: mostra dias restantes
-  const shouldShowSubscriptionBanner = !isAdmin && !!profile && (isPermanentAccount || subscriptionDaysRemaining !== null);
+  const shouldShowSubscriptionBanner = !isAdmin && !!user && (isPermanentAccount || subscriptionDaysRemaining !== null);
 
   const copyPixKey = () => {
     navigator.clipboard.writeText(ADMIN_PIX);
@@ -620,7 +620,10 @@ export default function Dashboard() {
   };
 
   const openWhatsAppAdmin = () => {
-    const message = encodeURIComponent(`Olá ${ADMIN_NAME}! Gostaria de renovar minha assinatura do PSControl. Meu email: ${profile?.email}`);
+    const email = profile?.email || user?.email || '';
+    const message = encodeURIComponent(
+      `Olá ${ADMIN_NAME}! Gostaria de renovar minha assinatura do PSControl. Meu email: ${email}`
+    );
     window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${message}`, '_blank');
   };
 
