@@ -27,6 +27,7 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
+  Eye,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -49,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { FlowNodesEditor } from '@/components/botEngine/FlowNodesEditor';
 
 export default function BotEngine() {
   const { user } = useAuth();
@@ -58,6 +60,9 @@ export default function BotEngine() {
   const [isFlowDialogOpen, setIsFlowDialogOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // State for viewing flow nodes
+  const [viewingFlow, setViewingFlow] = useState<{ id: string; name: string } | null>(null);
   
   // Flow form states
   const [flowName, setFlowName] = useState('');
@@ -650,6 +655,20 @@ export default function BotEngine() {
                     </div>
                     
                     <div className="flex items-center gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver/Editar Nós</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -761,6 +780,19 @@ export default function BotEngine() {
               {isSaving ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Flow Nodes Editor Dialog */}
+      <Dialog open={!!viewingFlow} onOpenChange={(open) => !open && setViewingFlow(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+          {viewingFlow && (
+            <FlowNodesEditor
+              flowId={viewingFlow.id}
+              flowName={viewingFlow.name}
+              onClose={() => setViewingFlow(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
