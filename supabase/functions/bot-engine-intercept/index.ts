@@ -33,6 +33,28 @@ const corsHeaders = {
 };
 
 // =====================================================================
+// WHITELIST DE TELEFONES DE TESTE
+// Números nesta lista ignoram cooldown de boas-vindas e outras travas
+// =====================================================================
+const TEST_WHITELIST_PHONES: string[] = [
+  '5531998518865',  // Número de desenvolvimento/teste
+  '31998518865',    // Mesmo número sem DDI
+];
+
+/**
+ * Verifica se o telefone está na whitelist de testes
+ */
+function isPhoneWhitelisted(phone: string): boolean {
+  const normalized = phone.replace(/\D/g, '');
+  return TEST_WHITELIST_PHONES.some(w => {
+    const wNorm = w.replace(/\D/g, '');
+    return normalized === wNorm || 
+           normalized.endsWith(wNorm) || 
+           wNorm.endsWith(normalized);
+  });
+}
+
+// =====================================================================
 // SISTEMA DE DEBUG - LOGS ESTRUTURADOS PARA AMBIENTE DE TESTE
 // =====================================================================
 
@@ -1298,8 +1320,10 @@ Deno.serve(async (req) => {
       // Verificar se deve enviar boas-vindas:
       // 1. É primeiro contato (sessão nova OU interaction_count = 0)
       // 2. OU cooldown expirou (última interação foi há mais de X horas)
+      // 3. OU número está na whitelist de testes (SEMPRE envia boas-vindas)
       const cooldownExpired = lastInteraction && (now.getTime() - lastInteraction.getTime() > cooldownMs);
-      const shouldSendWelcome = isFirstContact || cooldownExpired;
+      const isTestWhitelisted = isPhoneWhitelisted(userId);
+      const shouldSendWelcome = isFirstContact || cooldownExpired || isTestWhitelisted;
       
       console.log(`[BotIntercept] ===============================================`);
       console.log(`[BotIntercept] WELCOME CHECK`);
@@ -1307,6 +1331,7 @@ Deno.serve(async (req) => {
       console.log(`[BotIntercept] - Interaction count: ${interactionCount}`);
       console.log(`[BotIntercept] - Last interaction: ${lastInteraction?.toISOString() || 'never'}`);
       console.log(`[BotIntercept] - Cooldown expired: ${cooldownExpired}`);
+      console.log(`[BotIntercept] - Test whitelisted: ${isTestWhitelisted}`);
       console.log(`[BotIntercept] - SHOULD SEND WELCOME: ${shouldSendWelcome}`);
       console.log(`[BotIntercept] - Welcome message: "${welcomeMessage?.substring(0, 50)}..."`);
       console.log(`[BotIntercept] ===============================================`);
