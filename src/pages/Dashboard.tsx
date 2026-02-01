@@ -827,7 +827,7 @@ export default function Dashboard() {
                   </Button>
                 )}
               </div>
-               <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8">
+               <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8">
                 {expiringTodayCount > 0 && (
                   <Card 
                     className={cn(

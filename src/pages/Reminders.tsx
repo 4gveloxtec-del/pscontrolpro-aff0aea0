@@ -518,12 +518,12 @@ export default function Reminders() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Lembretes de Cobrança</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Lembretes de Cobrança</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
             {hasWhatsAppApi 
               ? 'Envie lembretes automáticos ou manuais via WhatsApp'
               : 'Receba alertas para cobrar seus clientes'
@@ -531,9 +531,9 @@ export default function Reminders() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" className="gap-2" onClick={() => setIsSettingsOpen(true)}>
+          <Button variant="outline" className="gap-2 text-sm" onClick={() => setIsSettingsOpen(true)}>
             <Settings className="h-4 w-4" />
-            Horários
+            <span className="hidden xs:inline">Horários</span>
           </Button>
         </div>
       </div>
@@ -568,7 +568,7 @@ export default function Reminders() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">

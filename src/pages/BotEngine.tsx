@@ -482,16 +482,16 @@ export default function BotEngine() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6 text-primary" />
-            BotEngine
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Bot className="h-5 w-5 sm:h-6 sm:w-6 text-primary flex-shrink-0" />
+            <span className="truncate">BotEngine</span>
           </h1>
-          <p className="text-muted-foreground">
-            Configure o chatbot automático para atender seus clientes
+          <p className="text-muted-foreground text-sm sm:text-base truncate">
+            Configure o chatbot automático
           </p>
         </div>
         

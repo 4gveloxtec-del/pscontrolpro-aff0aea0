@@ -234,11 +234,11 @@ export default function Bills() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Contas a Pagar</h1>
-          <p className="text-muted-foreground">Gerencie suas despesas e pagamentos</p>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Contas a Pagar</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Gerencie suas despesas e pagamentos</p>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -348,7 +348,7 @@ export default function Bills() {
       </div>
 
       {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-warning/5 border-warning/20">
           <CardContent className="flex items-center gap-4 p-4">
             <div className="p-3 rounded-lg bg-warning/10">
