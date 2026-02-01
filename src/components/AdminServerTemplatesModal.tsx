@@ -63,13 +63,13 @@ export function AdminServerTemplatesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Server className="h-5 w-5" />
-            Servidores do ADM
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] p-3 sm:p-6 overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Server className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Servidores do ADM</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Selecione um servidor para preencher automaticamente os dados
           </DialogDescription>
         </DialogHeader>
@@ -84,7 +84,7 @@ export function AdminServerTemplatesModal({
           />
         </div>
 
-        <ScrollArea className="h-[400px] pr-4">
+        <ScrollArea className="flex-1 min-h-0 max-h-[60vh] sm:max-h-[400px] pr-2 sm:pr-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -108,13 +108,13 @@ export function AdminServerTemplatesModal({
                   key={template.id}
                   onClick={() => handleSelect(template)}
                   className={cn(
-                    "w-full flex items-center gap-4 p-3 rounded-lg border text-left transition-all",
+                    "w-full flex items-center gap-2 sm:gap-4 p-2 sm:p-3 rounded-lg border text-left transition-all",
                     "hover:border-primary hover:bg-primary/5",
                     selectedId === template.id && "border-primary bg-primary/10"
                   )}
                 >
                   {/* Icon Preview */}
-                  <div className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-muted border">
+                  <div className="flex-shrink-0 w-10 h-10 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-muted border">
                     {template.icon_url ? (
                       <img
                         src={template.icon_url}
@@ -133,21 +133,21 @@ export function AdminServerTemplatesModal({
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold truncate">{template.name}</h4>
+                    <h4 className="font-semibold text-sm sm:text-base truncate">{template.name}</h4>
                     {template.panel_url && (
-                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
-                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                        {template.panel_url}
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                        <ExternalLink className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                        <span className="truncate">{template.panel_url}</span>
                       </p>
                     )}
-                    <div className="flex gap-2 mt-1">
+                    <div className="flex gap-1 sm:gap-2 mt-1 flex-wrap">
                       {template.icon_url && (
-                        <span className="inline-flex items-center text-xs text-green-600 dark:text-green-400">
+                        <span className="inline-flex items-center text-[10px] sm:text-xs text-green-600 dark:text-green-400">
                           ✓ Ícone
                         </span>
                       )}
                       {template.panel_url && (
-                        <span className="inline-flex items-center text-xs text-green-600 dark:text-green-400">
+                        <span className="inline-flex items-center text-[10px] sm:text-xs text-green-600 dark:text-green-400">
                           ✓ Painel
                         </span>
                       )}

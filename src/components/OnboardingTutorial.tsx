@@ -158,18 +158,18 @@ export function OnboardingTutorial() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader className="text-center pb-2">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mb-3 shadow-lg shadow-primary/30">
-            <Sparkles className="w-7 h-7 text-primary-foreground" />
+          <div className="mx-auto w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mb-2 sm:mb-3 shadow-lg shadow-primary/30">
+            <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-primary-foreground" />
           </div>
-          <DialogTitle className="text-xl font-bold">Bem-vindo ao PSControl!</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
+          <DialogTitle className="text-lg sm:text-xl font-bold">Bem-vindo ao PSControl!</DialogTitle>
+          <DialogDescription className="text-muted-foreground text-xs sm:text-sm">
             Siga estes 3 passos para configurar seu sistema de gerenciamento de clientes.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-4">
+        <div className="space-y-2 sm:space-y-3 py-2 sm:py-4">
           {steps.map((step, index) => {
             const isLocked = index > 0 && !steps[index - 1].completed;
             const StepIcon = step.icon;
@@ -180,7 +180,7 @@ export function OnboardingTutorial() {
                 onClick={() => handleStepClick(step)}
                 disabled={isLocked}
                 className={cn(
-                  'w-full flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 text-left',
+                  'w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all duration-200 text-left',
                   step.completed
                     ? 'bg-success/10 border-success/30 text-foreground'
                     : isLocked
@@ -190,7 +190,7 @@ export function OnboardingTutorial() {
               >
                 <div
                   className={cn(
-                    'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
+                    'w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0',
                     step.completed
                       ? 'bg-success/20 text-success'
                       : isLocked
@@ -199,26 +199,26 @@ export function OnboardingTutorial() {
                   )}
                 >
                   {step.completed ? (
-                    <Checkbox checked disabled className="w-6 h-6" />
+                    <Checkbox checked disabled className="w-5 h-5 sm:w-6 sm:h-6" />
                   ) : (
-                    <StepIcon className="w-6 h-6" />
+                    <StepIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p
                     className={cn(
-                      'font-semibold text-sm',
+                      'font-semibold text-xs sm:text-sm',
                       step.completed && 'line-through opacity-70'
                     )}
                   >
                     {step.title}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     {step.description}
                   </p>
                 </div>
                 {!step.completed && !isLocked && (
-                  <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0" />
                 )}
               </button>
             );
