@@ -881,6 +881,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isUser = role === 'user';
   
   // Calcular período de teste/assinatura
+  // IMPORTANTE: Usa startOfToday() para cálculo correto dos dias restantes
   const trialInfo = (() => {
     if (!profile) {
       return { isInTrial: false, daysRemaining: 0, trialExpired: false };
@@ -891,51 +892,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { isInTrial: false, daysRemaining: 999, trialExpired: false };
     }
     
-    const now = new Date();
-    let trialEndDate: Date;
-
-     const safeParseDate = (dateStr: string) => {
-       const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T12:00:00` : dateStr;
-       const d = new Date(normalized);
-       return isNaN(d.getTime()) ? null : d;
-     };
+    // Helper para parsing seguro de datas (evita off-by-one de timezone)
+    const safeParseDate = (dateStr: string) => {
+      const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T12:00:00` : dateStr;
+      const d = new Date(normalized);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    
+    // Usa meio-dia de hoje como referência para evitar problemas de timezone
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    
+    let trialEndDate: Date | null = null;
     
     // Se tem subscription_expires_at, usa ele (seller com assinatura)
     if (profile.subscription_expires_at) {
-      const parsed = safeParseDate(profile.subscription_expires_at);
-      if (parsed) {
-        trialEndDate = parsed;
-      } else if (profile.created_at) {
-        const createdAt = safeParseDate(profile.created_at);
-        if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
-        trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
-      } else if (user?.created_at) {
-        const createdAt = safeParseDate(user.created_at);
-        if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
-        trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
-      } else {
-        return { isInTrial: false, daysRemaining: 0, trialExpired: false };
-      }
-    } else if (profile.created_at) {
-      // Senão, calcula baseado em created_at + trialDays (novo usuário/seller em trial)
+      trialEndDate = safeParseDate(profile.subscription_expires_at);
+    }
+    
+    // Fallback: calcula baseado em created_at + trialDays
+    if (!trialEndDate && profile.created_at) {
       const createdAt = safeParseDate(profile.created_at);
-      if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
-      trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
-    } else if (user?.created_at) {
-      // Contas legadas: fallback para created_at do auth
+      if (createdAt) {
+        trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      }
+    }
+    
+    // Fallback final: usa created_at do auth user
+    if (!trialEndDate && user?.created_at) {
       const createdAt = safeParseDate(user.created_at);
-      if (!createdAt) return { isInTrial: false, daysRemaining: 0, trialExpired: false };
-      trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
-    } else {
+      if (createdAt) {
+        trialEndDate = new Date(createdAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      }
+    }
+    
+    // Se ainda não temos data, retorna estado padrão
+    if (!trialEndDate) {
       return { isInTrial: false, daysRemaining: 0, trialExpired: false };
     }
     
-    const daysRemaining = Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    // Calcula diferença em dias usando Math.floor para dias completos
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const daysRemaining = Math.floor((trialEndDate.getTime() - today.getTime()) / msPerDay);
     
     return {
-      isInTrial: daysRemaining > 0,
+      isInTrial: daysRemaining >= 0,
       daysRemaining: Math.max(0, daysRemaining),
-      trialExpired: daysRemaining <= 0,
+      trialExpired: daysRemaining < 0,
       trialEndDate
     };
   })();
