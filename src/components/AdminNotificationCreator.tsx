@@ -69,11 +69,11 @@ export function AdminNotificationCreator() {
           Notificar Revendedores
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[95vw] sm:max-w-md p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-primary" />
-            Nova Notificação Global
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+            <span className="truncate">Nova Notificação Global</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -120,25 +120,27 @@ export function AdminNotificationCreator() {
             </Select>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
               disabled={createNotificationMutation.isPending || !title.trim() || !message.trim()}
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               {createNotificationMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Enviar para Todos
+              <span className="hidden xs:inline">Enviar para Todos</span>
+              <span className="xs:hidden">Enviar</span>
             </Button>
           </DialogFooter>
         </form>

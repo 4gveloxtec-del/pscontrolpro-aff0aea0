@@ -265,39 +265,39 @@ export function BulkLoyaltyMessage({
           Campanha de Fidelização
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-y-auto p-3 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Heart className="h-5 w-5 text-pink-500" />
-            Campanha de Fidelização e Indicação
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Heart className="h-4 w-4 sm:h-5 sm:w-5 text-pink-500 flex-shrink-0" />
+            <span className="truncate">Campanha de Fidelização</span>
           </DialogTitle>
-          <DialogDescription>
-            Envie mensagens de agradecimento e peça indicações para seus clientes ativos
+          <DialogDescription className="text-xs sm:text-sm">
+            Envie mensagens de agradecimento para clientes ativos
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Template Type Selection */}
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               variant={selectedTemplateType === 'loyalty' ? 'default' : 'outline'}
               onClick={() => handleTemplateTypeChange('loyalty')}
-              className="flex-1 gap-2"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm h-auto py-2 px-2 sm:px-3"
             >
-              <Heart className="h-4 w-4" />
-              Fidelização
-              <Badge variant="secondary" className="ml-1">
+              <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Fidelização</span>
+              <Badge variant="secondary" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1">
                 {getSentCountByType('loyalty')}/{activeClients.length}
               </Badge>
             </Button>
             <Button
               variant={selectedTemplateType === 'referral' ? 'default' : 'outline'}
               onClick={() => handleTemplateTypeChange('referral')}
-              className="flex-1 gap-2"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm h-auto py-2 px-2 sm:px-3"
             >
-              <Users className="h-4 w-4" />
-              Indicação
-              <Badge variant="secondary" className="ml-1">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Indicação</span>
+              <Badge variant="secondary" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1">
                 {getSentCountByType('referral')}/{activeClients.length}
               </Badge>
             </Button>
@@ -348,33 +348,33 @@ export function BulkLoyaltyMessage({
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <Card>
-              <CardContent className="p-4 text-center">
-                <Users className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-2xl font-bold">{activeClients.length}</p>
-                <p className="text-xs text-muted-foreground">Clientes Ativos</p>
+              <CardContent className="p-2 sm:p-4 text-center">
+                <Users className="h-4 w-4 sm:h-6 sm:w-6 mx-auto mb-1 sm:mb-2 text-muted-foreground" />
+                <p className="text-lg sm:text-2xl font-bold">{activeClients.length}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Ativos</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4 text-center">
-                <Phone className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                <p className="text-2xl font-bold">{eligibleClients.length}</p>
-                <p className="text-xs text-muted-foreground">Elegíveis</p>
+              <CardContent className="p-2 sm:p-4 text-center">
+                <Phone className="h-4 w-4 sm:h-6 sm:w-6 mx-auto mb-1 sm:mb-2 text-orange-500" />
+                <p className="text-lg sm:text-2xl font-bold">{eligibleClients.length}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Elegíveis</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4 text-center">
-                <Calendar className="h-6 w-6 mx-auto mb-2 text-yellow-500" />
-                <p className="text-2xl font-bold">{notEligibleYet.length}</p>
-                <p className="text-xs text-muted-foreground">Novos/Sem Renovar</p>
+              <CardContent className="p-2 sm:p-4 text-center">
+                <Calendar className="h-4 w-4 sm:h-6 sm:w-6 mx-auto mb-1 sm:mb-2 text-yellow-500" />
+                <p className="text-lg sm:text-2xl font-bold">{notEligibleYet.length}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Novos</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="p-4 text-center">
-                <CheckCircle className="h-6 w-6 mx-auto mb-2 text-green-500" />
-                <p className="text-2xl font-bold">{sentClients.length}</p>
-                <p className="text-xs text-muted-foreground">Já Enviados</p>
+              <CardContent className="p-2 sm:p-4 text-center">
+                <CheckCircle className="h-4 w-4 sm:h-6 sm:w-6 mx-auto mb-1 sm:mb-2 text-green-500" />
+                <p className="text-lg sm:text-2xl font-bold">{sentClients.length}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Enviados</p>
               </CardContent>
             </Card>
           </div>
