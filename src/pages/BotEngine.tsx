@@ -95,9 +95,26 @@ export default function BotEngine() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['Fluxos IPTV']));
   
-  // State for creating new folders
+  // State for creating new folders - persistir em localStorage para não perder ao recarregar
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  
+  // Pastas customizadas salvas em localStorage (para pastas vazias persistirem)
+  const [customFolders, setCustomFolders] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(`bot_folders_${user?.id}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  // Salvar pastas customizadas no localStorage quando mudar
+  useEffect(() => {
+    if (user?.id && customFolders.length > 0) {
+      localStorage.setItem(`bot_folders_${user.id}`, JSON.stringify(customFolders));
+    }
+  }, [customFolders, user?.id]);
   
   // Flow form states
   const [flowName, setFlowName] = useState('');
@@ -173,20 +190,34 @@ export default function BotEngine() {
     }
   }, [editingFlow]);
   
-  // Get unique categories from flows
+  // Get unique categories from flows AND custom folders
   const existingCategories = Array.from(
-    new Set(flows.map(f => f.category).filter(Boolean) as string[])
+    new Set([
+      ...flows.map(f => f.category).filter(Boolean) as string[],
+      ...customFolders
+    ])
   ).sort();
   
   // Handle creating a new folder
   const handleCreateFolder = () => {
-    if (!newFolderName.trim()) return;
+    const folderName = newFolderName.trim();
+    if (!folderName) return;
     
-    // Just add to expanded categories - the folder will appear when a flow uses it
-    setExpandedCategories(prev => new Set(prev).add(newFolderName.trim()));
+    // Verificar duplicata
+    if (existingCategories.includes(folderName)) {
+      toast.error(`A pasta "${folderName}" já existe!`);
+      return;
+    }
+    
+    // Adicionar à lista de pastas customizadas (persistida em localStorage)
+    setCustomFolders(prev => [...prev, folderName]);
+    
+    // Expandir a nova pasta
+    setExpandedCategories(prev => new Set(prev).add(folderName));
+    
     setIsCreateFolderDialogOpen(false);
     setNewFolderName('');
-    toast.success(`Pasta "${newFolderName.trim()}" criada! Agora você pode adicionar fluxos a ela.`);
+    toast.success(`Pasta "${folderName}" criada! Agora você pode adicionar fluxos a ela.`);
   };
   
   // Toggle all flows in a category
@@ -721,7 +752,7 @@ export default function BotEngine() {
             </div>
           </div>
 
-          {flows.length === 0 ? (
+          {flows.length === 0 && customFolders.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Workflow className="h-12 w-12 text-muted-foreground mb-4" />
@@ -746,6 +777,13 @@ export default function BotEngine() {
                   acc[category].push(flow);
                   return acc;
                 }, {} as Record<string, typeof flows>);
+                
+                // Incluir pastas customizadas vazias
+                for (const folder of customFolders) {
+                  if (!flowsByCategory[folder]) {
+                    flowsByCategory[folder] = [];
+                  }
+                }
                 
                 // Ordenar categorias: "Fluxos IPTV" primeiro, "Arquivo" por último, resto alfabético
                 const sortedCategories = Object.keys(flowsByCategory).sort((a, b) => {
@@ -828,7 +866,27 @@ export default function BotEngine() {
                       {/* Category Flows */}
                       {isExpanded && (
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pl-4">
-                          {categoryFlows.map((flow) => {
+                          {categoryFlows.length === 0 ? (
+                            // Pasta vazia
+                            <div className="col-span-full flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-lg bg-muted/20">
+                              <Folder className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                              <p className="text-sm text-muted-foreground mb-3">
+                                Esta pasta está vazia
+                              </p>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setFlowCategory(category);
+                                  setIsFlowDialogOpen(true);
+                                }}
+                                className="gap-2"
+                              >
+                                <Plus className="h-4 w-4" />
+                                Adicionar Fluxo
+                              </Button>
+                            </div>
+                          ) : categoryFlows.map((flow) => {
                             // Labels amigáveis para tipos de gatilho
                             const triggerLabels: Record<string, { emoji: string; text: string }> = {
                               keyword: { emoji: '🔤', text: 'Por palavra-chave' },
