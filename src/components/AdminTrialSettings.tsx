@@ -131,14 +131,14 @@ export function AdminTrialSettings({ onBack }: AdminTrialSettingsProps) {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          ← Voltar
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-2xl mx-auto px-1 sm:px-0">
+      <div className="flex items-center gap-2 sm:gap-4">
+        <Button variant="ghost" size="sm" onClick={onBack} className="h-8 px-2 sm:px-3">
+          ← <span className="hidden xs:inline">Voltar</span>
         </Button>
-        <div>
-          <h1 className="text-xl font-bold">Central de Configurações</h1>
-          <p className="text-sm text-muted-foreground">Planos, preços e teste grátis</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-xl font-bold truncate">Central de Configurações</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">Planos, preços e teste grátis</p>
         </div>
       </div>
 
@@ -152,14 +152,14 @@ export function AdminTrialSettings({ onBack }: AdminTrialSettingsProps) {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="plans" className="gap-2">
-              <DollarSign className="h-4 w-4" />
-              Planos e Preços
+          <TabsList className="grid w-full grid-cols-2 h-auto">
+            <TabsTrigger value="plans" className="gap-1 sm:gap-2 py-2 px-2 sm:px-3 text-xs sm:text-sm">
+              <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Planos</span>
             </TabsTrigger>
-            <TabsTrigger value="trial" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Teste Grátis
+            <TabsTrigger value="trial" className="gap-1 sm:gap-2 py-2 px-2 sm:px-3 text-xs sm:text-sm">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Teste Grátis</span>
             </TabsTrigger>
           </TabsList>
 

@@ -251,46 +251,46 @@ export function BulkCollectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto p-3 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            Cobrança em Massa
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg flex-wrap">
+            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+            <span>Cobrança em Massa</span>
             {hasActiveJob && (
-              <Badge variant="outline" className="ml-2 animate-pulse">
+              <Badge variant="outline" className="animate-pulse text-xs">
                 {isProcessing ? 'Enviando...' : 'Pausado'}
               </Badge>
             )}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {hasActiveJob 
-              ? `Job em andamento: ${activeJob.processed_clients}/${activeJob.total_clients} processados`
-              : `Enviar mensagem de cobrança para ${clientsWithPhone.length} clientes ${filterLabel}`
+              ? `Job: ${activeJob.processed_clients}/${activeJob.total_clients} processados`
+              : `Enviar cobrança para ${clientsWithPhone.length} clientes ${filterLabel}`
             }
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <Users className="h-5 w-5 mx-auto text-primary mb-1" />
-              <p className="text-lg font-bold">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+            <div className="bg-muted/50 rounded-lg p-2 sm:p-3 text-center">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 mx-auto text-primary mb-1" />
+              <p className="text-base sm:text-lg font-bold">
                 {hasActiveJob ? activeJob.total_clients : clientsWithPhone.length}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {hasActiveJob ? 'Total' : 'Com telefone'}
+              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                {hasActiveJob ? 'Total' : 'Telefone'}
               </p>
             </div>
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <CheckCircle2 className="h-5 w-5 mx-auto text-success mb-1" />
-              <p className="text-lg font-bold">{activeJob?.success_count || 0}</p>
-              <p className="text-xs text-muted-foreground">Enviados</p>
+            <div className="bg-muted/50 rounded-lg p-2 sm:p-3 text-center">
+              <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 mx-auto text-success mb-1" />
+              <p className="text-base sm:text-lg font-bold">{activeJob?.success_count || 0}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Enviados</p>
             </div>
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <XCircle className="h-5 w-5 mx-auto text-destructive mb-1" />
-              <p className="text-lg font-bold">{activeJob?.error_count || 0}</p>
-              <p className="text-xs text-muted-foreground">Erros</p>
+            <div className="bg-muted/50 rounded-lg p-2 sm:p-3 text-center">
+              <XCircle className="h-4 w-4 sm:h-5 sm:w-5 mx-auto text-destructive mb-1" />
+              <p className="text-base sm:text-lg font-bold">{activeJob?.error_count || 0}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Erros</p>
             </div>
           </div>
 

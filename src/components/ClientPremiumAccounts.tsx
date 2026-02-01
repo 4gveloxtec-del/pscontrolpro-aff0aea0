@@ -85,14 +85,14 @@ export function ClientPremiumAccounts({ sellerId, onChange, initialAccounts = []
   const totalPrice = localAccounts.reduce((sum, acc) => sum + (parseFloat(acc.price) || 0), 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-500" />
-          <h4 className="font-semibold text-amber-600 dark:text-amber-400">Contas Premium</h4>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500 flex-shrink-0" />
+          <h4 className="font-semibold text-amber-600 dark:text-amber-400 text-sm sm:text-base truncate">Contas Premium</h4>
           {localAccounts.length > 0 && (
-            <Badge variant="secondary" className="ml-2">
-              {localAccounts.length} conta{localAccounts.length > 1 ? 's' : ''}
+            <Badge variant="secondary" className="text-xs h-5 px-1.5">
+              {localAccounts.length}
             </Badge>
           )}
         </div>
@@ -101,10 +101,11 @@ export function ClientPremiumAccounts({ sellerId, onChange, initialAccounts = []
           variant="outline"
           size="sm"
           onClick={addAccount}
-          className="gap-1"
+          className="gap-1 h-7 sm:h-8 text-xs sm:text-sm px-2 sm:px-3 flex-shrink-0"
         >
-          <Plus className="h-4 w-4" />
-          Adicionar Conta
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="hidden xs:inline">Adicionar</span>
+          <span className="xs:hidden">+</span>
         </Button>
       </div>
 
@@ -117,24 +118,24 @@ export function ClientPremiumAccounts({ sellerId, onChange, initialAccounts = []
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {localAccounts.map((account, index) => (
           <Card key={index} className="border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between">
-                <Badge variant="outline" className="text-amber-600 border-amber-500/50">
+                <Badge variant="outline" className="text-amber-600 border-amber-500/50 text-xs">
                   Conta {index + 1}
                 </Badge>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   {account.email && account.password && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => copyCredentials(account)}
-                      className="h-8 w-8 p-0"
+                      className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </Button>
                   )}
                   <Button
@@ -142,14 +143,14 @@ export function ClientPremiumAccounts({ sellerId, onChange, initialAccounts = []
                     variant="ghost"
                     size="sm"
                     onClick={() => removeAccount(index)}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label>Nome da Conta</Label>
                   <Input

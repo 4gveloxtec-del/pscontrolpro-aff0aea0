@@ -279,14 +279,14 @@ export function WelcomeMessagePreview({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-y-auto p-3 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5" />
-            Mensagem de Boas-Vindas
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Mensagem de Boas-Vindas</span>
           </DialogTitle>
-          <DialogDescription>
-            Revise e edite a mensagem antes de salvar o cliente
+          <DialogDescription className="text-xs sm:text-sm">
+            Revise a mensagem antes de salvar
           </DialogDescription>
         </DialogHeader>
 
@@ -378,11 +378,12 @@ export function WelcomeMessagePreview({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-0">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -390,19 +391,20 @@ export function WelcomeMessagePreview({
             type="button"
             onClick={handleConfirm}
             disabled={isLoading}
+            className="w-full sm:w-auto"
           >
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Salvando...
+                <Loader2 className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                <span className="text-sm">Salvando...</span>
               </>
             ) : sendWelcomeMessage ? (
               <>
-                <Send className="mr-2 h-4 w-4" />
-                Salvar e Enviar
+                <Send className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="text-sm">Salvar e Enviar</span>
               </>
             ) : (
-              'Salvar sem Enviar'
+              <span className="text-sm">Salvar sem Enviar</span>
             )}
           </Button>
         </DialogFooter>

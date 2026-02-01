@@ -462,16 +462,16 @@ export function GenerateDefaultData({ userId, isAdmin, companyName = 'Minha Empr
           Gerar Dados Padrão
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto p-3 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Gerar Planos e Templates
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+            <span className="truncate">Gerar Planos e Templates</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {isAdmin 
-              ? 'Criar planos e templates para gerenciar seus revendedores'
-              : 'Criar planos e templates para atender seus clientes'
+              ? 'Criar planos e templates para revendedores'
+              : 'Criar planos e templates para clientes'
             }
           </DialogDescription>
         </DialogHeader>

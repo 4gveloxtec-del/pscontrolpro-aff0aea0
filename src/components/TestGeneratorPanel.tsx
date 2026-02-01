@@ -190,16 +190,16 @@ export function TestGeneratorPanel() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Play className="h-5 w-5" />
-          Gerador de Testes Automáticos
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <Play className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+          <span className="truncate">Gerador de Testes</span>
         </CardTitle>
-        <CardDescription>
-          Crie testes diretamente via API com um clique
+        <CardDescription className="text-xs sm:text-sm">
+          Crie testes via API com um clique
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-0 sm:pt-0">
         {/* Server Selection */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Servidor</label>
@@ -231,31 +231,31 @@ export function TestGeneratorPanel() {
         {selectedConfig && (
           <>
             {/* Endpoints Status */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className={`p-3 rounded-lg border ${selectedConfig.post_endpoint ? 'bg-green-50 dark:bg-green-950/20 border-green-200' : 'bg-muted'}`}>
-                <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+              <div className={`p-2 sm:p-3 rounded-lg border ${selectedConfig.post_endpoint ? 'bg-green-50 dark:bg-green-950/20 border-green-200' : 'bg-muted'}`}>
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   {selectedConfig.post_endpoint ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
                   ) : (
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
                   )}
-                  <span className="text-sm font-medium">POST (Criar)</span>
+                  <span className="text-xs sm:text-sm font-medium truncate">POST</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  {selectedConfig.post_endpoint || 'Não configurado'}
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
+                  {selectedConfig.post_endpoint ? 'Configurado' : 'Não configurado'}
                 </p>
               </div>
-              <div className={`p-3 rounded-lg border ${selectedConfig.get_endpoint ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200' : 'bg-muted'}`}>
-                <div className="flex items-center gap-2">
+              <div className={`p-2 sm:p-3 rounded-lg border ${selectedConfig.get_endpoint ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200' : 'bg-muted'}`}>
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   {selectedConfig.get_endpoint ? (
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />
                   ) : (
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
                   )}
-                  <span className="text-sm font-medium">GET (Listar)</span>
+                  <span className="text-xs sm:text-sm font-medium truncate">GET</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  {selectedConfig.get_endpoint || 'Não configurado'}
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 truncate">
+                  {selectedConfig.get_endpoint ? 'Configurado' : 'Não configurado'}
                 </p>
               </div>
             </div>
@@ -272,30 +272,31 @@ export function TestGeneratorPanel() {
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <Button
                 onClick={handleGenerateTest}
                 disabled={generatingTest || !selectedConfig.post_endpoint}
-                className="w-full"
+                className="w-full h-9 sm:h-10 text-xs sm:text-sm"
               >
                 {generatingTest ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
                 ) : (
-                  <Play className="h-4 w-4 mr-2" />
+                  <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 )}
-                Gerar Teste
+                <span className="truncate">Gerar</span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => fetchTestsMutation.mutate()}
                 disabled={fetchTestsMutation.isPending || !selectedConfig.get_endpoint}
+                className="h-9 sm:h-10 text-xs sm:text-sm"
               >
                 {fetchTestsMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
                 ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 )}
-                Atualizar Lista
+                <span className="truncate">Atualizar</span>
               </Button>
             </div>
 
