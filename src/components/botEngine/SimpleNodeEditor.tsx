@@ -324,23 +324,32 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
 
   // Extrair preview do conteúdo
   const getNodePreview = (node: BotNode): string => {
-    // Para menus interativos, mostrar quantidade de opções
-    if (isInteractiveMenu(node)) {
-      const menuOptions = (node.config?.menu_options as unknown[]) || [];
-      const title = (node.config?.menu_title as string) || 'Menu';
-      return `🌳 ${title} (${menuOptions.length} opção(ões))`;
-    }
-    
-    const text = (node.config?.message_text as string) || (node.config?.end_message as string) || '';
-    if (!text) {
-      if (node.node_type === 'input') return `Aguarda: ${node.config?.variable_name || 'resposta'}`;
-      if (node.node_type === 'condition') return `Verifica: ${node.config?.condition_variable || 'condição'}`;
-      if (node.node_type === 'delay') return `Espera: ${node.config?.delay_seconds || 1}s`;
+    try {
+      // Para menus interativos, mostrar quantidade de opções
+      if (isInteractiveMenu(node)) {
+        const menuOptions = Array.isArray(node.config?.menu_options) 
+          ? node.config.menu_options 
+          : [];
+        const title = (node.config?.menu_title as string) || 'Menu';
+        return `🌳 ${title} (${menuOptions.length} opção(ões))`;
+      }
+      
+      const text = (node.config?.message_text as string) || (node.config?.end_message as string) || '';
+      if (!text) {
+        if (node.node_type === 'input') return `Aguarda: ${node.config?.variable_name || 'resposta'}`;
+        if (node.node_type === 'condition') return `Verifica: ${node.config?.condition_variable || 'condição'}`;
+        if (node.node_type === 'delay') return `Espera: ${node.config?.delay_seconds || 1}s`;
+        if (node.node_type === 'action') return `⚡ ${node.config?.action_type || 'ação'}`;
+        if (node.node_type === 'goto') return `↪️ Ir para fluxo`;
+        return '';
+      }
+      // Limpar formatação e truncar
+      const clean = text.replace(/\*/g, '').replace(/_/g, '').replace(/\n/g, ' ');
+      return clean.length > 80 ? clean.slice(0, 80) + '...' : clean;
+    } catch (error) {
+      console.warn('[SimpleNodeEditor] getNodePreview error:', error);
       return '';
     }
-    // Limpar formatação e truncar
-    const clean = text.replace(/\*/g, '').replace(/_/g, '').replace(/\n/g, ' ');
-    return clean.length > 80 ? clean.slice(0, 80) + '...' : clean;
   };
 
   if (isLoading) {
