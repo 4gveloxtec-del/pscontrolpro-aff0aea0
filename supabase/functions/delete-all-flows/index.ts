@@ -11,36 +11,54 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Usuário não encontrado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Parse body for admin mode
+    let body: { adminMode?: boolean; sellerId?: string } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // No body is fine
     }
 
-    const sellerId = user.id;
     const results: string[] = [];
+    let targetSellerId: string | null = null;
+    let isAdminMode = body.adminMode === true;
 
-    // 1. Get all flows for this seller
-    const { data: allFlows, error: flowsError } = await supabase
-      .from("bot_engine_flows")
-      .select("id, name")
-      .eq("seller_id", sellerId);
+    // If adminMode, clean ALL sellers
+    if (isAdminMode) {
+      results.push("🔧 Modo Admin: Limpando TODOS os fluxos de TODOS os revendedores");
+    } else {
+      // Normal mode - requires auth
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Usuário não encontrado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      targetSellerId = user.id;
+    }
+
+    // 1. Get flows (all or by seller)
+    let flowsQuery = supabase.from("bot_engine_flows").select("id, name, seller_id");
+    if (targetSellerId) {
+      flowsQuery = flowsQuery.eq("seller_id", targetSellerId);
+    }
+    const { data: allFlows, error: flowsError } = await flowsQuery;
 
     if (flowsError) {
       throw new Error(`Erro ao buscar fluxos: ${flowsError.message}`);
@@ -78,15 +96,28 @@ Deno.serve(async (req) => {
     }
 
     // 3. Also clear any orphan sessions and message logs
-    await supabase
-      .from("bot_engine_message_log")
-      .delete()
-      .eq("seller_id", sellerId);
+    if (targetSellerId) {
+      await supabase
+        .from("bot_engine_message_log")
+        .delete()
+        .eq("seller_id", targetSellerId);
 
-    await supabase
-      .from("bot_engine_sessions")
-      .delete()
-      .eq("seller_id", sellerId);
+      await supabase
+        .from("bot_engine_sessions")
+        .delete()
+        .eq("seller_id", targetSellerId);
+    } else {
+      // Admin mode: clear ALL
+      await supabase
+        .from("bot_engine_message_log")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
+
+      await supabase
+        .from("bot_engine_sessions")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
+    }
 
     results.push("🧹 Sessões e logs limpos");
 
