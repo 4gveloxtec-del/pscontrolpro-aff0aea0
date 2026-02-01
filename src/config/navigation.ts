@@ -1,26 +1,39 @@
 import {
-  LayoutDashboard,
-  Users,
-  Server,
-  CreditCard,
-  Tag,
-  UserPlus,
-  MessageSquare,
-  Settings,
-  UserCog,
-  BarChart3,
-  Package,
-  Database,
-  PlayCircle,
-  History,
-  Globe,
-  AppWindow,
+  // Principal - Ícones modernos e elegantes
+  LayoutGrid,
   UsersRound,
-  Bot,
-  HeartPulse,
-  Smartphone,
-  Terminal,
-  Bell,
+  
+  // Apps - Ícones de dispositivos
+  TabletSmartphone,
+  Layers3,
+  
+  // Infraestrutura - Ícones técnicos
+  HardDrive,
+  Network,
+  Globe2,
+  Gem,
+  
+  // Financeiro - Ícones elegantes
+  Wallet,
+  Ticket,
+  Gift,
+  
+  // Mensagens - Ícones de comunicação
+  MessageCircleCode,
+  BotMessageSquare,
+  BellRing,
+  TerminalSquare,
+  FileText,
+  ClockArrowUp,
+  
+  // Sistema - Ícones administrativos
+  GraduationCap,
+  ShieldCheck,
+  ServerCog,
+  Activity,
+  TrendingUp,
+  DatabaseBackup,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -47,55 +60,55 @@ export const navGroups: NavGroup[] = [
   {
     title: 'Principal',
     items: [
-      { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { title: 'Clientes', href: '/clientes', icon: Users, sellerOnly: true },
+      { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+      { title: 'Clientes', href: '/clientes', icon: UsersRound, sellerOnly: true },
     ],
   },
   {
     title: 'Apps',
     items: [
-      { title: 'Apps do Revendedor', href: '/my-apps', icon: Smartphone, sellerOnly: true },
-      { title: 'Apps Pagos', href: '/external-apps', icon: AppWindow, sellerOnly: true },
+      { title: 'Apps do Revendedor', href: '/my-apps', icon: TabletSmartphone, sellerOnly: true },
+      { title: 'Apps Pagos', href: '/external-apps', icon: Layers3, sellerOnly: true },
     ],
   },
   {
     title: 'Infraestrutura',
     items: [
-      { title: 'Servidores', href: '/servers', icon: Server, sellerOnly: true },
-      { title: 'Revendedores', href: '/panel-resellers', icon: UsersRound, sellerOnly: true },
-      { title: 'Painéis', href: '/panels', icon: Globe, sellerOnly: true },
-      { title: 'Planos', href: '/plans', icon: Package, sellerOnly: true },
+      { title: 'Servidores', href: '/servers', icon: HardDrive, sellerOnly: true },
+      { title: 'Revendedores', href: '/panel-resellers', icon: Network, sellerOnly: true },
+      { title: 'Painéis', href: '/panels', icon: Globe2, sellerOnly: true },
+      { title: 'Planos', href: '/plans', icon: Gem, sellerOnly: true },
     ],
   },
   {
     title: 'Financeiro',
     items: [
-      { title: 'Contas a Pagar', href: '/bills', icon: CreditCard, sellerOnly: true },
-      { title: 'Cupons', href: '/coupons', icon: Tag, sellerOnly: true },
-      { title: 'Indicações', href: '/referrals', icon: UserPlus, sellerOnly: true },
+      { title: 'Contas a Pagar', href: '/bills', icon: Wallet, sellerOnly: true },
+      { title: 'Cupons', href: '/coupons', icon: Ticket, sellerOnly: true },
+      { title: 'Indicações', href: '/referrals', icon: Gift, sellerOnly: true },
     ],
   },
   {
     title: 'Mensagens',
     items: [
-      { title: 'Conectar WhatsApp', href: '/whatsapp-automation', icon: Bot },
-      { title: 'Chatbot', href: '/bot-engine', icon: MessageSquare },
-      { title: 'Lembretes', href: '/reminders', icon: Bell, sellerOnly: true },
-      { title: 'Comandos de Teste', href: '/test-commands', icon: Terminal, sellerOnly: true },
-      { title: 'Templates', href: '/templates', icon: MessageSquare },
-      { title: 'Histórico', href: '/message-history', icon: History, sellerOnly: true },
+      { title: 'Conectar WhatsApp', href: '/whatsapp-automation', icon: MessageCircleCode },
+      { title: 'Chatbot', href: '/bot-engine', icon: BotMessageSquare },
+      { title: 'Lembretes', href: '/reminders', icon: BellRing, sellerOnly: true },
+      { title: 'Comandos de Teste', href: '/test-commands', icon: TerminalSquare, sellerOnly: true },
+      { title: 'Templates', href: '/templates', icon: FileText },
+      { title: 'Histórico', href: '/message-history', icon: ClockArrowUp, sellerOnly: true },
     ],
   },
   {
     title: 'Sistema',
     items: [
-      { title: 'Tutoriais', href: '/tutorials', icon: PlayCircle },
-      { title: 'Vendedores', href: '/sellers', icon: UserCog, adminOnly: true },
-      { title: 'Templates Servidores', href: '/server-templates', icon: Server, adminOnly: true },
-      { title: 'Autocura', href: '/admin/system-health', icon: HeartPulse, adminOnly: true },
-      { title: 'Relatórios', href: '/reports', icon: BarChart3, adminOnly: true },
-      { title: 'Backup', href: '/backup', icon: Database, adminOnly: true },
-      { title: 'Configurações', href: '/settings', icon: Settings },
+      { title: 'Tutoriais', href: '/tutorials', icon: GraduationCap },
+      { title: 'Vendedores', href: '/sellers', icon: ShieldCheck, adminOnly: true },
+      { title: 'Templates Servidores', href: '/server-templates', icon: ServerCog, adminOnly: true },
+      { title: 'Autocura', href: '/admin/system-health', icon: Activity, adminOnly: true },
+      { title: 'Relatórios', href: '/reports', icon: TrendingUp, adminOnly: true },
+      { title: 'Backup', href: '/backup', icon: DatabaseBackup, adminOnly: true },
+      { title: 'Configurações', href: '/settings', icon: SlidersHorizontal },
     ],
   },
 ];
