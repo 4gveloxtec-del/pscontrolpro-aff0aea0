@@ -37,45 +37,12 @@ Deno.serve(async (req) => {
     const sellerId = user.id;
     const results: string[] = [];
 
-    // 1. Find flows in "backup" category
-    const { data: backupFlows, error: backupError } = await supabase
-      .from("bot_engine_flows")
-      .select("id, name, category")
-      .eq("seller_id", sellerId)
-      .ilike("category", "%backup%");
-
-    if (backupError) {
-      throw new Error(`Erro ao buscar fluxos de backup: ${backupError.message}`);
-    }
-
-    results.push(`Encontrados ${backupFlows?.length || 0} fluxos na pasta backup`);
-
-    // 2. Restore backup flows (activate and remove from backup category)
-    if (backupFlows && backupFlows.length > 0) {
-      for (const flow of backupFlows) {
-        const { error: updateError } = await supabase
-          .from("bot_engine_flows")
-          .update({
-            is_active: true,
-            category: null, // Move to root
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", flow.id);
-
-        if (updateError) {
-          results.push(`❌ Erro ao restaurar "${flow.name}": ${updateError.message}`);
-        } else {
-          results.push(`✅ Fluxo "${flow.name}" restaurado com sucesso`);
-        }
-      }
-    }
-
-    // 3. Find and delete IPTV flows (by category or name containing IPTV)
+    // 1. Find and DELETE IPTV flows FIRST (by category or name containing IPTV)
     const { data: iptvFlows, error: iptvError } = await supabase
       .from("bot_engine_flows")
       .select("id, name, category")
       .eq("seller_id", sellerId)
-      .or("category.ilike.%iptv%,name.ilike.%iptv%");
+      .or("category.ilike.%iptv%,name.ilike.%iptv%,category.ilike.%fluxos iptv%");
 
     if (iptvError) {
       throw new Error(`Erro ao buscar fluxos IPTV: ${iptvError.message}`);
@@ -83,7 +50,7 @@ Deno.serve(async (req) => {
 
     results.push(`Encontrados ${iptvFlows?.length || 0} fluxos IPTV para deletar`);
 
-    // 4. Delete IPTV flows (and their nodes/edges)
+    // Delete IPTV flows (and their nodes/edges)
     if (iptvFlows && iptvFlows.length > 0) {
       for (const flow of iptvFlows) {
         // Delete edges first
@@ -107,15 +74,61 @@ Deno.serve(async (req) => {
         if (deleteError) {
           results.push(`❌ Erro ao deletar "${flow.name}": ${deleteError.message}`);
         } else {
-          results.push(`🗑️ Fluxo IPTV "${flow.name}" deletado com sucesso`);
+          results.push(`🗑️ Fluxo IPTV "${flow.name}" deletado`);
         }
       }
     }
 
+    // 2. Find flows in "backup" category - ORDER BY created_at to preserve original order
+    const { data: backupFlows, error: backupError } = await supabase
+      .from("bot_engine_flows")
+      .select("id, name, category, created_at")
+      .eq("seller_id", sellerId)
+      .ilike("category", "%backup%")
+      .order("created_at", { ascending: true });
+
+    if (backupError) {
+      throw new Error(`Erro ao buscar fluxos de backup: ${backupError.message}`);
+    }
+
+    results.push(`Encontrados ${backupFlows?.length || 0} fluxos na pasta backup`);
+
+    // 3. Restore backup flows with correct priority order
+    if (backupFlows && backupFlows.length > 0) {
+      let priority = 100; // Start with high priority, decrement for each flow
+      
+      for (const flow of backupFlows) {
+        const { error: updateError } = await supabase
+          .from("bot_engine_flows")
+          .update({
+            is_active: true,
+            category: null, // Move to root (no category)
+            priority: priority,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", flow.id);
+
+        if (updateError) {
+          results.push(`❌ Erro ao restaurar "${flow.name}": ${updateError.message}`);
+        } else {
+          results.push(`✅ Fluxo "${flow.name}" restaurado (prioridade: ${priority})`);
+        }
+        
+        priority -= 1; // Next flow gets lower priority (maintains creation order)
+      }
+    }
+
+    // 4. Summary
+    const summary = {
+      iptv_deleted: iptvFlows?.length || 0,
+      backup_restored: backupFlows?.length || 0,
+    };
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Operação concluída",
+        message: "Operação concluída com sucesso!",
+        summary,
         details: results,
       }),
       {
