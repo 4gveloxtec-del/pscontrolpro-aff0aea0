@@ -54,7 +54,7 @@ import { SimpleNodeEditor } from '@/components/botEngine/SimpleNodeEditor';
 
 export default function BotEngine() {
   const { user } = useAuth();
-  const { config, isLoading: configLoading, upsertConfig, toggleEnabled } = useBotEngineConfig();
+  const { config, isLoading: configLoading, upsertConfig, toggleEnabled, activeFlowFirstMessage } = useBotEngineConfig();
   const { flows, isLoading: flowsLoading, createFlow, updateFlow, deleteFlow, toggleActive } = useBotEngineFlows();
   
   const [isFlowDialogOpen, setIsFlowDialogOpen] = useState(false);
@@ -86,10 +86,12 @@ export default function BotEngine() {
   const [welcomeCooldownHours, setWelcomeCooldownHours] = useState(config?.welcome_cooldown_hours ?? 24);
   const [suppressFallbackFirstContact, setSuppressFallbackFirstContact] = useState(config?.suppress_fallback_first_contact ?? true);
 
-  // Update form when config loads
+  // Update form when config loads or activeFlowFirstMessage changes
   useEffect(() => {
     if (config) {
-      setWelcomeMessage(config.welcome_message || '');
+      // Se tiver primeira mensagem do fluxo ativo, usar ela como welcome_message
+      const effectiveWelcomeMessage = activeFlowFirstMessage || config.welcome_message || '';
+      setWelcomeMessage(effectiveWelcomeMessage);
       setFallbackMessage(config.fallback_message || '');
       setIsEnabled(config.is_enabled ?? true);
       setBusinessHoursEnabled(config.business_hours_enabled ?? false);
@@ -99,8 +101,11 @@ export default function BotEngine() {
       setOutsideHoursMessage(config.outside_hours_message || '');
       setWelcomeCooldownHours(config.welcome_cooldown_hours ?? 24);
       setSuppressFallbackFirstContact(config.suppress_fallback_first_contact ?? true);
+    } else if (activeFlowFirstMessage) {
+      // Se ainda não tem config mas tem fluxo ativo, usar a mensagem do fluxo
+      setWelcomeMessage(activeFlowFirstMessage);
     }
-  }, [config]);
+  }, [config, activeFlowFirstMessage]);
 
   const toggleDay = (day: number) => {
     setBusinessDays(prev => 
@@ -424,13 +429,24 @@ export default function BotEngine() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Label htmlFor="welcome-message">Mensagem de Boas-vindas</Label>
+                  {activeFlowFirstMessage && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Sincronizado com fluxo ativo
+                    </Badge>
+                  )}
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
                         <HelpCircle className="h-4 w-4 text-muted-foreground" />
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Enviada quando um cliente inicia a conversa (uma vez a cada {welcomeCooldownHours}h)</p>
+                      <TooltipContent className="max-w-xs">
+                        <p>
+                          {activeFlowFirstMessage 
+                            ? 'Esta mensagem é sincronizada automaticamente com a primeira mensagem do fluxo ativo.'
+                            : `Enviada quando um cliente inicia a conversa (uma vez a cada ${welcomeCooldownHours}h)`
+                          }
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -440,7 +456,9 @@ export default function BotEngine() {
                   placeholder="Olá! 👋 Seja bem-vindo(a)! Como posso ajudar?"
                   value={welcomeMessage}
                   onChange={(e) => setWelcomeMessage(e.target.value)}
-                  rows={4}
+                  rows={6}
+                  readOnly={!!activeFlowFirstMessage}
+                  className={activeFlowFirstMessage ? 'bg-muted cursor-not-allowed' : ''}
                 />
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex items-center gap-2">
