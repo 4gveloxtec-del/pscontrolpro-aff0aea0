@@ -155,28 +155,28 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-3 sm:p-6">
         <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Sparkles className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-sm sm:text-lg">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
             <span className="truncate">{flowName}</span>
           </DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
+          <DialogDescription className="text-[10px] sm:text-sm">
             Crie seu menu com submenus - clique para adicionar opções
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4 py-2">
+        <div className="flex-1 overflow-y-auto -mx-3 px-3 sm:-mx-6 sm:px-6 space-y-3 sm:space-y-4 py-2">
           {/* Nome do nó (oculto por padrão, menos confuso) */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-sm">
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label className="flex items-center gap-2 text-xs sm:text-sm">
               📝 Nome do Fluxo
             </Label>
             <Input
               placeholder="Menu Principal"
               value={nodeName}
               onChange={(e) => setNodeName(e.target.value)}
-              className="text-base"
+              className="text-sm sm:text-base h-9 sm:h-10"
             />
           </div>
 
@@ -189,12 +189,12 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
           />
         </div>
 
-        <DialogFooter className="shrink-0 pt-4 flex-col-reverse sm:flex-row gap-2 border-t">
-          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
+        <DialogFooter className="shrink-0 pt-3 sm:pt-4 flex-col-reverse sm:flex-row gap-2 border-t">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm">
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isUpdatingNode} className="gap-2 w-full sm:w-auto">
-            <Check className="h-4 w-4" />
+          <Button onClick={handleSave} disabled={isUpdatingNode} className="gap-1.5 sm:gap-2 w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm">
+            <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             {isUpdatingNode ? 'Salvando...' : 'Salvar Menu'}
           </Button>
         </DialogFooter>
