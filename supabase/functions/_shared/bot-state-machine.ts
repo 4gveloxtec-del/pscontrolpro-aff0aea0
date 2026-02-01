@@ -44,15 +44,26 @@ export interface StateTransitionResult {
   silent?: boolean;
   /** Indica que é um erro de validação */
   isValidationError?: boolean;
+  /** Indica que a escolha foi uma opção válida (engajamento real no fluxo) */
+  didEngage?: boolean;
+  /** Indica que enviamos o menu de boas-vindas no START (sem considerar engajamento) */
+  sentWelcome?: boolean;
 }
 
 export interface SessionContext {
   /** Se o usuário já interagiu ativamente com o fluxo */
   hasEngaged?: boolean;
+  /** Alias snake_case (compatível com context JSON persistido) */
+  has_engaged?: boolean;
   /** Contador de erros consecutivos (para evitar spam) */
   consecutiveErrors?: number;
+  consecutive_errors?: number;
   /** Último input inválido (para não repetir erro) */
   lastInvalidInput?: string;
+  last_invalid_input?: string;
+  /** Se já enviamos o menu do START para esse usuário (evita spam) */
+  welcomeSent?: boolean;
+  welcome_sent?: boolean;
   /** Outros dados da sessão */
   [key: string]: unknown;
 }
@@ -322,9 +333,10 @@ export function processStateTransition(
   sessionContext: SessionContext = {}
 ): StateTransitionResult {
   const stateConfig = STATE_MESSAGES[currentState];
-  const hasEngaged = sessionContext.hasEngaged === true;
-  const consecutiveErrors = sessionContext.consecutiveErrors || 0;
-  const lastInvalidInput = sessionContext.lastInvalidInput || '';
+  const hasEngaged = (sessionContext.hasEngaged ?? sessionContext.has_engaged) === true;
+  const consecutiveErrors = (sessionContext.consecutiveErrors ?? sessionContext.consecutive_errors ?? 0) as number;
+  const lastInvalidInput = (sessionContext.lastInvalidInput ?? sessionContext.last_invalid_input ?? '') as string;
+  const welcomeSent = (sessionContext.welcomeSent ?? sessionContext.welcome_sent) === true;
   
   // Estado não encontrado - voltar ao START silenciosamente
   if (!stateConfig) {
@@ -393,6 +405,7 @@ export function processStateTransition(
                    nextConfig.action === 'generate_test_android' ? 'celular' :
                    nextConfig.action === 'generate_test_iphone' ? 'celular' : undefined,
           transferToHuman: nextConfig.action === 'transfer_to_human',
+          didEngage: true,
         };
       }
     }
@@ -404,12 +417,23 @@ export function processStateTransition(
   
   const normalizedInput = userInput.toLowerCase().trim();
   
-  // REGRA 1: No estado START, se não engajou, ficar em SILÊNCIO
+  // REGRA 1: No estado START (primeiro contato), responder com o menu UMA vez.
+  // Depois disso, se o usuário continuar enviando textos inválidos sem escolher opção,
+  // ficar em silêncio (não insistir/spammar).
   if (currentState === 'START' && !hasEngaged) {
+    if (!welcomeSent) {
+      return {
+        newState: currentState,
+        response: STATE_MESSAGES.START.message,
+        silent: false,
+        sentWelcome: true,
+      };
+    }
+
     return {
       newState: currentState,
       response: '',
-      silent: true, // Não enviar nada
+      silent: true,
     };
   }
   
@@ -478,17 +502,35 @@ export function isInitialState(state: string): boolean {
 export function updateSessionContext(
   context: SessionContext,
   result: StateTransitionResult,
-  userInput: string
+  userInput: string,
+  _currentState: string
 ): SessionContext {
   const normalizedInput = userInput.toLowerCase().trim();
+  const prevConsecutiveErrors = (context.consecutiveErrors ?? context.consecutive_errors ?? 0) as number;
   
-  // Se houve transição válida (não foi erro), marcar como engajado e resetar erros
-  if (!result.isValidationError && !result.silent) {
+  // Se enviamos o menu de boas-vindas no START, apenas marcar welcome_sent (sem engajar)
+  if (result.sentWelcome) {
+    return {
+      ...context,
+      welcomeSent: true,
+      welcome_sent: true,
+      consecutiveErrors: 0,
+      consecutive_errors: 0,
+      lastInvalidInput: '',
+      last_invalid_input: '',
+    };
+  }
+
+  // Engajamento real: usuário escolheu uma opção válida
+  if (result.didEngage) {
     return {
       ...context,
       hasEngaged: true,
+      has_engaged: true,
       consecutiveErrors: 0,
+      consecutive_errors: 0,
       lastInvalidInput: '',
+      last_invalid_input: '',
     };
   }
   
@@ -496,8 +538,10 @@ export function updateSessionContext(
   if (result.isValidationError) {
     return {
       ...context,
-      consecutiveErrors: (context.consecutiveErrors || 0) + 1,
+      consecutiveErrors: prevConsecutiveErrors + 1,
+      consecutive_errors: prevConsecutiveErrors + 1,
       lastInvalidInput: normalizedInput,
+      last_invalid_input: normalizedInput,
     };
   }
   

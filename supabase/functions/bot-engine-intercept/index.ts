@@ -18,6 +18,7 @@ import {
   processStateTransition, 
   getStateMessage, 
   stateRequiresInput,
+  updateSessionContext,
   STATE_MESSAGES,
   type StateTransitionResult 
 } from "../_shared/bot-state-machine.ts";
@@ -1498,7 +1499,7 @@ Deno.serve(async (req) => {
             newState = stateResult.newState;
             responseMessage = stateResult.response;
             
-            const updatedContext: Record<string, unknown> = {
+            let updatedContext: Record<string, unknown> = {
               ...(session?.context as Record<string, unknown> || {}),
               interaction_count: interactionCount + 1,
               awaiting_input: stateResult.awaitingInput || false,
@@ -1509,6 +1510,14 @@ Deno.serve(async (req) => {
               updatedContext[inputVariableName] = message_text;
               console.log(`[BotIntercept] Saved input: ${inputVariableName} = "${message_text}"`);
             }
+
+            // Atualizar contexto comportamental (welcome_sent, has_engaged, anti-spam de erro, etc.)
+            updatedContext = updateSessionContext(
+              updatedContext as unknown as Record<string, unknown>,
+              stateResult,
+              message_text,
+              currentState
+            ) as unknown as Record<string, unknown>;
             
             if (stateResult.shouldGenerateTest) {
               console.log(`[BotIntercept] 🧪 GENERATING TEST - Type: ${stateResult.testType}, Device: ${stateResult.deviceInfo}`);
