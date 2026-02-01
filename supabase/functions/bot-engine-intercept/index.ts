@@ -1632,7 +1632,7 @@ Deno.serve(async (req) => {
         console.log(`[BotIntercept] Processing via FLOW SYSTEM (flows only)`);
         
         if (shouldSendWelcome) {
-          console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE`);
+          console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE WITH MENU`);
           
           // Buscar perfil do revendedor para variáveis
           const sellerProfile = await fetchSellerProfile(supabase, sellerId);
@@ -1655,10 +1655,87 @@ Deno.serve(async (req) => {
           
           console.log(`[BotIntercept] Interpolation vars:`, JSON.stringify(messageVars));
           
-          // Interpolar variáveis na mensagem
-          responseMessage = interpolateVariables(welcomeMessage, messageVars);
-          console.log(`[BotIntercept] Final message: "${responseMessage}"`);
-          newState = 'START';
+          // =========================================================
+          // BUSCAR MENU DO FLUXO PARA ANEXAR À BOAS-VINDAS
+          // Isso garante que a mensagem de boas-vindas já inclua o menu
+          // em uma única mensagem, sem separação
+          // =========================================================
+          let menuText = '';
+          let entryNodeName = 'START';
+          
+          // Buscar fluxo ativo
+          const { data: activeFlows } = await supabase
+            .from('bot_engine_flows')
+            .select('id')
+            .eq('seller_id', sellerId)
+            .eq('is_active', true)
+            .order('priority', { ascending: false })
+            .limit(1);
+          
+          if (activeFlows && activeFlows.length > 0) {
+            const flowId = activeFlows[0].id;
+            
+            // Buscar nó de entrada (start ou menu principal)
+            const { data: entryNodes } = await supabase
+              .from('bot_engine_nodes')
+              .select('id, name, node_type, config')
+              .eq('flow_id', flowId)
+              .eq('seller_id', sellerId);
+            
+            if (entryNodes && entryNodes.length > 0) {
+              // Encontrar entry point: start node ou is_entry_point=true
+              const startNode = entryNodes.find(n => n.node_type === 'start') ||
+                                entryNodes.find(n => (n.config as Record<string, unknown>)?.is_entry_point === true) ||
+                                entryNodes[0];
+              
+              if (startNode) {
+                entryNodeName = startNode.name || 'START';
+                const nodeConfig = startNode.config as Record<string, unknown> || {};
+                const menuOptions = nodeConfig.menu_options as Array<{
+                  id: string;
+                  title: string;
+                  emoji?: string;
+                  description?: string;
+                }>;
+                
+                if (menuOptions && menuOptions.length > 0) {
+                  // Construir texto do menu para anexar à boas-vindas
+                  const menuHeader = nodeConfig.menu_header as string;
+                  const menuTitle = nodeConfig.menu_title as string || '';
+                  
+                  // Montar menu formatado
+                  menuText = '\n\n';
+                  if (menuTitle) {
+                    menuText += `*${menuTitle}*\n\n`;
+                  }
+                  
+                  menuOptions.forEach((opt, index) => {
+                    const emoji = opt.emoji || `${index + 1}️⃣`;
+                    menuText += `${emoji} ${opt.title}`;
+                    if (opt.description) {
+                      menuText += ` - ${opt.description}`;
+                    }
+                    menuText += '\n';
+                  });
+                  
+                  console.log(`[BotIntercept] Menu found with ${menuOptions.length} options, appending to welcome`);
+                }
+              }
+            }
+          }
+          
+          // Interpolar variáveis na mensagem de boas-vindas
+          let finalMessage = interpolateVariables(welcomeMessage, messageVars);
+          
+          // UNIFICAR: Anexar menu à mensagem de boas-vindas (uma única mensagem)
+          if (menuText) {
+            finalMessage = finalMessage.trim() + menuText;
+          }
+          
+          responseMessage = finalMessage;
+          newState = entryNodeName;
+          
+          console.log(`[BotIntercept] Final unified message with menu: "${responseMessage.substring(0, 100)}..."`);
           
           const { error: upsertError } = await supabase
             .from('bot_sessions')
@@ -1666,7 +1743,7 @@ Deno.serve(async (req) => {
               user_id: userId,
               seller_id: sellerId,
               phone: userId,
-              state: 'START',
+              state: entryNodeName,
               previous_state: 'START',
               stack: [],
               context: { interaction_count: 1 },
@@ -1680,7 +1757,7 @@ Deno.serve(async (req) => {
           if (upsertError) {
             console.error(`[BotIntercept] Error upserting session:`, upsertError);
           } else {
-            console.log(`[BotIntercept] Session upserted successfully for ${userId}`);
+            console.log(`[BotIntercept] Session upserted successfully for ${userId} at state ${entryNodeName}`);
           }
         } else {
           // =========================================================
