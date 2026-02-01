@@ -223,15 +223,15 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5" />
-              Meus Apps (Revendedor)
+      <CardHeader className="p-3 sm:p-6">
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2 sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+              <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+              <span className="truncate">Meus Apps (Revendedor)</span>
             </CardTitle>
-            <CardDescription>
-              Cadastre até 10 apps personalizados para usar nos clientes
+            <CardDescription className="text-xs sm:text-sm mt-1">
+              Cadastre até 10 apps personalizados
             </CardDescription>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -353,36 +353,36 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
           </Dialog>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          <div className="text-center py-6 sm:py-8 text-muted-foreground text-sm">Carregando...</div>
         ) : resellerApps.length === 0 ? (
-          <div className="text-center py-8">
-            <Smartphone className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-muted-foreground text-sm">
+          <div className="text-center py-6 sm:py-8">
+            <Smartphone className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground/30 mb-2 sm:mb-3" />
+            <p className="text-muted-foreground text-xs sm:text-sm">
               Nenhum app cadastrado ainda
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
               Clique em "Adicionar" para criar seu primeiro app
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:space-y-2">
             {resellerApps.map((app) => (
               <div 
                 key={app.id}
-                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between p-2 sm:p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors gap-2"
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{app.icon}</span>
-                  <div>
-                    <p className="font-medium">{app.name}</p>
-                    <Badge variant="secondary" className="text-xs">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <span className="text-xl sm:text-2xl flex-shrink-0">{app.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-xs sm:text-sm truncate">{app.name}</p>
+                    <Badge variant="secondary" className="text-[9px] sm:text-xs mt-0.5">
                       App do Revendedor
                     </Badge>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                   {app.downloader_code && (
                     <Button
                       variant="ghost"

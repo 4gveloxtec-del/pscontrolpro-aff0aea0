@@ -75,9 +75,7 @@ const CATEGORY_MAPPINGS: Record<string, string> = {
 };
 
 const TEMPLATE = `João Silva,11999998888,joao123,senha123,IPTV,WPLAY,25,31/01/2026
-Maria Santos,11988887777,maria456,senha456,P2P,SERVER2,30,28/02/2026
-Pedro Souza,11977776666,pedro789,senha789,Contas Premium,,40,
-Ana Lima,11966665555,ana321,senha321,SSH,SSH-BR,15,15/03/2026`;
+Maria Santos,11988887777,maria456,senha456,P2P,SERVER2,30,28/02/2026`;
 
 const TEMPLATE_HEADER = "Nome,Telefone,Usuário,Senha,Categoria,Servidor,Valor,Validade";
 

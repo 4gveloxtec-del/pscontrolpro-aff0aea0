@@ -227,40 +227,43 @@ export function SharedServersModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl w-full">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            Servidores Cadastrados
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+            <span className="truncate">Servidores Cadastrados</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Servidores compartilhados entre todos os revendedores
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'list' | 'add')}>
-          <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
-            <TabsTrigger value="list" className="gap-1 sm:gap-2 text-xs sm:text-sm">
-              <Server className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Ver</span> Servidores ({servers.length})
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'list' | 'add')} className="flex flex-col flex-1 min-h-0">
+          <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10 flex-shrink-0">
+            <TabsTrigger value="list" className="gap-1 sm:gap-2 text-[10px] sm:text-sm px-1 sm:px-3">
+              <Server className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden xs:inline">Ver</span> 
+              <span className="truncate">Servidores</span>
+              <span className="hidden sm:inline">({servers.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="add" className="gap-1 sm:gap-2 text-xs sm:text-sm">
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Adicionar</span> Novo
+            <TabsTrigger value="add" className="gap-1 sm:gap-2 text-[10px] sm:text-sm px-1 sm:px-3">
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden xs:inline">Adicionar</span> 
+              <span className="truncate">Novo</span>
             </TabsTrigger>
           </TabsList>
 
           {/* List Tab */}
-          <TabsContent value="list" className="space-y-3 mt-4">
+          <TabsContent value="list" className="flex-1 flex flex-col space-y-2 sm:space-y-3 mt-3 sm:mt-4 min-h-0">
             {/* Search + Select All */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Buscar servidor..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
+                  className="pl-7 sm:pl-9 text-sm h-9 sm:h-10"
                 />
               </div>
               {multiSelect && filteredServers.length > 0 && (

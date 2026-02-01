@@ -490,20 +490,20 @@ export function SimplifiedWhatsAppConfig() {
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Not configured - Show create button */}
         {!status?.configured && (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Smartphone className="h-5 w-5" />
-                Conectar WhatsApp
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Conectar WhatsApp</span>
               </CardTitle>
-              <CardDescription>
-                Clique no botão abaixo para criar sua instância WhatsApp automaticamente e começar a enviar mensagens.
+              <CardDescription className="text-xs sm:text-sm">
+                Clique no botão abaixo para criar sua instância WhatsApp automaticamente.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
               <Button 
                 onClick={handleCreateInstance} 
                 disabled={isCreating}
@@ -529,21 +529,21 @@ export function SimplifiedWhatsAppConfig() {
         {/* Configured - Show real-time status */}
         {status?.configured && (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Smartphone className="h-5 w-5" />
-                Sua Instância WhatsApp
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Sua Instância WhatsApp</span>
               </CardTitle>
-              <CardDescription className="space-y-1">
-                <span>Instância: <strong>{status.instance_name}</strong></span>
+              <CardDescription className="space-y-1 text-xs sm:text-sm">
+                <span>Instância: <strong className="break-all">{status.instance_name}</strong></span>
                 {status.connected_phone && status.is_connected && (
                   <span className="block text-green-600 dark:text-green-400 font-medium">
-                    📱 Número conectado: <strong>{status.connected_phone}</strong>
+                    📱 Número: <strong>{status.connected_phone}</strong>
                   </span>
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
               {/* Real-time connection status */}
               <RealTimeConnectionStatus 
                 variant="card" 
@@ -565,16 +565,16 @@ export function SimplifiedWhatsAppConfig() {
         {/* QR Code Section - Only show if configured but not connected */}
         {status?.configured && !status?.is_connected && (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <QrCode className="h-5 w-5" />
-                Conectar WhatsApp
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <QrCode className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="truncate">Conectar WhatsApp</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Escaneie o QR Code com seu WhatsApp para conectar
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0 sm:pt-0">
               {qrCode ? (
                 <div className="flex flex-col items-center gap-4">
                   <div className="p-4 bg-white rounded-lg shadow-lg">

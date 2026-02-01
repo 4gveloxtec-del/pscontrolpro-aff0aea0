@@ -110,47 +110,47 @@ const WhatsAppStatusCard = memo(forwardRef<HTMLDivElement, WhatsAppStatusCardPro
         <CardContent className="p-0">
           {/* Header com gradiente */}
           <div className={cn(
-            'px-5 py-4 border-b',
+            'px-3 py-3 sm:px-5 sm:py-4 border-b',
             isConnected 
               ? 'bg-gradient-to-r from-green-500/5 via-green-500/10 to-emerald-500/5' 
               : 'bg-gradient-to-r from-muted/50 to-muted/30'
           )}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                 {/* Status Icon com animação */}
                 <div className={cn(
-                  'relative p-3 rounded-2xl transition-all duration-300',
+                  'relative p-2 sm:p-3 rounded-xl sm:rounded-2xl transition-all duration-300 flex-shrink-0',
                   stateInfo.bg
                 )}>
                   {/* Pulse ring para conectado */}
                   {isConnected && (
-                    <div className="absolute inset-0 rounded-2xl bg-green-500/20 animate-ping opacity-50" 
+                    <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-green-500/20 animate-ping opacity-50" 
                          style={{ animationDuration: '2s' }} />
                   )}
-                  <div className={cn('relative', stateInfo.color)}>
+                  <div className={cn('relative [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6', stateInfo.color)}>
                     {stateInfo.icon}
                   </div>
                 </div>
 
                 {/* Info principal */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className={cn('font-bold text-lg', stateInfo.color)}>
+                <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <h3 className={cn('font-bold text-sm sm:text-lg truncate', stateInfo.color)}>
                       {stateInfo.label}
                     </h3>
                     {isConnected && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 text-green-600 dark:text-green-400 text-xs font-medium">
-                        <Activity className="h-3 w-3" />
-                        Ativo
+                      <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full bg-green-500/20 text-green-600 dark:text-green-400 text-[10px] sm:text-xs font-medium">
+                        <Activity className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                        <span className="hidden xs:inline">Ativo</span>
                       </div>
                     )}
                   </div>
                   
                   {/* Número do WhatsApp */}
                   {formattedPhone && isConnected ? (
-                    <div className="flex items-center gap-2 text-foreground">
-                      <Phone className="h-4 w-4 text-green-500" />
-                      <span className="font-semibold text-base tracking-wide">{formattedPhone}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-foreground">
+                      <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
+                      <span className="font-semibold text-xs sm:text-base tracking-wide truncate">{formattedPhone}</span>
                     </div>
                   ) : !configured ? (
                     <p className="text-sm text-muted-foreground">
@@ -190,19 +190,19 @@ const WhatsAppStatusCard = memo(forwardRef<HTMLDivElement, WhatsAppStatusCardPro
           </div>
 
           {/* Badges de status */}
-          <div className="px-5 py-4">
-            <div className="flex flex-wrap gap-2">
+          <div className="px-3 py-3 sm:px-5 sm:py-4">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {/* API Status */}
               <Badge 
                 variant="outline" 
                 className={cn(
-                  'gap-1.5 px-3 py-1',
+                  'gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs',
                   isApiActive 
                     ? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400' 
                     : 'border-destructive/50 bg-destructive/10 text-destructive'
                 )}
               >
-                <Zap className="h-3 w-3" />
+                <Zap className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 API {isApiActive ? 'Ativa' : 'Inativa'}
               </Badge>
 
@@ -210,16 +210,16 @@ const WhatsAppStatusCard = memo(forwardRef<HTMLDivElement, WhatsAppStatusCardPro
               <Badge 
                 variant="outline" 
                 className={cn(
-                  'gap-1.5 px-3 py-1',
+                  'gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs',
                   isConnected 
                     ? 'border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400' 
                     : 'border-muted-foreground/30 bg-muted/50 text-muted-foreground'
                 )}
               >
                 {isConnected ? (
-                  <Wifi className="h-3 w-3" />
+                  <Wifi className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 ) : (
-                  <WifiOff className="h-3 w-3" />
+                  <WifiOff className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 )}
                 {isConnected ? 'Conectado' : 'Desconectado'}
               </Badge>
@@ -228,7 +228,7 @@ const WhatsAppStatusCard = memo(forwardRef<HTMLDivElement, WhatsAppStatusCardPro
               <Badge 
                 variant="outline" 
                 className={cn(
-                  'gap-1.5 px-3 py-1',
+                  'gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs',
                   autoSendEnabled 
                     ? 'border-primary/50 bg-primary/10 text-primary' 
                     : 'border-muted-foreground/30 bg-muted/50 text-muted-foreground'

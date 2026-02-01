@@ -238,13 +238,13 @@ export function ServerAppsManager({ serverId, serverName, isOpen, onClose }: Ser
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto p-3 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5" />
-            Apps do Servidor - {serverName}
+          <DialogTitle className="flex items-center gap-2 text-sm sm:text-base">
+            <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <span className="truncate">Apps do Servidor - {serverName}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Gerencie os aplicativos próprios e de parceria deste servidor
           </DialogDescription>
         </DialogHeader>
