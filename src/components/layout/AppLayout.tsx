@@ -43,7 +43,7 @@ function SubscriptionExpirationBanner({ daysRemaining, isSeller }: { daysRemaini
 
   // Definir urgência e estilos baseado nos dias restantes
   const getUrgencyConfig = () => {
-    if (daysRemaining === 0) {
+    if (daysRemaining <= 0) {
       return {
         bgClass: "bg-destructive/20 text-destructive border-b border-destructive/30 animate-pulse",
         icon: <AlertTriangle className="h-4 w-4" />,
@@ -61,20 +61,20 @@ function SubscriptionExpirationBanner({ daysRemaining, isSeller }: { daysRemaini
         buttonText: "Renovar"
       };
     }
-    if (daysRemaining === 3) {
+    if (daysRemaining <= 3) {
       return {
         bgClass: "bg-warning/15 text-warning border-b border-warning/25",
         icon: <Clock className="h-4 w-4" />,
-        message: isSeller ? "🟠 Atenção: 3 dias para vencer" : "🟠 3 dias restantes no teste",
+        message: isSeller ? `🟠 Atenção: ${daysRemaining} dias para vencer` : `🟠 ${daysRemaining} dias restantes no teste`,
         buttonVariant: "ghost" as const,
         buttonText: "Renovar"
       };
     }
-    // 7 dias
+    // Mais de 3 dias - informativo
     return {
       bgClass: "bg-primary/10 text-primary border-b border-primary/20",
       icon: <Clock className="h-4 w-4" />,
-      message: isSeller ? "ℹ️ Lembrete: 7 dias para renovar" : "ℹ️ 7 dias restantes no teste",
+      message: isSeller ? `ℹ️ ${daysRemaining} dias para renovar` : `ℹ️ ${daysRemaining} dias restantes no teste`,
       buttonVariant: "ghost" as const,
       buttonText: "Renovar"
     };
@@ -243,11 +243,10 @@ export function AppLayout() {
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
   
-  // Mostrar banner apenas em dias específicos: 7, 3, 1 e 0 dias
-  const notificationDays = [7, 3, 1, 0];
+  // Mostrar banner fixo sempre que não for permanente e estiver em trial/período de teste
+  // (aparece todos os dias, não apenas 7/3/1/0)
   const showExpirationBanner = !profile?.is_permanent && 
-    trialInfo.isInTrial && 
-    notificationDays.includes(trialInfo.daysRemaining);
+    (trialInfo.isInTrial || trialInfo.trialExpired || trialInfo.daysRemaining >= 0);
 
   const sidebarWidth = getSidebarWidth(menuStyle);
   const isIconsOnly = menuStyle === 'icons-only';
