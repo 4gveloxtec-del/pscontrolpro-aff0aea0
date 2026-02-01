@@ -1,17 +1,22 @@
 /**
  * BOT ENGINE - Hook para criar fluxo IPTV padrão (estrutura de menu hierárquico)
  * Inicializa automaticamente UM fluxo com submenus aninhados em um único nó
+ * 
+ * IMPORTANTE: A estrutura usa os campos corretos que o bot-engine-intercept espera:
+ * - submenu_options (não children)
+ * - action_type (não action)
+ * - message_text (não message)
  */
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-const IPTV_FLOWS_INITIALIZED_KEY = 'iptv-flows-initialized-v3';
+const IPTV_FLOWS_INITIALIZED_KEY = 'iptv-flows-initialized-v4';
 
 /**
  * Estrutura do MENU HIERÁRQUICO com submenus aninhados
- * Cada opção pode ter action: 'submenu' com children[] para criar níveis infinitos
+ * Compatível com bot-engine-intercept
  */
 const IPTV_MAIN_MENU = {
   message_text: `👋 Olá, {primeiro_nome}! Seja bem-vindo(a) à {empresa} 🎬📺
@@ -25,15 +30,15 @@ Qualidade, estabilidade e o melhor do entretenimento para você!`,
       emoji: '📺',
       title: 'Conhecer os Planos',
       description: 'Veja nossos planos e valores',
-      action: 'submenu',
-      children: [
+      action_type: 'submenu',
+      submenu_options: [
         {
           id: 'planos_iptv',
           emoji: '📡',
           title: 'IPTV',
           description: 'Canais ao vivo + Filmes + Séries',
-          action: 'message',
-          message: `📡 *PLANOS IPTV*
+          action_type: 'message',
+          message_text: `📡 *PLANOS IPTV*
 
 Todos os planos incluem:
 ✅ +15.000 canais ao vivo
@@ -54,8 +59,8 @@ Digite *ASSINAR* para contratar!`,
           emoji: '🎬',
           title: 'P2P',
           description: 'Filmes e Séries On Demand',
-          action: 'message',
-          message: `🎬 *PLANOS P2P*
+          action_type: 'message',
+          message_text: `🎬 *PLANOS P2P*
 
 Acesso ilimitado a filmes e séries:
 ✅ Catálogo atualizado diariamente
@@ -75,8 +80,8 @@ Digite *ASSINAR* para contratar!`,
           emoji: '🔐',
           title: 'SSH',
           description: 'Conexões seguras',
-          action: 'message',
-          message: `🔐 *PLANOS SSH*
+          action_type: 'message',
+          message_text: `🔐 *PLANOS SSH*
 
 Conexões seguras e estáveis:
 ✅ Servidores otimizados
@@ -98,14 +103,14 @@ Digite *ASSINAR* para contratar!`,
       emoji: '🎁',
       title: 'Teste Grátis',
       description: 'Experimente por 24 horas',
-      action: 'submenu',
-      children: [
+      action_type: 'submenu',
+      submenu_options: [
         {
           id: 'teste_smarttv',
           emoji: '📺',
           title: 'Smart TV',
           description: 'Samsung, LG, etc',
-          action: 'command',
+          action_type: 'command',
           command: '/teste',
         },
         {
@@ -113,7 +118,7 @@ Digite *ASSINAR* para contratar!`,
           emoji: '📦',
           title: 'TV Box / Android',
           description: 'Dispositivos Android',
-          action: 'command',
+          action_type: 'command',
           command: '/teste',
         },
         {
@@ -121,7 +126,7 @@ Digite *ASSINAR* para contratar!`,
           emoji: '📱',
           title: 'Celular / Tablet',
           description: 'iOS e Android',
-          action: 'command',
+          action_type: 'command',
           command: '/teste',
         },
         {
@@ -129,7 +134,7 @@ Digite *ASSINAR* para contratar!`,
           emoji: '💻',
           title: 'Computador',
           description: 'Windows, Mac, Linux',
-          action: 'command',
+          action_type: 'command',
           command: '/teste',
         },
       ],
@@ -141,17 +146,12 @@ Digite *ASSINAR* para contratar!`,
       emoji: '🫰',
       title: 'Renovar Assinatura',
       description: 'Renove seu plano atual',
-      action: 'message',
-      message: `🫰 *RENOVAR ASSINATURA*
+      action_type: 'message',
+      message_text: `🫰 *RENOVAR ASSINATURA*
 
 Para renovar, informe seu *login* ou *e-mail* cadastrado.
 
 Um atendente irá verificar seu cadastro e gerar o PIX para pagamento!`,
-      notify: {
-        title: '🫰 Pedido de Renovação',
-        body: 'Cliente deseja renovar assinatura',
-        type: 'renewal_request',
-      },
     },
 
     // ===== 4️⃣ SUPORTE TÉCNICO (com submenus de problemas) =====
@@ -160,15 +160,15 @@ Um atendente irá verificar seu cadastro e gerar o PIX para pagamento!`,
       emoji: '🛠️',
       title: 'Suporte Técnico',
       description: 'Resolva problemas técnicos',
-      action: 'submenu',
-      children: [
+      action_type: 'submenu',
+      submenu_options: [
         {
           id: 'suporte_app',
           emoji: '📱',
           title: 'App não abre / Travando',
           description: 'Problemas com o aplicativo',
-          action: 'message',
-          message: `📱 *APP NÃO ABRE / TRAVANDO*
+          action_type: 'message',
+          message_text: `📱 *APP NÃO ABRE / TRAVANDO*
 
 Tente as seguintes soluções:
 
@@ -184,8 +184,8 @@ Se o problema persistir, fale com um *atendente*.`,
           emoji: '📡',
           title: 'Canais fora do ar',
           description: 'Canais não carregam',
-          action: 'message',
-          message: `📡 *CANAIS FORA DO AR*
+          action_type: 'message',
+          message_text: `📡 *CANAIS FORA DO AR*
 
 Alguns canais podem estar em manutenção temporária.
 
@@ -200,8 +200,8 @@ Se o problema persistir, fale com um *atendente*.`,
           emoji: '🐌',
           title: 'Qualidade ruim / Buffer',
           description: 'Travamentos e lentidão',
-          action: 'message',
-          message: `🐌 *QUALIDADE RUIM / BUFFER*
+          action_type: 'message',
+          message_text: `🐌 *QUALIDADE RUIM / BUFFER*
 
 Para melhorar a experiência:
 
@@ -217,8 +217,8 @@ Se sua internet for boa, fale com um *atendente*.`,
           emoji: '🔐',
           title: 'Login inválido',
           description: 'Erro ao fazer login',
-          action: 'message',
-          message: `🔐 *LOGIN INVÁLIDO*
+          action_type: 'message',
+          message_text: `🔐 *LOGIN INVÁLIDO*
 
 Verifique os seguintes pontos:
 
@@ -233,8 +233,8 @@ Se continuar com problemas, fale com um *atendente*.`,
           emoji: '❓',
           title: 'Outro problema',
           description: 'Descreva seu problema',
-          action: 'transfer_human',
-          message: `❓ *OUTRO PROBLEMA*
+          action_type: 'transfer_human',
+          message_text: `❓ *OUTRO PROBLEMA*
 
 Por favor, descreva o problema que você está enfrentando e um atendente irá te ajudar em breve!`,
         },
@@ -247,17 +247,12 @@ Por favor, descreva o problema que você está enfrentando e um atendente irá t
       emoji: '👨‍💻',
       title: 'Falar com Atendente',
       description: 'Atendimento humano',
-      action: 'transfer_human',
-      message: `👨‍💻 *ATENDIMENTO HUMANO*
+      action_type: 'transfer_human',
+      message_text: `👨‍💻 *ATENDIMENTO HUMANO*
 
 Aguarde um momento, estou notificando um atendente...
 
 ⏳ Em breve você será atendido!`,
-      notify: {
-        title: '👨‍💻 Solicitação de Atendente',
-        body: 'Cliente solicitou atendimento humano',
-        type: 'human_takeover',
-      },
     },
 
     // ===== 6️⃣ PS CONTROL =====
@@ -266,8 +261,8 @@ Aguarde um momento, estou notificando um atendente...
       emoji: '⭐',
       title: 'PS Control - Revenda',
       description: 'Seja um revendedor',
-      action: 'message',
-      message: `⭐ *PS CONTROL - SISTEMA DE REVENDA*
+      action_type: 'message',
+      message_text: `⭐ *PS CONTROL - SISTEMA DE REVENDA*
 
 Quer ter seu próprio negócio de IPTV?
 
@@ -280,11 +275,6 @@ Com o PS Control você:
 💰 *Comece hoje mesmo!*
 
 Quer saber mais? Fale com um *atendente*!`,
-      notify: {
-        title: '⭐ Interesse em Revenda',
-        body: 'Novo lead interessado em ser revendedor',
-        type: 'reseller_lead',
-      },
     },
   ],
 };
@@ -298,7 +288,7 @@ export function useDefaultIPTVFlows() {
     if (!user?.id) return;
 
     const initializeFlows = async () => {
-      // Verificar se já inicializou via localStorage (v3)
+      // Verificar se já inicializou via localStorage (v4)
       const localKey = `${IPTV_FLOWS_INITIALIZED_KEY}_${user.id}`;
       if (localStorage.getItem(localKey) === 'true') {
         setIsInitialized(true);
@@ -358,14 +348,16 @@ export function useDefaultIPTVFlows() {
             flow_id: flow.id,
             seller_id: user.id,
             node_type: 'menu',
-            name: '🎬 Menu Principal IPTV',
+            name: 'START',
             is_entry_point: true,
             config: {
               message_text: IPTV_MAIN_MENU.message_text,
               menu_options: IPTV_MAIN_MENU.menu_options,
-              menu_type: 'interactive', // Usar menus interativos do WhatsApp
+              menu_type: 'interactive',
+              menu_title: 'Menu Principal',
               show_back_button: true,
               back_button_text: '↩️ Voltar',
+              silent_on_invalid: true,
             },
             position_x: 100,
             position_y: 100,
