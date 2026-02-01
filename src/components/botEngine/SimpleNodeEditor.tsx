@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import type { BotNode, BotNodeType, BotNodeConfig } from '@/lib/botEngine/types';
 import { MenuNodeEditor } from './MenuNodeEditor';
+import { cn } from '@/lib/utils';
 
 interface SimpleNodeEditorProps {
   flowId: string;
@@ -369,24 +370,24 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
   }
 
   return (
-    <div className="flex flex-col h-full max-h-[85vh]">
+    <div className="flex flex-col h-full max-h-[80vh] sm:max-h-[85vh] overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b flex items-center justify-between shrink-0">
-        <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Editor de Conversa
+      <div className="p-3 sm:p-4 border-b flex items-center justify-between shrink-0 gap-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+            <span className="truncate">Editor</span>
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Fluxo: <span className="font-medium text-foreground">{flowName}</span>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
+            <span className="font-medium text-foreground">{flowName}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setShowTemplates(true)} size="sm" className="gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <Button onClick={() => setShowTemplates(true)} size="sm" className="gap-1 h-8 px-2 sm:px-3">
             <Plus className="h-4 w-4" />
-            Adicionar
+            <span className="hidden xs:inline">Adicionar</span>
           </Button>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -521,35 +522,35 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
 
       {/* Templates Dialog */}
       <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Adicionar Etapa
             </DialogTitle>
-            <DialogDescription>
-              Escolha um modelo pronto para adicionar ao seu fluxo
+            <DialogDescription className="text-xs sm:text-sm">
+              Escolha um modelo pronto
             </DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="max-h-[50vh]">
-            <div className="grid gap-3 sm:grid-cols-2 p-1">
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 py-2">
               {NODE_TEMPLATES.map((template) => (
                 <Card
                   key={template.id}
-                  className="cursor-pointer hover:shadow-md transition-all hover:border-primary"
+                  className="cursor-pointer hover:shadow-md transition-all hover:border-primary active:scale-[0.98]"
                   onClick={() => handleCreateFromTemplate(template)}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="text-3xl">{template.emoji}</span>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      <span className="text-2xl sm:text-3xl">{template.emoji}</span>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium">{template.title}</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <h4 className="font-medium text-sm sm:text-base">{template.title}</h4>
+                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
                           {template.description}
                         </p>
                       </div>
-                      <ArrowRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
                     </div>
                   </CardContent>
                 </Card>
@@ -557,8 +558,8 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
             </div>
           </ScrollArea>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTemplates(false)}>
+          <DialogFooter className="shrink-0 pt-2">
+            <Button variant="outline" onClick={() => setShowTemplates(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
           </DialogFooter>
@@ -567,36 +568,46 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
 
       {/* Edit Node Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className={editingNode && isInteractiveMenu(editingNode) ? "max-w-3xl max-h-[90vh] overflow-y-auto" : "max-w-xl"}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent 
+          className={cn(
+            "w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] overflow-hidden flex flex-col",
+            editingNode && isInteractiveMenu(editingNode) 
+              ? "max-w-3xl max-h-[90vh]" 
+              : "max-w-xl max-h-[85vh]"
+          )}
+        >
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
               {editingNode && (
                 <>
-                  <span className="text-xl">
+                  <span className="text-lg sm:text-xl">
                     {isInteractiveMenu(editingNode) ? '🌳' : NODE_STYLES[editingNode.node_type]?.emoji}
                   </span>
-                  {isInteractiveMenu(editingNode) ? 'Editar Menu Interativo' : `Editar ${NODE_STYLES[editingNode.node_type]?.label}`}
+                  <span className="truncate">
+                    {isInteractiveMenu(editingNode) ? 'Menu Interativo' : NODE_STYLES[editingNode.node_type]?.label}
+                  </span>
                 </>
               )}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               {editingNode && isInteractiveMenu(editingNode) 
-                ? 'Configure menus com submenus ilimitados'
-                : 'Personalize o conteúdo desta etapa'
+                ? 'Menus com submenus ilimitados'
+                : 'Personalize esta etapa'
               }
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-4 py-2">
             {/* Nome */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-sm">
                 📝 Nome da Etapa
               </Label>
               <Input
                 placeholder="Ex: Menu Principal"
                 value={nodeName}
                 onChange={(e) => setNodeName(e.target.value)}
+                className="text-base"
               />
             </div>
 
@@ -716,11 +727,11 @@ export function SimpleNodeEditor({ flowId, flowName, onClose }: SimpleNodeEditor
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+          <DialogFooter className="shrink-0 pt-2 flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit} disabled={isUpdatingNode} className="gap-2">
+            <Button onClick={handleSaveEdit} disabled={isUpdatingNode} className="gap-2 w-full sm:w-auto">
               <Check className="h-4 w-4" />
               {isUpdatingNode ? 'Salvando...' : 'Salvar'}
             </Button>

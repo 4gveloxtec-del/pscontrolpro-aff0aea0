@@ -386,73 +386,76 @@ export function MenuNodeEditor({
   const currentOptions = getCurrentOptions();
   
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Header do Menu */}
       <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>📋 Título do Menu</Label>
+        <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label className="text-xs sm:text-sm">📋 Título do Menu</Label>
             <Input
               placeholder="Menu Principal"
               value={config.menu_title || ''}
               onChange={(e) => onConfigChange({ ...config, menu_title: e.target.value })}
+              className="text-base h-9 sm:h-10"
             />
           </div>
-          <div className="space-y-2">
-            <Label>🔙 Texto do botão Voltar</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label className="text-xs sm:text-sm">🔙 Texto do Voltar</Label>
             <Input
               placeholder="⬅️ Voltar"
               value={config.back_button_text || ''}
               onChange={(e) => onConfigChange({ ...config, back_button_text: e.target.value })}
+              className="text-base h-9 sm:h-10"
             />
           </div>
         </div>
         
-        <div className="space-y-2">
-          <Label>📝 Mensagem de Cabeçalho (opcional)</Label>
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label className="text-xs sm:text-sm">📝 Cabeçalho (opcional)</Label>
           <Textarea
-            placeholder="Olá! Escolha uma opção abaixo:"
+            placeholder="Olá! Escolha uma opção:"
             value={config.menu_header || ''}
             onChange={(e) => onConfigChange({ ...config, menu_header: e.target.value })}
             rows={2}
+            className="text-base resize-none"
           />
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <Switch
               checked={config.show_back_button ?? true}
               onCheckedChange={(checked) => onConfigChange({ ...config, show_back_button: checked })}
             />
-            <Label className="text-sm">Mostrar botão Voltar</Label>
+            <Label className="text-xs sm:text-sm">Voltar</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch
               checked={config.silent_on_invalid ?? false}
               onCheckedChange={(checked) => onConfigChange({ ...config, silent_on_invalid: checked })}
             />
-            <Label className="text-sm">Silenciar opções inválidas</Label>
+            <Label className="text-xs sm:text-sm">Silenciar inválidas</Label>
           </div>
         </div>
       </div>
       
       {/* Breadcrumb de navegação */}
       {navigationPath.length > 0 && (
-        <div className="flex items-center gap-1 p-2 bg-muted rounded-lg text-sm">
-          <Button variant="ghost" size="sm" onClick={navigateToRoot} className="h-7 px-2">
-            <Home className="h-4 w-4 mr-1" />
-            Raiz
+        <div className="flex items-center gap-1 p-2 bg-muted rounded-lg text-xs sm:text-sm overflow-x-auto">
+          <Button variant="ghost" size="sm" onClick={navigateToRoot} className="h-6 sm:h-7 px-1.5 sm:px-2 shrink-0">
+            <Home className="h-3 w-3 sm:h-4 sm:w-4 mr-0.5 sm:mr-1" />
+            <span className="hidden xs:inline">Raiz</span>
           </Button>
           {navigationPath.map((nav, idx) => (
-            <div key={nav.id} className="flex items-center">
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <div key={nav.id} className="flex items-center shrink-0">
+              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setNavigationPath(navigationPath.slice(0, idx + 1))}
-                className="h-7 px-2"
+                className="h-6 sm:h-7 px-1.5 sm:px-2 max-w-[80px] sm:max-w-none"
               >
-                {nav.title}
+                <span className="truncate">{nav.title}</span>
               </Button>
             </div>
           ))}
@@ -461,35 +464,35 @@ export function MenuNodeEditor({
       
       {/* Lista de opções */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-base font-medium">
-            {navigationPath.length === 0 ? '📋 Opções do Menu' : `📂 Opções de "${navigationPath[navigationPath.length - 1]?.title}"`}
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-sm sm:text-base font-medium truncate">
+            {navigationPath.length === 0 ? '📋 Opções' : `📂 "${navigationPath[navigationPath.length - 1]?.title}"`}
           </Label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {navigationPath.length > 0 && (
-              <Button variant="outline" size="sm" onClick={navigateBack} className="gap-1">
-                <ArrowLeft className="h-4 w-4" />
-                Voltar
+              <Button variant="outline" size="sm" onClick={navigateBack} className="gap-1 h-7 sm:h-8 px-2">
+                <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Voltar</span>
               </Button>
             )}
-            <Button size="sm" onClick={openNewOptionDialog} className="gap-1">
-              <Plus className="h-4 w-4" />
-              Nova Opção
+            <Button size="sm" onClick={openNewOptionDialog} className="gap-1 h-7 sm:h-8 px-2 sm:px-3">
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Nova</span>
             </Button>
           </div>
         </div>
         
-        <ScrollArea className="max-h-[400px]">
-          <div className="space-y-2 pr-4">
+        <ScrollArea className="max-h-[250px] sm:max-h-[350px]">
+          <div className="space-y-2 pr-2 sm:pr-4">
             {currentOptions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center border-2 border-dashed rounded-lg">
-                <FolderTree className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                <p className="text-sm text-muted-foreground mb-3">
+              <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center border-2 border-dashed rounded-lg">
+                <FolderTree className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/30 mb-2 sm:mb-3" />
+                <p className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">
                   Nenhuma opção configurada
                 </p>
-                <Button onClick={openNewOptionDialog} variant="outline" className="gap-2">
+                <Button onClick={openNewOptionDialog} variant="outline" size="sm" className="gap-2">
                   <Plus className="h-4 w-4" />
-                  Adicionar Primeira Opção
+                  Adicionar
                 </Button>
               </div>
             ) : (
@@ -517,65 +520,68 @@ export function MenuNodeEditor({
       </div>
       
       {/* Footer */}
-      <div className="space-y-2">
-        <Label>📝 Mensagem de Rodapé (opcional)</Label>
+      <div className="space-y-1.5 sm:space-y-2">
+        <Label className="text-xs sm:text-sm">📝 Rodapé (opcional)</Label>
         <Input
-          placeholder="Digite o número da opção desejada"
+          placeholder="Digite o número da opção"
           value={config.menu_footer || ''}
           onChange={(e) => onConfigChange({ ...config, menu_footer: e.target.value })}
+          className="text-base h-9 sm:h-10"
         />
       </div>
       
       {/* Dialog para editar/criar opção */}
       <Dialog open={isOptionDialogOpen} onOpenChange={setIsOptionDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-base sm:text-lg">
               {editingOption ? '✏️ Editar Opção' : '➕ Nova Opção'}
             </DialogTitle>
-            <DialogDescription>
-              Configure os detalhes desta opção do menu
+            <DialogDescription className="text-xs sm:text-sm">
+              Configure os detalhes desta opção
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 space-y-3 sm:space-y-4 py-2">
             {/* Linha 1: Emoji + Título */}
-            <div className="grid gap-3 grid-cols-[80px_1fr]">
-              <div className="space-y-2">
-                <Label>Emoji</Label>
+            <div className="grid gap-2 sm:gap-3 grid-cols-[60px_1fr] sm:grid-cols-[80px_1fr]">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Emoji</Label>
                 <Input
                   placeholder="📋"
                   value={optEmoji}
                   onChange={(e) => setOptEmoji(e.target.value)}
-                  className="text-center text-xl"
+                  className="text-center text-lg sm:text-xl h-9 sm:h-10"
                   maxLength={4}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Título *</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Título *</Label>
                 <Input
                   placeholder="Ver Planos"
                   value={optTitle}
                   onChange={(e) => setOptTitle(e.target.value)}
+                  className="text-base h-9 sm:h-10"
                 />
               </div>
             </div>
             
             {/* Descrição */}
-            <div className="space-y-2">
-              <Label>Descrição (aparece no menu interativo)</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">Descrição (menu interativo)</Label>
               <Input
-                placeholder="Conheça nossos planos e preços"
+                placeholder="Conheça nossos planos"
                 value={optDescription}
                 onChange={(e) => setOptDescription(e.target.value)}
+                className="text-base h-9 sm:h-10"
               />
             </div>
             
             {/* Tipo de Ação */}
-            <div className="space-y-2">
-              <Label>O que acontece ao selecionar?</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-xs sm:text-sm">O que acontece?</Label>
               <Select value={optActionType} onValueChange={(v) => setOptActionType(v as MenuOptionActionType)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9 sm:h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -583,8 +589,8 @@ export function MenuNodeEditor({
                     <SelectItem key={action.value} value={action.value}>
                       <div className="flex items-center gap-2">
                         <span>{action.emoji}</span>
-                        <span>{action.label}</span>
-                        <span className="text-xs text-muted-foreground">- {action.description}</span>
+                        <span className="text-sm">{action.label}</span>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">- {action.description}</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -594,27 +600,29 @@ export function MenuNodeEditor({
             
             {/* Campos específicos por tipo */}
             {optActionType === 'message' && (
-              <div className="space-y-2">
-                <Label>💬 Mensagem a enviar</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">💬 Mensagem</Label>
                 <Textarea
-                  placeholder="Digite a mensagem que será enviada ao cliente..."
+                  placeholder="Mensagem para o cliente..."
                   value={optMessage}
                   onChange={(e) => setOptMessage(e.target.value)}
-                  rows={4}
+                  rows={3}
+                  className="text-base resize-none"
                 />
               </div>
             )}
             
             {optActionType === 'command' && (
-              <div className="space-y-2">
-                <Label>⚡ Comando a executar</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">⚡ Comando</Label>
                 <Input
-                  placeholder="/teste, /renovar, /status..."
+                  placeholder="/teste, /renovar..."
                   value={optCommand}
                   onChange={(e) => setOptCommand(e.target.value)}
+                  className="text-base h-9 sm:h-10"
                 />
-                <p className="text-xs text-muted-foreground">
-                  O comando será executado automaticamente quando o cliente escolher esta opção
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  Executado ao escolher esta opção
                 </p>
               </div>
             )}
@@ -680,11 +688,11 @@ export function MenuNodeEditor({
             )}
           </div>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOptionDialogOpen(false)}>
+          <DialogFooter className="shrink-0 pt-2 flex-col-reverse sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsOptionDialogOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button onClick={handleSaveOption} disabled={!optTitle.trim()}>
+            <Button onClick={handleSaveOption} disabled={!optTitle.trim()} className="w-full sm:w-auto">
               {editingOption ? 'Salvar' : 'Adicionar'}
             </Button>
           </DialogFooter>
