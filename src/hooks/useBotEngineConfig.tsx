@@ -15,12 +15,19 @@ const FLOW_FIRST_MESSAGE_KEY = 'bot-engine-first-message';
 // Valores padrão garantidos para toda nova configuração
 // Mensagem padrão com menu de opções para boas-vindas
 const DEFAULT_CONFIG = {
-  welcome_message: `Olá! 👋 Seja bem-vindo!
+  welcome_message: `👋 Olá, {primeiro_nome}! Seja bem-vindo(a) à {empresa} 🎬📺
 
-Escolha uma opção:
-1️⃣ Testar IPTV
-2️⃣ Ver Planos
-3️⃣ Suporte`,
+Qualidade, estabilidade e o melhor do entretenimento para você!
+
+
+Escolha uma opção abaixo 👇
+
+1️⃣ Conhecer os Planos  
+2️⃣ Teste Grátis 🎁  
+3️⃣ Renovar Assinatura 🫰  
+4️⃣ Suporte Técnico 🛠️  
+5️⃣ Falar com Atendente 👨‍💻  
+6️⃣ PS Control - Revenda ⭐ {NOVIDADE}`,
   fallback_message: 'Desculpe, não entendi. Digite *menu* para ver as opções.',
   inactivity_message: 'Sessão encerrada por inatividade.',
   outside_hours_message: 'No momento estamos fora do horário de atendimento. Retornaremos em breve!',
