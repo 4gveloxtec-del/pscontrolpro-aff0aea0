@@ -281,16 +281,29 @@ export default function Settings() {
     if (profile?.is_permanent) return { text: 'Permanente', color: 'success' as const };
     
     let expiresAt: Date | null = null;
+
+     const safeParseDate = (dateStr: string) => {
+       // Evita off-by-one quando vier apenas YYYY-MM-DD
+       const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T12:00:00` : dateStr;
+       const d = new Date(normalized);
+       return isNaN(d.getTime()) ? null : d;
+     };
     
     // Try to use subscription_expires_at first
     if (profile?.subscription_expires_at) {
-      expiresAt = new Date(profile.subscription_expires_at);
-    } 
-    // Fallback: calculate from created_at + trial days
-    else if (profile?.created_at) {
-      const createdAt = new Date(profile.created_at);
-      expiresAt = new Date(createdAt);
-      expiresAt.setDate(expiresAt.getDate() + trialDaysFromSettings);
+      expiresAt = safeParseDate(profile.subscription_expires_at);
+    }
+
+    // Fallback: calculate from created_at + trial days (ou user.created_at em contas legadas)
+    if (!expiresAt) {
+      const createdAtStr = profile?.created_at || user?.created_at || null;
+      if (createdAtStr) {
+        const createdAt = safeParseDate(createdAtStr);
+        if (createdAt) {
+          expiresAt = new Date(createdAt);
+          expiresAt.setDate(expiresAt.getDate() + trialDaysFromSettings);
+        }
+      }
     }
     
     if (!expiresAt) return { text: 'Não definido', color: 'default' as const };
