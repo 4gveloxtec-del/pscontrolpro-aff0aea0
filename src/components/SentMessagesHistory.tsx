@@ -169,16 +169,16 @@ export function SentMessagesHistory() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Mensagens Enviadas
+    <Card className="max-w-full overflow-hidden">
+      <CardHeader className="px-3 sm:px-6 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
+              <span className="truncate">Mensagens Enviadas</span>
             </CardTitle>
-            <CardDescription>
-              Histórico de notificações automáticas enviadas aos clientes
+            <CardDescription className="text-xs sm:text-sm truncate">
+              Histórico de notificações automáticas
             </CardDescription>
           </div>
           <Button 
@@ -186,6 +186,7 @@ export function SentMessagesHistory() {
             size="sm" 
             onClick={() => refetch()}
             disabled={isFetching}
+            className="w-full sm:w-auto"
           >
             <RefreshCw className={`h-4 w-4 mr-1 ${isFetching ? 'animate-spin' : ''}`} />
             Atualizar
@@ -194,23 +195,23 @@ export function SentMessagesHistory() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 mt-4">
-          <div className="bg-muted/50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-primary">{notifications?.length || 0}</div>
-            <div className="text-xs text-muted-foreground">Total</div>
+          <div className="bg-muted/50 rounded-lg p-2 sm:p-3 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-primary">{notifications?.length || 0}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground">Total</div>
           </div>
-          <div className="bg-green-500/10 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-green-600">{todayCount}</div>
-            <div className="text-xs text-muted-foreground">Hoje</div>
+          <div className="bg-green-500/10 rounded-lg p-2 sm:p-3 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">{todayCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground">Hoje</div>
           </div>
-          <div className="bg-blue-500/10 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-blue-600">{whatsappCount}</div>
-            <div className="text-xs text-muted-foreground">Via API</div>
+          <div className="bg-blue-500/10 rounded-lg p-2 sm:p-3 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{whatsappCount}</div>
+            <div className="text-[10px] sm:text-xs text-muted-foreground">Via API</div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-2 mt-4">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-2 mt-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nome ou telefone..."
@@ -219,31 +220,33 @@ export function SentMessagesHistory() {
               className="pl-9"
             />
           </div>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-full sm:w-[160px]">
-              <Filter className="h-4 w-4 mr-1" />
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              {Object.entries(NOTIFICATION_LABELS).map(([key, { label, emoji }]) => (
-                <SelectItem key={key} value={key}>
-                  {emoji} {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterVia} onValueChange={setFilterVia}>
-            <SelectTrigger className="w-full sm:w-[140px]">
-              <SelectValue placeholder="Enviado via" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp API</SelectItem>
-              <SelectItem value="manual">Manual</SelectItem>
-              <SelectItem value="telegram">Telegram</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-full">
+                <Filter className="h-4 w-4 mr-1 flex-shrink-0" />
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {Object.entries(NOTIFICATION_LABELS).map(([key, { label, emoji }]) => (
+                  <SelectItem key={key} value={key}>
+                    {emoji} {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterVia} onValueChange={setFilterVia}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Enviado via" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="telegram">Telegram</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
 
@@ -269,47 +272,46 @@ export function SentMessagesHistory() {
                 return (
                   <div 
                     key={notification.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                   >
-                    {/* Status indicator */}
-                    <div className={`w-2 h-2 rounded-full ${typeInfo.color}`} />
-                    
-                    {/* Client info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="font-medium truncate">
-                          {notification.clients?.name || 'Cliente removido'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {format(new Date(notification.expiration_cycle_date + 'T12:00:00'), 'dd/MM/yy')}
-                        </span>
-                        {notification.clients?.phone && (
-                          <span>{notification.clients.phone}</span>
-                        )}
+                    {/* Client info + Status indicator */}
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <div className={`w-2 h-2 rounded-full ${typeInfo.color} mt-1.5 flex-shrink-0`} />
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="font-medium truncate text-sm">
+                            {notification.clients?.name || 'Cliente removido'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {format(new Date(notification.expiration_cycle_date + 'T12:00:00'), 'dd/MM/yy')}
+                          </span>
+                          {notification.clients?.phone && (
+                            <span className="truncate">{notification.clients.phone}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Notification type */}
-                    <Badge variant="outline" className="shrink-0 text-xs">
-                      {typeInfo.emoji} {typeInfo.label}
-                    </Badge>
+                    {/* Badges and time */}
+                    <div className="flex items-center gap-2 flex-wrap pl-4 sm:pl-0">
+                      <Badge variant="outline" className="shrink-0 text-[10px] sm:text-xs">
+                        {typeInfo.emoji} {typeInfo.label}
+                      </Badge>
 
-                    {/* Sent via */}
-                    <Badge 
-                      variant={notification.sent_via === 'whatsapp' ? 'default' : 'secondary'}
-                      className="shrink-0 text-xs gap-1"
-                    >
-                      <ViaIcon className="h-3 w-3" />
-                      {viaInfo.label}
-                    </Badge>
+                      <Badge 
+                        variant={notification.sent_via === 'whatsapp' ? 'default' : 'secondary'}
+                        className="shrink-0 text-[10px] sm:text-xs gap-1"
+                      >
+                        <ViaIcon className="h-3 w-3" />
+                        <span className="hidden xs:inline">{viaInfo.label}</span>
+                      </Badge>
 
-                    {/* Time */}
-                    <div className="text-xs text-muted-foreground shrink-0 text-right min-w-[70px]">
-                      <div className="flex items-center gap-1 justify-end">
+                      <div className="text-[10px] sm:text-xs text-muted-foreground shrink-0 flex items-center gap-1 ml-auto">
                         <Clock className="h-3 w-3" />
                         {formatDistanceToNow(new Date(notification.sent_at), { 
                           addSuffix: true, 

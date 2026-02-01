@@ -75,14 +75,14 @@ function AdminAuth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <Card className="w-full max-w-md border-slate-700 bg-slate-800/50 backdrop-blur">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center">
-            <Shield className="h-8 w-8 text-white" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-3 sm:p-4 max-w-full overflow-x-hidden">
+      <Card className="w-full max-w-md border-slate-700 bg-slate-800/50 backdrop-blur mx-auto">
+        <CardHeader className="text-center px-4 sm:px-6">
+          <div className="mx-auto mb-3 sm:mb-4 w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 flex items-center justify-center">
+            <Shield className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
           </div>
-          <CardTitle className="text-2xl text-white">Painel ADM</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-xl sm:text-2xl text-white">Painel ADM</CardTitle>
+          <CardDescription className="text-slate-400 text-sm">
             Acesso exclusivo para administradores
           </CardDescription>
         </CardHeader>

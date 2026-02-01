@@ -284,21 +284,21 @@ export function NotificationSettings() {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+    <div className="space-y-3 max-w-full overflow-x-hidden">
+      <div className="flex items-center justify-between w-full gap-3">
+        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
             {isLoading ? (
-              <Loader2 className="h-5 w-5 text-foreground animate-spin" />
+              <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 text-foreground animate-spin" />
             ) : isSubscribed ? (
-              <Bell className="h-5 w-5 text-foreground" />
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
             ) : (
-              <BellOff className="h-5 w-5 text-foreground" />
+              <BellOff className="h-4 w-4 sm:h-5 sm:w-5 text-foreground" />
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground">Notificações Push</p>
-            <p className={cn("text-sm", getStatusColor())}>
+            <p className="font-medium text-foreground text-sm sm:text-base">Notificações Push</p>
+            <p className={cn("text-xs sm:text-sm truncate", getStatusColor())}>
               {getStatusText()}
             </p>
           </div>
@@ -309,6 +309,7 @@ export function NotificationSettings() {
             checked={isSubscribed}
             onCheckedChange={handleToggle}
             disabled={isLoading}
+            className="flex-shrink-0"
           />
         )}
         
@@ -317,6 +318,7 @@ export function NotificationSettings() {
             variant="outline"
             size="sm"
             onClick={() => toast.info('Acesse as configurações do seu navegador, vá em "Sites" ou "Permissões" e ative as notificações para este site.', { duration: 8000 })}
+            className="flex-shrink-0 text-xs"
           >
             Saiba mais
           </Button>
