@@ -22,16 +22,8 @@ import {
   type StateTransitionResult 
 } from "../_shared/bot-state-machine.ts";
 import {
-  type InteractiveListMessage,
-  type DynamicMenuItemForList,
-  type BotStructuredResponse,
-  NAVIGATION_ROW_IDS,
-  renderMenuAsInteractiveList,
   isNavigationCommand,
   processNavigationSelection,
-  createListResponse,
-  createTextResponse,
-  serializeResponse,
 } from "../_shared/interactive-list.ts";
 
 const corsHeaders = {
@@ -161,22 +153,8 @@ interface ActionResult {
   popStack?: boolean;
 }
 
-interface MenuOption {
-  label: string;
-  target_menu?: string;
-  target_state?: string;
-  action?: string;
-  keywords?: string[];
-}
-
-interface DynamicMenu {
-  menu_key: string;
-  title?: string;
-  header_message?: string;
-  footer_message?: string;
-  options: MenuOption[];
-  parent_menu_key?: string;
-}
+// NOTA: Interfaces MenuOption e DynamicMenu removidas - sistema legado descontinuado
+// O chatbot agora usa EXCLUSIVAMENTE bot_engine_flows + nodes + edges
 
 // =====================================================================
 // COMANDOS GLOBAIS - REGRAS UNIVERSAIS DE NAVEGAÇÃO
@@ -542,518 +520,22 @@ function executeAction(
 }
 
 // =====================================================================
-// MENUS DINÂMICOS V2 - TABELA bot_engine_dynamic_menus
-// =====================================================================
-
-interface DynamicMenuItemV2 {
-  id: string;
-  menu_key: string;
-  title: string;
-  description: string | null;
-  emoji: string | null;
-  section_title: string | null;
-  menu_type: 'submenu' | 'flow' | 'command' | 'link' | 'message';
-  target_menu_key: string | null;
-  target_flow_id: string | null;
-  target_command: string | null;
-  target_url: string | null;
-  target_message: string | null;
-  display_order: number;
-  is_active: boolean;
-  is_root: boolean;
-  show_back_button: boolean;
-  back_button_text: string | null;
-  header_message: string | null;
-  footer_message: string | null;
-  parent_menu_id: string | null;
-}
-
-/**
- * Busca menu raiz (is_root = true) do revendedor
- */
-async function getRootMenuV2(
-  supabase: SupabaseClient,
-  sellerId: string
-): Promise<DynamicMenuItemV2 | null> {
-  const { data, error } = await supabase
-    .from('bot_engine_dynamic_menus')
-    .select('*')
-    .eq('seller_id', sellerId)
-    .eq('is_root', true)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (error || !data) {
-    console.log(`[BotIntercept] No root menu found for seller ${sellerId}`);
-    return null;
-  }
-
-  return data as DynamicMenuItemV2;
-}
-
-/**
- * Busca menu por menu_key
- */
-async function getMenuByKeyV2(
-  supabase: SupabaseClient,
-  sellerId: string,
-  menuKey: string
-): Promise<DynamicMenuItemV2 | null> {
-  const { data, error } = await supabase
-    .from('bot_engine_dynamic_menus')
-    .select('*')
-    .eq('seller_id', sellerId)
-    .eq('menu_key', menuKey)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as DynamicMenuItemV2;
-}
-
-/**
- * Busca todos os itens de um menu (filhos diretos)
- */
-async function getMenuItemsV2(
-  supabase: SupabaseClient,
-  sellerId: string,
-  parentMenuId: string | null
-): Promise<DynamicMenuItemV2[]> {
-  let query = supabase
-    .from('bot_engine_dynamic_menus')
-    .select('*')
-    .eq('seller_id', sellerId)
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
-    .order('title', { ascending: true });
-
-  if (parentMenuId) {
-    query = query.eq('parent_menu_id', parentMenuId);
-  } else {
-    query = query.is('parent_menu_id', null);
-  }
-
-  const { data, error } = await query;
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data as DynamicMenuItemV2[];
-}
-
-/**
- * Busca menu pai de um menu
- */
-async function getParentMenuV2(
-  supabase: SupabaseClient,
-  sellerId: string,
-  childMenuId: string
-): Promise<DynamicMenuItemV2 | null> {
-  const { data: child } = await supabase
-    .from('bot_engine_dynamic_menus')
-    .select('parent_menu_id')
-    .eq('id', childMenuId)
-    .maybeSingle();
-
-  if (!child?.parent_menu_id) {
-    return null;
-  }
-
-  const { data: parent } = await supabase
-    .from('bot_engine_dynamic_menus')
-    .select('*')
-    .eq('id', child.parent_menu_id)
-    .maybeSingle();
-
-  return parent as DynamicMenuItemV2 | null;
-}
-
-/**
- * Renderiza menu dinâmico como LISTA INTERATIVA ou TEXTO formatado para WhatsApp
- * Retorna resposta estruturada que será serializada para o connection-heartbeat
- * 
- * @param items - Itens do menu
- * @param menuConfig - Configurações de exibição
- * @param useTextMode - Se true, renderiza como texto formatado em vez de lista interativa
- */
-function renderMenuAsListV2(
-  items: DynamicMenuItemV2[],
-  menuConfig: {
-    title?: string;
-    headerMessage?: string;
-    footerMessage?: string;
-    showBackButton?: boolean;
-    backButtonText?: string;
-    isRoot?: boolean;
-  } = {},
-  useTextMode: boolean = false
-): string {
-  // Se modo texto está ativo, usar renderização como texto formatado
-  if (useTextMode) {
-    return renderMenuAsTextV2(
-      items,
-      menuConfig.headerMessage,
-      menuConfig.footerMessage,
-      menuConfig.showBackButton ?? true,
-      menuConfig.backButtonText || '⬅️ Voltar'
-    );
-  }
-  
-  // Modo padrão: lista interativa
-  // Converter DynamicMenuItemV2 para DynamicMenuItemForList
-  const itemsForList: DynamicMenuItemForList[] = items.map(item => ({
-    id: item.id,
-    menu_key: item.menu_key,
-    title: item.title,
-    description: item.description,
-    emoji: item.emoji,
-    section_title: item.section_title,
-    menu_type: item.menu_type,
-    is_root: item.is_root,
-    show_back_button: item.show_back_button,
-    back_button_text: item.back_button_text,
-    header_message: item.header_message,
-    footer_message: item.footer_message,
-    parent_menu_id: item.parent_menu_id,
-  }));
-  
-  const interactiveList = renderMenuAsInteractiveList(itemsForList, menuConfig);
-  const response = createListResponse(interactiveList);
-  return serializeResponse(response);
-}
-
-/**
- * @deprecated Usar renderMenuAsListV2 para lista interativa
- * Mantido temporariamente para compatibilidade com fluxos legados
- */
-function renderMenuAsTextV2(
-  items: DynamicMenuItemV2[],
-  headerMessage?: string,
-  footerMessage?: string,
-  showBackButton: boolean = true,
-  backButtonText: string = '⬅️ Voltar'
-): string {
-  const lines: string[] = [];
-
-  // Header
-  if (headerMessage) {
-    lines.push(headerMessage);
-    lines.push('');
-  }
-
-  // Agrupar por seção
-  const sections = new Map<string, DynamicMenuItemV2[]>();
-  for (const item of items) {
-    const section = item.section_title || 'Opções';
-    if (!sections.has(section)) {
-      sections.set(section, []);
-    }
-    sections.get(section)!.push(item);
-  }
-
-  // Renderizar seções
-  let itemIndex = 1;
-  for (const [sectionTitle, sectionItems] of sections) {
-    if (sections.size > 1) {
-      lines.push(`📌 *${sectionTitle}*`);
-    }
-    
-    for (const item of sectionItems) {
-      const emoji = item.emoji ? `${item.emoji} ` : '';
-      lines.push(`*${itemIndex}* - ${emoji}${item.title}`);
-      if (item.description) {
-        lines.push(`   └ ${item.description}`);
-      }
-      itemIndex++;
-    }
-    lines.push('');
-  }
-
-  // Navegação
-  lines.push('────────────');
-  if (showBackButton) {
-    lines.push(`*0* - ${backButtonText}`);
-  }
-  lines.push('*#* - Menu Principal');
-
-  // Footer
-  if (footerMessage) {
-    lines.push('');
-    lines.push(footerMessage);
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Processa seleção do usuário em um menu V2
- * Suporta: rowId da lista interativa (menu_key), número, texto parcial
- * 
- * LISTA INTERATIVA: Quando o usuário seleciona uma opção da lista,
- * o WhatsApp envia o rowId (que é o menu_key do item)
- */
-async function processMenuSelectionV2(
-  supabase: SupabaseClient,
-  sellerId: string,
-  parentMenuId: string | null,
-  userInput: string
-): Promise<{
-  found: boolean;
-  isNavigation?: boolean;
-  navigationAction?: 'back' | 'home';
-  menuType?: 'submenu' | 'flow' | 'command' | 'link' | 'message';
-  targetMenuKey?: string;
-  targetFlowId?: string;
-  targetCommand?: string;
-  targetUrl?: string;
-  targetMessage?: string;
-  parentMenuId?: string;
-  selectedItem?: DynamicMenuItemV2;
-}> {
-  const normalized = userInput.trim();
-  const normalizedLower = normalized.toLowerCase();
-  
-  // 0. PRIORIDADE MÁXIMA: Verificar comandos de navegação da lista interativa
-  if (isNavigationCommand(normalized)) {
-    const navResult = processNavigationSelection(normalized);
-    if (navResult.action) {
-      console.log(`[BotIntercept] Navigation command detected: ${navResult.action}`);
-      return {
-        found: true,
-        isNavigation: true,
-        navigationAction: navResult.action,
-      };
-    }
-  }
-  
-  const items = await getMenuItemsV2(supabase, sellerId, parentMenuId);
-  
-  if (items.length === 0) {
-    return { found: false };
-  }
-
-  // 1. LISTA INTERATIVA: Verificar por menu_key exato (rowId da lista)
-  // Este é o formato que vem quando o usuário clica em um item da lista
-  const byKey = items.find(item => item.menu_key === normalized || item.menu_key.toLowerCase() === normalizedLower);
-  if (byKey) {
-    console.log(`[BotIntercept] Selection by menu_key (list rowId): ${byKey.menu_key}`);
-    return {
-      found: true,
-      menuType: byKey.menu_type,
-      targetMenuKey: byKey.target_menu_key || byKey.menu_key,
-      targetFlowId: byKey.target_flow_id || undefined,
-      targetCommand: byKey.target_command || undefined,
-      targetUrl: byKey.target_url || undefined,
-      targetMessage: byKey.target_message || undefined,
-      parentMenuId: byKey.parent_menu_id || undefined,
-      selectedItem: byKey,
-    };
-  }
-
-  // 2. FALLBACK: Verificar por número (compatibilidade legada)
-  const inputNumber = parseInt(normalizedLower, 10);
-  if (!isNaN(inputNumber) && inputNumber >= 1 && inputNumber <= items.length) {
-    const item = items[inputNumber - 1];
-    console.log(`[BotIntercept] Selection by number: ${inputNumber} -> ${item.menu_key}`);
-    return {
-      found: true,
-      menuType: item.menu_type,
-      targetMenuKey: item.target_menu_key || item.menu_key,
-      targetFlowId: item.target_flow_id || undefined,
-      targetCommand: item.target_command || undefined,
-      targetUrl: item.target_url || undefined,
-      targetMessage: item.target_message || undefined,
-      parentMenuId: item.parent_menu_id || undefined,
-      selectedItem: item,
-    };
-  }
-
-  // 3. FALLBACK: Verificar por título parcial
-  const byTitle = items.find(item => 
-    item.title.toLowerCase().includes(normalizedLower) ||
-    normalizedLower.includes(item.title.toLowerCase())
-  );
-  if (byTitle) {
-    console.log(`[BotIntercept] Selection by title match: ${byTitle.menu_key}`);
-    return {
-      found: true,
-      menuType: byTitle.menu_type,
-      targetMenuKey: byTitle.target_menu_key || byTitle.menu_key,
-      targetFlowId: byTitle.target_flow_id || undefined,
-      targetCommand: byTitle.target_command || undefined,
-      targetUrl: byTitle.target_url || undefined,
-      targetMessage: byTitle.target_message || undefined,
-      parentMenuId: byTitle.parent_menu_id || undefined,
-      selectedItem: byTitle,
-    };
-  }
-
-  return { found: false };
-}
-
-// =====================================================================
-// COMPATIBILIDADE - MENUS ANTIGOS (bot_engine_menus)
+// SISTEMA DE FLUXOS - ÚNICA FONTE DE VERDADE
+// As tabelas bot_engine_dynamic_menus e bot_engine_menus foram descontinuadas
+// O chatbot agora usa EXCLUSIVAMENTE bot_engine_flows + nodes + edges
 // =====================================================================
 
 /**
- * Busca menu dinâmico pelo menu_key (legado)
- */
-async function getDynamicMenu(
-  supabase: SupabaseClient,
-  sellerId: string,
-  menuKey: string
-): Promise<DynamicMenu | null> {
-  const { data: menu } = await supabase
-    .from('bot_engine_menus')
-    .select('*')
-    .eq('seller_id', sellerId)
-    .eq('menu_key', menuKey)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (!menu) return null;
-
-  return {
-    menu_key: menu.menu_key,
-    title: menu.title,
-    header_message: menu.header_message,
-    footer_message: menu.footer_message,
-    options: (menu.options as MenuOption[]) || [],
-    parent_menu_key: menu.parent_menu_key,
-  };
-}
-
-/**
- * Renderiza menu dinâmico como texto formatado (legado)
- */
-function renderDynamicMenu(menu: DynamicMenu): string {
-  const lines: string[] = [];
-
-  // Header
-  if (menu.header_message) {
-    lines.push(menu.header_message);
-    lines.push('');
-  } else if (menu.title) {
-    lines.push(`📋 *${menu.title}*`);
-    lines.push('');
-  }
-
-  // Opções numeradas
-  menu.options.forEach((opt, index) => {
-    lines.push(`*${index + 1}* - ${opt.label}`);
-  });
-
-  // Navegação automática
-  lines.push('');
-  if (menu.parent_menu_key) {
-    lines.push('*0* - Voltar');
-  }
-  lines.push('*#* - Menu Principal');
-
-  // Footer
-  if (menu.footer_message) {
-    lines.push('');
-    lines.push(menu.footer_message);
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Processa seleção do usuário em menu dinâmico (legado)
- */
-async function processMenuSelection(
-  supabase: SupabaseClient,
-  sellerId: string,
-  menu: DynamicMenu,
-  parsed: ParsedInput
-): Promise<{ targetMenu: string | null; targetState: string | null; action: string | null }> {
-  // Se é número, usar como índice
-  if (parsed.isNumber && parsed.number !== null) {
-    const optIndex = parsed.number - 1;
-    if (optIndex >= 0 && optIndex < menu.options.length) {
-      const option = menu.options[optIndex];
-      return {
-        targetMenu: option.target_menu || null,
-        targetState: option.target_state || null,
-        action: option.action || null,
-      };
-    }
-  }
-
-  // Buscar por keyword/label
-  for (const option of menu.options) {
-    const labelLower = option.label.toLowerCase();
-    
-    // Match exato ou parcial no label
-    if (parsed.normalized === labelLower || labelLower.includes(parsed.normalized)) {
-      return {
-        targetMenu: option.target_menu || null,
-        targetState: option.target_state || null,
-        action: option.action || null,
-      };
-    }
-
-    // Match por keywords da opção
-    if (option.keywords) {
-      for (const kw of option.keywords) {
-        if (parsed.normalized.includes(kw.toLowerCase())) {
-          return {
-            targetMenu: option.target_menu || null,
-            targetState: option.target_state || null,
-            action: option.action || null,
-          };
-        }
-      }
-    }
-  }
-
-  return { targetMenu: null, targetState: null, action: null };
-}
-
-/**
- * Busca mensagem do fluxo OU menu dinâmico baseado no estado atual
- * PRIORIDADE: bot_engine_dynamic_menus (V2) > bot_engine_menus (legado) > bot_engine_flows
+ * Busca mensagem de um nó de fluxo baseado no estado atual
+ * ÚNICA FONTE: bot_engine_flows + nodes
  */
 async function getFlowMessage(
   supabase: SupabaseClient,
   sellerId: string,
   state: string,
-  useTextMenus: boolean = false
+  _useTextMenus: boolean = false
 ): Promise<string | null> {
-  // =========================================================
-  // PRIORIDADE 1: Tentar menu dinâmico V2 (bot_engine_dynamic_menus)
-  // =========================================================
-  const menuV2 = await getMenuByKeyV2(supabase, sellerId, state);
-  if (menuV2) {
-    console.log(`[BotIntercept] Found V2 menu: ${state}`);
-    const menuItems = await getMenuItemsV2(supabase, sellerId, menuV2.id);
-    return renderMenuAsListV2(menuItems, {
-      title: menuV2.title || 'Menu',
-      headerMessage: menuV2.header_message || undefined,
-      footerMessage: menuV2.footer_message || undefined,
-      showBackButton: menuV2.show_back_button,
-      backButtonText: menuV2.back_button_text || 'Voltar',
-      isRoot: menuV2.is_root,
-    }, useTextMenus);
-  }
-
-  // =========================================================
-  // PRIORIDADE 2: Tentar menu legado (bot_engine_menus)
-  // =========================================================
-  const dynamicMenu = await getDynamicMenu(supabase, sellerId, state);
-  if (dynamicMenu) {
-    console.log(`[BotIntercept] Found legacy menu: ${state}`);
-    return renderDynamicMenu(dynamicMenu);
-  }
-
-  // =========================================================
-  // PRIORIDADE 3: Buscar fluxo tradicional (bot_engine_flows)
-  // =========================================================
+  // Buscar fluxos ativos do vendedor
   const { data: flows } = await supabase
     .from('bot_engine_flows')
     .select('id, trigger_keywords')
@@ -1067,7 +549,7 @@ async function getFlowMessage(
   for (const flow of flows) {
     const { data: nodes } = await supabase
       .from('bot_engine_nodes')
-      .select('id, config, node_type')
+      .select('id, config, node_type, name')
       .eq('flow_id', flow.id)
       .eq('seller_id', sellerId);
 
@@ -1076,6 +558,7 @@ async function getFlowMessage(
       const matchingNode = nodes.find((n) => {
         const config = n.config as Record<string, unknown> || {};
         return (
+          n.name === state ||
           config.state_name === state || 
           config.menu_key === state ||
           (state === 'START' && n.node_type === 'start')
@@ -1094,205 +577,19 @@ async function getFlowMessage(
 
 /**
  * Processa entrada do usuário e determina próximo estado/resposta
- * PRIORIDADE: Menus V2 (bot_engine_dynamic_menus) > Menus legado > Fluxos tradicionais
+ * ÚNICA FONTE: bot_engine_flows + nodes + edges
  */
 async function processUserInput(
   supabase: SupabaseClient,
   sellerId: string,
   currentState: string,
   parsed: ParsedInput,
-  currentStack: string[],
-  useTextMenus: boolean = false
+  _currentStack: string[],
+  _useTextMenus: boolean = false
 ): Promise<{ newState: string; response: string | null; pushToStack: boolean }> {
   
   // =========================================================
-  // PRIORIDADE 0: Verificar menu dinâmico V2 (bot_engine_dynamic_menus)
-  // =========================================================
-  const currentMenuV2 = await getMenuByKeyV2(supabase, sellerId, currentState);
-  
-  if (currentMenuV2) {
-    console.log(`[BotIntercept] Processing V2 dynamic menu: ${currentState}`);
-    
-    const menuItemsV2 = await getMenuItemsV2(supabase, sellerId, currentMenuV2.id);
-    const selection = await processMenuSelectionV2(supabase, sellerId, currentMenuV2.id, parsed.original);
-    
-    if (selection.found) {
-      // Determinar ação baseada no tipo
-      switch (selection.menuType) {
-        case 'submenu':
-          if (selection.targetMenuKey) {
-            const targetMenuV2 = await getMenuByKeyV2(supabase, sellerId, selection.targetMenuKey);
-            if (targetMenuV2) {
-              const targetItems = await getMenuItemsV2(supabase, sellerId, targetMenuV2.id);
-              return {
-                newState: selection.targetMenuKey,
-                response: renderMenuAsListV2(targetItems, {
-                  title: targetMenuV2.title || 'Menu',
-                  headerMessage: targetMenuV2.header_message || undefined,
-                  footerMessage: targetMenuV2.footer_message || undefined,
-                  showBackButton: targetMenuV2.show_back_button,
-                  backButtonText: targetMenuV2.back_button_text || 'Voltar',
-                  isRoot: targetMenuV2.is_root,
-                }, useTextMenus),
-                pushToStack: true,
-              };
-            }
-          }
-          break;
-          
-        case 'flow':
-          if (selection.targetFlowId) {
-            // Buscar mensagem do fluxo
-            const flowResponse = await getFlowMessage(supabase, sellerId, selection.targetFlowId, useTextMenus);
-            return {
-              newState: selection.targetFlowId,
-              response: flowResponse,
-              pushToStack: true,
-            };
-          }
-          break;
-          
-        case 'command':
-          // Comando técnico - deixar passar para handler existente
-          if (selection.targetCommand) {
-            console.log(`[BotIntercept] Menu action: execute command ${selection.targetCommand}`);
-            // Não interceptar - deixar o sistema de comandos processar
-            return {
-              newState: currentState,
-              response: null,
-              pushToStack: false,
-            };
-          }
-          break;
-          
-        case 'link':
-          return {
-            newState: currentState,
-            response: `🔗 Acesse: ${selection.targetUrl}`,
-            pushToStack: false,
-          };
-          
-        case 'message':
-          return {
-            newState: currentState,
-            response: selection.targetMessage || 'Mensagem não configurada.',
-            pushToStack: false,
-          };
-      }
-    }
-    
-    // Opção não reconhecida - mostrar menu novamente como lista interativa
-    return {
-      newState: currentState,
-      response: renderMenuAsListV2(menuItemsV2, {
-        title: currentMenuV2.title || 'Menu',
-        headerMessage: `❌ Opção inválida.\n\n${currentMenuV2.header_message || 'Escolha uma opção:'}`,
-        footerMessage: currentMenuV2.footer_message || undefined,
-        showBackButton: currentMenuV2.show_back_button,
-        backButtonText: currentMenuV2.back_button_text || 'Voltar',
-        isRoot: currentMenuV2.is_root,
-      }, useTextMenus),
-      pushToStack: false,
-    };
-  }
-
-  // =========================================================
-  // PRIORIDADE 0.5: Verificar se há menu ROOT V2 para START
-  // =========================================================
-  if (currentState === 'START') {
-    const rootMenuV2 = await getRootMenuV2(supabase, sellerId);
-    if (rootMenuV2) {
-      const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2.id);
-      return {
-        newState: rootMenuV2.menu_key,
-        response: renderMenuAsListV2(rootItems, {
-          title: rootMenuV2.title || 'Menu Principal',
-          headerMessage: rootMenuV2.header_message || undefined,
-          footerMessage: rootMenuV2.footer_message || undefined,
-          showBackButton: false,
-          isRoot: true,
-        }, useTextMenus),
-        pushToStack: false,
-      };
-    }
-  }
-
-  // =========================================================
-  // PRIORIDADE 1: Verificar menu dinâmico LEGADO no estado atual
-  // =========================================================
-  const currentMenu = await getDynamicMenu(supabase, sellerId, currentState);
-  
-  if (currentMenu) {
-    console.log(`[BotIntercept] Processing legacy dynamic menu: ${currentState}`);
-    
-    const selection = await processMenuSelection(supabase, sellerId, currentMenu, parsed);
-    
-    if (selection.targetMenu) {
-      // Navegar para submenu
-      const targetMenu = await getDynamicMenu(supabase, sellerId, selection.targetMenu);
-      if (targetMenu) {
-        return {
-          newState: selection.targetMenu,
-          response: renderDynamicMenu(targetMenu),
-          pushToStack: true,
-        };
-      }
-    }
-    
-    if (selection.targetState) {
-      // Navegar para estado específico (pode ser nó de fluxo ou outro menu)
-      const response = await getFlowMessage(supabase, sellerId, selection.targetState, useTextMenus);
-      return {
-        newState: selection.targetState,
-        response,
-        pushToStack: true,
-      };
-    }
-    
-    if (selection.action) {
-      // Executar ação especial
-      switch (selection.action) {
-        case 'human':
-        case 'humano':
-          return {
-            newState: 'AGUARDANDO_HUMANO',
-            response: '👤 Aguarde, um atendente irá te atender em breve!',
-            pushToStack: false,
-          };
-        case 'end':
-        case 'sair':
-          return {
-            newState: 'ENCERRADO',
-            response: '👋 Obrigado pelo contato! Até mais!',
-            pushToStack: false,
-          };
-      }
-    }
-    
-    // Opção não reconhecida - mostrar menu novamente com dica
-    return {
-      newState: currentState,
-      response: `❌ Opção inválida. Digite o *número* da opção desejada.\n\n${renderDynamicMenu(currentMenu)}`,
-      pushToStack: false,
-    };
-  }
-
-  // =========================================================
-  // PRIORIDADE 2: Verificar se START tem menu dinâmico LEGADO
-  // =========================================================
-  if (currentState === 'START') {
-    const startMenu = await getDynamicMenu(supabase, sellerId, 'MENU_PRINCIPAL');
-    if (startMenu) {
-      return {
-        newState: 'MENU_PRINCIPAL',
-        response: renderDynamicMenu(startMenu),
-        pushToStack: false,
-      };
-    }
-  }
-
-  // =========================================================
-  // FALLBACK: Fluxo tradicional via bot_engine_flows
+  // BUSCAR FLUXO ATIVO DO VENDEDOR
   // =========================================================
   const { data: flows } = await supabase
     .from('bot_engine_flows')
@@ -1303,42 +600,60 @@ async function processUserInput(
     .limit(1);
 
   if (!flows || flows.length === 0) {
+    console.log(`[BotIntercept] No active flows for seller ${sellerId}`);
     return { newState: currentState, response: null, pushToStack: false };
   }
 
   const flowId = flows[0].id;
 
-  // Buscar nó atual baseado no estado
-  const { data: currentNode } = await supabase
+  // =========================================================
+  // BUSCAR NÓ ATUAL BASEADO NO ESTADO
+  // =========================================================
+  const { data: allNodes } = await supabase
     .from('bot_engine_nodes')
-    .select('id, config, node_type')
+    .select('id, config, node_type, name')
     .eq('flow_id', flowId)
-    .eq('seller_id', sellerId)
-    .filter('config->>state_name', 'eq', currentState)
-    .maybeSingle();
+    .eq('seller_id', sellerId);
+
+  if (!allNodes || allNodes.length === 0) {
+    return { newState: currentState, response: null, pushToStack: false };
+  }
+
+  // Encontrar nó atual por nome ou state_name
+  const currentNode = allNodes.find((n) => {
+    const config = n.config as Record<string, unknown> || {};
+    return (
+      n.name === currentState ||
+      config.state_name === currentState ||
+      (currentState === 'START' && n.node_type === 'start')
+    );
+  });
 
   if (!currentNode) {
+    // Se estado é START, buscar entry point
     if (currentState === 'START') {
-      const { data: entryNode } = await supabase
-        .from('bot_engine_nodes')
-        .select('id, config')
-        .eq('flow_id', flowId)
-        .eq('is_entry_point', true)
-        .maybeSingle();
+      const entryNode = allNodes.find(n => n.node_type === 'start') || 
+                        allNodes.find(n => {
+                          const cfg = n.config as Record<string, unknown> || {};
+                          return cfg.is_entry_point === true;
+                        });
 
       if (entryNode) {
         const config = entryNode.config as Record<string, unknown> || {};
         return { 
-          newState: 'START', 
+          newState: entryNode.name || 'START', 
           response: (config.message_text as string) || null,
           pushToStack: false
         };
       }
     }
+    console.log(`[BotIntercept] No node found for state: ${currentState}`);
     return { newState: currentState, response: null, pushToStack: false };
   }
 
-  // Buscar edges (transições) do nó atual
+  // =========================================================
+  // BUSCAR EDGES (TRANSIÇÕES) DO NÓ ATUAL
+  // =========================================================
   const { data: edges } = await supabase
     .from('bot_engine_edges')
     .select('id, target_node_id, condition_type, condition_value, priority')
@@ -1347,10 +662,14 @@ async function processUserInput(
     .order('priority', { ascending: false });
 
   if (!edges || edges.length === 0) {
+    // Sem transições definidas - aguardar silenciosamente (comportamento solicitado)
+    console.log(`[BotIntercept] No edges from node ${currentNode.name || currentNode.id} - waiting silently`);
     return { newState: currentState, response: null, pushToStack: false };
   }
 
-  // Avaliar condições para encontrar próximo nó
+  // =========================================================
+  // AVALIAR CONDIÇÕES PARA ENCONTRAR PRÓXIMO NÓ
+  // =========================================================
   for (const edge of edges) {
     let matches = false;
 
@@ -1359,7 +678,7 @@ async function processUserInput(
         matches = true;
         break;
       case 'equals':
-        matches = parsed.normalized === (edge.condition_value || '').toLowerCase();
+        matches = parsed.normalized === (edge.condition_value || '').toLowerCase().trim();
         break;
       case 'number':
         matches = parsed.isNumber && parsed.number === parseInt(edge.condition_value || '0');
@@ -1374,19 +693,21 @@ async function processUserInput(
           matches = false;
         }
         break;
+      default:
+        // Tipo de condição não reconhecido - não faz match
+        matches = false;
     }
 
     if (matches) {
-      const { data: targetNode } = await supabase
-        .from('bot_engine_nodes')
-        .select('id, config, node_type')
-        .eq('id', edge.target_node_id)
-        .maybeSingle();
+      // Encontrar nó de destino nos nós já carregados
+      const targetNode = allNodes.find(n => n.id === edge.target_node_id);
 
       if (targetNode) {
         const config = targetNode.config as Record<string, unknown> || {};
-        const newState = (config.state_name as string) || currentState;
+        const newState = targetNode.name || (config.state_name as string) || currentState;
         const response = (config.message_text as string) || null;
+
+        console.log(`[BotIntercept] Transition: ${currentState} -> ${newState} (condition: ${edge.condition_type}=${edge.condition_value})`);
 
         return { 
           newState, 
@@ -1397,6 +718,10 @@ async function processUserInput(
     }
   }
 
+  // =========================================================
+  // NENHUMA CONDIÇÃO ATENDIDA - SILÊNCIO (SEM FALLBACK)
+  // =========================================================
+  console.log(`[BotIntercept] No matching edge for input "${parsed.normalized}" - staying silent`);
   return { newState: currentState, response: null, pushToStack: false };
 }
 
@@ -1948,363 +1273,71 @@ Deno.serve(async (req) => {
         }
       } else {
         // =========================================================
-        // PASSO 4b: PRIORIDADE MÁXIMA - MENUS DINÂMICOS V2
-        // =========================================================
-        // Verifica se existem menus dinâmicos configurados
-        // Se sim, usa o sistema de menus V2 ao invés da máquina de estados
+        // PASSO 4b: SISTEMA DE FLUXOS (ÚNICA FONTE)
+        // Menus V2 foram removidos - usar apenas bot_engine_flows
         // =========================================================
         
-        const rootMenuV2 = await getRootMenuV2(supabase, sellerId);
-        const hasMenusV2 = !!rootMenuV2;
+        console.log(`[BotIntercept] Processing via FLOW SYSTEM (flows only)`);
         
-        console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
-        console.log(`[BotIntercept] MENU V2 CHECK`);
-        console.log(`[BotIntercept] - Has root menu V2: ${hasMenusV2}`);
-        if (rootMenuV2) {
-          console.log(`[BotIntercept] - Root menu key: ${rootMenuV2.menu_key}`);
-          console.log(`[BotIntercept] - Root menu title: ${rootMenuV2.title}`);
-        }
-        console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
-        
-        if (hasMenusV2) {
-          // =========================================================
-          // SISTEMA DE MENUS DINÂMICOS V2 ATIVO
-          // =========================================================
+        if (shouldSendWelcome) {
+          console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE`);
+          console.log(`[BotIntercept] Message: "${welcomeMessage}"`);
+          responseMessage = welcomeMessage;
+          newState = 'START';
           
-          // Determinar em qual menu estamos (do contexto da sessão)
-          const currentMenuKey = (session?.context as Record<string, unknown>)?.current_menu_key as string || rootMenuV2!.menu_key;
-          const currentMenuV2 = await getMenuByKeyV2(supabase, sellerId, currentMenuKey);
+          const { error: upsertError } = await supabase
+            .from('bot_sessions')
+            .upsert({
+              user_id: userId,
+              seller_id: sellerId,
+              phone: userId,
+              state: 'START',
+              previous_state: 'START',
+              stack: [],
+              context: { interaction_count: 1 },
+              locked: false,
+              last_interaction: now.toISOString(),
+              updated_at: now.toISOString()
+            }, {
+              onConflict: 'user_id,seller_id',
+            });
           
-          console.log(`[BotIntercept] V2 Menu Navigation - Current: ${currentMenuKey}`);
-          
-          // Se é primeira mensagem ou cooldown expirou, mostrar menu raiz
-          if (shouldSendWelcome) {
-            console.log(`[BotIntercept] ✅ SENDING DYNAMIC MENU V2 (first contact/cooldown)`);
-            
-            // Buscar itens do menu raiz (filhos diretos com parent_menu_id = rootMenuV2.id)
-            const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
-            
-            console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
-            console.log(`[BotIntercept] ROOT MENU V2 ITEMS FETCH`);
-            console.log(`[BotIntercept] - Root menu ID: ${rootMenuV2!.id}`);
-            console.log(`[BotIntercept] - Root menu key: ${rootMenuV2!.menu_key}`);
-            console.log(`[BotIntercept] - Items found: ${rootItems.length}`);
-            if (rootItems.length > 0) {
-              console.log(`[BotIntercept] - First 5 items:`, rootItems.slice(0, 5).map(i => `${i.menu_key}: ${i.title}`).join(', '));
-            } else {
-              console.log(`[BotIntercept] ⚠️ NO ITEMS FOUND - menu will be empty!`);
-            }
-            console.log(`[BotIntercept] ═══════════════════════════════════════════════════`);
-            
-            // Renderizar menu como LISTA INTERATIVA ou TEXTO
-            responseMessage = renderMenuAsListV2(rootItems, {
-              title: rootMenuV2!.title || 'Bem-vindo!',
-              headerMessage: rootMenuV2!.header_message || 'Olá! 👋 Seja bem-vindo(a)!\n\nEscolha uma opção:',
-              footerMessage: rootMenuV2!.footer_message || undefined,
-              showBackButton: false, // Não mostrar voltar no menu raiz
-              isRoot: true,
-            }, useTextMenus);
-            
-            console.log(`[BotIntercept] Generated LIST response (structured)`);
-            
-            newState = 'MENU_V2';
-            
-            // Atualizar sessão com contexto do menu V2
-            const { error: upsertError } = await supabase
-              .from('bot_sessions')
-              .upsert({
-                user_id: userId,
-                seller_id: sellerId,
-                phone: userId,
-                state: 'MENU_V2',
-                previous_state: 'START',
-                stack: [],
-                context: { 
-                  interaction_count: 1,
-                  current_menu_key: rootMenuV2!.menu_key,
-                  current_menu_id: rootMenuV2!.id,
-                  menu_v2_active: true,
-                },
-                locked: false,
-                last_interaction: now.toISOString(),
-                updated_at: now.toISOString()
-              }, {
-                onConflict: 'user_id,seller_id',
-              });
-            
-            if (upsertError) {
-              console.error(`[BotIntercept] Error upserting session:`, upsertError);
-            } else {
-              console.log(`[BotIntercept] Session upserted with menu V2 context`);
-            }
-            
+          if (upsertError) {
+            console.error(`[BotIntercept] Error upserting session:`, upsertError);
           } else {
-            // Processar navegação no menu V2
-            console.log(`[BotIntercept] Processing V2 menu navigation - Input: "${message_text}"`);
+            console.log(`[BotIntercept] Session upserted successfully for ${userId}`);
+          }
+        } else {
+          // =========================================================
+          // PROCESSAR VIA SISTEMA DE FLUXOS
+          // =========================================================
+          console.log(`[BotIntercept] Processing input via FLOW-BASED system, current state: ${currentState}`);
+          
+          // Usar processUserInput que agora usa APENAS fluxos
+          const flowResult = await processUserInput(
+            supabase,
+            sellerId,
+            currentState,
+            parsed,
+            currentStack,
+            useTextMenus
+          );
+          
+          if (flowResult.response) {
+            responseMessage = flowResult.response;
+            newState = flowResult.newState;
             
-            const currentMenuId = (session?.context as Record<string, unknown>)?.current_menu_id as string || rootMenuV2!.id;
-            
-            // Processar seleção do usuário
-            const selection = await processMenuSelectionV2(supabase, sellerId, currentMenuId, message_text);
-            
-            console.log(`[BotIntercept] Selection result:`, JSON.stringify(selection));
-            
-            if (selection.found) {
-              // ═════════════════════════════════════════════════════
-              // PROCESSAR NAVEGAÇÃO (Voltar / Menu Principal)
-              // ═════════════════════════════════════════════════════
-              if (selection.isNavigation && selection.navigationAction) {
-                console.log(`[BotIntercept] Navigation action: ${selection.navigationAction}`);
-                
-                if (selection.navigationAction === 'back') {
-                  // Voltar ao menu anterior (do stack)
-                  if (currentStack.length > 0) {
-                    const previousMenuKey = currentStack.pop();
-                    const prevMenu = await getMenuByKeyV2(supabase, sellerId, previousMenuKey!);
-                    
-                    if (prevMenu) {
-                      const menuItems = await getMenuItemsV2(supabase, sellerId, prevMenu.id);
-                      responseMessage = renderMenuAsListV2(menuItems, {
-                        title: prevMenu.title || 'Menu',
-                        headerMessage: prevMenu.header_message || undefined,
-                        footerMessage: prevMenu.footer_message || undefined,
-                        showBackButton: prevMenu.show_back_button,
-                        backButtonText: prevMenu.back_button_text || 'Voltar',
-                        isRoot: prevMenu.is_root,
-                      }, useTextMenus);
-                      
-                      await supabase
-                        .from('bot_sessions')
-                        .update({
-                          stack: currentStack,
-                          context: {
-                            ...(session?.context as Record<string, unknown> || {}),
-                            interaction_count: interactionCount + 1,
-                            current_menu_key: prevMenu.menu_key,
-                            current_menu_id: prevMenu.id,
-                          },
-                          last_interaction: now.toISOString(),
-                        })
-                        .eq('user_id', userId)
-                        .eq('seller_id', sellerId);
-                    }
-                  } else {
-                    // Stack vazio - ir para menu raiz
-                    const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
-                    responseMessage = renderMenuAsListV2(rootItems, {
-                      title: rootMenuV2!.title || 'Menu Principal',
-                      headerMessage: rootMenuV2!.header_message || undefined,
-                      footerMessage: rootMenuV2!.footer_message || undefined,
-                      showBackButton: false,
-                      isRoot: true,
-                    }, useTextMenus);
-                    
-                    await supabase
-                      .from('bot_sessions')
-                      .update({
-                        stack: [],
-                        context: {
-                          ...(session?.context as Record<string, unknown> || {}),
-                          interaction_count: interactionCount + 1,
-                          current_menu_key: rootMenuV2!.menu_key,
-                          current_menu_id: rootMenuV2!.id,
-                        },
-                        last_interaction: now.toISOString(),
-                      })
-                      .eq('user_id', userId)
-                      .eq('seller_id', sellerId);
-                  }
-                } else if (selection.navigationAction === 'home') {
-                  // Ir para menu raiz
-                  const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
-                  responseMessage = renderMenuAsListV2(rootItems, {
-                    title: rootMenuV2!.title || 'Menu Principal',
-                    headerMessage: rootMenuV2!.header_message || undefined,
-                    footerMessage: rootMenuV2!.footer_message || undefined,
-                    showBackButton: false,
-                    isRoot: true,
-                  }, useTextMenus);
-                  
-                  // Limpar stack e resetar para raiz
-                  await supabase
-                    .from('bot_sessions')
-                    .update({
-                      stack: [],
-                      context: {
-                        ...(session?.context as Record<string, unknown> || {}),
-                        interaction_count: interactionCount + 1,
-                        current_menu_key: rootMenuV2!.menu_key,
-                        current_menu_id: rootMenuV2!.id,
-                      },
-                      last_interaction: now.toISOString(),
-                    })
-                    .eq('user_id', userId)
-                    .eq('seller_id', sellerId);
-                }
-              } else {
-                // ═════════════════════════════════════════════════════
-                // PROCESSAR SELEÇÃO DE MENU NORMAL
-                // ═════════════════════════════════════════════════════
-                switch (selection.menuType) {
-                case 'submenu':
-                  // Navegar para submenu
-                  if (selection.targetMenuKey) {
-                    const targetMenu = await getMenuByKeyV2(supabase, sellerId, selection.targetMenuKey);
-                    if (targetMenu) {
-                      const menuItems = await getMenuItemsV2(supabase, sellerId, targetMenu.id);
-                      
-                      responseMessage = renderMenuAsListV2(menuItems, {
-                        title: targetMenu.title || 'Menu',
-                        headerMessage: targetMenu.header_message || undefined,
-                        footerMessage: targetMenu.footer_message || undefined,
-                        showBackButton: targetMenu.show_back_button,
-                        backButtonText: targetMenu.back_button_text || 'Voltar',
-                        isRoot: targetMenu.is_root,
-                      }, useTextMenus);
-                      
-                      newState = 'MENU_V2';
-                      currentStack.push(currentMenuKey);
-                      
-                      // Atualizar contexto com novo menu
-                      await supabase
-                        .from('bot_sessions')
-                        .update({
-                          state: 'MENU_V2',
-                          previous_state: currentState,
-                          stack: currentStack,
-                          context: {
-                            ...(session?.context as Record<string, unknown> || {}),
-                            interaction_count: interactionCount + 1,
-                            current_menu_key: targetMenu.menu_key,
-                            current_menu_id: targetMenu.id,
-                            menu_v2_active: true,
-                          },
-                          last_interaction: now.toISOString(),
-                        })
-                        .eq('user_id', userId)
-                        .eq('seller_id', sellerId);
-                    }
-                  }
-                  break;
-                  
-                case 'message':
-                  // Enviar mensagem simples
-                  responseMessage = selection.targetMessage || 'Mensagem não configurada.';
-                  break;
-                  
-                case 'link':
-                  // Enviar link
-                  responseMessage = selection.targetUrl 
-                    ? `🔗 Acesse: ${selection.targetUrl}`
-                    : 'Link não configurado.';
-                  break;
-                  
-                case 'command':
-                  // Executar comando - chamar process-whatsapp-command diretamente
-                  if (selection.targetCommand) {
-                    console.log(`[BotIntercept] Executing command directly: ${selection.targetCommand}`);
-                    
-                    try {
-                      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-                      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-                      
-                      // Chamar a edge function de comandos
-                      const commandResponse = await fetch(`${supabaseUrl}/functions/v1/process-whatsapp-command`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${serviceRoleKey}`,
-                        },
-                        body: JSON.stringify({
-                          seller_id: sellerId,
-                          command_text: selection.targetCommand,
-                          sender_phone: userId, // userId é o telefone normalizado
-                          instance_name: null, // Será obtido pelo comando
-                          logs_enabled: true,
-                          from_attendant: false,
-                        }),
-                      });
-                      
-                      if (commandResponse.ok) {
-                        const commandResult = await commandResponse.json();
-                        console.log(`[BotIntercept] Command result:`, JSON.stringify(commandResult).substring(0, 500));
-                        
-                        if (commandResult.success && commandResult.response) {
-                          responseMessage = commandResult.response;
-                          console.log(`[BotIntercept] ✅ Command executed, returning response`);
-                        } else if (commandResult.error) {
-                          console.log(`[BotIntercept] ⚠️ Command failed: ${commandResult.error}`);
-                          responseMessage = `❌ Não foi possível processar o comando. Por favor, tente novamente mais tarde.`;
-                        } else {
-                          console.log(`[BotIntercept] ⚠️ Command returned no response`);
-                          responseMessage = `⏳ Seu pedido está sendo processado. Aguarde um momento.`;
-                        }
-                      } else {
-                        const errorText = await commandResponse.text();
-                        console.error(`[BotIntercept] ❌ Command HTTP error ${commandResponse.status}: ${errorText.substring(0, 200)}`);
-                        responseMessage = `❌ Erro ao processar comando. Tente novamente.`;
-                      }
-                    } catch (cmdError) {
-                      console.error(`[BotIntercept] ❌ Command execution error:`, cmdError);
-                      responseMessage = `❌ Erro interno. Por favor, tente novamente.`;
-                    }
-                  }
-                  break;
-                  
-                case 'flow':
-                  // Iniciar fluxo do BotEngine
-                  if (selection.targetFlowId) {
-                    console.log(`[BotIntercept] Starting flow: ${selection.targetFlowId}`);
-                    // Buscar entry point do fluxo
-                    const { data: entryNode } = await supabase
-                      .from('bot_engine_nodes')
-                      .select('id, config, node_type')
-                      .eq('flow_id', selection.targetFlowId)
-                      .eq('seller_id', sellerId)
-                      .eq('is_entry_point', true)
-                      .maybeSingle();
-                    
-                    if (entryNode) {
-                      const nodeConfig = entryNode.config as Record<string, unknown> || {};
-                      responseMessage = (nodeConfig.message_text as string) || 'Fluxo iniciado.';
-                      newState = (nodeConfig.state_name as string) || 'FLOW_' + selection.targetFlowId.substring(0, 8);
-                    }
-                  }
-                  break;
-              }
-              } // Fecha o else do processamento normal de seleção
-            } else {
-              // Opção não encontrada - mostrar menu atual novamente
-              console.log(`[BotIntercept] Option not found, reshowing current menu`);
-              
-              if (currentMenuV2) {
-                const menuItems = await getMenuItemsV2(supabase, sellerId, currentMenuV2.id);
-                
-                responseMessage = renderMenuAsListV2(menuItems, {
-                  title: currentMenuV2.title || 'Menu',
-                  headerMessage: `❌ Opção inválida.\n\n${currentMenuV2.header_message || 'Escolha uma opção:'}`,
-                  footerMessage: currentMenuV2.footer_message || undefined,
-                  showBackButton: currentMenuV2.show_back_button,
-                  backButtonText: currentMenuV2.back_button_text || 'Voltar',
-                  isRoot: currentMenuV2.is_root,
-                }, useTextMenus);
-              } else {
-                // Fallback para menu raiz
-                const rootItems = await getMenuItemsV2(supabase, sellerId, rootMenuV2!.id);
-                responseMessage = renderMenuAsListV2(rootItems, {
-                  title: rootMenuV2!.title || 'Menu Principal',
-                  headerMessage: rootMenuV2!.header_message || 'Escolha uma opção:',
-                  footerMessage: rootMenuV2!.footer_message || undefined,
-                  showBackButton: false,
-                  isRoot: true,
-                }, useTextMenus);
-              }
+            if (flowResult.pushToStack && currentState !== 'START') {
+              currentStack.push(currentState);
             }
             
-            // Atualizar contagem de interações
+            // Atualizar sessão
             await supabase
               .from('bot_sessions')
               .update({
+                state: newState,
+                previous_state: currentState,
+                stack: currentStack,
                 context: {
                   ...(session?.context as Record<string, unknown> || {}),
                   interaction_count: interactionCount + 1,
@@ -2313,44 +1346,9 @@ Deno.serve(async (req) => {
               })
               .eq('user_id', userId)
               .eq('seller_id', sellerId);
-          }
-          
-        } else {
-          // =========================================================
-          // FALLBACK: MÁQUINA DE ESTADOS LEGADA (sem menus V2)
-          // =========================================================
-          
-          if (shouldSendWelcome) {
-            console.log(`[BotIntercept] ✅ SENDING WELCOME MESSAGE (legacy)`);
-            console.log(`[BotIntercept] Message: "${welcomeMessage}"`);
-            responseMessage = welcomeMessage;
-            newState = 'START';
-            
-            const { error: upsertError } = await supabase
-              .from('bot_sessions')
-              .upsert({
-                user_id: userId,
-                seller_id: sellerId,
-                phone: userId,
-                state: 'START',
-                previous_state: 'START',
-                stack: [],
-                context: { interaction_count: 1 },
-                locked: false,
-                last_interaction: now.toISOString(),
-                updated_at: now.toISOString()
-              }, {
-                onConflict: 'user_id,seller_id',
-              });
-            
-            if (upsertError) {
-              console.error(`[BotIntercept] Error upserting session:`, upsertError);
-            } else {
-              console.log(`[BotIntercept] Session upserted successfully for ${userId}`);
-            }
           } else {
-            // Processar via máquina de estados
-            console.log(`[BotIntercept] Processing via STATE MACHINE, current state: ${currentState}`);
+            // Sem resposta do fluxo - verificar máquina de estados legada
+            console.log(`[BotIntercept] No flow response, trying STATE MACHINE`);
             
             const isAwaitingInput = (session?.context as Record<string, unknown>)?.awaiting_input === true;
             const inputVariableName = (session?.context as Record<string, unknown>)?.input_variable_name as string | null;
