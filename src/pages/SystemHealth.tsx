@@ -133,16 +133,16 @@ export default function SystemHealth() {
   const counts = getStatusCounts();
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6 max-w-full overflow-x-hidden">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Activity className="h-6 w-6" />
-              Sistema de Autocura
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Activity className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
+              <span className="truncate">Sistema de Autocura</span>
             </h1>
-            <p className="text-muted-foreground">
-              Monitoramento e reparo automático do sistema
+            <p className="text-muted-foreground text-sm">
+              Monitoramento e reparo automático
             </p>
           </div>
           
@@ -166,7 +166,7 @@ export default function SystemHealth() {
         </div>
 
         {/* Status Overview */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
           <Card className={`border-l-4 ${
             overallStatus === 'healthy' ? 'border-l-green-500' :
             overallStatus === 'warning' ? 'border-l-yellow-500' : 'border-l-red-500'
@@ -247,7 +247,7 @@ export default function SystemHealth() {
 
           {/* Components Tab */}
           <TabsContent value="components" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {statuses.map((status) => (
                 <Card key={status.id} className="relative overflow-hidden">
                   <div className={`absolute top-0 right-0 w-2 h-full ${statusColors[status.status]}`} />

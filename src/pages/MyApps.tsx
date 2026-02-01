@@ -326,12 +326,12 @@ export default function MyApps() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Meus Aplicativos</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Gerencie os aplicativos para envio automático aos clientes
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">Meus Aplicativos</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+            Gerencie apps para envio automático aos clientes
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {

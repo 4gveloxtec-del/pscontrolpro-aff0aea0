@@ -378,14 +378,14 @@ export default function Settings() {
 
   // Price settings view (Admin only)
   if (showPriceSettings && isAdmin) {
-    return (
-      <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => setShowPriceSettings(false)}>
-            ← Voltar
-          </Button>
-          <h1 className="text-xl font-bold">Valor do Aplicativo</h1>
-        </div>
+  return (
+    <div className="space-y-6 animate-fade-in max-w-lg mx-auto px-4 max-w-full overflow-x-hidden">
+      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+        <Button variant="ghost" size="sm" onClick={() => setShowPriceSettings(false)}>
+          ← Voltar
+        </Button>
+        <h1 className="text-lg sm:text-xl font-bold truncate">Valor do Aplicativo</h1>
+      </div>
 
         <form onSubmit={handlePriceSubmit} className="space-y-4">
           <div className="space-y-2">

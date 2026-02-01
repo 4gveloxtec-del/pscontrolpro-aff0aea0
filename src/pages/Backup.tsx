@@ -405,10 +405,10 @@ export default function Backup() {
     setSelectedModules(['whatsapp_templates']);
   };
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Backup Limpo Completo</h1>
-        <p className="text-muted-foreground">Sistema de backup para migração entre projetos (Admin)</p>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">Backup Limpo Completo</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Sistema de backup para migração entre projetos</p>
       </div>
 
       {/* Main Backup Card */}
@@ -423,7 +423,7 @@ export default function Backup() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="p-4 bg-background/50 rounded-lg border">
               <h3 className="font-semibold flex items-center gap-2 mb-2">
                 <FileJson className="h-4 w-4 text-primary" />
