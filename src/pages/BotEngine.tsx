@@ -50,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FlowNodesEditor } from '@/components/botEngine/FlowNodesEditor';
+import { SimpleNodeEditor } from '@/components/botEngine/SimpleNodeEditor';
 
 export default function BotEngine() {
   const { user } = useAuth();
@@ -629,79 +629,122 @@ export default function BotEngine() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {flows.map((flow) => (
-                <Card key={flow.id} className={!flow.is_active ? 'opacity-60' : ''}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{flow.name}</CardTitle>
-                      <Badge variant={flow.is_active ? 'default' : 'secondary'}>
-                        {flow.is_active ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </div>
-                    <CardDescription className="line-clamp-2">
-                      {flow.description || 'Sem descrição'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                      <Badge variant="outline" className="text-xs">
-                        {flow.trigger_type}
-                      </Badge>
-                      {flow.trigger_keywords?.length > 0 && (
-                        <span className="text-xs">
-                          {flow.trigger_keywords.length} palavras-chave
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Ver/Editar Nós</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleFlowActive(flow)}
-                      >
-                        {flow.is_active ? (
-                          <Pause className="h-4 w-4" />
-                        ) : (
-                          <Play className="h-4 w-4" />
+              {flows.map((flow) => {
+                // Labels amigáveis para tipos de gatilho
+                const triggerLabels: Record<string, { emoji: string; text: string }> = {
+                  keyword: { emoji: '🔤', text: 'Por palavra-chave' },
+                  first_message: { emoji: '👋', text: 'Primeira mensagem' },
+                  default: { emoji: '📥', text: 'Padrão (fallback)' },
+                  webhook: { emoji: '🔗', text: 'Webhook' },
+                  manual: { emoji: '👆', text: 'Manual' },
+                };
+                const trigger = triggerLabels[flow.trigger_type] || { emoji: '❓', text: flow.trigger_type };
+                
+                return (
+                  <Card 
+                    key={flow.id} 
+                    className={`transition-all hover:shadow-md ${!flow.is_active ? 'opacity-60' : ''}`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-2xl">🤖</span>
+                          <CardTitle className="text-base truncate">{flow.name}</CardTitle>
+                        </div>
+                        <Badge 
+                          variant={flow.is_active ? 'default' : 'secondary'}
+                          className="shrink-0"
+                        >
+                          {flow.is_active ? '✅ Ativo' : '⏸️ Inativo'}
+                        </Badge>
+                      </div>
+                      <CardDescription className="line-clamp-2">
+                        {flow.description || 'Sem descrição'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Trigger info */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <span>{trigger.emoji}</span>
+                        <span className="text-muted-foreground">{trigger.text}</span>
+                        {flow.trigger_keywords?.length > 0 && (
+                          <Badge variant="outline" className="text-xs ml-auto">
+                            {flow.trigger_keywords.slice(0, 2).join(', ')}
+                            {flow.trigger_keywords.length > 2 && ` +${flow.trigger_keywords.length - 2}`}
+                          </Badge>
                         )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEditingFlow(flow);
-                          setIsFlowDialogOpen(true);
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteFlow(flow.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </div>
+                      
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1 gap-2"
+                          onClick={() => setViewingFlow({ id: flow.id, name: flow.name })}
+                        >
+                          <Eye className="h-4 w-4" />
+                          Editar Conversa
+                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="shrink-0"
+                                onClick={() => handleToggleFlowActive(flow)}
+                              >
+                                {flow.is_active ? (
+                                  <Pause className="h-4 w-4" />
+                                ) : (
+                                  <Play className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {flow.is_active ? 'Pausar fluxo' : 'Ativar fluxo'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="shrink-0"
+                                onClick={() => {
+                                  setEditingFlow(flow);
+                                  setIsFlowDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar configurações</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="shrink-0 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteFlow(flow.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Excluir fluxo</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -787,7 +830,7 @@ export default function BotEngine() {
       <Dialog open={!!viewingFlow} onOpenChange={(open) => !open && setViewingFlow(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
           {viewingFlow && (
-            <FlowNodesEditor
+            <SimpleNodeEditor
               flowId={viewingFlow.id}
               flowName={viewingFlow.name}
               onClose={() => setViewingFlow(null)}
