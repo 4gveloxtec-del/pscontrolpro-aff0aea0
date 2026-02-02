@@ -480,12 +480,15 @@ Deno.serve(async (req: Request) => {
       const sellerInstance = connectedInstances.find((i: SellerInstance) => i.seller_id === sellerId);
       const canUseApi = !!sellerInstance && !!globalConfig;
 
-      // Get seller profile
+      // Get seller profile (including push preference)
       const { data: sellerProfile } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, push_on_auto_message')
         .eq('id', sellerId)
         .single();
+      
+      // Check if seller wants push notifications for auto messages (default true)
+      const wantsPushOnAutoMessage = sellerProfile?.push_on_auto_message !== false;
 
       // Get seller templates
       const { data: templates } = await supabase
@@ -712,6 +715,27 @@ Deno.serve(async (req: Request) => {
             notificationType,
             via: sentVia,
           });
+          
+          // ============================================================
+          // PUSH NOTIFICATION TO SELLER: Notify about sent message
+          // ============================================================
+          if (sentVia === 'whatsapp' && wantsPushOnAutoMessage) {
+            const { title, emoji } = getNotificationLabel(notificationType);
+            await sendPushNotification(
+              supabaseUrl,
+              supabaseServiceKey,
+              sellerId,
+              `✅ Mensagem enviada: ${client.name}`,
+              `${emoji} ${title} • Enviado via WhatsApp`,
+              {
+                type: 'auto-message-sent',
+                clientId: client.id,
+                clientName: client.name,
+                notificationType,
+                sentVia: 'whatsapp'
+              }
+            );
+          }
         }
 
         // ESTRATÉGIA ANTI-BAN: Delay humanizado de 2 a 5 minutos entre mensagens

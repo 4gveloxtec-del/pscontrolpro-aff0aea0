@@ -35,6 +35,10 @@ export function NotificationSettings() {
   const [notificationDays, setNotificationDays] = useState(3);
   const [isSavingDays, setIsSavingDays] = useState(false);
   const [hasLoadedDays, setHasLoadedDays] = useState(false);
+  
+  // Push on auto message setting
+  const [pushOnAutoMessage, setPushOnAutoMessage] = useState(true);
+  const [isSavingPushOnAutoMessage, setIsSavingPushOnAutoMessage] = useState(false);
 
   // Load notification days preference from database
   useEffect(() => {
@@ -52,6 +56,12 @@ export function NotificationSettings() {
           const profile = data as any;
           if (profile.notification_days_before !== null && profile.notification_days_before !== undefined) {
             setNotificationDays(profile.notification_days_before);
+          }
+          // Load push on auto message preference (default true)
+          if (profile.push_on_auto_message !== null && profile.push_on_auto_message !== undefined) {
+            setPushOnAutoMessage(profile.push_on_auto_message);
+          } else {
+            setPushOnAutoMessage(true);
           }
         }
         setHasLoadedDays(true);
@@ -92,6 +102,35 @@ export function NotificationSettings() {
       toast.error('Erro ao salvar preferência');
     } finally {
       setIsSavingDays(false);
+    }
+  };
+
+  // Toggle push on auto message
+  const handlePushOnAutoMessageToggle = async (checked: boolean) => {
+    if (!user?.id) return;
+    
+    setIsSavingPushOnAutoMessage(true);
+    setPushOnAutoMessage(checked);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ push_on_auto_message: checked } as any)
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      toast.success(checked ? 'Notificações de envio ativadas!' : 'Notificações de envio desativadas', {
+        description: checked 
+          ? 'Você será notificado quando mensagens automáticas forem enviadas aos clientes.'
+          : 'Você não receberá notificações de mensagens automáticas enviadas.'
+      });
+    } catch (error) {
+      console.error('Error saving push on auto message:', error);
+      setPushOnAutoMessage(!checked); // Revert on error
+      toast.error('Erro ao salvar preferência');
+    } finally {
+      setIsSavingPushOnAutoMessage(false);
     }
   };
 
@@ -422,6 +461,34 @@ export function NotificationSettings() {
           
           <p className="text-xs text-muted-foreground">
             Aplica-se a contas a pagar e clientes vencendo.
+          </p>
+        </div>
+      )}
+
+      {/* Push on Auto Message Toggle */}
+      {isSubscribed && hasLoadedDays && (
+        <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-success/10 flex items-center justify-center">
+                <Send className="h-4 w-4 text-success" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Notificar Mensagens Enviadas</p>
+                <p className="text-xs text-muted-foreground">
+                  Receber push quando mensagens automáticas forem enviadas
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={pushOnAutoMessage}
+              onCheckedChange={handlePushOnAutoMessageToggle}
+              disabled={isSavingPushOnAutoMessage}
+            />
+          </div>
+          
+          <p className="text-xs text-muted-foreground">
+            Inclui boas-vindas, lembretes de vencimento e cobranças automáticas.
           </p>
         </div>
       )}
