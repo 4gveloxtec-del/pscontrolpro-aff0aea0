@@ -31,7 +31,7 @@ export function ProtectedRoute({
   allowedRoles,
   requireSystemAccess = false 
 }: ProtectedRouteProps) {
-  const { role, loading, hasSystemAccess, authState, user } = useAuth();
+  const { role, loading, hasSystemAccess, authState, user, profile } = useAuth();
   
   // State for timeout-based fallback
   const [hasTimedOut, setHasTimedOut] = useState(false);
@@ -131,15 +131,23 @@ export function ProtectedRoute({
 
   // CRITICAL FIX: Não redirecionar enquanto role está carregando (evita flash de /access-denied)
   const isRoleStillLoading = authState === 'authenticated' && role === null && !hasTimedOut;
+  
+  // CRITICAL FIX: Evita flash de "assinatura expirada" antes do profile/assinatura serem carregados
+  const isProfileStillLoading = authState === 'authenticated' && !!user && profile === null;
 
   // Se ainda não tem role e não atingiu timeout, aguarda carregar
   if (!effectiveRole) {
     return <LoadingScreen message="Carregando permissões..." showProgress />;
   }
+  
+  // Se profile ainda está carregando, aguarda para evitar falsos redirecionamentos
+  if (isProfileStillLoading) {
+    return <LoadingScreen message="Sincronizando conta..." showProgress />;
+  }
 
   // Se requer acesso ao sistema (admin ou seller)
-  // MAS só redireciona após role ser determinado
-  if (requireSystemAccess && !effectiveHasSystemAccess && !isRoleStillLoading) {
+  // MAS só redireciona após role E profile serem determinados
+  if (requireSystemAccess && !effectiveHasSystemAccess && !isRoleStillLoading && !isProfileStillLoading) {
     return <Navigate to="/access-denied" replace />;
   }
 
