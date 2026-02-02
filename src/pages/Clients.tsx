@@ -11,6 +11,7 @@ import { usePerformanceOptimization } from '@/hooks/usePerformanceOptimization';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useAtomicClientSave } from '@/hooks/useAtomicClientSave';
 import { useClientFilters, ClientFilterType } from '@/hooks/useClientFilters';
+import { useClientDialogState, ClientForDialog } from '@/hooks/useClientDialogState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -224,8 +225,30 @@ export default function Clients() {
     isViewingArchived,
   } = useClientFilters();
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  // ============= Hook de estado do diálogo (extraído para melhor manutenibilidade) =============
+  const {
+    isDialogOpen,
+    setIsDialogOpen,
+    editingClient,
+    setEditingClient,
+    showExitConfirm,
+    setShowExitConfirm,
+    pendingCloseDialog,
+    setPendingCloseDialog,
+    addCategoryOpen,
+    setAddCategoryOpen,
+    expirationPopoverOpen,
+    setExpirationPopoverOpen,
+    paidAppsExpirationPopoverOpen: _paidAppsExpirationPopoverOpen,
+    setPaidAppsExpirationPopoverOpen,
+    confirmExitWithoutSaving: dialogConfirmExit,
+    cancelExit: dialogCancelExit,
+  } = useClientDialogState({
+    onDialogClose: () => {
+      resetForm();
+    },
+  });
+
   const [showPassword, setShowPassword] = useState<string | null>(null);
   const [messageClient, setMessageClient] = useState<Client | null>(null);
   const [renewClientId, setRenewClientId] = useState<string | null>(null);
@@ -249,10 +272,6 @@ export default function Clients() {
   const [selectedSharedCredit, setSelectedSharedCredit] = useState<SharedCreditSelection | null>(null);
   const [externalApps, setExternalApps] = useState<{ appId: string; devices: { name: string; mac: string; device_key?: string }[]; email: string; password: string; expirationDate: string }[]>([]);
   const [premiumAccounts, setPremiumAccounts] = useState<PremiumAccount[]>([]);
-  // State for popovers inside the dialog
-  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
-  const [expirationPopoverOpen, setExpirationPopoverOpen] = useState(false);
-  const [, setPaidAppsExpirationPopoverOpen] = useState(false);
   // Bulk message queue for expired not called clients
   const [bulkMessageQueue, setBulkMessageQueue] = useState<Client[]>([]);
   const [bulkMessageIndex, setBulkMessageIndex] = useState(0);
@@ -278,9 +297,6 @@ export default function Clients() {
   const lookupRetryTimeoutRef = useRef<number | null>(null);
   // State for unified phone view decrypted credentials (keyed by client id)
   const [lookupPhoneDecryptedCreds, setLookupPhoneDecryptedCreds] = useState<Record<string, { login: string; password: string; login_2?: string; password_2?: string }>>({});
-  // State for unsaved changes confirmation
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [pendingCloseDialog, setPendingCloseDialog] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -338,23 +354,16 @@ export default function Clients() {
     );
   }, [formData.name, formData.phone, formData.login, formData.password, externalApps.length, premiumAccounts.length, additionalServers.length]);
 
-  // Confirm exit without saving
+  // Confirm exit without saving - uses hook + resets form
   const confirmExitWithoutSaving = useCallback(() => {
-    setShowExitConfirm(false);
-    setPendingCloseDialog(false);
-    setIsDialogOpen(false);
-    setEditingClient(null);
+    dialogConfirmExit();
     resetForm();
-    setAddCategoryOpen(false);
-    setExpirationPopoverOpen(false);
-    setPaidAppsExpirationPopoverOpen(false);
-  }, []);
+  }, [dialogConfirmExit]);
 
-  // Cancel exit
+  // Cancel exit - delegates to hook
   const cancelExit = useCallback(() => {
-    setShowExitConfirm(false);
-    setPendingCloseDialog(false);
-  }, []);
+    dialogCancelExit();
+  }, [dialogCancelExit]);
 
   // Pagination state for database-level pagination
   const [dbPage, setDbPage] = useState(0);
