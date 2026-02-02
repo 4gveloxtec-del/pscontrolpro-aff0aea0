@@ -98,7 +98,15 @@ export function usePushNotifications() {
   const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
   const [browserCheck, setBrowserCheck] = useState<BrowserCheck | null>(null);
   const [lastError, setLastError] = useState<PushError | null>(null);
+  // IMPORTANT: lastError state updates are async; this ref allows synchronous access
+  // right after awaiting subscribe()/unsubscribe(), avoiding stale reads in the UI.
+  const lastErrorRef = useRef<PushError | null>(null);
   const isMountedRef = useRef(true);
+
+  const setPushError = useCallback((err: PushError | null) => {
+    lastErrorRef.current = err;
+    setLastError(err);
+  }, []);
 
   // Check support and current state - runs only once
   useOnce(() => {
@@ -123,7 +131,7 @@ export function usePushNotifications() {
       if (check.isIOS && !check.isIOSVersionSupported) {
         console.log('[Push] iOS version not supported (requires 16.4+)');
         if (isMountedRef.current) {
-          setLastError({
+            setPushError({
             code: 'IOS_VERSION',
             message: 'iOS 16.4+ necessário',
             details: 'Atualize seu iOS para versão 16.4 ou superior para usar notificações push.'
@@ -134,7 +142,7 @@ export function usePushNotifications() {
       if (!check.isSecureContext) {
         console.log('[Push] Not in secure context (HTTPS required)');
         if (isMountedRef.current) {
-          setLastError({
+          setPushError({
             code: 'INSECURE_CONTEXT',
             message: 'HTTPS necessário',
             details: 'Notificações push só funcionam em conexões seguras (HTTPS).'
@@ -196,7 +204,7 @@ export function usePushNotifications() {
       
       if (error) {
         console.error('[Push] Error fetching VAPID public key:', error);
-        setLastError({
+        setPushError({
           code: 'VAPID_FETCH_ERROR',
           message: 'Erro ao buscar chave do servidor',
           details: error.message || 'Não foi possível obter a chave de autenticação do servidor.'
@@ -206,7 +214,7 @@ export function usePushNotifications() {
 
       if (data?.error) {
         console.error('[Push] Server returned error:', data.error);
-        setLastError({
+        setPushError({
           code: 'VAPID_SERVER_ERROR',
           message: 'Chave VAPID não configurada',
           details: 'O servidor não possui a chave de notificações configurada.'
@@ -221,7 +229,7 @@ export function usePushNotifications() {
         // Validate key format (should be 87 chars for URL-safe base64)
         if (key.length < 80 || key.length > 100) {
           console.error('[Push] Invalid VAPID key length:', key.length);
-          setLastError({
+          setPushError({
             code: 'VAPID_INVALID',
             message: 'Chave VAPID inválida',
             details: `Formato da chave inválido (${key.length} caracteres).`
@@ -240,7 +248,7 @@ export function usePushNotifications() {
       }
       
       console.error('[Push] No publicKey in response:', data);
-      setLastError({
+      setPushError({
         code: 'VAPID_MISSING',
         message: 'Chave não encontrada na resposta',
         details: 'O servidor não retornou a chave pública esperada.'
@@ -248,7 +256,7 @@ export function usePushNotifications() {
       return null;
     } catch (error) {
       console.error('[Push] Error getting VAPID key:', error);
-      setLastError({
+      setPushError({
         code: 'VAPID_NETWORK_ERROR',
         message: 'Erro de conexão',
         details: 'Não foi possível conectar ao servidor. Verifique sua conexão.'
@@ -297,7 +305,7 @@ export function usePushNotifications() {
       return registration;
     } catch (error) {
       console.error('[Push] Service worker registration failed:', error);
-      setLastError({
+      setPushError({
         code: 'SW_REGISTRATION_FAILED',
         message: 'Erro ao registrar service worker',
         details: 'Não foi possível registrar o worker necessário para notificações.'
@@ -308,11 +316,11 @@ export function usePushNotifications() {
 
   // Subscribe to push notifications
   const subscribe = useCallback(async (): Promise<boolean> => {
-    setLastError(null);
+    setPushError(null);
     
     if (!browserCheck) {
       console.error('[Push] Browser check not completed');
-      setLastError({
+      setPushError({
         code: 'NOT_READY',
         message: 'Verificação do navegador não concluída',
         details: 'Aguarde a verificação inicial do navegador.'
@@ -322,7 +330,7 @@ export function usePushNotifications() {
     
     // Detailed checks with specific errors
     if (!browserCheck.isSecureContext) {
-      setLastError({
+      setPushError({
         code: 'INSECURE_CONTEXT',
         message: 'Conexão não segura',
         details: 'Notificações push requerem HTTPS. Acesse via URL segura.'
@@ -331,7 +339,7 @@ export function usePushNotifications() {
     }
     
     if (!browserCheck.hasNotificationAPI) {
-      setLastError({
+      setPushError({
         code: 'NO_NOTIFICATION_API',
         message: 'API de notificações indisponível',
         details: `O navegador ${browserCheck.browserName} não suporta a API de notificações.`
@@ -340,7 +348,7 @@ export function usePushNotifications() {
     }
     
     if (!browserCheck.hasServiceWorker) {
-      setLastError({
+      setPushError({
         code: 'NO_SERVICE_WORKER',
         message: 'Service Worker não suportado',
         details: `O navegador ${browserCheck.browserName} não suporta Service Workers.`
@@ -349,7 +357,7 @@ export function usePushNotifications() {
     }
     
     if (!browserCheck.hasPushManager) {
-      setLastError({
+      setPushError({
         code: 'NO_PUSH_MANAGER',
         message: 'Push Manager não suportado',
         details: `O navegador ${browserCheck.browserName} não suporta Push Manager.`
@@ -358,7 +366,7 @@ export function usePushNotifications() {
     }
     
     if (browserCheck.isIOS && !browserCheck.isIOSVersionSupported) {
-      setLastError({
+      setPushError({
         code: 'IOS_VERSION',
         message: 'Versão do iOS não suportada',
         details: 'Notificações push no iOS requerem versão 16.4 ou superior.'
@@ -376,7 +384,7 @@ export function usePushNotifications() {
       console.log('[Push] Permission result:', permissionResult);
       
       if (permissionResult === 'denied') {
-        setLastError({
+        setPushError({
           code: 'PERMISSION_DENIED',
           message: 'Permissão negada',
           details: 'Você bloqueou as notificações. Para ativar, vá em Configurações do navegador > Sites > Notificações.'
@@ -386,7 +394,7 @@ export function usePushNotifications() {
       }
       
       if (permissionResult !== 'granted') {
-        setLastError({
+        setPushError({
           code: 'PERMISSION_DISMISSED',
           message: 'Permissão não concedida',
           details: 'Você precisa permitir as notificações quando o navegador solicitar.'
@@ -428,7 +436,7 @@ export function usePushNotifications() {
       try {
         applicationServerKey = urlBase64ToUint8Array(publicKey);
       } catch (error) {
-        setLastError({
+        setPushError({
           code: 'KEY_CONVERSION_ERROR',
           message: 'Erro ao processar chave',
           details: 'A chave do servidor está em formato inválido.'
@@ -451,19 +459,19 @@ export function usePushNotifications() {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         
         if (errorMessage.includes('applicationServerKey')) {
-          setLastError({
+          setPushError({
             code: 'INVALID_SERVER_KEY',
             message: 'Chave do servidor inválida',
             details: 'A chave VAPID configurada no servidor é inválida.'
           });
         } else if (errorMessage.includes('permission')) {
-          setLastError({
+          setPushError({
             code: 'PERMISSION_ERROR',
             message: 'Erro de permissão',
             details: 'Não foi possível obter permissão para notificações.'
           });
         } else {
-          setLastError({
+          setPushError({
             code: 'SUBSCRIPTION_FAILED',
             message: 'Falha na inscrição',
             details: `Erro: ${errorMessage}`
@@ -484,10 +492,14 @@ export function usePushNotifications() {
 
       if (error) {
         console.error('[Push] Error saving subscription:', error);
-        setLastError({
+        const status = (error as any)?.context?.status;
+        const isAuthError = status === 401 || status === 403;
+        setPushError({
           code: 'SAVE_FAILED',
-          message: 'Erro ao salvar inscrição',
-          details: 'A inscrição foi criada mas não foi possível salvar no servidor.'
+          message: isAuthError ? 'Faça login para ativar' : 'Erro ao salvar inscrição',
+          details: isAuthError
+            ? 'Você precisa estar logado para registrar seu dispositivo para notificações.'
+            : (error.message || 'A inscrição foi criada mas não foi possível salvar no servidor.')
         });
         setIsLoading(false);
         return false;
@@ -514,7 +526,7 @@ export function usePushNotifications() {
     } catch (error: unknown) {
       console.error('[Push] Unexpected error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      setLastError({
+      setPushError({
         code: 'UNEXPECTED_ERROR',
         message: 'Erro inesperado',
         details: errorMessage
@@ -522,14 +534,14 @@ export function usePushNotifications() {
       setIsLoading(false);
       return false;
     }
-  }, [browserCheck, getVapidPublicKey]);
+  }, [browserCheck, getVapidPublicKey, setPushError]);
 
   // Unsubscribe from push notifications
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     if (!isSupported) return false;
     
     setIsLoading(true);
-    setLastError(null);
+    setPushError(null);
     
     try {
       const registration = await navigator.serviceWorker.ready;
@@ -559,7 +571,7 @@ export function usePushNotifications() {
       return true;
     } catch (error) {
       console.error('Error unsubscribing from push:', error);
-      setLastError({
+      setPushError({
         code: 'UNSUBSCRIBE_FAILED',
         message: 'Erro ao desativar',
         details: 'Não foi possível desativar as notificações.'
@@ -567,7 +579,7 @@ export function usePushNotifications() {
       setIsLoading(false);
       return false;
     }
-  }, [isSupported]);
+  }, [isSupported, setPushError]);
 
   return {
     isSupported,
@@ -580,5 +592,6 @@ export function usePushNotifications() {
     isDenied: permission === 'denied',
     browserCheck,
     lastError,
+    getLastErrorSync: () => lastErrorRef.current,
   };
 }
