@@ -969,8 +969,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // - Admin: sempre tem acesso
   // - Permanente: sempre tem acesso (is_permanent = true)
   // - Seller/User não permanente: só tem acesso se não expirou (trialInfo.isInTrial)
+  //
+  // CRITICAL FIX: Durante o reload rápido, o authState pode ser 'authenticated' mas 
+  // role ainda é null (aguardando fetch). Nesse caso, NÃO devemos redirecionar para 
+  // /access-denied. Retornamos hasSystemAccess = true temporariamente até o role carregar.
+  // Isso evita o "flash" da tela de expirado durante reloads.
   const isPermanent = profile?.is_permanent === true;
-  const hasSystemAccess = isVerifyingRole || isAdmin || isPermanent || (isSeller && trialInfo.isInTrial) || (!isSeller && !isAdmin && trialInfo.isInTrial);
+  
+  // Se autenticado mas role ainda não carregou, assume acesso temporário para evitar flash
+  const isRoleStillLoading = authState === 'authenticated' && role === null;
+  
+  const hasSystemAccess = 
+    isVerifyingRole || 
+    isRoleStillLoading || // <-- Novo: evita flash durante carregamento de role
+    isAdmin || 
+    isPermanent || 
+    (isSeller && trialInfo.isInTrial) || 
+    (!isSeller && !isAdmin && trialInfo.isInTrial);
 
   // loading is true when authState is 'loading'
   const loading = authState === 'loading';
