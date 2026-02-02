@@ -96,19 +96,22 @@ function RootRedirect() {
 
 // Wrapper to check if user needs password update and redirect if no access
 function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
-  const { user, needsPasswordUpdate, loading, hasSystemAccess, authState, role } = useAuth();
+  const { user, profile, needsPasswordUpdate, loading, hasSystemAccess, authState, role } = useAuth();
   const navigate = useNavigate();
   
   // CRITICAL FIX: Detectar se o role ainda está carregando para evitar flash
   const isRoleStillLoading = authState === 'authenticated' && role === null;
+
+  // CRITICAL FIX: Evita flash de "assinatura expirada" antes do profile/assinatura carregarem
+  const isProfileStillLoading = authState === 'authenticated' && !!user && profile === null;
   
   useEffect(() => {
     // ONLY redirect if auth is fully verified, role is loaded, and user doesn't have access
     // Never redirect during loading state or while role is being fetched
-    if (authState === 'authenticated' && user && !hasSystemAccess && !isRoleStillLoading) {
+    if (authState === 'authenticated' && user && !hasSystemAccess && !isRoleStillLoading && !isProfileStillLoading) {
       navigate('/access-denied', { replace: true });
     }
-  }, [authState, user, hasSystemAccess, isRoleStillLoading, navigate]);
+  }, [authState, user, hasSystemAccess, isRoleStillLoading, isProfileStillLoading, navigate]);
   
   // CRITICAL: Show loading while auth is being verified
   // This prevents premature redirects on page reload
@@ -137,6 +140,18 @@ function PasswordUpdateGuard({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           <p className="text-muted-foreground">Reconectando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar loading enquanto o profile ainda está carregando (evita flash de expirado)
+  if (isProfileStillLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Sincronizando sua conta...</p>
         </div>
       </div>
     );
