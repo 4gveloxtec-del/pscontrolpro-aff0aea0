@@ -74,8 +74,8 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return null;
       
-      // Buscar contagens em paralelo
-      const [totalRes, activeRes, expiredRes, unpaidRes, expiringWeekRes] = await Promise.all([
+      // Buscar contagens em paralelo com tratamento de erros individual
+      const [totalRes, activeRes, expiredRes, unpaidRes, expiringWeekRes] = await Promise.allSettled([
         // Total de clientes não arquivados
         supabase.from('clients').select('id', { count: 'exact', head: true })
           .eq('seller_id', user.id).eq('is_archived', false),
@@ -94,18 +94,24 @@ export default function Dashboard() {
           .gte('expiration_date', todayStr).lt('expiration_date', nextWeekStr),
       ]);
       
+      const getCount = (res: PromiseSettledResult<{ count: number | null }>) => 
+        res.status === 'fulfilled' ? (res.value.count || 0) : 0;
+      
       return {
-        total: totalRes.count || 0,
-        active: activeRes.count || 0,
-        expired: expiredRes.count || 0,
-        unpaid: unpaidRes.count || 0,
-        expiringWeek: expiringWeekRes.count || 0,
+        total: getCount(totalRes),
+        active: getCount(activeRes),
+        expired: getCount(expiredRes),
+        unpaid: getCount(unpaidRes),
+        expiringWeek: getCount(expiringWeekRes),
       };
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
+    meta: {
+      onError: (error: Error) => console.error('[Dashboard] clientStats error:', error.message),
+    },
   });
 
   // Query 2: Receita mensal (SUM de clientes renovados no mês)
@@ -114,23 +120,31 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return { revenue: 0, count: 0 };
       
-      // Buscar clientes renovados neste mês com vencimento válido
-      const { data, error } = await supabase
-        .from('clients')
-        .select('plan_price, premium_price')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false)
-        .eq('is_paid', true)
-        .gte('renewed_at', monthStartStr)
-        .gte('expiration_date', todayStr);
-      
-      if (error) throw error;
-      
-      const total = (data || []).reduce((sum, c) => {
-        return sum + (Number(c.plan_price) || 0) + (Number(c.premium_price) || 0);
-      }, 0);
-      
-      return { revenue: Math.round(total * 100) / 100, count: data?.length || 0 };
+      try {
+        // Buscar clientes renovados neste mês com vencimento válido
+        const { data, error } = await supabase
+          .from('clients')
+          .select('plan_price, premium_price')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false)
+          .eq('is_paid', true)
+          .gte('renewed_at', monthStartStr)
+          .gte('expiration_date', todayStr);
+        
+        if (error) {
+          console.error('[Dashboard] monthlyRevenue query error:', error.message);
+          return { revenue: 0, count: 0 };
+        }
+        
+        const total = (data || []).reduce((sum, c) => {
+          return sum + (Number(c.plan_price) || 0) + (Number(c.premium_price) || 0);
+        }, 0);
+        
+        return { revenue: Math.round(total * 100) / 100, count: data?.length || 0 };
+      } catch (err) {
+        console.error('[Dashboard] monthlyRevenue error:', err);
+        return { revenue: 0, count: 0 };
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 2,
@@ -144,26 +158,37 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return {};
       
-      // Buscar contagens para cada dia (0-7)
-      const counts: Record<number, number> = {};
-      const promises = [];
-      
-      for (let i = 0; i <= 7; i++) {
-        const targetDate = format(addDays(startOfToday(), i), 'yyyy-MM-dd');
-        promises.push(
-          supabase.from('clients')
-            .select('id', { count: 'exact', head: true })
-            .eq('seller_id', user.id)
-            .eq('is_archived', false)
-            .eq('expiration_date', targetDate)
-            .then(res => ({ day: i, count: res.count || 0 }))
-        );
+      try {
+        // Buscar contagens para cada dia (0-7) com tratamento de erro individual
+        const counts: Record<number, number> = {};
+        
+        const fetchDayCount = async (day: number): Promise<{ day: number; count: number }> => {
+          try {
+            const targetDate = format(addDays(startOfToday(), day), 'yyyy-MM-dd');
+            const res = await supabase.from('clients')
+              .select('id', { count: 'exact', head: true })
+              .eq('seller_id', user.id)
+              .eq('is_archived', false)
+              .eq('expiration_date', targetDate);
+            return { day, count: res.count || 0 };
+          } catch {
+            return { day, count: 0 }; // Falha silenciosa por dia
+          }
+        };
+        
+        const promises = [];
+        for (let i = 0; i <= 7; i++) {
+          promises.push(fetchDayCount(i));
+        }
+        
+        const results = await Promise.all(promises);
+        results.forEach(r => { counts[r.day] = r.count; });
+        
+        return counts;
+      } catch (err) {
+        console.error('[Dashboard] expirationCounts error:', err);
+        return {};
       }
-      
-      const results = await Promise.all(promises);
-      results.forEach(r => { counts[r.day] = r.count; });
-      
-      return counts;
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 2,
@@ -177,36 +202,44 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return [];
       
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, phone, email, expiration_date, plan_id, plan_name, plan_price, premium_price, is_paid, pending_amount, category, login, password, premium_password, server_name, server_id, telegram, is_archived, renewed_at')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false)
-        .gte('expiration_date', todayStr)
-        .lte('expiration_date', nextWeekStr)
-        .order('expiration_date', { ascending: true });
-      
-      if (error) throw error;
-      
-      // Adicionar daysRemaining e deduplicar por telefone
-      const seen = new Set<string>();
-      const result: (Client & { daysRemaining: number })[] = [];
-      
-      for (const c of (data || []) as Client[]) {
-        const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('id, name, phone, email, expiration_date, plan_id, plan_name, plan_price, premium_price, is_paid, pending_amount, category, login, password, premium_password, server_name, server_id, telegram, is_archived, renewed_at')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false)
+          .gte('expiration_date', todayStr)
+          .lte('expiration_date', nextWeekStr)
+          .order('expiration_date', { ascending: true });
         
-        const expDate = new Date(c.expiration_date);
-        expDate.setHours(12, 0, 0, 0);
-        const todayNoon = new Date(startOfToday());
-        todayNoon.setHours(12, 0, 0, 0);
-        const daysRemaining = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
+        if (error) {
+          console.error('[Dashboard] urgentClients query error:', error.message);
+          return [];
+        }
         
-        result.push({ ...c, daysRemaining });
+        // Adicionar daysRemaining e deduplicar por telefone
+        const seen = new Set<string>();
+        const result: (Client & { daysRemaining: number })[] = [];
+        
+        for (const c of (data || []) as Client[]) {
+          const key = c.phone ? `phone:${String(c.phone).trim()}` : `id:${c.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          
+          const expDate = new Date(c.expiration_date);
+          expDate.setHours(12, 0, 0, 0);
+          const todayNoon = new Date(startOfToday());
+          todayNoon.setHours(12, 0, 0, 0);
+          const daysRemaining = Math.round((expDate.getTime() - todayNoon.getTime()) / (1000 * 60 * 60 * 24));
+          
+          result.push({ ...c, daysRemaining });
+        }
+        
+        return result.sort((a, b) => a.daysRemaining - b.daysRemaining);
+      } catch (err) {
+        console.error('[Dashboard] urgentClients error:', err);
+        return [];
       }
-      
-      return result.sort((a, b) => a.daysRemaining - b.daysRemaining);
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 2,
@@ -220,18 +253,26 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return [];
       
-      const { data, error } = await supabase
-        .from('clients')
-        .select('server_id, plan_price, premium_price')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false)
-        .eq('is_paid', true)
-        .gte('renewed_at', monthStartStr)
-        .gte('expiration_date', todayStr)
-        .not('server_id', 'is', null);
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('server_id, plan_price, premium_price')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false)
+          .eq('is_paid', true)
+          .gte('renewed_at', monthStartStr)
+          .gte('expiration_date', todayStr)
+          .not('server_id', 'is', null);
+        
+        if (error) {
+          console.error('[Dashboard] serverRevenue query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Dashboard] serverRevenue error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 5,
@@ -245,17 +286,25 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return [];
       
-      const { data, error } = await supabase
-        .from('clients')
-        .select('category, plan_price, premium_price')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false)
-        .eq('is_paid', true)
-        .gte('renewed_at', monthStartStr)
-        .gte('expiration_date', todayStr);
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('category, plan_price, premium_price')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false)
+          .eq('is_paid', true)
+          .gte('renewed_at', monthStartStr)
+          .gte('expiration_date', todayStr);
+        
+        if (error) {
+          console.error('[Dashboard] categoryRevenue query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Dashboard] categoryRevenue error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 5,
@@ -269,14 +318,22 @@ export default function Dashboard() {
     queryFn: async () => {
       if (!user?.id || !isSeller) return [];
       
-      const { data, error } = await supabase
-        .from('clients')
-        .select('category')
-        .eq('seller_id', user.id)
-        .eq('is_archived', false);
-      
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('category')
+          .eq('seller_id', user.id)
+          .eq('is_archived', false);
+        
+        if (error) {
+          console.error('[Dashboard] categoryTotals query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Dashboard] categoryTotals error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 5,
@@ -289,13 +346,21 @@ export default function Dashboard() {
     queryKey: ['servers-dashboard', user?.id],
     queryFn: async () => {
       if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('servers')
-        .select('id, name, monthly_cost, is_credit_based, is_active')
-        .eq('seller_id', user.id)
-        .eq('is_active', true);
-      if (error) throw error;
-      return data as ServerData[] || [];
+      try {
+        const { data, error } = await supabase
+          .from('servers')
+          .select('id, name, monthly_cost, is_credit_based, is_active')
+          .eq('seller_id', user.id)
+          .eq('is_active', true);
+        if (error) {
+          console.error('[Dashboard] servers query error:', error.message);
+          return [];
+        }
+        return data as ServerData[] || [];
+      } catch (err) {
+        console.error('[Dashboard] servers error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -308,13 +373,21 @@ export default function Dashboard() {
     queryKey: ['archived-clients-count', user?.id],
     queryFn: async () => {
       if (!user?.id || !isSeller) return 0;
-      const { count, error } = await supabase
-        .from('clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('seller_id', user.id)
-        .eq('is_archived', true);
-      if (error) throw error;
-      return count || 0;
+      try {
+        const { count, error } = await supabase
+          .from('clients')
+          .select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id)
+          .eq('is_archived', true);
+        if (error) {
+          console.error('[Dashboard] archivedCount query error:', error.message);
+          return 0;
+        }
+        return count || 0;
+      } catch (err) {
+        console.error('[Dashboard] archivedCount error:', err);
+        return 0;
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -327,13 +400,21 @@ export default function Dashboard() {
     queryKey: ['bills-dashboard', user?.id],
     queryFn: async () => {
       if (!user?.id || !isSeller) return [];
-      const { data, error } = await supabase
-        .from('bills_to_pay')
-        .select('amount, is_paid')
-        .eq('seller_id', user.id)
-        .eq('is_paid', false);
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('bills_to_pay')
+          .select('amount, is_paid')
+          .eq('seller_id', user.id)
+          .eq('is_paid', false);
+        if (error) {
+          console.error('[Dashboard] bills query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Dashboard] bills error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && isSeller,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -345,18 +426,26 @@ export default function Dashboard() {
     queryKey: ['admin-sellers-dashboard'],
     queryFn: async () => {
       if (!isAdmin) return [];
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, subscription_expires_at, is_permanent, is_active, full_name, email');
-      if (profilesError) throw profilesError;
+      try {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, subscription_expires_at, is_permanent, is_active, full_name, email');
+        if (profilesError) {
+          console.error('[Dashboard] admin sellers query error:', profilesError.message);
+          return [];
+        }
 
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('user_id, role');
 
-      const adminIds = roles?.filter(r => r.role === 'admin').map(r => r.user_id) || [];
-      
-      return (profiles || []).filter(p => !adminIds.includes(p.id) && p.is_active !== false);
+        const adminIds = roles?.filter(r => r.role === 'admin').map(r => r.user_id) || [];
+        
+        return (profiles || []).filter(p => !adminIds.includes(p.id) && p.is_active !== false);
+      } catch (err) {
+        console.error('[Dashboard] admin sellers error:', err);
+        return [];
+      }
     },
     enabled: isAdmin,
   });
@@ -366,14 +455,22 @@ export default function Dashboard() {
     queryKey: ['admin-monthly-profits', user?.id],
     queryFn: async () => {
       if (!user?.id || !isAdmin) return [];
-      const { data, error } = await supabase
-        .from('monthly_profits')
-        .select('*')
-        .eq('seller_id', user.id)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('monthly_profits')
+          .select('*')
+          .eq('seller_id', user.id)
+          .order('year', { ascending: false })
+          .order('month', { ascending: false });
+        if (error) {
+          console.error('[Dashboard] adminMonthlyProfits query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Dashboard] adminMonthlyProfits error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && isAdmin,
   });
@@ -382,11 +479,19 @@ export default function Dashboard() {
   const { data: appSettings } = useQuery({
     queryKey: ['app-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('key, value');
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('key, value');
+        if (error) {
+          console.error('[Dashboard] appSettings query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Dashboard] appSettings error:', err);
+        return [];
+      }
     },
     staleTime: 1000 * 60 * 30, // 30 minutes
     gcTime: 1000 * 60 * 60, // 1 hour cache

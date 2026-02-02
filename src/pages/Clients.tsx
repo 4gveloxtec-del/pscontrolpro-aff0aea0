@@ -376,56 +376,64 @@ export default function Clients() {
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      let query = supabase
-        .from('clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('seller_id', user.id);
+      try {
+        let query = supabase
+          .from('clients')
+          .select('id', { count: 'exact', head: true })
+          .eq('seller_id', user.id);
 
-      // Filter by archived status
-      if (isViewingArchived) {
-        query = query.eq('is_archived', true);
-      } else {
-        query = query.or('is_archived.is.null,is_archived.eq.false');
-      }
-
-      const raw = debouncedSearch.trim();
-      if (raw) {
-        const safe = raw.replace(/,/g, ' ');
-        const like = `%${safe}%`;
-        const digits = safe.replace(/\D/g, '');
-        const orParts = [
-          `name.ilike.${like}`,
-          `dns.ilike.${like}`,
-          `email.ilike.${like}`,
-          `telegram.ilike.${like}`,
-          `app_name.ilike.${like}`,
-          `login.ilike.${like}`,
-          `login_2.ilike.${like}`,
-          // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
-          `plan_name.ilike.${like}`,
-          `category.ilike.${like}`,
-          // Search in notes field as well
-          `notes.ilike.${like}`,
-        ];
-        // Phone search with variants (with/without 55 prefix)
-        if (digits.length >= 4) {
-          orParts.push(`phone.ilike.%${digits}%`);
-          // If user typed without 55, also search with 55 prefix
-          if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
-            orParts.push(`phone.ilike.%55${digits}%`);
-          }
-          // If user typed with 55, also search without it
-          if (digits.startsWith('55') && digits.length >= 12) {
-            const withoutPrefix = digits.substring(2);
-            orParts.push(`phone.ilike.%${withoutPrefix}%`);
-          }
+        // Filter by archived status
+        if (isViewingArchived) {
+          query = query.eq('is_archived', true);
+        } else {
+          query = query.or('is_archived.is.null,is_archived.eq.false');
         }
-        query = query.or(orParts.join(','));
-      }
 
-      const { count, error } = await query;
-      if (error) throw error;
-      return count || 0;
+        const raw = debouncedSearch.trim();
+        if (raw) {
+          const safe = raw.replace(/,/g, ' ');
+          const like = `%${safe}%`;
+          const digits = safe.replace(/\D/g, '');
+          const orParts = [
+            `name.ilike.${like}`,
+            `dns.ilike.${like}`,
+            `email.ilike.${like}`,
+            `telegram.ilike.${like}`,
+            `app_name.ilike.${like}`,
+            `login.ilike.${like}`,
+            `login_2.ilike.${like}`,
+            // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
+            `plan_name.ilike.${like}`,
+            `category.ilike.${like}`,
+            // Search in notes field as well
+            `notes.ilike.${like}`,
+          ];
+          // Phone search with variants (with/without 55 prefix)
+          if (digits.length >= 4) {
+            orParts.push(`phone.ilike.%${digits}%`);
+            // If user typed without 55, also search with 55 prefix
+            if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+              orParts.push(`phone.ilike.%55${digits}%`);
+            }
+            // If user typed with 55, also search without it
+            if (digits.startsWith('55') && digits.length >= 12) {
+              const withoutPrefix = digits.substring(2);
+              orParts.push(`phone.ilike.%${withoutPrefix}%`);
+            }
+          }
+          query = query.or(orParts.join(','));
+        }
+
+        const { count, error } = await query;
+        if (error) {
+          console.error('[Clients] clientCount query error:', error.message);
+          return 0;
+        }
+        return count || 0;
+      } catch (err) {
+        console.error('[Clients] clientCount error:', err);
+        return 0;
+      }
     },
     enabled: !!user?.id,
     staleTime: 0, // Always refetch to ensure accurate count after deletions
@@ -447,86 +455,94 @@ export default function Clients() {
     queryFn: async () => {
       if (!user?.id) return [];
       
-      // Use larger page size when searching to ensure all matches are returned
-      const hasActiveSearch = debouncedSearch.trim().length > 0;
-      const pageSize = hasActiveSearch ? SEARCH_PAGE_SIZE : CLIENTS_PER_PAGE;
-      const from = dbPage * pageSize;
-      const to = from + pageSize - 1;
+      try {
+        // Use larger page size when searching to ensure all matches are returned
+        const hasActiveSearch = debouncedSearch.trim().length > 0;
+        const pageSize = hasActiveSearch ? SEARCH_PAGE_SIZE : CLIENTS_PER_PAGE;
+        const from = dbPage * pageSize;
+        const to = from + pageSize - 1;
 
-      let query = supabase
-        .from('clients')
-        .select(`
-          id, name, phone, email, device, dns, expiration_date, expiration_datetime,
-          plan_id, plan_name, plan_price, premium_price,
-          server_id, server_name, login, password,
-          server_id_2, server_name_2, login_2, password_2,
-          premium_password, category, is_paid, pending_amount, notes,
-          has_paid_apps, paid_apps_duration, paid_apps_expiration,
-          telegram, is_archived, archived_at, created_at, renewed_at,
-          gerencia_app_mac, gerencia_app_devices,
-          app_name, app_type, device_model, additional_servers,
-          is_test, is_integrated
-        `)
-        .eq('seller_id', user.id);
+        let query = supabase
+          .from('clients')
+          .select(`
+            id, name, phone, email, device, dns, expiration_date, expiration_datetime,
+            plan_id, plan_name, plan_price, premium_price,
+            server_id, server_name, login, password,
+            server_id_2, server_name_2, login_2, password_2,
+            premium_password, category, is_paid, pending_amount, notes,
+            has_paid_apps, paid_apps_duration, paid_apps_expiration,
+            telegram, is_archived, archived_at, created_at, renewed_at,
+            gerencia_app_mac, gerencia_app_devices,
+            app_name, app_type, device_model, additional_servers,
+            is_test, is_integrated
+          `)
+          .eq('seller_id', user.id);
 
-      // Filter by archived status - use explicit filter instead of .or() to avoid conflicts
-      if (isViewingArchived) {
-        query = query.eq('is_archived', true);
-      } else {
-        // Use .is() for null check and .eq() for false - combine with .or()
-        query = query.or('is_archived.is.null,is_archived.eq.false');
-      }
-
-      const raw = debouncedSearch.trim();
-      if (raw) {
-        const safe = raw.replace(/,/g, ' ');
-        const like = `%${safe}%`;
-        const digits = safe.replace(/\D/g, '');
-        const orParts = [
-          `name.ilike.${like}`,
-          `dns.ilike.${like}`,
-          `email.ilike.${like}`,
-          `telegram.ilike.${like}`,
-          `app_name.ilike.${like}`,
-          `login.ilike.${like}`,
-          `login_2.ilike.${like}`,
-          // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
-          `plan_name.ilike.${like}`,
-          `category.ilike.${like}`,
-          // Search in notes field as well
-          `notes.ilike.${like}`,
-        ];
-        // Phone search with variants (with/without 55 prefix)
-        if (digits.length >= 4) {
-          orParts.push(`phone.ilike.%${digits}%`);
-          // If user typed without 55, also search with 55 prefix
-          if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
-            orParts.push(`phone.ilike.%55${digits}%`);
-          }
-          // If user typed with 55, also search without it
-          if (digits.startsWith('55') && digits.length >= 12) {
-            const withoutPrefix = digits.substring(2);
-            orParts.push(`phone.ilike.%${withoutPrefix}%`);
-          }
+        // Filter by archived status - use explicit filter instead of .or() to avoid conflicts
+        if (isViewingArchived) {
+          query = query.eq('is_archived', true);
+        } else {
+          // Use .is() for null check and .eq() for false - combine with .or()
+          query = query.or('is_archived.is.null,is_archived.eq.false');
         }
-        query = query.or(orParts.join(','));
+
+        const raw = debouncedSearch.trim();
+        if (raw) {
+          const safe = raw.replace(/,/g, ' ');
+          const like = `%${safe}%`;
+          const digits = safe.replace(/\D/g, '');
+          const orParts = [
+            `name.ilike.${like}`,
+            `dns.ilike.${like}`,
+            `email.ilike.${like}`,
+            `telegram.ilike.${like}`,
+            `app_name.ilike.${like}`,
+            `login.ilike.${like}`,
+            `login_2.ilike.${like}`,
+            // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
+            `plan_name.ilike.${like}`,
+            `category.ilike.${like}`,
+            // Search in notes field as well
+            `notes.ilike.${like}`,
+          ];
+          // Phone search with variants (with/without 55 prefix)
+          if (digits.length >= 4) {
+            orParts.push(`phone.ilike.%${digits}%`);
+            // If user typed without 55, also search with 55 prefix
+            if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
+              orParts.push(`phone.ilike.%55${digits}%`);
+            }
+            // If user typed with 55, also search without it
+            if (digits.startsWith('55') && digits.length >= 12) {
+              const withoutPrefix = digits.substring(2);
+              orParts.push(`phone.ilike.%${withoutPrefix}%`);
+            }
+          }
+          query = query.or(orParts.join(','));
+        }
+
+        // Ordenação/paginação sempre no banco
+        const { data, error } = await query
+          .order(isViewingArchived ? 'archived_at' : 'expiration_date', { ascending: !isViewingArchived })
+          .range(from, to);
+        
+        if (error) {
+          console.error('[Clients] fetchedClients query error:', error.message);
+          return [];
+        }
+        
+        // Cast JSON fields to proper types
+        const hydrated = (data || []).map(client => ({
+          ...client,
+          gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || [],
+          additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
+        })) as Client[];
+
+        return hydrated;
+      } catch (err) {
+        console.error('[Clients] fetchedClients error:', err);
+        return [];
       }
-
-      // Ordenação/paginação sempre no banco
-      const { data, error } = await query
-        .order(isViewingArchived ? 'archived_at' : 'expiration_date', { ascending: !isViewingArchived })
-        .range(from, to);
-      
-      if (error) throw error;
-      
-      // Cast JSON fields to proper types
-      const hydrated = (data || []).map(client => ({
-        ...client,
-        gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || [],
-        additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
-      })) as Client[];
-
-      return hydrated;
     },
     enabled: !!user?.id,
     staleTime: 1000 * 30, // 30 seconds - reduced for fresher data
@@ -614,23 +630,31 @@ export default function Clients() {
     queryFn: async () => {
       if (!user?.id) return [];
       
-      let query = supabase
-        .from('clients')
-        .select('id, login, login_2')
-        .eq('seller_id', user.id)
-        .limit(1000);
-      
-      // Filter by archived status to match the current view
-      if (isViewingArchived) {
-        query = query.eq('is_archived', true);
-      } else {
-        query = query.or('is_archived.is.null,is_archived.eq.false');
+      try {
+        let query = supabase
+          .from('clients')
+          .select('id, login, login_2')
+          .eq('seller_id', user.id)
+          .limit(1000);
+        
+        // Filter by archived status to match the current view
+        if (isViewingArchived) {
+          query = query.eq('is_archived', true);
+        } else {
+          query = query.or('is_archived.is.null,is_archived.eq.false');
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('[Clients] allClientsForSearch query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Clients] allClientsForSearch error:', err);
+        return [];
       }
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      return data || [];
     },
     enabled: !!user?.id,
     staleTime: 60_000, // 1 minute
