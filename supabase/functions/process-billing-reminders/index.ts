@@ -267,13 +267,13 @@ Deno.serve(async (req: Request) => {
     // Get all unique seller IDs
     const sellerIds = [...new Set(pendingReminders.map(r => r.seller_id))];
 
-    // Get seller profiles (including plan_type)
+    // Get seller profiles (including plan_type and push preference)
     const { data: sellerProfiles } = await supabase
       .from('profiles')
-      .select('id, full_name, company_name, pix_key, plan_type')
+      .select('id, full_name, company_name, pix_key, plan_type, push_on_auto_message')
       .in('id', sellerIds);
 
-    const profilesMap = new Map<string, SellerProfile>();
+    const profilesMap = new Map<string, SellerProfile & { push_on_auto_message?: boolean }>();
     for (const p of sellerProfiles || []) {
       profilesMap.set(p.id, p);
     }
@@ -313,6 +313,9 @@ Deno.serve(async (req: Request) => {
       const sellerProfile = profilesMap.get(reminder.seller_id);
       const sellerInstance = instancesMap.get(reminder.seller_id);
       const sellerHasWhatsAppApi = sellerProfile?.plan_type === 'whatsapp';
+      
+      // Check if seller wants push notifications for auto messages (default true)
+      const wantsPushOnAutoMessage = (sellerProfile as any)?.push_on_auto_message !== false;
 
       // Build variables for template
       const variables: Record<string, string> = {
@@ -370,7 +373,30 @@ Deno.serve(async (req: Request) => {
             client.phone,
             finalMessage
           );
-          if (sent) whatsappSent++;
+          if (sent) {
+            whatsappSent++;
+            
+            // ============================================================
+            // PUSH NOTIFICATION TO SELLER: Notify about billing reminder sent
+            // ============================================================
+            if (wantsPushOnAutoMessage) {
+              const reminderTypeLabel = reminder.reminder_type === 'd1' ? 'Vence Amanhã' : 'Vence Hoje';
+              await sendPushNotification(
+                supabaseUrl,
+                supabaseKey,
+                reminder.seller_id,
+                `✅ Cobrança enviada: ${client.name}`,
+                `${reminderTypeLabel} • ${client.plan_name || 'Plano'} • Enviado via WhatsApp`,
+                {
+                  type: 'billing-reminder-sent',
+                  clientId: client.id,
+                  clientName: client.name,
+                  reminderType: reminder.reminder_type,
+                  sentVia: 'whatsapp'
+                }
+              );
+            }
+          }
           else errorMessage = 'Falha ao enviar via WhatsApp API';
         } else {
           errorMessage = globalConfig 

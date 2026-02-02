@@ -268,11 +268,15 @@ Deno.serve(async (req) => {
     console.log('[send-welcome-message] Credentials decrypted successfully');
 
     // Get seller profile - use maybeSingle for resilience
+    // Also fetch push_on_auto_message preference
     const { data: sellerProfile } = await supabase
       .from('profiles')
-      .select('*')
+      .select('*, push_on_auto_message')
       .eq('id', sellerId)
       .maybeSingle();
+    
+    // Check if seller wants push notifications for auto messages (default true)
+    const wantsPushOnAutoMessage = sellerProfile?.push_on_auto_message !== false;
 
     // Get welcome template
     const categoryLower = (client.category || 'iptv').toLowerCase();
@@ -464,6 +468,38 @@ Deno.serve(async (req) => {
       });
 
       console.log(`[send-welcome-message] Welcome message sent to ${client.name}`);
+      
+      // ============================================================
+      // PUSH NOTIFICATION TO SELLER: Notify about welcome message sent
+      // ============================================================
+      if (wantsPushOnAutoMessage) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              userId: sellerId,
+              title: `✅ Boas-vindas enviada: ${client.name}`,
+              body: `Mensagem de boas-vindas enviada via WhatsApp`,
+              tag: `welcome-sent-${clientId}`,
+              data: {
+                type: 'welcome-message-sent',
+                clientId: clientId,
+                clientName: client.name,
+              }
+            }),
+          });
+          console.log(`[send-welcome-message] Push notification sent to seller ${sellerId}`);
+        } catch (pushError) {
+          console.error('[send-welcome-message] Error sending push notification:', pushError);
+        }
+      }
     }
 
     return new Response(
