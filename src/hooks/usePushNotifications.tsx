@@ -514,6 +514,8 @@ export function usePushNotifications() {
       }
       setIsSubscribed(true);
       setIsLoading(false);
+      // Clear any previous errors on successful subscription
+      setPushError(null);
       
       // Show test notification
       new Notification('CliControl', {
