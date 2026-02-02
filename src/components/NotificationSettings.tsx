@@ -26,6 +26,7 @@ export function NotificationSettings() {
     isDenied,
     browserCheck,
     lastError,
+    getLastErrorSync,
   } = usePushNotifications();
   
   const { isAdmin, user } = useAuth();
@@ -95,6 +96,12 @@ export function NotificationSettings() {
   };
 
   const handleToggle = async (checked: boolean) => {
+    // Push subscription is tied to the authenticated user on the backend.
+    if (!user?.id) {
+      toast.error('Faça login para configurar notificações');
+      return;
+    }
+
     if (!isSupported) {
       toast.error('Notificações não suportadas', {
         description: lastError?.details || 'Este navegador não suporta notificações push.'
@@ -108,17 +115,22 @@ export function NotificationSettings() {
         toast.success('Notificações push ativadas!', {
           description: 'Você receberá alertas mesmo com o app fechado.'
         });
-      } else if (lastError) {
-        toast.error(lastError.message, {
-          description: lastError.details,
-          duration: 6000,
-        });
-      } else if (permission === 'denied') {
-        toast.error('Permissão negada', {
-          description: 'Ative nas configurações do navegador'
-        });
       } else {
-        toast.error('Erro ao ativar notificações');
+        // IMPORTANT: lastError state may be stale immediately after await.
+        const err = getLastErrorSync?.() ?? lastError;
+
+        if (err) {
+          toast.error(err.message, {
+            description: err.details,
+          duration: 6000,
+          });
+        } else if (permission === 'denied' || Notification.permission === 'denied') {
+          toast.error('Permissão negada', {
+            description: 'Ative nas configurações do navegador'
+          });
+        } else {
+          toast.error('Erro ao ativar notificações');
+        }
       }
     } else {
       const success = await unsubscribe();
