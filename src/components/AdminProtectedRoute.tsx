@@ -14,7 +14,11 @@ interface AdminProtectedRouteProps {
  * para evitar logout intermitente ao recarregar a página.
  */
 export function AdminProtectedRoute({ children }: AdminProtectedRouteProps) {
-  const { user, loading, isAdmin, authState } = useAuth();
+  const { user, loading, isAdmin, authState, role } = useAuth();
+
+  // CRITICAL FIX: Detectar se o role ainda está carregando para evitar flash
+  // Isso evita o redirect prematuro para /admin/access-denied durante reload rápido
+  const isRoleStillLoading = authState === 'authenticated' && role === null;
 
   // CRITICAL: Wait for auth verification to complete
   // Never redirect while loading - this prevents logout on page reload
@@ -34,7 +38,19 @@ export function AdminProtectedRoute({ children }: AdminProtectedRouteProps) {
     return <Navigate to="/admin" replace />;
   }
 
-  // Se não é admin após confirmação de autenticação, redireciona para página de acesso negado
+  // Mostrar loading enquanto role está carregando (evita flash de access-denied)
+  if (isRoleStillLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+          <p className="text-slate-400">Carregando permissões...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não é admin após confirmação de autenticação E role já carregou, redireciona para página de acesso negado
   if (!isAdmin) {
     return <Navigate to="/admin/access-denied" replace />;
   }
