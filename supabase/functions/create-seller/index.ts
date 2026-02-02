@@ -153,6 +153,31 @@ Deno.serve(async (req) => {
       console.error('Error updating profile:', profileError);
     }
 
+    // CRITICAL: Insert seller role in user_roles table
+    // Without this, the user won't appear in the Sellers list (filtered by role)
+    const { error: insertRoleError } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: newUser.user.id,
+        role: 'seller'
+      });
+
+    if (insertRoleError) {
+      console.error('Error creating seller role:', insertRoleError);
+      // Don't fail the whole operation, role can be fixed manually
+    } else {
+      console.log('[create-seller] Role "seller" created for user:', newUser.user.id);
+    }
+
+    // Try to create default data for the new seller
+    try {
+      await supabase.rpc('create_default_plans_for_seller', { seller_uuid: newUser.user.id });
+      await supabase.rpc('create_default_templates_for_seller', { seller_uuid: newUser.user.id });
+      console.log('[create-seller] Default plans and templates created');
+    } catch (defaultDataError) {
+      console.log('[create-seller] Could not create default data:', defaultDataError);
+    }
+
     console.log(`Seller created successfully: ${email} with plan: ${plan_type}`);
 
     return new Response(
