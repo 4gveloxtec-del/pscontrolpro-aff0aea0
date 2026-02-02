@@ -10,6 +10,7 @@ import { useClientValidation } from '@/hooks/useClientValidation';
 import { usePerformanceOptimization } from '@/hooks/usePerformanceOptimization';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useAtomicClientSave } from '@/hooks/useAtomicClientSave';
+import { useClientFilters, ClientFilterType } from '@/hooks/useClientFilters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -158,7 +159,8 @@ interface ServerData {
   total_screens_per_credit: number;
 }
 
-type FilterType = 'all' | 'active' | 'expiring' | 'expired' | 'expired_not_called' | 'unpaid' | 'with_paid_apps' | 'archived' | 'api_tests';
+// FilterType agora é importado de useClientFilters como ClientFilterType
+type FilterType = ClientFilterType;
 const DEFAULT_CATEGORIES = ['IPTV', 'P2P', 'Contas Premium', 'SSH', 'Revendedor'] as const;
 
 const DEVICE_OPTIONS = [
@@ -204,25 +206,24 @@ export default function Clients() {
       console.error('[Clients] Atomic save error:', error);
     },
   });
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const [filter, setFilter] = useState<FilterType>('all');
+  // ============= Hook de filtros (extraído para melhor manutenibilidade) =============
+  const {
+    search,
+    setSearch,
+    debouncedSearch,
+    filter,
+    setFilter,
+    categoryFilter,
+    setCategoryFilter,
+    serverFilter,
+    setServerFilter,
+    dnsFilter,
+    setDnsFilter,
+    dateFilter,
+    setDateFilter,
+    isViewingArchived,
+  } = useClientFilters();
 
-  // Debounce search for performance with large datasets
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-    searchDebounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 150); // 150ms debounce
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [search]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [showPassword, setShowPassword] = useState<string | null>(null);
@@ -242,10 +243,6 @@ export default function Clients() {
   const [searchDecryptedLogins, setSearchDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
   const [isDecryptingSearchLogins, setIsDecryptingSearchLogins] = useState(false);
   const searchDecryptInitializedRef = useRef(false);
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [serverFilter, setServerFilter] = useState<string>('all');
-  const [dnsFilter, setDnsFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -368,8 +365,7 @@ export default function Clients() {
   const AUTOLOAD_ALL_UP_TO = 250; // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
 
   // Get total count of clients for accurate pagination info
-  // Determine if we're viewing archived clients
-  const isViewingArchived = filter === 'archived';
+  // isViewingArchived agora vem do hook useClientFilters
 
   const { data: clientCount } = useQuery({
     queryKey: ['clients-count', user?.id, debouncedSearch, isViewingArchived],
