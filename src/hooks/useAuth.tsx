@@ -978,10 +978,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
   // Se autenticado mas role ainda não carregou, assume acesso temporário para evitar flash
   const isRoleStillLoading = authState === 'authenticated' && role === null;
+
+  // CRITICAL: Durante reload, pode existir sessão/role mas o profile ainda não chegou.
+  // Nesse intervalo, NÃO podemos concluir que a assinatura expirou, então bloqueamos
+  // redirecionamentos/avisos até o profile ser carregado.
+  const isProfileStillLoading = authState === 'authenticated' && !!user && profile === null;
   
   const hasSystemAccess = 
     isVerifyingRole || 
     isRoleStillLoading || // <-- Novo: evita flash durante carregamento de role
+    isProfileStillLoading || // <-- Novo: evita flash de "assinatura expirada" antes do profile
     isAdmin || 
     isPermanent || 
     (isSeller && trialInfo.isInTrial) || 

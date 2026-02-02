@@ -268,6 +268,20 @@ export function AppLayout() {
   // Isso evita o "flash" da tela de expirado durante reloads rápidos
   // O hasSystemAccess agora já considera isso, mas adicionamos verificação extra por segurança
   const isRoleStillLoading = authState === 'authenticated' && role === null;
+
+  // CRITICAL FIX: Evita flash de "assinatura expirada" antes do profile/assinatura serem carregados
+  const isProfileStillLoading = authState === 'authenticated' && !!user && profile === null;
+
+  if (isRoleStillLoading || isProfileStillLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Sincronizando sua conta...</p>
+        </div>
+      </div>
+    );
+  }
   
   // Se usuário não tem acesso ao sistema (role = 'user'), redireciona
   // MAS só após o role ter sido determinado (não null)

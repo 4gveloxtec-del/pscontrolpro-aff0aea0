@@ -31,20 +31,23 @@ export default function AccessDenied() {
   // Isso evita exibir a tela de "expirado" durante o reload rápido
   const isRoleStillLoading = authState === 'authenticated' && role === null;
 
+  // CRITICAL FIX: Evita flash quando o profile/assinatura ainda não foi carregado
+  const isProfileStillLoading = authState === 'authenticated' && profile === null;
+
   // Se o usuário ainda está em período de teste OU role está carregando, redirecionar para dashboard
   useEffect(() => {
-    if (hasSystemAccess || isRoleStillLoading) {
+    if (hasSystemAccess || isRoleStillLoading || isProfileStillLoading) {
       navigate('/dashboard');
     }
-  }, [hasSystemAccess, isRoleStillLoading, navigate]);
+  }, [hasSystemAccess, isRoleStillLoading, isProfileStillLoading, navigate]);
 
   // Mostrar loading enquanto verifica permissões (evita flash da tela de expirado)
-  if (isRoleStillLoading) {
+  if (isRoleStillLoading || isProfileStillLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verificando permissões...</p>
+          <p className="text-muted-foreground">Verificando acesso...</p>
         </div>
       </div>
     );
