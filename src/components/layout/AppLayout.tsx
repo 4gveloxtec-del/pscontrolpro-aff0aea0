@@ -284,8 +284,8 @@ export function AppLayout() {
   }
   
   // Se usuário não tem acesso ao sistema (role = 'user'), redireciona
-  // MAS só após o role ter sido determinado (não null)
-  if (!hasSystemAccess && !isRoleStillLoading) {
+  // NOTA: hasSystemAccess já considera isRoleStillLoading e isProfileStillLoading internamente
+  if (!hasSystemAccess) {
     return <Navigate to="/access-denied" replace />;
   }
 
