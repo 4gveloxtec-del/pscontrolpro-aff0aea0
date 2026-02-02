@@ -129,13 +129,17 @@ export function ProtectedRoute({
   const effectiveRole = role || (hasTimedOut ? 'seller' : null);
   const effectiveHasSystemAccess = hasSystemAccess || hasTimedOut;
 
+  // CRITICAL FIX: Não redirecionar enquanto role está carregando (evita flash de /access-denied)
+  const isRoleStillLoading = authState === 'authenticated' && role === null && !hasTimedOut;
+
   // Se ainda não tem role e não atingiu timeout, aguarda carregar
   if (!effectiveRole) {
     return <LoadingScreen message="Carregando permissões..." showProgress />;
   }
 
   // Se requer acesso ao sistema (admin ou seller)
-  if (requireSystemAccess && !effectiveHasSystemAccess) {
+  // MAS só redireciona após role ser determinado
+  if (requireSystemAccess && !effectiveHasSystemAccess && !isRoleStillLoading) {
     return <Navigate to="/access-denied" replace />;
   }
 

@@ -238,7 +238,7 @@ function MobileMenuContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppLayout() {
-  const { user, loading, hasSystemAccess, trialInfo, isUser, isSeller, profile } = useAuth();
+  const { user, loading, hasSystemAccess, trialInfo, isUser, isSeller, profile, role, authState } = useAuth();
   const isMobile = useIsMobile();
   const { menuStyle } = useMenuStyle();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -264,8 +264,14 @@ export function AppLayout() {
     return <Navigate to="/auth" replace />;
   }
 
+  // CRITICAL FIX: Não redirecionar para /access-denied enquanto o role ainda está carregando
+  // Isso evita o "flash" da tela de expirado durante reloads rápidos
+  // O hasSystemAccess agora já considera isso, mas adicionamos verificação extra por segurança
+  const isRoleStillLoading = authState === 'authenticated' && role === null;
+  
   // Se usuário não tem acesso ao sistema (role = 'user'), redireciona
-  if (!hasSystemAccess) {
+  // MAS só após o role ter sido determinado (não null)
+  if (!hasSystemAccess && !isRoleStillLoading) {
     return <Navigate to="/access-denied" replace />;
   }
 
