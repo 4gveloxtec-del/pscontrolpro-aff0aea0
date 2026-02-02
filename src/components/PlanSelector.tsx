@@ -110,13 +110,13 @@ export function PlanSelector({
     <div className={cn("space-y-2", className)}>
       {showFilters && (
         <div className="space-y-1.5 sm:space-y-2">
-          {/* Duration Filter */}
-          <div className="flex flex-wrap gap-0.5 sm:gap-1">
+          {/* Duration Filter - horizontal scroll on mobile */}
+          <div className="flex gap-0.5 sm:gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
             <button
               type="button"
               onClick={() => setDurationFilter('all')}
               className={cn(
-                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
+                "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === 'all' 
                   ? "bg-primary text-primary-foreground" 
                   : "bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -128,53 +128,49 @@ export function PlanSelector({
               type="button"
               onClick={() => setDurationFilter('30')}
               className={cn(
-                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
+                "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '30' 
                   ? "bg-blue-500 text-white" 
                   : "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20"
               )}
             >
-              <span className="hidden xs:inline">Mensal</span>
-              <span className="xs:hidden">30d</span>
+              30d
             </button>
             <button
               type="button"
               onClick={() => setDurationFilter('90')}
               className={cn(
-                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
+                "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '90' 
                   ? "bg-emerald-500 text-white" 
                   : "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
               )}
             >
-              <span className="hidden xs:inline">Trimestral</span>
-              <span className="xs:hidden">90d</span>
+              90d
             </button>
             <button
               type="button"
               onClick={() => setDurationFilter('180')}
               className={cn(
-                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
+                "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '180' 
                   ? "bg-amber-500 text-white" 
                   : "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
               )}
             >
-              <span className="hidden xs:inline">Semestral</span>
-              <span className="xs:hidden">180d</span>
+              180d
             </button>
             <button
               type="button"
               onClick={() => setDurationFilter('365')}
               className={cn(
-                "px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-md transition-colors",
+                "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '365' 
                   ? "bg-purple-500 text-white" 
                   : "bg-purple-500/10 text-purple-500 hover:bg-purple-500/20"
               )}
             >
-              <span className="hidden xs:inline">Anual</span>
-              <span className="xs:hidden">365d</span>
+              365d
             </button>
           </div>
 
@@ -215,10 +211,10 @@ export function PlanSelector({
       )}
 
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className={compact ? "h-9" : ""}>
+        <SelectTrigger className={cn("min-h-[36px]", compact && "h-9")}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="max-h-[70vh] sm:max-h-[350px]" position="popper" sideOffset={4}>
+        <SelectContent className="max-h-[50vh] sm:max-h-[350px]" position="popper" sideOffset={4}>
           {filteredPlans.length === 0 ? (
             <div className="p-2 text-sm text-muted-foreground text-center">
               Nenhum plano encontrado
@@ -228,18 +224,18 @@ export function PlanSelector({
               <SelectItem 
                 key={plan.id} 
                 value={plan.id}
-                className={cn("flex items-center", getDurationBg(plan.duration_days))}
+                className={cn("flex items-center py-1.5", getDurationBg(plan.duration_days))}
               >
-                <div className="flex items-center gap-2 w-full">
+                <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
                   <span className={cn(
-                    "inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px]",
+                    "inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-medium min-w-[40px] sm:min-w-[50px] flex-shrink-0",
                     getDurationBg(plan.duration_days),
                     getDurationColor(plan.duration_days)
                   )}>
                     {getDurationLabel(plan.duration_days)}
                   </span>
-                  <span className="truncate flex-1">{plan.name}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="truncate flex-1 text-xs sm:text-sm">{plan.name}</span>
+                  <span className="text-muted-foreground text-[10px] sm:text-xs flex-shrink-0">
                     R$ {plan.price.toFixed(2)}
                   </span>
                 </div>
