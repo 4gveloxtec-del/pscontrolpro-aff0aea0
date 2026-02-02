@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function AccessDenied() {
-  const { profile, signOut, role, hasSystemAccess } = useAuth();
+  const { profile, signOut, role, hasSystemAccess, authState } = useAuth();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -27,12 +27,28 @@ export default function AccessDenied() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // Se o usuário ainda está em período de teste, redirecionar para dashboard
+  // CRITICAL FIX: Detectar se o role ainda está carregando
+  // Isso evita exibir a tela de "expirado" durante o reload rápido
+  const isRoleStillLoading = authState === 'authenticated' && role === null;
+
+  // Se o usuário ainda está em período de teste OU role está carregando, redirecionar para dashboard
   useEffect(() => {
-    if (hasSystemAccess) {
+    if (hasSystemAccess || isRoleStillLoading) {
       navigate('/dashboard');
     }
-  }, [hasSystemAccess, navigate]);
+  }, [hasSystemAccess, isRoleStillLoading, navigate]);
+
+  // Mostrar loading enquanto verifica permissões (evita flash da tela de expirado)
+  if (isRoleStillLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Verificando permissões...</p>
+        </div>
+      </div>
+    );
+  }
 
   const openAdminWhatsApp = () => {
     const phone = '5531998518865';
