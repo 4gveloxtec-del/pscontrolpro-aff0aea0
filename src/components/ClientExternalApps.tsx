@@ -865,13 +865,15 @@ export function ClientExternalAppsDisplay({ clientId, sellerId }: ClientExternal
     const appName = fixedName.replace('RESELLER:', '');
     const foundApp = resellerApps.find(ra => ra.name === appName);
     if (foundApp) {
+      // Access panel data from the hook's mapped response
+      const panelData = (foundApp as any).panel;
       return {
         name: foundApp.name,
         icon: (foundApp as any).icon || '📱',
         download_url: foundApp.download_url,
         mac_address: foundApp.mac_address || null,
-        panel_name: (foundApp as any).panel?.name || null,
-        panel_url: (foundApp as any).panel?.panel_url || null,
+        panel_name: panelData?.name || null,
+        panel_url: panelData?.panel_url || null,
       };
     }
     return { name: appName, icon: '📱', download_url: null, mac_address: null, panel_name: null, panel_url: null };
