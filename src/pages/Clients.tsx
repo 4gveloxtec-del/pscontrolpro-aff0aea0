@@ -3133,27 +3133,31 @@ export default function Clients() {
         {/* Category Filter Tabs */}
         <div className="space-y-2">
           <Label className="text-sm text-muted-foreground">Filtrar por Categoria</Label>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={categoryFilter === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setCategoryFilter('all')}
-            >
-              Todos ({clients.length})
-            </Button>
-            {allCategories.map((cat) => {
-              const count = clients.filter(c => c.category === cat).length;
-              return (
-                <Button
-                  key={cat}
-                  variant={categoryFilter === cat ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setCategoryFilter(cat)}
-                >
-                  {cat} ({count})
-                </Button>
-              );
-            })}
+          <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
+            <div className="flex gap-2 w-max">
+              <Button
+                variant={categoryFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCategoryFilter('all')}
+                className="shrink-0"
+              >
+                Todos ({clients.length})
+              </Button>
+              {allCategories.map((cat) => {
+                const count = clients.filter(c => c.category === cat).length;
+                return (
+                  <Button
+                    key={cat}
+                    variant={categoryFilter === cat ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setCategoryFilter(cat)}
+                    className="shrink-0"
+                  >
+                    {cat} ({count})
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -3239,31 +3243,41 @@ export default function Clients() {
         })()}
 
         {/* Status Filter Tabs */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)} className="flex-1">
-            <TabsList className="flex-wrap h-auto gap-1">
-              <TabsTrigger value="all">Todos ({activeClients.length})</TabsTrigger>
-              <TabsTrigger value="active">Ativos</TabsTrigger>
-              <TabsTrigger value="expiring">Vencendo</TabsTrigger>
-              <TabsTrigger value="expired">Vencidos</TabsTrigger>
-              <TabsTrigger value="expired_not_called" className="gap-1 text-destructive">
-                <Phone className="h-3 w-3" />
-                Não Chamados ({expiredNotCalledCount})
-              </TabsTrigger>
-              <TabsTrigger value="unpaid">Não Pagos</TabsTrigger>
-              <TabsTrigger value="with_paid_apps" className="gap-1">
-                <AppWindow className="h-3 w-3" />
-                Apps Pagos ({clientsWithExternalApps.length > 0 ? activeClients.filter(c => clientsWithPaidAppsSet.has(c.id)).length : 0})
-              </TabsTrigger>
-              <TabsTrigger value="api_tests" className="gap-1 text-purple-600 dark:text-purple-400">
-                <Beaker className="h-3 w-3" />
-                Testes API ({apiTestClientsCount})
-              </TabsTrigger>
-              <TabsTrigger value="archived" className="gap-1">
-                <Archive className="h-3 w-3" />
-                Lixeira ({archivedClientsCount})
-              </TabsTrigger>
-            </TabsList>
+        <div className="flex items-center gap-2 w-full max-w-full overflow-hidden">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)} className="flex-1 min-w-0">
+            <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
+              <TabsList className="inline-flex w-max h-auto gap-1 p-1">
+                <TabsTrigger value="all" className="shrink-0">Todos ({activeClients.length})</TabsTrigger>
+                <TabsTrigger value="active" className="shrink-0">Ativos</TabsTrigger>
+                <TabsTrigger value="expiring" className="shrink-0">Vencendo</TabsTrigger>
+                <TabsTrigger value="expired" className="shrink-0">Vencidos</TabsTrigger>
+                <TabsTrigger value="expired_not_called" className="gap-1 text-destructive shrink-0">
+                  <Phone className="h-3 w-3" />
+                  <span className="hidden xs:inline">Não Chamados</span>
+                  <span className="xs:hidden">NC</span>
+                  ({expiredNotCalledCount})
+                </TabsTrigger>
+                <TabsTrigger value="unpaid" className="shrink-0">
+                  <span className="hidden xs:inline">Não Pagos</span>
+                  <span className="xs:hidden">NP</span>
+                </TabsTrigger>
+                <TabsTrigger value="with_paid_apps" className="gap-1 shrink-0">
+                  <AppWindow className="h-3 w-3" />
+                  <span className="hidden sm:inline">Apps Pagos</span>
+                  ({clientsWithExternalApps.length > 0 ? activeClients.filter(c => clientsWithPaidAppsSet.has(c.id)).length : 0})
+                </TabsTrigger>
+                <TabsTrigger value="api_tests" className="gap-1 text-purple-600 dark:text-purple-400 shrink-0">
+                  <Beaker className="h-3 w-3" />
+                  <span className="hidden sm:inline">Testes API</span>
+                  ({apiTestClientsCount})
+                </TabsTrigger>
+                <TabsTrigger value="archived" className="gap-1 shrink-0">
+                  <Archive className="h-3 w-3" />
+                  <span className="hidden xs:inline">Lixeira</span>
+                  ({archivedClientsCount})
+                </TabsTrigger>
+              </TabsList>
+            </div>
           </Tabs>
           
           {/* Sent Messages Counter */}
