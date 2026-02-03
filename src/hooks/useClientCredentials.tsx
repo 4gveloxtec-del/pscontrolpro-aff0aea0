@@ -321,19 +321,29 @@ export function useClientCredentials({
       ...searchDecryptedLogins 
     };
 
-    // Descriptografar em batches para evitar throttling
-    const batchSize = 30;
+    // Descriptografar em batches maiores com allSettled para resiliência
+    const batchSize = 50;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
-      await Promise.all(
+      const results = await Promise.allSettled(
         batch.map(async (client) => {
           const [login, login_2] = await Promise.all([
             safeDecrypt(client.login ?? null),
             safeDecrypt(client.login_2 ?? null),
           ]);
-          next[client.id] = { login, login_2 };
+          return { clientId: client.id, login, login_2 };
         })
       );
+      
+      // Processar apenas resultados bem-sucedidos
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          next[result.value.clientId] = { 
+            login: result.value.login, 
+            login_2: result.value.login_2 
+          };
+        }
+      }
     }
 
     // Salvar no state e no cache
