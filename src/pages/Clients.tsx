@@ -2326,7 +2326,19 @@ export default function Clients() {
                   <div className="flex gap-2">
                     <Select
                       value={formData.category}
-                      onValueChange={(value) => setFormData({ ...formData, category: value })}
+                      onValueChange={(value) => {
+                        // Clear plan fields when switching to Revendedor (manual value only)
+                        if (value === 'Revendedor') {
+                          setFormData({ 
+                            ...formData, 
+                            category: value,
+                            plan_id: '',
+                            plan_name: '',
+                          });
+                        } else {
+                          setFormData({ ...formData, category: value });
+                        }
+                      }}
                     >
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Selecione a categoria" />
@@ -2483,20 +2495,27 @@ export default function Clients() {
                 />
 
                 {/* Plan Select and Dynamic Value Field */}
-                <div className="space-y-2">
-                  <Label>Plano</Label>
-                  <PlanSelector
-                    plans={plans}
-                    value={formData.plan_id || ''}
-                    onValueChange={handlePlanChange}
-                    placeholder="Selecionar plano"
-                    showFilters={true}
-                    defaultCategory={formData.category}
-                  />
-                </div>
+                {/* Para categoria "Revendedor", ocultar seletor de plano - valor é manual */}
+                {formData.category !== 'Revendedor' && (
+                  <div className="space-y-2">
+                    <Label>Plano</Label>
+                    <PlanSelector
+                      plans={plans}
+                      value={formData.plan_id || ''}
+                      onValueChange={handlePlanChange}
+                      placeholder="Selecionar plano"
+                      showFilters={true}
+                      defaultCategory={formData.category}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="plan_price">
                     {(() => {
+                      // Categoria Revendedor: label específico
+                      if (formData.category === 'Revendedor') {
+                        return 'Valor Revendedor (R$) *';
+                      }
                       // Dynamic label based on selected plan or category
                       const selectedPlan = plans?.find(p => p.id === formData.plan_id);
                       if (selectedPlan?.category) {
@@ -2515,10 +2534,12 @@ export default function Clients() {
                     min="0"
                     value={formData.plan_price}
                     onChange={(e) => setFormData({ ...formData, plan_price: e.target.value })}
-                    placeholder="Ex: 25.00"
+                    placeholder={formData.category === 'Revendedor' ? 'Digite o valor (obrigatório)' : 'Ex: 25.00'}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {formData.plan_id ? 'Preenchido pelo plano. Edite para promoções.' : 'Defina o valor manualmente ou selecione um plano.'}
+                    {formData.category === 'Revendedor' 
+                      ? 'Digite o valor manualmente. Será contabilizado no dashboard.' 
+                      : (formData.plan_id ? 'Preenchido pelo plano. Edite para promoções.' : 'Defina o valor manualmente ou selecione um plano.')}
                   </p>
                 </div>
                 {formData.plan_price && (
