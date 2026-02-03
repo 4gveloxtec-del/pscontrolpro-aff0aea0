@@ -54,6 +54,31 @@ const looksEncrypted = (value: string): boolean => {
   return hasUpperAndLower || hasPadding || hasSpecialBase64;
 };
 
+// ============= Cache Key =============
+const SEARCH_LOGINS_CACHE_KEY = 'busca360_logins_cache';
+
+// ============= Helper: Load cache from sessionStorage =============
+const loadSearchLoginsCache = (sellerId: string): Record<string, { login: string; login_2: string }> => {
+  try {
+    const cached = sessionStorage.getItem(`${SEARCH_LOGINS_CACHE_KEY}_${sellerId}`);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    console.warn('[useClientCredentials] Failed to load cache:', e);
+  }
+  return {};
+};
+
+// ============= Helper: Save cache to sessionStorage =============
+const saveSearchLoginsCache = (sellerId: string, data: Record<string, { login: string; login_2: string }>) => {
+  try {
+    sessionStorage.setItem(`${SEARCH_LOGINS_CACHE_KEY}_${sellerId}`, JSON.stringify(data));
+  } catch (e) {
+    console.warn('[useClientCredentials] Failed to save cache:', e);
+  }
+};
+
 // ============= Hook Principal =============
 export function useClientCredentials({
   userId,
@@ -67,8 +92,10 @@ export function useClientCredentials({
   const [isDecryptingAll, setIsDecryptingAll] = useState(false);
   const [allCredentialsDecrypted, setAllCredentialsDecrypted] = useState(false);
 
-  // Estados para busca por login descriptografado
-  const [searchDecryptedLogins, setSearchDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
+  // Estados para busca por login descriptografado - inicializa do cache
+  const [searchDecryptedLogins, setSearchDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>(() => {
+    return userId ? loadSearchLoginsCache(userId) : {};
+  });
   const [isDecryptingSearchLogins, setIsDecryptingSearchLogins] = useState(false);
   const searchDecryptInitializedRef = useRef(false);
 
@@ -268,14 +295,31 @@ export function useClientCredentials({
     if (isDecryptingSearchLogins) return;
     if (searchDecryptInitializedRef.current) return;
 
-    // Verificar se já temos todos descriptografados
-    const missing = allClientsForSearch.filter((c) => !searchDecryptedLogins[c.id]);
-    if (missing.length === 0) return;
+    // Carregar cache existente
+    const existingCache = loadSearchLoginsCache(userId);
+    
+    // Verificar quais clientes já estão no cache ou no state
+    const missing = allClientsForSearch.filter((c) => 
+      !searchDecryptedLogins[c.id] && !existingCache[c.id]
+    );
+    
+    // Se todos já estão cacheados, apenas usar o cache
+    if (missing.length === 0) {
+      if (Object.keys(existingCache).length > Object.keys(searchDecryptedLogins).length) {
+        setSearchDecryptedLogins(existingCache);
+      }
+      searchDecryptInitializedRef.current = true;
+      return;
+    }
 
     searchDecryptInitializedRef.current = true;
-
     setIsDecryptingSearchLogins(true);
-    const next: Record<string, { login: string; login_2: string }> = { ...searchDecryptedLogins };
+    
+    // Iniciar com cache existente
+    const next: Record<string, { login: string; login_2: string }> = { 
+      ...existingCache, 
+      ...searchDecryptedLogins 
+    };
 
     // Descriptografar em batches para evitar throttling
     const batchSize = 30;
@@ -292,7 +336,9 @@ export function useClientCredentials({
       );
     }
 
+    // Salvar no state e no cache
     setSearchDecryptedLogins(next);
+    saveSearchLoginsCache(userId, next);
     setIsDecryptingSearchLogins(false);
   }, [userId, searchDecryptedLogins, isDecryptingSearchLogins, safeDecrypt]);
 
