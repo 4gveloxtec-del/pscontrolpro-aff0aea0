@@ -3107,7 +3107,7 @@ export default function Clients() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 max-w-full overflow-hidden">
         {/* Search */}
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -3243,35 +3243,36 @@ export default function Clients() {
         })()}
 
         {/* Status Filter Tabs */}
-        <div className="flex items-center gap-2 w-full max-w-full overflow-hidden">
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)} className="flex-1 min-w-0">
+        <div className="flex flex-col gap-2 w-full max-w-full overflow-hidden">
+          {/* Status Tabs Row - Scrollable */}
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterType)} className="w-full">
             <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
               <TabsList className="inline-flex w-max h-auto gap-1 p-1">
-                <TabsTrigger value="all" className="shrink-0">Todos ({activeClients.length})</TabsTrigger>
-                <TabsTrigger value="active" className="shrink-0">Ativos</TabsTrigger>
-                <TabsTrigger value="expiring" className="shrink-0">Vencendo</TabsTrigger>
-                <TabsTrigger value="expired" className="shrink-0">Vencidos</TabsTrigger>
-                <TabsTrigger value="expired_not_called" className="gap-1 text-destructive shrink-0">
+                <TabsTrigger value="all" className="shrink-0 text-xs sm:text-sm">Todos ({activeClients.length})</TabsTrigger>
+                <TabsTrigger value="active" className="shrink-0 text-xs sm:text-sm">Ativos</TabsTrigger>
+                <TabsTrigger value="expiring" className="shrink-0 text-xs sm:text-sm">Vencendo</TabsTrigger>
+                <TabsTrigger value="expired" className="shrink-0 text-xs sm:text-sm">Vencidos</TabsTrigger>
+                <TabsTrigger value="expired_not_called" className="gap-1 text-destructive shrink-0 text-xs sm:text-sm">
                   <Phone className="h-3 w-3" />
                   <span className="hidden xs:inline">Não Chamados</span>
                   <span className="xs:hidden">NC</span>
                   ({expiredNotCalledCount})
                 </TabsTrigger>
-                <TabsTrigger value="unpaid" className="shrink-0">
+                <TabsTrigger value="unpaid" className="shrink-0 text-xs sm:text-sm">
                   <span className="hidden xs:inline">Não Pagos</span>
                   <span className="xs:hidden">NP</span>
                 </TabsTrigger>
-                <TabsTrigger value="with_paid_apps" className="gap-1 shrink-0">
+                <TabsTrigger value="with_paid_apps" className="gap-1 shrink-0 text-xs sm:text-sm">
                   <AppWindow className="h-3 w-3" />
-                  <span className="hidden sm:inline">Apps Pagos</span>
+                  <span className="hidden sm:inline">Apps</span>
                   ({clientsWithExternalApps.length > 0 ? activeClients.filter(c => clientsWithPaidAppsSet.has(c.id)).length : 0})
                 </TabsTrigger>
-                <TabsTrigger value="api_tests" className="gap-1 text-purple-600 dark:text-purple-400 shrink-0">
+                <TabsTrigger value="api_tests" className="gap-1 text-purple-600 dark:text-purple-400 shrink-0 text-xs sm:text-sm">
                   <Beaker className="h-3 w-3" />
-                  <span className="hidden sm:inline">Testes API</span>
+                  <span className="hidden sm:inline">Testes</span>
                   ({apiTestClientsCount})
                 </TabsTrigger>
-                <TabsTrigger value="archived" className="gap-1 shrink-0">
+                <TabsTrigger value="archived" className="gap-1 shrink-0 text-xs sm:text-sm">
                   <Archive className="h-3 w-3" />
                   <span className="hidden xs:inline">Lixeira</span>
                   ({archivedClientsCount})
@@ -3280,122 +3281,125 @@ export default function Clients() {
             </div>
           </Tabs>
           
-          {/* Sent Messages Counter */}
-          {sentCount > 0 && (
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="gap-1 text-success">
-                <CheckCircle className="h-3 w-3" />
-                {sentCount} enviado{sentCount > 1 ? 's' : ''}
-              </Badge>
+          {/* Action Buttons Row - Wraps on small screens */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sent Messages Counter */}
+            {sentCount > 0 && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="gap-1 text-success">
+                  <CheckCircle className="h-3 w-3" />
+                  {sentCount} enviado{sentCount > 1 ? 's' : ''}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    confirm({
+                      title: 'Limpar marcações',
+                      description: 'Limpar todas as marcações de mensagens enviadas?',
+                      confirmText: 'Limpar',
+                      variant: 'warning',
+                      onConfirm: () => {
+                        clearAllSentMarks();
+                        toast.success('Marcações limpas');
+                      },
+                    });
+                  }}
+                >
+                  Limpar
+                </Button>
+              </div>
+            )}
+            
+            {/* Archive expired called clients */}
+            {expiredCalledClients.length > 0 && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                className="gap-1.5 text-xs h-8 border-warning/50 text-warning hover:bg-warning/10"
                 onClick={() => {
                   confirm({
-                    title: 'Limpar marcações',
-                    description: 'Limpar todas as marcações de mensagens enviadas?',
-                    confirmText: 'Limpar',
+                    title: 'Arquivar clientes vencidos',
+                    description: `Arquivar ${expiredCalledClients.length} cliente${expiredCalledClients.length > 1 ? 's' : ''} vencido${expiredCalledClients.length > 1 ? 's' : ''} já chamado${expiredCalledClients.length > 1 ? 's' : ''}?`,
+                    confirmText: 'Arquivar',
                     variant: 'warning',
-                    onConfirm: () => {
-                      clearAllSentMarks();
-                      toast.success('Marcações limpas');
-                    },
+                    onConfirm: () => archiveCalledExpiredMutation.mutate(expiredCalledClients.map(c => c.id)),
                   });
                 }}
+                disabled={archiveCalledExpiredMutation.isPending}
               >
-                Limpar
+                {archiveCalledExpiredMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Archive className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden xs:inline">Arquivar</span> ({expiredCalledClients.length})
               </Button>
-            </div>
-          )}
-          
-          {/* Archive expired called clients */}
-          {expiredCalledClients.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs h-8 border-warning/50 text-warning hover:bg-warning/10"
-              onClick={() => {
-                confirm({
-                  title: 'Arquivar clientes vencidos',
-                  description: `Arquivar ${expiredCalledClients.length} cliente${expiredCalledClients.length > 1 ? 's' : ''} vencido${expiredCalledClients.length > 1 ? 's' : ''} já chamado${expiredCalledClients.length > 1 ? 's' : ''}?`,
-                  confirmText: 'Arquivar',
-                  variant: 'warning',
-                  onConfirm: () => archiveCalledExpiredMutation.mutate(expiredCalledClients.map(c => c.id)),
-                });
-              }}
-              disabled={archiveCalledExpiredMutation.isPending}
-            >
-              {archiveCalledExpiredMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Archive className="h-3.5 w-3.5" />
-              )}
-              Arquivar Vencidos Chamados ({expiredCalledClients.length})
-            </Button>
-          )}
-          
-          {/* Bulk message for expired not called */}
-          {expiredNotCalledCount > 0 && !isBulkMessaging && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs h-8 border-primary/50 text-primary hover:bg-primary/10"
-              onClick={() => {
-                const expiredNotCalled = activeClients.filter(c => {
-                  const status = getClientStatus(c);
-                  return status === 'expired' && !isSent(c.id) && (c.phone || c.telegram);
-                });
-                if (expiredNotCalled.length === 0) {
-                  toast.error('Nenhum cliente vencido não chamado com contato disponível');
-                  return;
-                }
-                setBulkMessageQueue(expiredNotCalled);
-                setBulkMessageIndex(0);
-                setMessageClient(expiredNotCalled[0]);
-                toast.info(`Iniciando envio para ${expiredNotCalled.length} cliente${expiredNotCalled.length > 1 ? 's' : ''}...`);
-              }}
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              Enviar para Não Chamados ({expiredNotCalledCount})
-            </Button>
-          )}
-          
-          {/* Bulk Loyalty/Referral Campaign */}
-          <BulkLoyaltyMessage
-            clients={activeClients}
-            templates={templates}
-            onSendMessage={(client) => {
-              // Find the full client object to pass to SendMessageDialog
-              const fullClient = activeClients.find(c => c.id === client.id);
-              if (fullClient) {
-                setMessageClient(fullClient);
-              }
-            }}
-            isDialogOpen={!!messageClient}
-            onOpen={() => setTemplatesEnabled(true)} // PERF: Trigger lazy load
-          />
-          
-          {/* Bulk messaging progress indicator */}
-          {isBulkMessaging && (
-            <Badge variant="secondary" className="gap-1.5 text-primary animate-pulse">
-              <MessageCircle className="h-3.5 w-3.5" />
-              Enviando {bulkMessageIndex + 1}/{bulkMessageQueue.length}
+            )}
+            
+            {/* Bulk message for expired not called */}
+            {expiredNotCalledCount > 0 && !isBulkMessaging && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-5 px-1 ml-1 text-destructive hover:text-destructive"
+                className="gap-1.5 text-xs h-8 border-primary/50 text-primary hover:bg-primary/10"
                 onClick={() => {
-                  setBulkMessageQueue([]);
+                  const expiredNotCalled = activeClients.filter(c => {
+                    const status = getClientStatus(c);
+                    return status === 'expired' && !isSent(c.id) && (c.phone || c.telegram);
+                  });
+                  if (expiredNotCalled.length === 0) {
+                    toast.error('Nenhum cliente vencido não chamado com contato disponível');
+                    return;
+                  }
+                  setBulkMessageQueue(expiredNotCalled);
                   setBulkMessageIndex(0);
-                  setMessageClient(null);
-                  toast.info('Envio em massa cancelado');
+                  setMessageClient(expiredNotCalled[0]);
+                  toast.info(`Iniciando envio para ${expiredNotCalled.length} cliente${expiredNotCalled.length > 1 ? 's' : ''}...`);
                 }}
               >
-                <X className="h-3 w-3" />
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">Enviar NC</span> ({expiredNotCalledCount})
               </Button>
-            </Badge>
-          )}
+            )}
+            
+            {/* Bulk Loyalty/Referral Campaign */}
+            <BulkLoyaltyMessage
+              clients={activeClients}
+              templates={templates}
+              onSendMessage={(client) => {
+                // Find the full client object to pass to SendMessageDialog
+                const fullClient = activeClients.find(c => c.id === client.id);
+                if (fullClient) {
+                  setMessageClient(fullClient);
+                }
+              }}
+              isDialogOpen={!!messageClient}
+              onOpen={() => setTemplatesEnabled(true)} // PERF: Trigger lazy load
+            />
+            
+            {/* Bulk messaging progress indicator */}
+            {isBulkMessaging && (
+              <Badge variant="secondary" className="gap-1.5 text-primary animate-pulse">
+                <MessageCircle className="h-3.5 w-3.5" />
+                Enviando {bulkMessageIndex + 1}/{bulkMessageQueue.length}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1 ml-1 text-destructive hover:text-destructive"
+                  onClick={() => {
+                    setBulkMessageQueue([]);
+                    setBulkMessageIndex(0);
+                    setMessageClient(null);
+                    toast.info('Envio em massa cancelado');
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
