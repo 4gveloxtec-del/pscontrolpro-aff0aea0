@@ -744,14 +744,14 @@ export function ClientFormDialog({
                       </SelectTrigger>
                       <SelectContent position="popper" sideOffset={4} className="md:max-h-none">
                         {activeServers.map((server) => (
-                          <SelectItem key={server.id} value={server.id}>
-                            <div className="flex items-center gap-2">
+                          <SelectItem key={server.id} value={server.id} className="md:py-1.5">
+                            <div className="flex items-center gap-2 md:text-xs">
                               {server.icon_url && (
-                                <img src={server.icon_url} alt="" className="h-4 w-4 rounded" />
+                                <img src={server.icon_url} alt="" className="h-4 w-4 md:h-3 md:w-3 rounded" />
                               )}
-                              {server.name}
+                              <span className="truncate">{server.name}</span>
                               {server.is_credit_based && (
-                                <span className="text-xs text-muted-foreground">(Créditos)</span>
+                                <span className="text-[10px] md:text-[9px] text-muted-foreground">(Créditos)</span>
                               )}
                             </div>
                           </SelectItem>
