@@ -20,7 +20,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { Plus, Trash2, Monitor, Mail, Key, ExternalLink, AppWindow, Copy, CalendarIcon, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Monitor, Mail, Key, ExternalLink, AppWindow, Copy, CalendarIcon, ChevronDown, ChevronUp, Server } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -91,7 +91,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
-        .select('*')
+        .select('*, panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)')
         .eq('seller_id', sellerId)
         .eq('is_gerencia_app', false)
         .eq('is_active', true)
@@ -113,7 +113,11 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         icon: item.icon,
         downloader_code: item.downloader_code,
         mac_address: item.mac_address, // Incluir MAC address se já existir no app
-      })) as ExternalApp[];
+        // Panel info for display
+        panel_id: item.panel_id,
+        panel_name: item.panel?.name || null,
+        panel_url: item.panel?.panel_url || null,
+      })) as (ExternalApp & { panel_id?: string; panel_name?: string; panel_url?: string })[];
     },
     enabled: !!sellerId,
   });
@@ -752,11 +756,21 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
 
   if (isLoading || linkedApps.length === 0) return null;
 
-  // Helper to get reseller app info by name
+  // Helper to get reseller app info by name (includes panel info)
   const getResellerAppInfo = (fixedName: string) => {
     if (!fixedName?.startsWith('RESELLER:')) return null;
     const appName = fixedName.replace('RESELLER:', '');
-    return resellerApps.find(ra => ra.name === appName) || { name: appName, icon: '📱', download_url: null };
+    const foundApp = resellerApps.find(ra => ra.name === appName);
+    if (foundApp) {
+      return {
+        name: foundApp.name,
+        icon: (foundApp as any).icon || '📱',
+        download_url: foundApp.download_url,
+        panel_name: (foundApp as any).panel_name || null,
+        panel_url: (foundApp as any).panel_url || null,
+      };
+    }
+    return { name: appName, icon: '📱', download_url: null, panel_name: null, panel_url: null };
   };
   
   // Helper to get fixed system app info by name
@@ -828,6 +842,23 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
                 {displayName}
                 {hasLink && <ExternalLink className="h-2.5 w-2.5 opacity-70" />}
               </button>
+              
+              {/* Panel badge - clickable if has panel URL (for reseller apps) */}
+              {resellerInfo?.panel_name && resellerInfo?.panel_url && (
+                <button
+                  onClick={() => {
+                    window.open(resellerInfo.panel_url!, '_blank', 'noopener,noreferrer');
+                    toast.success(`Abrindo painel: ${resellerInfo.panel_name}`);
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 transition-colors"
+                  title={`Abrir painel: ${resellerInfo.panel_name}`}
+                >
+                  <Server className="h-2.5 w-2.5" />
+                  {resellerInfo.panel_name}
+                  <ExternalLink className="h-2 w-2" />
+                </button>
+              )}
+              
               {app.expiration_date && (
                 <Badge variant="outline" className="text-[10px] h-4 px-1">
                   {format(new Date(app.expiration_date + 'T12:00:00'), 'dd/MM/yy')}

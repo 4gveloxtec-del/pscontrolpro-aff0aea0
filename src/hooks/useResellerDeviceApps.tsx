@@ -21,12 +21,14 @@ export interface ResellerDeviceApp {
   downloader_code: string | null;
   mac_address: string | null;
   server_id: string | null;
+  panel_id: string | null;
   is_gerencia_app: boolean;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
-  // Optional join field
+  // Optional join fields
   servers?: { name: string } | null;
+  panel?: { id: string; name: string; panel_url: string | null } | null;
 }
 
 // Map UI device names to database device types
@@ -51,7 +53,7 @@ export function useResellerDeviceApps(sellerId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
-        .select('*')
+        .select('*, panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)')
         .eq('seller_id', sellerId!)
         .eq('is_active', true)
         .order('name');
@@ -59,6 +61,7 @@ export function useResellerDeviceApps(sellerId: string | undefined) {
       return (data || []).map((app: any) => ({
         ...app,
         device_types: app.device_types || [],
+        panel: app.panel || null,
       })) as ResellerDeviceApp[];
     },
     enabled: !!sellerId,

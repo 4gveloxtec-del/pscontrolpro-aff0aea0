@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash, Loader2, ExternalLink, Server } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { 
   ResellerDeviceApp, 
@@ -26,6 +27,9 @@ interface ResellerAppDisplay {
   downloader_code: string | null;
   seller_id: string;
   is_active: boolean;
+  panel_id: string | null;
+  panel_name: string | null;
+  panel_url: string | null;
 }
 
 const EMOJI_OPTIONS = ['📱', '📺', '🎬', '🎮', '📡', '🌐', '⚡', '🔥', '💎', '🎯'];
@@ -39,7 +43,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   const { dialogProps, confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<ResellerAppDisplay | null>(null);
-  const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '', mac_address: '' });
+  const [formData, setFormData] = useState({ name: '', icon: '📱', download_url: '', downloader_code: '', mac_address: '', panel_id: '' });
 
   // Format MAC address with colons (AA:BB:CC:DD:EE:FF)
   const formatMacAddress = (value: string): string => {
@@ -49,13 +53,13 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
     return parts.join(':');
   };
 
-  // Fetch reseller apps - now using unified reseller_device_apps table
+  // Fetch reseller apps - now using unified reseller_device_apps table with panel info
   const { data: resellerApps = [], isLoading, isError } = useQuery({
     queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
-        .select('*')
+        .select('*, panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)')
         .eq('seller_id', sellerId)
         .eq('is_gerencia_app', false) // Regular reseller apps, not gerencia apps
         .eq('is_active', true)
@@ -68,8 +72,28 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
         download_url: item.download_url,
         downloader_code: item.downloader_code,
         seller_id: item.seller_id,
-        is_active: item.is_active
+        is_active: item.is_active,
+        panel_id: item.panel_id,
+        panel_name: item.panel?.name || null,
+        panel_url: item.panel?.panel_url || null,
       })) as ResellerAppDisplay[];
+    },
+    enabled: !!sellerId,
+  });
+
+  // Fetch servers with panel_url for selection
+  const { data: serversWithPanel = [] } = useQuery({
+    queryKey: ['servers-with-panel', sellerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('id, name, panel_url')
+        .eq('seller_id', sellerId)
+        .eq('is_active', true)
+        .not('panel_url', 'is', null)
+        .order('name');
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!sellerId,
   });
@@ -83,7 +107,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   };
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string }) => {
+    mutationFn: async (data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string; panel_id: string }) => {
       const trimmedName = data.name.trim();
       
       // Check if already has 10 apps
@@ -104,6 +128,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
           download_url: data.download_url.trim() || null,
           downloader_code: data.downloader_code.trim() || null,
           mac_address: data.mac_address.trim() || null,
+          panel_id: data.panel_id || null,
           seller_id: sellerId,
           is_active: true,
           is_gerencia_app: false,
@@ -124,7 +149,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { name: string; icon: string; download_url: string; downloader_code: string; mac_address: string; panel_id: string } }) => {
       const trimmedName = data.name.trim();
       
       // Check for duplicate name (excluding current app)
@@ -140,6 +165,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
           download_url: data.download_url.trim() || null,
           downloader_code: data.downloader_code.trim() || null,
           mac_address: data.mac_address.trim() || null,
+          panel_id: data.panel_id || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -174,7 +200,7 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', icon: '📱', download_url: '', downloader_code: '', mac_address: '' });
+    setFormData({ name: '', icon: '📱', download_url: '', downloader_code: '', mac_address: '', panel_id: '' });
     setEditingApp(null);
   };
 
@@ -185,7 +211,8 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
       icon: app.icon, 
       download_url: app.download_url || '',
       downloader_code: app.downloader_code || '',
-      mac_address: (app as any).mac_address || ''
+      mac_address: (app as any).mac_address || '',
+      panel_id: app.panel_id || ''
     });
     setIsDialogOpen(true);
   };
@@ -332,6 +359,38 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                         📟 Endereço MAC do dispositivo (formatação automática com :)
                       </p>
                     </div>
+
+                    {/* Panel Selection - Optional */}
+                    <div className="space-y-2">
+                      <Label htmlFor="panel_id">Vincular Painel (Opcional)</Label>
+                      <Select
+                        value={formData.panel_id}
+                        onValueChange={(value) => setFormData({ ...formData, panel_id: value === '_none' ? '' : value })}
+                      >
+                        <SelectTrigger id="panel_id">
+                          <SelectValue placeholder="Selecione um painel..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none">Nenhum painel</SelectItem>
+                          {serversWithPanel.map((server) => (
+                            <SelectItem key={server.id} value={server.id}>
+                              <div className="flex items-center gap-2">
+                                <Server className="h-3 w-3 text-blue-500" />
+                                {server.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        🔗 Quando vinculado, o nome do painel será exibido clicável na listagem de clientes
+                      </p>
+                      {serversWithPanel.length === 0 && (
+                        <p className="text-xs text-amber-500">
+                          ⚠️ Nenhum servidor com URL de painel cadastrado
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </ScrollArea>
 
@@ -377,9 +436,26 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                   <span className="text-xl sm:text-2xl flex-shrink-0">{app.icon}</span>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-xs sm:text-sm truncate">{app.name}</p>
-                    <Badge variant="secondary" className="text-[9px] sm:text-xs mt-0.5">
-                      App do Revendedor
-                    </Badge>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <Badge variant="secondary" className="text-[9px] sm:text-xs">
+                        App do Revendedor
+                      </Badge>
+                      {app.panel_name && app.panel_url && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(app.panel_url!, '_blank', 'noopener,noreferrer');
+                            toast.success(`Abrindo painel: ${app.panel_name}`);
+                          }}
+                          className="inline-flex items-center gap-1 text-[9px] sm:text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 transition-colors"
+                          title={`Abrir painel: ${app.panel_name}`}
+                        >
+                          <Server className="h-3 w-3" />
+                          {app.panel_name}
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
