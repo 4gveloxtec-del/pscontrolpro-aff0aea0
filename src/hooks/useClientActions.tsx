@@ -31,6 +31,9 @@ interface UseClientActionsOptions {
   setTotalClientCount: React.Dispatch<React.SetStateAction<number>>;
   setDbPage: React.Dispatch<React.SetStateAction<number>>;
   setHasMoreClients: React.Dispatch<React.SetStateAction<boolean>>;
+  // Callbacks opcionais para comportamento adicional
+  onDeleteAllSuccess?: () => void;
+  onArchiveExpiredSuccess?: () => void;
 }
 
 interface UseClientActionsReturn {
@@ -41,6 +44,7 @@ interface UseClientActionsReturn {
   // Archive/restore mutations
   archiveMutation: ReturnType<typeof useMutation<string, Error, string, { previousClients: Client[] }>>;
   restoreMutation: ReturnType<typeof useMutation<string, Error, string, { previousClients: Client[] }>>;
+  archiveCalledExpiredMutation: ReturnType<typeof useMutation<number, Error, string[], unknown>>;
   
   // Helper booleans
   isDeleting: boolean;
@@ -58,6 +62,8 @@ export function useClientActions({
   setTotalClientCount,
   setDbPage,
   setHasMoreClients,
+  onDeleteAllSuccess,
+  onArchiveExpiredSuccess,
 }: UseClientActionsOptions): UseClientActionsReturn {
   const queryClient = useQueryClient();
   const { validateForDelete, acquireLock, releaseLock } = useClientValidation();
@@ -163,6 +169,9 @@ export function useClientActions({
       // Invalidar TODOS os caches relacionados
       invalidateClientCaches({ defer: false });
       toast.success('Todos os clientes foram excluídos!');
+      
+      // Callback opcional para comportamento adicional (ex: fechar diálogo)
+      onDeleteAllSuccess?.();
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -209,7 +218,7 @@ export function useClientActions({
 
       // Invalidar todos os caches relacionados
       invalidateClientCaches({ defer: false });
-      toast.success('Cliente arquivado!');
+      toast.success('Cliente movido para lixeira!');
     },
     onError: (error: Error, _id, context) => {
       if (context?.previousClients) {
@@ -269,6 +278,39 @@ export function useClientActions({
     },
   });
 
+  // ============= Archive Called Expired Mutation (bulk archive) =============
+  const archiveCalledExpiredMutation = useMutation({
+    mutationFn: async (clientIds: string[]) => {
+      const { error } = await supabase
+        .from('clients')
+        .update({ is_archived: true, archived_at: new Date().toISOString() })
+        .in('id', clientIds);
+      if (error) throw error;
+      return clientIds.length;
+    },
+    onSuccess: (count) => {
+      // Manter contador local sincronizado
+      if (!debouncedSearch.trim()) {
+        setTotalClientCount(prev => (isViewingArchived ? prev + count : Math.max(0, prev - count)));
+      }
+
+      // Reset cache de paginação
+      setDbPage(0);
+      setAllLoadedClients([]);
+      setHasMoreClients(true);
+
+      // Invalidar todos os caches relacionados
+      invalidateClientCaches({ defer: false });
+      toast.success(`${count} cliente${count > 1 ? 's' : ''} vencido${count > 1 ? 's' : ''} arquivado${count > 1 ? 's' : ''}!`);
+      
+      // Callback opcional
+      onArchiveExpiredSuccess?.();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   // ============= Return =============
   return {
     // Mutations
@@ -276,6 +318,7 @@ export function useClientActions({
     deleteAllMutation,
     archiveMutation,
     restoreMutation,
+    archiveCalledExpiredMutation,
     
     // Helper states
     isDeleting: deleteMutation.isPending,

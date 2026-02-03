@@ -102,7 +102,7 @@ export default function Clients() {
   const { isPrivacyMode, maskData } = usePrivacyMode();
   const { isSent, clearSentMark, sentCount, clearAllSentMarks } = useSentMessages();
   const { renewClient: executeRenewal, isRenewing, isPending: isRenewalPending } = useRenewalMutation(user?.id);
-  const { validateForCreate, validateForUpdate, validateForDelete, acquireLock, releaseLock } = useClientValidation();
+  const { validateForCreate, validateForUpdate } = useClientValidation();
   const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   
@@ -302,22 +302,27 @@ export default function Clients() {
   // AUTOLOAD_ALL_UP_TO importado de @/types/clients // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
 
   // ============= Hook de Ações (extraído para melhor manutenibilidade) =============
-  // TODO: Ativar após validação completa - Etapa 2.9
-  // const {
-  //   deleteMutation: actionsDeleteMutation,
-  //   deleteAllMutation: actionsDeleteAllMutation,
-  //   archiveMutation: actionsArchiveMutation,
-  //   restoreMutation: actionsRestoreMutation,
-  // } = useClientActions({
-  //   userId: user?.id,
-  //   isViewingArchived,
-  //   debouncedSearch,
-  //   allLoadedClients,
-  //   setAllLoadedClients,
-  //   setTotalClientCount,
-  //   setDbPage,
-  //   setHasMoreClients,
-  // });
+  const {
+    deleteMutation,
+    deleteAllMutation,
+    archiveMutation,
+    restoreMutation,
+    archiveCalledExpiredMutation,
+    isDeleting: _isDeleting,
+    isArchiving: _isArchiving,
+    isRestoring: _isRestoring,
+  } = useClientActions({
+    userId: user?.id,
+    isViewingArchived,
+    debouncedSearch,
+    allLoadedClients,
+    setAllLoadedClients,
+    setTotalClientCount,
+    setDbPage,
+    setHasMoreClients,
+    onDeleteAllSuccess: () => setShowDeleteAllConfirm(false),
+    onArchiveExpiredSuccess: () => clearAllSentMarks(),
+  });
 
   // Get total count of clients for accurate pagination info
   // isViewingArchived agora vem do hook useClientFilters
@@ -1542,232 +1547,7 @@ export default function Clients() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      // Preventive check - ensure not locked
-      const validation = validateForDelete(id);
-      if (validation.blocked) {
-        throw new Error('Aguarde, operação em andamento');
-      }
-      
-      // Acquire lock
-      if (!acquireLock(id)) {
-        throw new Error('Aguarde, operação em andamento');
-      }
-      
-      try {
-        const { error } = await supabase.from('clients').delete().eq('id', id);
-        if (error) throw error;
-        return id;
-      } finally {
-        releaseLock(id);
-      }
-    },
-    onMutate: async (id) => {
-      // Optimistically remove from local state
-      const previousClients = allLoadedClients;
-      setAllLoadedClients(prev => prev.filter(client => client.id !== id));
-      return { previousClients };
-    },
-    onSuccess: () => {
-      // Sync local count immediately
-      setTotalClientCount(prev => Math.max(0, prev - 1));
-      
-      // PERF: Critical invalidations only
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      toast.success('Cliente excluído!');
-      
-      // PERF: Defer non-critical invalidations
-      setTimeout(() => {
-        setDbPage(0);
-        setAllLoadedClients([]);
-        setHasMoreClients(true);
-        queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
-        queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
-        queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
-        queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
-      }, 50);
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previousClients) {
-        setAllLoadedClients(context.previousClients);
-      }
-      toast.error(error.message);
-    },
-  });
-
-  const deleteAllMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('clients').delete().eq('seller_id', user!.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      setTotalClientCount(0);
-      setDbPage(0);
-      setAllLoadedClients([]);
-      setHasMoreClients(true);
-      // Invalidate ALL client-related queries
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
-      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
-      toast.success('Todos os clientes foram excluídos!');
-      setShowDeleteAllConfirm(false);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const archiveMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('clients')
-        .update({ is_archived: true, archived_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
-      return id;
-    },
-    onMutate: async (id) => {
-      // Optimistically update in local state
-      const previousClients = allLoadedClients;
-      setAllLoadedClients(prev => {
-        // If user is viewing active clients, remove it from the list immediately.
-        if (!isViewingArchived) {
-          return prev.filter(client => client.id !== id);
-        }
-        // If viewing archived list, it would become visible (rare path), so update the row.
-        return prev.map(client =>
-          client.id === id
-            ? { ...client, is_archived: true, archived_at: new Date().toISOString() }
-            : client
-        );
-      });
-      return { previousClients };
-    },
-    onSuccess: () => {
-      // Keep local counter in sync immediately (only when not searching to avoid temporary mismatches)
-      if (!debouncedSearch.trim()) {
-        setTotalClientCount(prev => (isViewingArchived ? prev + 1 : Math.max(0, prev - 1)));
-      }
-
-      // Reset pagination cache to avoid “ghost” rows after archive
-      setDbPage(0);
-      setAllLoadedClients([]);
-      setHasMoreClients(true);
-
-      // Invalidate ALL client-related queries (global sync)
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
-      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
-      toast.success('Cliente movido para lixeira!');
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previousClients) {
-        setAllLoadedClients(context.previousClients);
-      }
-      toast.error(error.message);
-    },
-  });
-
-  // Archive expired clients that have been contacted
-  const archiveCalledExpiredMutation = useMutation({
-    mutationFn: async (clientIds: string[]) => {
-      const { error } = await supabase
-        .from('clients')
-        .update({ is_archived: true, archived_at: new Date().toISOString() })
-        .in('id', clientIds);
-      if (error) throw error;
-      return clientIds.length;
-    },
-    onSuccess: (count) => {
-      // Keep local counter in sync immediately (only when not searching to avoid temporary mismatches)
-      if (!debouncedSearch.trim()) {
-        setTotalClientCount(prev => (isViewingArchived ? prev + count : Math.max(0, prev - count)));
-      }
-
-      // Reset pagination cache to avoid stale list after bulk archive
-      setDbPage(0);
-      setAllLoadedClients([]);
-      setHasMoreClients(true);
-
-      // Invalidate ALL client-related queries (global sync)
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
-      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
-      clearAllSentMarks();
-      toast.success(`${count} cliente${count > 1 ? 's' : ''} vencido${count > 1 ? 's' : ''} arquivado${count > 1 ? 's' : ''}!`);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-
-  const restoreMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('clients')
-        .update({ is_archived: false, archived_at: null })
-        .eq('id', id);
-      if (error) throw error;
-      return id;
-    },
-    onMutate: async (id) => {
-      // Optimistically update in local state
-      const previousClients = allLoadedClients;
-      setAllLoadedClients(prev => {
-        // If user is viewing archived clients, remove it from the list immediately.
-        if (isViewingArchived) {
-          return prev.filter(client => client.id !== id);
-        }
-        // Otherwise update row in place.
-        return prev.map(client =>
-          client.id === id
-            ? { ...client, is_archived: false, archived_at: null }
-            : client
-        );
-      });
-      return { previousClients };
-    },
-    onSuccess: () => {
-      // Keep local counter in sync immediately (only when not searching to avoid temporary mismatches)
-      if (!debouncedSearch.trim()) {
-        setTotalClientCount(prev => (isViewingArchived ? Math.max(0, prev - 1) : prev + 1));
-      }
-
-      // Reset pagination cache to avoid stale list after restore
-      setDbPage(0);
-      setAllLoadedClients([]);
-      setHasMoreClients(true);
-
-      // Invalidate ALL client-related queries (global sync)
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-all-for-search'] });
-      queryClient.invalidateQueries({ queryKey: ['clients-with-external-apps'] });
-      queryClient.invalidateQueries({ queryKey: ['archived-clients-count'] });
-      queryClient.invalidateQueries({ queryKey: ['server-client-counts'] });
-      toast.success('Cliente restaurado!');
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previousClients) {
-        setAllLoadedClients(context.previousClients);
-      }
-      toast.error(error.message);
-    },
-  });
-
-  // renewMutation is now replaced by useRenewalMutation hook
+  // ============= Mutations de delete/archive/restore agora vêm de useClientActions =============
   // resetForm is now provided by useClientFormData hook
 
   const handlePlanChange = (planId: string) => {
