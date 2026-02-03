@@ -291,15 +291,38 @@ export default function Clients() {
     dialogCancelExit();
   }, [dialogCancelExit]);
 
-  // Pagination state for database-level pagination
-  // TODO: Substituir por useClientQueries hook após validação
-  // const queriesHook = useClientQueries({ userId: user?.id, debouncedSearch, isViewingArchived });
-  const [dbPage, setDbPage] = useState(0);
-  const [allLoadedClients, setAllLoadedClients] = useState<Client[]>([]);
-  const [hasMoreClients, setHasMoreClients] = useState(true);
-  const [totalClientCount, setTotalClientCount] = useState(0);
-  // CLIENTS_PER_PAGE importado de @/types/clients
-  // AUTOLOAD_ALL_UP_TO importado de @/types/clients // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
+  // ============= Hook de Queries (Etapa 2.11 - Integração Completa) =============
+  // Centraliza todas as queries de clientes: contagem, paginação, busca por login, external apps
+  const {
+    clients,
+    allLoadedClients,
+    totalClientCount,
+    archivedClientsCount,
+    isLoading,
+    isFetching,
+    isSuccess,
+    dbPage,
+    hasMoreClients,
+    loadMoreClients,
+    allClientsForSearch,
+    loginMatchingClientIds,
+    clientsWithExternalApps,
+    clientsWithPaidAppsSet,
+    resetPagination,
+    setAllLoadedClients,
+  } = useClientQueries({
+    userId: user?.id,
+    debouncedSearch,
+    isViewingArchived,
+  });
+
+  // Wrappers para compatibilidade com useClientActions
+  const setDbPage = useCallback((_value: React.SetStateAction<number>) => {
+    resetPagination();
+  }, [resetPagination]);
+  
+  const setHasMoreClients = useCallback((_value: React.SetStateAction<boolean>) => {}, []);
+  const setTotalClientCount = useCallback((_value: React.SetStateAction<number>) => {}, []);
 
   // ============= Hook de Ações (extraído para melhor manutenibilidade) =============
   const {
@@ -324,434 +347,24 @@ export default function Clients() {
     onArchiveExpiredSuccess: () => clearAllSentMarks(),
   });
 
-  // Get total count of clients for accurate pagination info
-  // isViewingArchived agora vem do hook useClientFilters
-
-  const { data: clientCount } = useQuery({
-    queryKey: ['clients-count', user?.id, debouncedSearch, isViewingArchived],
-    queryFn: async () => {
-      if (!user?.id) return 0;
-
-      try {
-        let query = supabase
-          .from('clients')
-          .select('id', { count: 'exact', head: true })
-          .eq('seller_id', user.id);
-
-        // Filter by archived status
-        if (isViewingArchived) {
-          query = query.eq('is_archived', true);
-        } else {
-          query = query.or('is_archived.is.null,is_archived.eq.false');
-        }
-
-        const raw = debouncedSearch.trim();
-        if (raw) {
-          const safe = raw.replace(/,/g, ' ');
-          const like = `%${safe}%`;
-          const digits = safe.replace(/\D/g, '');
-          const orParts = [
-            `name.ilike.${like}`,
-            `dns.ilike.${like}`,
-            `email.ilike.${like}`,
-            `telegram.ilike.${like}`,
-            `app_name.ilike.${like}`,
-            `login.ilike.${like}`,
-            `login_2.ilike.${like}`,
-            // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
-            `plan_name.ilike.${like}`,
-            `category.ilike.${like}`,
-            // Search in notes field as well
-            `notes.ilike.${like}`,
-          ];
-          // Phone search with variants (with/without 55 prefix)
-          if (digits.length >= 4) {
-            orParts.push(`phone.ilike.%${digits}%`);
-            // If user typed without 55, also search with 55 prefix
-            if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
-              orParts.push(`phone.ilike.%55${digits}%`);
-            }
-            // If user typed with 55, also search without it
-            if (digits.startsWith('55') && digits.length >= 12) {
-              const withoutPrefix = digits.substring(2);
-              orParts.push(`phone.ilike.%${withoutPrefix}%`);
-            }
-          }
-          query = query.or(orParts.join(','));
-        }
-
-        const { count, error } = await query;
-        if (error) {
-          console.error('[Clients] clientCount query error:', error.message);
-          return 0;
-        }
-        return count || 0;
-      } catch (err) {
-        console.error('[Clients] clientCount error:', err);
-        return 0;
-      }
-    },
-    enabled: !!user?.id,
-    staleTime: 0, // Always refetch to ensure accurate count after deletions
-  });
-
-  // Update total count when it changes
-  useEffect(() => {
-    if (clientCount !== undefined) {
-      setTotalClientCount(clientCount);
-      setHasMoreClients(allLoadedClients.length < clientCount);
-    }
-  }, [clientCount, allLoadedClients.length]);
-
-  // When searching, use larger page size to ensure we find all matches
-  const SEARCH_PAGE_SIZE = 200;
+  // ============= Queries movidas para useClientQueries (Etapa 2.11) =============
+  // As seguintes queries estão agora centralizadas no hook:
+  // - clients-count, clients (paginados), clients-all-for-search
+  // - clients-login-matched, archived-clients-count, clients-with-external-apps
+  // Efeitos de paginação, reset e loadMore também foram migrados.
   
-  const { data: fetchedClients = [], isLoading, isFetching, isSuccess, dataUpdatedAt } = useQuery({
-    queryKey: ['clients', user?.id, dbPage, debouncedSearch, isViewingArchived],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      try {
-        // Use larger page size when searching to ensure all matches are returned
-        const hasActiveSearch = debouncedSearch.trim().length > 0;
-        const pageSize = hasActiveSearch ? SEARCH_PAGE_SIZE : CLIENTS_PER_PAGE;
-        const from = dbPage * pageSize;
-        const to = from + pageSize - 1;
-
-        let query = supabase
-          .from('clients')
-          .select(`
-            id, name, phone, email, device, dns, expiration_date, expiration_datetime,
-            plan_id, plan_name, plan_price, premium_price,
-            server_id, server_name, login, password,
-            server_id_2, server_name_2, login_2, password_2,
-            premium_password, category, is_paid, pending_amount, notes,
-            has_paid_apps, paid_apps_duration, paid_apps_expiration,
-            telegram, is_archived, archived_at, created_at, renewed_at,
-            gerencia_app_mac, gerencia_app_devices,
-            app_name, app_type, device_model, additional_servers,
-            is_test, is_integrated
-          `)
-          .eq('seller_id', user.id);
-
-        // Filter by archived status - use explicit filter instead of .or() to avoid conflicts
-        if (isViewingArchived) {
-          query = query.eq('is_archived', true);
-        } else {
-          // Use .is() for null check and .eq() for false - combine with .or()
-          query = query.or('is_archived.is.null,is_archived.eq.false');
-        }
-
-        const raw = debouncedSearch.trim();
-        if (raw) {
-          const safe = raw.replace(/,/g, ' ');
-          const like = `%${safe}%`;
-          const digits = safe.replace(/\D/g, '');
-          const orParts = [
-            `name.ilike.${like}`,
-            `dns.ilike.${like}`,
-            `email.ilike.${like}`,
-            `telegram.ilike.${like}`,
-            `app_name.ilike.${like}`,
-            `login.ilike.${like}`,
-            `login_2.ilike.${like}`,
-            // Also search in plan_name and category to find clients by their plan type (IPTV, P2P, SSH, etc.)
-            `plan_name.ilike.${like}`,
-            `category.ilike.${like}`,
-            // Search in notes field as well
-            `notes.ilike.${like}`,
-          ];
-          // Phone search with variants (with/without 55 prefix)
-          if (digits.length >= 4) {
-            orParts.push(`phone.ilike.%${digits}%`);
-            // If user typed without 55, also search with 55 prefix
-            if (!digits.startsWith('55') && digits.length >= 10 && digits.length <= 11) {
-              orParts.push(`phone.ilike.%55${digits}%`);
-            }
-            // If user typed with 55, also search without it
-            if (digits.startsWith('55') && digits.length >= 12) {
-              const withoutPrefix = digits.substring(2);
-              orParts.push(`phone.ilike.%${withoutPrefix}%`);
-            }
-          }
-          query = query.or(orParts.join(','));
-        }
-
-        // Ordenação/paginação sempre no banco
-        const { data, error } = await query
-          .order(isViewingArchived ? 'archived_at' : 'expiration_date', { ascending: !isViewingArchived })
-          .range(from, to);
-        
-        if (error) {
-          console.error('[Clients] fetchedClients query error:', error.message);
-          return [];
-        }
-        
-        // Cast JSON fields to proper types
-        const hydrated = (data || []).map(client => ({
-          ...client,
-          gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || [],
-          additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
-        })) as Client[];
-
-        return hydrated;
-      } catch (err) {
-        console.error('[Clients] fetchedClients error:', err);
-        return [];
-      }
-    },
-    enabled: !!user?.id,
-    staleTime: 1000 * 30, // 30 seconds - reduced for fresher data
-    gcTime: 1000 * 60 * 5, // 5 minutes cache
-    refetchOnWindowFocus: true, // Re-enable refetch on focus
-    refetchOnMount: 'always',
-  });
-
-  // Quando a busca ou o filtro de arquivados muda, reinicia o carregamento no banco
-  useEffect(() => {
-    if (!user?.id) return;
-    setDbPage(0);
-    setAllLoadedClients([]);
-    setHasMoreClients(true);
-  }, [debouncedSearch, user?.id, isViewingArchived]);
-
-  // Accumulate loaded clients when fetching new pages - use isSuccess and dataUpdatedAt for reliable updates
-  useEffect(() => {
-    if (!isSuccess) return;
-    
-    // Determine page size based on whether we're searching
-    const hasActiveSearch = debouncedSearch.trim().length > 0;
-    const currentPageSize = hasActiveSearch ? SEARCH_PAGE_SIZE : CLIENTS_PER_PAGE;
-    
-    if (dbPage === 0) {
-      // Reset on first page (fresh load) - even if empty
-      setAllLoadedClients(fetchedClients);
-      setHasMoreClients(fetchedClients.length >= currentPageSize);
-    } else {
-      // Append new clients, avoiding duplicates by ID
-      setAllLoadedClients(prev => {
-        const existingIds = new Set(prev.map(c => c.id));
-        const newClients = fetchedClients.filter(c => !existingIds.has(c.id));
-        if (newClients.length === 0) return prev;
-        return [...prev, ...newClients];
-      });
-      
-      // Check if we've loaded all clients
-      setHasMoreClients(fetchedClients.length >= currentPageSize);
-    }
-  }, [fetchedClients, dbPage, isSuccess, dataUpdatedAt, debouncedSearch]);
-
-  // Reset pagination when user changes - only reset if user actually changes
-  const prevUserIdRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (user?.id && user.id !== prevUserIdRef.current) {
-      prevUserIdRef.current = user.id;
-      setDbPage(0);
-      setAllLoadedClients([]);
-      setHasMoreClients(true);
-    }
-  }, [user?.id]);
-
-  // Load more clients function
-  const loadMoreClients = useCallback(() => {
-    if (hasMoreClients && !isFetching) {
-      setDbPage(prev => prev + 1);
-    }
-  }, [hasMoreClients, isFetching]);
-
-  // Auto-carregar tudo quando o total é pequeno (ex: ~150) para evitar “sumir” clientes
-  useEffect(() => {
-    if (!user?.id) return;
-    if (debouncedSearch.trim()) return; // em busca, não auto-carrega para evitar spam de queries
-    if (totalClientCount <= 0) return;
-    if (totalClientCount > AUTOLOAD_ALL_UP_TO) return;
-    if (!hasMoreClients) return;
-    if (isFetching || isLoading) return;
-    if (allLoadedClients.length >= totalClientCount) return;
-
-    const t = window.setTimeout(() => {
-      loadMoreClients();
-    }, 150);
-    return () => window.clearTimeout(t);
-  }, [user?.id, debouncedSearch, totalClientCount, AUTOLOAD_ALL_UP_TO, hasMoreClients, isFetching, isLoading, allLoadedClients.length, loadMoreClients]);
-
-  // Placeholder - clients será definido após clientsWithLoginMatches
-  // (movido para depois da lógica de busca por login criptografado)
-
-  // ============= Busca por login criptografado - Carregar TODOS os clientes =============
-  // Carrega todos os clientes (até 1000) para permitir busca por login descriptografado
-  // IMPORTANT: Must filter by is_archived to match the current view
-  const { data: allClientsForSearch = [] } = useQuery({
-    queryKey: ['clients-all-for-search', user?.id, isViewingArchived],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      try {
-        let query = supabase
-          .from('clients')
-          .select('id, login, login_2')
-          .eq('seller_id', user.id)
-          .limit(1000);
-        
-        // Filter by archived status to match the current view
-        if (isViewingArchived) {
-          query = query.eq('is_archived', true);
-        } else {
-          query = query.or('is_archived.is.null,is_archived.eq.false');
-        }
-        
-        const { data, error } = await query;
-        
-        if (error) {
-          console.error('[Clients] allClientsForSearch query error:', error.message);
-          return [];
-        }
-        return data || [];
-      } catch (err) {
-        console.error('[Clients] allClientsForSearch error:', err);
-        return [];
-      }
-    },
-    enabled: !!user?.id,
-    staleTime: 60_000, // 1 minute
-    gcTime: 1000 * 60 * 10, // 10 minutes cache
-    refetchOnWindowFocus: false,
-  });
-
-  // ============= Descriptografar logins para busca (delegado ao hook useClientCredentials) =============
+  // Decrypt logins para busca (usa dados do hook)
   useEffect(() => {
     if (allClientsForSearch.length > 0) {
       decryptSearchLogins(allClientsForSearch);
     }
   }, [allClientsForSearch, decryptSearchLogins]);
 
-  // Identificar IDs de clientes que batem pela busca de login descriptografado
-  const loginMatchingClientIds = useMemo(() => {
-    if (!debouncedSearch.trim() || debouncedSearch.length < 2) return new Set<string>();
-    
-    const searchLower = debouncedSearch.toLowerCase().trim();
-    const matchingIds = new Set<string>();
-    
-    Object.entries(searchDecryptedLogins).forEach(([clientId, creds]) => {
-      const loginMatch = creds.login && creds.login.toLowerCase().includes(searchLower);
-      const login2Match = creds.login_2 && creds.login_2.toLowerCase().includes(searchLower);
-      if (loginMatch || login2Match) {
-        matchingIds.add(clientId);
-      }
-    });
-    
-    return matchingIds;
-  }, [debouncedSearch, searchDecryptedLogins]);
-
-  // Carregar clientes completos que batem pelo login mas não estão nos resultados paginados
-  const missingClientIds = useMemo(() => {
-    const loadedIds = new Set(allLoadedClients.map(c => c.id));
-    return Array.from(loginMatchingClientIds).filter(id => !loadedIds.has(id));
-  }, [loginMatchingClientIds, allLoadedClients]);
-
-  // Query para carregar clientes que batem pelo login descriptografado mas não estão carregados
-  // IMPORTANT: Must filter by is_archived to match the current view and avoid counting extra clients
-  const { data: loginMatchedClients = [] } = useQuery({
-    queryKey: ['clients-login-matched', user?.id, missingClientIds.join(','), isViewingArchived],
-    queryFn: async () => {
-      if (!user?.id || missingClientIds.length === 0) return [];
-      
-      let query = supabase
-        .from('clients')
-        .select(`
-          id, name, phone, email, device, dns, expiration_date, expiration_datetime,
-          plan_id, plan_name, plan_price, premium_price,
-          server_id, server_name, login, password,
-          server_id_2, server_name_2, login_2, password_2,
-          premium_password, category, is_paid, pending_amount, notes,
-          has_paid_apps, paid_apps_duration, paid_apps_expiration,
-          telegram, is_archived, archived_at, created_at, renewed_at,
-          gerencia_app_mac, gerencia_app_devices,
-          app_name, app_type, device_model, additional_servers,
-          is_test, is_integrated
-        `)
-        .eq('seller_id', user.id)
-        .in('id', missingClientIds);
-      
-      // Filter by archived status to match the current view
-      if (isViewingArchived) {
-        query = query.eq('is_archived', true);
-      } else {
-        query = query.or('is_archived.is.null,is_archived.eq.false');
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      
-      // Cast JSON fields
-      const hydrated = (data || []).map(client => ({
-        ...client,
-        gerencia_app_devices: (client.gerencia_app_devices as unknown as MacDevice[]) || [],
-        additional_servers: (client.additional_servers as unknown as AdditionalServer[]) || []
-      })) as Client[];
-      
-      return hydrated;
-    },
-    enabled: !!user?.id && missingClientIds.length > 0,
-    staleTime: 30_000,
-  });
-
-  // Combinar clientes paginados com clientes que batem pelo login
-  const clientsWithLoginMatches = useMemo(() => {
-    if (loginMatchedClients.length === 0) return allLoadedClients;
-    
-    const loadedIds = new Set(allLoadedClients.map(c => c.id));
-    const extraClients = loginMatchedClients.filter(c => !loadedIds.has(c.id));
-    
-    if (extraClients.length === 0) return allLoadedClients;
-    return [...allLoadedClients, ...extraClients];
-  }, [allLoadedClients, loginMatchedClients]);
-
-  // Use combined clients (original + login-matched) for the rest of the component
-  const clients = clientsWithLoginMatches;
-
-  // Get fresh client data from the clients array to ensure we always have the latest values (e.g., after editing expiration date)
+  // Get fresh client data from the clients array to ensure we always have the latest values
   const renewClient = useMemo(() => {
     if (!renewClientId) return null;
     return clients.find(c => c.id === renewClientId) || null;
   }, [renewClientId, clients]);
-  // Count archived clients for the tab badge (separate from main query)
-  const { data: archivedClientsCount = 0 } = useQuery({
-    queryKey: ['archived-clients-count', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return 0;
-      const { count, error } = await supabase
-        .from('clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('seller_id', user.id)
-        .eq('is_archived', true);
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: !!user?.id,
-    staleTime: 1000 * 30, // 30 seconds
-  });
-
-  // Fetch client IDs that have external apps (paid apps) - with cache optimization
-  const { data: clientsWithExternalApps = [] } = useQuery({
-    queryKey: ['clients-with-external-apps', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('client_external_apps')
-        .select('client_id')
-        .eq('seller_id', user!.id);
-      if (error) throw error;
-      // Return unique client IDs
-      return [...new Set(data?.map(item => item.client_id) || [])];
-    },
-    enabled: !!user?.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 15, // 15 minutes cache
-    refetchOnWindowFocus: false,
-  });
-
-  const clientsWithPaidAppsSet = new Set(clientsWithExternalApps);
 
   // PERF: Lazy load plans - only fetch when dialog opens
   const [plansEnabled, setPlansEnabled] = useState(false);
