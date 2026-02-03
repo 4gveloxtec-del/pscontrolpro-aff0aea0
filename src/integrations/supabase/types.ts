@@ -91,6 +91,33 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_menu_icons: {
+        Row: {
+          created_at: string
+          icon_url: string
+          id: string
+          is_active: boolean
+          menu_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon_url: string
+          id?: string
+          is_active?: boolean
+          menu_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon_url?: string
+          id?: string
+          is_active?: boolean
+          menu_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       admin_notification_reads: {
         Row: {
           id: string

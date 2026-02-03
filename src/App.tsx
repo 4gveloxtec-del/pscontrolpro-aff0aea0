@@ -58,6 +58,7 @@ const AdminAsaas = lazy(() => import("./pages/AdminAsaas"));
 const Reminders = lazy(() => import("./pages/Reminders"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ProjectDocumentation = lazy(() => import("./pages/ProjectDocumentation"));
+const AdminMenuIcons = lazy(() => import("./pages/AdminMenuIcons"));
 
 // Loading fallback component - lightweight
 const PageLoader = memo(() => (
@@ -227,6 +228,7 @@ const AppRoutes = () => {
               <Route path="/admin/system-health" element={<SystemHealth />} />
               <Route path="/admin/settings" element={<Settings />} />
               <Route path="/admin/asaas" element={<AdminAsaas />} />
+              <Route path="/admin/menu-icons" element={<AdminMenuIcons />} />
             </Route>
             {/* ============ FIM ADMIN PWA ROUTES ============ */}
             
