@@ -91,11 +91,11 @@ export function AdminLayout() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-slate-800 border-r border-slate-700 transform transition-transform duration-200 lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-slate-800 border-r border-slate-700 transform transition-transform duration-200 lg:translate-x-0 flex flex-col",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-slate-700">
+        <div className="p-4 border-b border-slate-700 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
               <Shield className="h-6 w-6 text-white" />
@@ -107,7 +107,7 @@ export function AdminLayout() {
           </div>
         </div>
 
-        {/* Navigation - scrollable container with proper height */}
+        {/* Navigation - scrollable, takes remaining space */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto min-h-0">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
@@ -143,8 +143,8 @@ export function AdminLayout() {
           })}
         </nav>
 
-        {/* User Section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700 bg-slate-800">
+        {/* User Section - fixed at bottom, not absolute */}
+        <div className="p-4 border-t border-slate-700 bg-slate-800 shrink-0">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
               {profile?.full_name?.[0]?.toUpperCase() || 'A'}
