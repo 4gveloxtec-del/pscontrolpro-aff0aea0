@@ -722,14 +722,27 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
 // Display component for showing linked apps in client cards
 interface ClientExternalAppsDisplayProps {
   clientId: string;
+  sellerId?: string;
 }
 
-export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDisplayProps) {
+interface ResellerDeviceAppWithPanel {
+  id: string;
+  name: string;
+  icon: string;
+  download_url: string | null;
+  mac_address: string | null;
+  panel_id: string | null;
+  panel_name: string | null;
+  panel_url: string | null;
+}
+
+export function ClientExternalAppsDisplay({ clientId, sellerId }: ClientExternalAppsDisplayProps) {
   const { decrypt } = useCrypto();
   
-  // Fetch reseller apps to get icon and download_url - uses same query key as ResellerAppsManager for cache sync
-  const { data: resellerApps = [] } = useResellerDeviceApps(undefined);
+  // Fetch reseller apps to get icon and download_url - needs sellerId for proper cache
+  const { data: resellerApps = [] } = useResellerDeviceApps(sellerId);
   
+  // Fetch external apps (paid apps, system apps)
   const { data: linkedApps = [], isLoading } = useQuery({
     queryKey: ['client-external-apps-display', clientId],
     queryFn: async () => {
@@ -754,7 +767,41 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
     staleTime: 60000,
   });
 
-  if (isLoading || linkedApps.length === 0) return null;
+  // Fetch reseller device apps linked to client (from client_device_apps table)
+  const { data: clientDeviceApps = [] } = useQuery({
+    queryKey: ['client-device-apps-display', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('client_device_apps')
+        .select(`
+          id,
+          app:reseller_device_apps(
+            id, name, icon, download_url, mac_address,
+            panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)
+          )
+        `)
+        .eq('client_id', clientId);
+      if (error) throw error;
+      
+      // Transform data to include panel info
+      return ((data || []) as any[]).map(item => ({
+        id: item.id,
+        appId: item.app?.id,
+        name: item.app?.name || 'App',
+        icon: item.app?.icon || '📱',
+        download_url: item.app?.download_url || null,
+        mac_address: item.app?.mac_address || null,
+        panel_id: item.app?.panel?.id || null,
+        panel_name: item.app?.panel?.name || null,
+        panel_url: item.app?.panel?.panel_url || null,
+      })) as (ResellerDeviceAppWithPanel & { id: string; appId: string })[];
+    },
+    enabled: !!clientId,
+    staleTime: 60000,
+  });
+
+  const hasNoApps = linkedApps.length === 0 && clientDeviceApps.length === 0;
+  if (isLoading || hasNoApps) return null;
 
   // Helper to get reseller app info by name (includes panel info)
   const getResellerAppInfo = (fixedName: string) => {
@@ -766,11 +813,12 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
         name: foundApp.name,
         icon: (foundApp as any).icon || '📱',
         download_url: foundApp.download_url,
-        panel_name: (foundApp as any).panel_name || null,
-        panel_url: (foundApp as any).panel_url || null,
+        mac_address: foundApp.mac_address || null,
+        panel_name: (foundApp as any).panel?.name || null,
+        panel_url: (foundApp as any).panel?.panel_url || null,
       };
     }
-    return { name: appName, icon: '📱', download_url: null, panel_name: null, panel_url: null };
+    return { name: appName, icon: '📱', download_url: null, mac_address: null, panel_name: null, panel_url: null };
   };
   
   // Helper to get fixed system app info by name
@@ -786,6 +834,7 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
 
   return (
     <div className="space-y-1.5 mt-2">
+      {/* External Apps (paid apps, system apps with RESELLER: prefix) */}
       {linkedApps.map((app) => {
         // Check if it's a reseller app and get its info
         const resellerInfo = app.fixed_app_name ? getResellerAppInfo(app.fixed_app_name) : null;
@@ -896,6 +945,7 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
                         >
                           {device.mac}
                         </button>
+                        <Copy className="h-2.5 w-2.5 text-muted-foreground opacity-60" />
                       </div>
                     )}
                     {/* Device Key Row */}
@@ -909,10 +959,75 @@ export function ClientExternalAppsDisplay({ clientId }: ClientExternalAppsDispla
                         >
                           {device.device_key}
                         </button>
+                        <Copy className="h-2.5 w-2.5 text-muted-foreground opacity-60" />
                       </div>
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Reseller Device Apps (from client_device_apps table) */}
+      {clientDeviceApps.map((deviceApp) => {
+        const hasLink = !!deviceApp.download_url;
+        const hasPanelLink = !!deviceApp.panel_url;
+        
+        return (
+          <div key={deviceApp.id} className="text-xs bg-purple-500/10 rounded p-1.5 border border-purple-500/20">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              {/* App name with icon - clickable if has download link */}
+              <button
+                onClick={() => {
+                  if (hasLink && deviceApp.download_url) {
+                    window.open(deviceApp.download_url, '_blank', 'noopener,noreferrer');
+                    toast.success(`Abrindo: ${deviceApp.name}`);
+                  }
+                }}
+                disabled={!hasLink}
+                className={`inline-flex items-center gap-1.5 font-medium transition-colors ${
+                  hasLink 
+                    ? 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer' 
+                    : 'text-foreground cursor-default'
+                }`}
+                title={hasLink ? `Clique para abrir ${deviceApp.name}` : deviceApp.name}
+              >
+                <span className="text-sm">{deviceApp.icon}</span>
+                <span className="font-medium">{deviceApp.name}</span>
+                {hasLink && <ExternalLink className="h-2.5 w-2.5 opacity-70" />}
+              </button>
+
+              {/* Panel badge - clickable if has panel URL */}
+              {deviceApp.panel_name && hasPanelLink && (
+                <button
+                  onClick={() => {
+                    window.open(deviceApp.panel_url!, '_blank', 'noopener,noreferrer');
+                    toast.success(`Abrindo painel: ${deviceApp.panel_name}`);
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 transition-colors"
+                  title={`Abrir painel: ${deviceApp.panel_name}`}
+                >
+                  <Server className="h-2.5 w-2.5" />
+                  {deviceApp.panel_name}
+                  <ExternalLink className="h-2 w-2" />
+                </button>
+              )}
+            </div>
+            
+            {/* MAC Address - copyable */}
+            {deviceApp.mac_address && (
+              <div className="flex items-center gap-1 text-muted-foreground bg-background/50 rounded p-1 mt-1">
+                <Monitor className="h-3 w-3 text-green-500 flex-shrink-0" />
+                <span className="text-[10px]">MAC:</span>
+                <button
+                  onClick={() => copyToClipboard(deviceApp.mac_address!, 'MAC')}
+                  className="font-mono text-foreground hover:text-primary text-[11px] flex items-center gap-1"
+                >
+                  {deviceApp.mac_address}
+                  <Copy className="h-2.5 w-2.5 text-muted-foreground opacity-60" />
+                </button>
               </div>
             )}
           </div>

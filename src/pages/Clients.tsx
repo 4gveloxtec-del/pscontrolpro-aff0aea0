@@ -3947,7 +3947,7 @@ export default function Clients() {
 
                     {/* External Apps Display */}
                     {user && (
-                      <ClientExternalAppsDisplay clientId={client.id} />
+                      <ClientExternalAppsDisplay clientId={client.id} sellerId={user.id} />
                     )}
 
                     {/* Premium Accounts - Lazy loaded, only shown on click */}
