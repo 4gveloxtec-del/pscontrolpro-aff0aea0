@@ -193,7 +193,14 @@ export function AdditionalServersSection({
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[50vh] overflow-y-auto" position="popper" sideOffset={4} align="start">
+                  <SelectContent 
+                    usePortal={true}
+                    position="popper" 
+                    side="top"
+                    sideOffset={4} 
+                    align="start"
+                    className="max-h-[50vh] z-[9999]"
+                  >
                     <SelectItem value="none">Nenhum</SelectItem>
                     {servers.map((server) => (
                       <SelectItem key={server.id} value={server.id}>
@@ -262,7 +269,14 @@ export function AdditionalServersSection({
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[50vh] overflow-y-auto" position="popper" sideOffset={4} align="start">
+                  <SelectContent 
+                    usePortal={true}
+                    position="popper" 
+                    side="top"
+                    sideOffset={4} 
+                    align="start"
+                    className="max-h-[50vh] z-[9999]"
+                  >
                     <SelectItem value="none">Selecione...</SelectItem>
                     {servers.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
