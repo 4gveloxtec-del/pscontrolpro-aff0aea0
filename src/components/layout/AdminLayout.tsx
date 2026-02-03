@@ -30,20 +30,49 @@ interface NavItem {
   menuKey: string; // Chave para buscar ícone customizado
 }
 
-const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, menuKey: 'dashboard' },
-  { label: 'Vendedores', href: '/admin/sellers', icon: Users, menuKey: 'sellers' },
-  { label: 'ASAAS Cobranças', href: '/admin/asaas', icon: CreditCard, menuKey: 'asaas' },
-  { label: 'Chatbot', href: '/admin/chatbot', icon: MessageSquare, menuKey: 'chatbot' },
-  { label: 'Autocura', href: '/admin/system-health', icon: HeartPulse, menuKey: 'system-health' },
-  { label: 'Relatórios', href: '/admin/reports', icon: FileText, menuKey: 'reports' },
-  { label: 'Backup', href: '/admin/backup', icon: Database, menuKey: 'backup' },
-  { label: 'Ícones Servidores', href: '/admin/server-icons', icon: Image, menuKey: 'server-icons' },
-  { label: 'Templates Servidor', href: '/admin/server-templates', icon: MessageSquare, menuKey: 'server-templates' },
-  { label: 'Tutoriais', href: '/admin/tutorials', icon: GraduationCap, menuKey: 'tutorials' },
-  { label: 'Ícones do Menu', href: '/admin/menu-icons', icon: Palette, menuKey: 'menu-icons' },
-  { label: 'Configurações', href: '/admin/settings', icon: Settings, menuKey: 'settings' },
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+// Menu do ADM organizado em grupos - SEPARADO do menu dos revendedores
+const navGroups: NavGroup[] = [
+  {
+    title: 'Principal',
+    items: [
+      { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, menuKey: 'dashboard' },
+      { label: 'Vendedores', href: '/admin/sellers', icon: Users, menuKey: 'sellers' },
+    ],
+  },
+  {
+    title: 'Financeiro',
+    items: [
+      { label: 'ASAAS Cobranças', href: '/admin/asaas', icon: CreditCard, menuKey: 'asaas' },
+    ],
+  },
+  {
+    title: 'Sistema',
+    items: [
+      { label: 'Chatbot', href: '/admin/chatbot', icon: MessageSquare, menuKey: 'chatbot' },
+      { label: 'Autocura', href: '/admin/system-health', icon: HeartPulse, menuKey: 'system-health' },
+      { label: 'Relatórios', href: '/admin/reports', icon: FileText, menuKey: 'reports' },
+      { label: 'Backup', href: '/admin/backup', icon: Database, menuKey: 'backup' },
+    ],
+  },
+  {
+    title: 'Configurações',
+    items: [
+      { label: 'Ícones Servidores', href: '/admin/server-icons', icon: Image, menuKey: 'server-icons' },
+      { label: 'Templates Servidor', href: '/admin/server-templates', icon: MessageSquare, menuKey: 'server-templates' },
+      { label: 'Tutoriais', href: '/admin/tutorials', icon: GraduationCap, menuKey: 'tutorials' },
+      { label: 'Ícones do Menu', href: '/admin/menu-icons', icon: Palette, menuKey: 'menu-icons' },
+      { label: 'Configurações', href: '/admin/settings', icon: Settings, menuKey: 'settings' },
+    ],
+  },
 ];
+
+// Lista plana para retrocompatibilidade
+const navItems: NavItem[] = navGroups.flatMap(g => g.items);
 
 export function AdminLayout() {
   const { profile, signOut } = useAuth();
@@ -108,39 +137,49 @@ export function AdminLayout() {
         </div>
 
         {/* Navigation - scrollable, takes remaining space */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto min-h-0">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.href;
-            const customIconUrl = iconMap[item.menuKey];
-            const showCustomIcon = customIconUrl && !iconErrors[item.menuKey];
-            const DefaultIcon = item.icon;
+        <nav className="flex-1 p-4 space-y-4 overflow-y-auto min-h-0">
+          {navGroups.map((group) => (
+            <div key={group.title}>
+              {/* Título do grupo */}
+              <h3 className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {group.title}
+              </h3>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive = location.pathname === item.href;
+                  const customIconUrl = iconMap[item.menuKey];
+                  const showCustomIcon = customIconUrl && !iconErrors[item.menuKey];
+                  const DefaultIcon = item.icon;
 
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm",
-                  isActive
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
-                )}
-              >
-                {showCustomIcon ? (
-                  <img 
-                    src={customIconUrl} 
-                    alt={item.label}
-                    className="h-5 w-5 object-contain"
-                    onError={() => handleIconError(item.menuKey)}
-                  />
-                ) : (
-                  <DefaultIcon className="h-5 w-5" />
-                )}
-                {item.label}
-              </Link>
-            );
-          })}
+                  return (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm",
+                        isActive
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                      )}
+                    >
+                      {showCustomIcon ? (
+                        <img 
+                          src={customIconUrl} 
+                          alt={item.label}
+                          className="h-5 w-5 object-contain"
+                          onError={() => handleIconError(item.menuKey)}
+                        />
+                      ) : (
+                        <DefaultIcon className="h-5 w-5" />
+                      )}
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* User Section - fixed at bottom, not absolute */}
