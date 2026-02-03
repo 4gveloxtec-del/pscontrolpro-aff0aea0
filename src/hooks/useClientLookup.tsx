@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeWhatsAppNumber } from '@/lib/utils';
 import { differenceInDays, startOfToday } from 'date-fns';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 // ============= Tipos =============
 interface LookupClientBasic {
@@ -64,8 +65,38 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
   const [lookupPhoneDecryptedCreds, setLookupPhoneDecryptedCreds] = useState<Record<string, LookupDecryptedCreds>>({});
 
   // Estados de descriptografia de logins para busca
+  const LOOKUP_LOGINS_CACHE_KEY = 'busca360_lookup_logins_cache';
+
+  const loadLookupLoginsCache = useCallback((sellerId: string) => {
+    try {
+      const raw = sessionStorage.getItem(`${LOOKUP_LOGINS_CACHE_KEY}_${sellerId}`);
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, { login: string; login_2: string }>;
+    } catch (e) {
+      console.warn('[useClientLookup] Failed to load lookup logins cache:', e);
+      return {};
+    }
+  }, []);
+
+  const saveLookupLoginsCache = useCallback((sellerId: string, data: Record<string, { login: string; login_2: string }>) => {
+    try {
+      sessionStorage.setItem(`${LOOKUP_LOGINS_CACHE_KEY}_${sellerId}`, JSON.stringify(data));
+    } catch (e) {
+      console.warn('[useClientLookup] Failed to save lookup logins cache:', e);
+    }
+  }, []);
+
   const [lookupDecryptedLogins, setLookupDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
   const [isDecryptingLookupLogins, setIsDecryptingLookupLogins] = useState(false);
+
+  // Carregar cache ao mudar usuário
+  useEffect(() => {
+    if (!userId) return;
+    setLookupDecryptedLogins(loadLookupLoginsCache(userId));
+  }, [userId, loadLookupLoginsCache]);
+
+  // Debounce para evitar request a cada tecla (principal gargalo percebido)
+  const debouncedLookupSearchQuery = useDebouncedValue(lookupSearchQuery, 250);
 
   // ============= Heurística de criptografia =============
   const lookupLooksEncrypted = useCallback((value: string) => {
@@ -105,15 +136,15 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
   });
 
   // ============= Query: Busca server-side otimizada (função SQL) =============
-  const { data: serverSearchResults = [], isLoading: isLoadingServerSearch } = useQuery({
-    queryKey: ['client-lookup-server-search', userId, lookupSearchQuery],
+  const { data: serverSearchResults = [], isLoading: isLoadingServerSearch, isPlaceholderData: isServerSearchPlaceholder } = useQuery({
+    queryKey: ['client-lookup-server-search', userId, debouncedLookupSearchQuery],
     queryFn: async () => {
-      if (!userId || !lookupSearchQuery || lookupSearchQuery.length < 2) return [];
+      if (!userId || !debouncedLookupSearchQuery || debouncedLookupSearchQuery.length < 2) return [];
 
       // Usar função RPC para busca otimizada com índices GIN
       const { data, error } = await supabase.rpc('search_clients_360', {
         p_seller_id: userId,
-        p_search_term: lookupSearchQuery.trim(),
+        p_search_term: debouncedLookupSearchQuery.trim(),
         p_limit: 200
       });
 
@@ -124,8 +155,10 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
 
       return (data || []) as LookupClientBasic[];
     },
-    enabled: !!userId && showLookupDialog && !!lookupSearchQuery && lookupSearchQuery.length >= 2 && !isAdmin,
+    enabled: !!userId && showLookupDialog && !!debouncedLookupSearchQuery && debouncedLookupSearchQuery.length >= 2 && !isAdmin,
     staleTime: 30_000,
+    // Mantém UI estável entre teclas (sem “piscar” lista)
+    placeholderData: (prev) => prev,
   });
 
   // ============= Descriptografar logins para busca =============
@@ -171,67 +204,86 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
       }
 
       setLookupDecryptedLogins(next);
+      if (userId) saveLookupLoginsCache(userId, next);
       setIsDecryptingLookupLogins(false);
     };
 
     run();
-  }, [showLookupDialog, lookupAllClients, decrypt, lookupDecryptedLogins, isDecryptingLookupLogins, lookupLooksEncrypted]);
+  }, [
+    showLookupDialog,
+    lookupAllClients,
+    decrypt,
+    lookupDecryptedLogins,
+    isDecryptingLookupLogins,
+    lookupLooksEncrypted,
+    userId,
+    saveLookupLoginsCache,
+  ]);
 
-  // ============= Resultados de busca filtrados (híbrido: server + client) =============
-  const lookupSearchResultsRaw = useMemo(() => {
+  // ============= Resultados de busca filtrados (local, instantâneo) =============
+  const localSearchResults = useMemo(() => {
     if (!lookupSearchQuery || lookupSearchQuery.length < 2) return [];
 
     const normalizedQuery = lookupSearchQuery.toLowerCase().trim();
     const normalizedQueryDigits = normalizedQuery.replace(/\D/g, '');
 
-    // Se temos resultados do servidor, usá-los como base
-    // Mas ainda fazemos busca client-side para logins descriptografados
-    const serverResults = serverSearchResults.length > 0 ? serverSearchResults : [];
+    return lookupAllClients.filter((client) => {
+      // Name
+      if ((client.name || '').toLowerCase().includes(normalizedQuery)) return true;
+
+      // Email
+      if ((client.email || '').toLowerCase().includes(normalizedQuery)) return true;
+
+      // Plan name
+      if ((client.plan_name || '').toLowerCase().includes(normalizedQuery)) return true;
+
+      // Phone (digits + plain text)
+      if (client.phone) {
+        const phoneText = String(client.phone).toLowerCase();
+        const phoneDigits = String(client.phone).replace(/\D/g, '');
+        if (normalizedQueryDigits.length >= 4 && phoneDigits.includes(normalizedQueryDigits)) return true;
+        if (normalizedQueryDigits.length >= 4 && phoneDigits.length >= 12 && phoneDigits.slice(2).includes(normalizedQueryDigits)) return true;
+        if (phoneText.includes(normalizedQuery)) return true;
+      }
+
+      // Login (decrypted first)
+      const decrypted = lookupDecryptedLogins[client.id];
+      const login = (decrypted?.login ?? '').toLowerCase();
+      const login2 = (decrypted?.login_2 ?? '').toLowerCase();
+      if (login.includes(normalizedQuery) || login2.includes(normalizedQuery)) return true;
+
+      return false;
+    });
+  }, [lookupSearchQuery, lookupAllClients, lookupDecryptedLogins]);
+
+  // ============= Resultados de busca filtrados (híbrido: server + local) =============
+  const lookupSearchResultsRaw = useMemo(() => {
+    if (!lookupSearchQuery || lookupSearchQuery.length < 2) return [];
+
+    const normalizedNow = lookupSearchQuery.trim().toLowerCase();
+    const normalizedDebounced = (debouncedLookupSearchQuery ?? '').trim().toLowerCase();
+    const isQuerySettled = normalizedNow === normalizedDebounced;
+
+    // Só usamos resultados do servidor quando a query “assentou” (debounce) e não é placeholder.
+    // Isso evita mostrar resultados “errados” enquanto o usuário ainda está digitando.
+    const serverResults = (isQuerySettled && !isServerSearchPlaceholder) ? serverSearchResults : [];
     const serverIds = new Set(serverResults.map(c => c.id));
 
-    // Busca client-side para complementar (especialmente para logins descriptografados)
-    const clientSideResults = lookupAllClients
-      .filter((client) => {
-        // Se já está nos resultados do servidor, pular
-        if (serverIds.has(client.id)) return false;
+    const localFiltered = serverIds.size === 0
+      ? localSearchResults
+      : localSearchResults.filter((c) => !serverIds.has(c.id));
 
-        // Name
-        if ((client.name || '').toLowerCase().includes(normalizedQuery)) return true;
-
-        // Email
-        if ((client.email || '').toLowerCase().includes(normalizedQuery)) return true;
-
-        // Plan name (to find by plan type like "SSH", "IPTV")
-        if ((client.plan_name || '').toLowerCase().includes(normalizedQuery)) return true;
-
-        // Phone (digits + plain text)
-        if (client.phone) {
-          const phoneText = String(client.phone).toLowerCase();
-          const phoneDigits = String(client.phone).replace(/\D/g, '');
-          if (normalizedQueryDigits.length >= 4 && phoneDigits.includes(normalizedQueryDigits)) return true;
-          if (normalizedQueryDigits.length >= 4 && phoneDigits.length >= 12 && phoneDigits.slice(2).includes(normalizedQueryDigits)) return true;
-          if (phoneText.includes(normalizedQuery)) return true;
-        }
-
-        // Login (decrypted first, raw fallback) - principal vantagem do client-side
-        const decrypted = lookupDecryptedLogins[client.id];
-        const login = (decrypted?.login ?? '').toLowerCase();
-        const login2 = (decrypted?.login_2 ?? '').toLowerCase();
-        if (login.includes(normalizedQuery) || login2.includes(normalizedQuery)) return true;
-
-        return false;
-      });
-
-    // Combinar resultados: servidor primeiro, depois client-side
-    const combined = [...serverResults, ...clientSideResults];
-    
-    // Ordenar por data de expiração e limitar
-    return combined
+    return [...serverResults, ...localFiltered]
       .sort((a, b) => new Date(b.expiration_date).getTime() - new Date(a.expiration_date).getTime())
       .slice(0, 50);
-  }, [lookupSearchQuery, lookupAllClients, lookupDecryptedLogins, serverSearchResults]);
+  }, [lookupSearchQuery, debouncedLookupSearchQuery, serverSearchResults, isServerSearchPlaceholder, localSearchResults]);
 
-  const isLookupSearching = isLoadingLookupAllClients || isDecryptingLookupLogins || isLoadingServerSearch;
+  // UI não deve “travar” por descriptografia em background;
+  // spinner só quando realmente não há match local (ex.: login ainda não descriptografado).
+  const isLookupSearching =
+    isLoadingLookupAllClients ||
+    (isLoadingServerSearch && localSearchResults.length === 0) ||
+    (isDecryptingLookupLogins && localSearchResults.length === 0 && !isLoadingServerSearch);
 
   // ============= Agrupar resultados por telefone =============
   const lookupGroupedResults = useMemo((): LookupPhoneGroup[] => {
