@@ -476,6 +476,40 @@ html {
   }
 }
 
+/* ============================================
+   REACT-DAY-PICKER CALENDAR DROPDOWNS
+   Ensures proper contrast in all themes (dark/light)
+   ============================================ */
+.rdp-dropdown_month,
+.rdp-dropdown_year,
+.rdp select,
+.rdp-caption_dropdowns select {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.rdp-dropdown_month:focus,
+.rdp-dropdown_year:focus,
+.rdp select:focus,
+.rdp-caption_dropdowns select:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Dropdown options styling */
+.rdp-dropdown_month option,
+.rdp-dropdown_year option,
+.rdp select option,
+.rdp-caption_dropdowns select option {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+}
+
 @layer utilities {
   .text-gradient {
     @apply bg-clip-text text-transparent;
