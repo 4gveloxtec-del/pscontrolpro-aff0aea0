@@ -55,6 +55,8 @@ export function useResellerDeviceApps(sellerId: string | undefined) {
         .from('reseller_device_apps' as any)
         .select('*')
         .eq('seller_id', sellerId!)
+        // IMPORTANT: treat NULL as false for backward-compatibility (older rows)
+        .or('is_gerencia_app.eq.false,is_gerencia_app.is.null')
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
