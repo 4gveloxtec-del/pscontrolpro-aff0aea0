@@ -94,6 +94,7 @@ const SelectContent = React.forwardRef<
   
   // CRITICAL FIX: Never use Portal when inside a Dialog to prevent unmount conflicts.
   // When inside a dialog, the Select content should be part of the same React tree.
+  // This prevents "removeChild" errors during React reconciliation.
   const shouldUsePortal = isInsideDialog ? false : (usePortal ?? true);
   
   const content = (
@@ -162,7 +163,16 @@ const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
 
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {/* 
+      CRITICAL FIX for Chrome/Safari translation crash (Radix UI issue #2578):
+      Wrap children in <span> to isolate text nodes from React reconciliation.
+      When browser translation extensions modify text nodes directly in the DOM,
+      React's removeChild fails because the node structure changed.
+      Wrapping in <span> creates a stable element boundary.
+    */}
+    <SelectPrimitive.ItemText>
+      <span>{children}</span>
+    </SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;

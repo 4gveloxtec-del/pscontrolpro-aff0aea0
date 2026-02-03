@@ -77,6 +77,10 @@ const DialogContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={composeRefs(ref, contentRef)}
           data-lovable-overlay="true"
+          // CRITICAL: Prevent browser translation from modifying DOM nodes.
+          // This prevents "removeChild" crashes caused by translators changing text nodes.
+          // See: https://github.com/radix-ui/primitives/issues/2578
+          translate="no"
           tabIndex={tabIndex ?? -1}
           onOpenAutoFocus={(event) => {
             previouslyFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
