@@ -57,6 +57,7 @@ import { format, addDays, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { PlanSelector } from '@/components/PlanSelector';
+import { ServerSearchSelect } from '@/components/ServerSearchSelect';
 import { 
   DnsFieldsSection, 
   SharedCreditsSection, 
@@ -455,14 +456,13 @@ export function ClientFormDialog({
   }, [plans]);
   
   // ============= Server Selection Handler =============
-  const handleServerChange = useCallback((serverId: string) => {
-    const server = servers.find(s => s.id === serverId);
+  const handleServerChange = useCallback((serverId: string, serverName: string) => {
     setFormData(prev => ({
       ...prev,
       server_id: serverId,
-      server_name: server?.name || '',
+      server_name: serverName,
     }));
-  }, [servers]);
+  }, []);
   
   // ============= Shared Credit Handler =============
   const handleSharedCreditSelect = useCallback((credit: SharedCreditSelection | null) => {
@@ -729,33 +729,21 @@ export function ClientFormDialog({
                   )}
                 </div>
 
-                {/* Server Selector */}
+                {/* Server Search Selector */}
                 {(formData.category === 'IPTV' || formData.category === 'P2P' || formData.category === 'SSH' || formData.category === 'Revendedor') && (
                   <div className="space-y-2 md:col-span-2">
                     <Label>Servidor</Label>
-                    <Select
+                    <ServerSearchSelect
+                      servers={activeServers}
                       value={formData.server_id}
                       onValueChange={handleServerChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o servidor" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[40vh]">
-                        {activeServers.map((server) => (
-                          <SelectItem key={server.id} value={server.id}>
-                            <div className="flex items-center gap-1.5">
-                              {server.icon_url && (
-                                <img src={server.icon_url} alt="" className="h-4 w-4 rounded" />
-                              )}
-                              <span className="truncate max-w-[180px]">{server.name}</span>
-                              {server.is_credit_based && (
-                                <span className="text-[10px] text-muted-foreground ml-0.5">(Créd)</span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Buscar servidor por nome..."
+                    />
+                    {formData.server_name && (
+                      <p className="text-xs text-muted-foreground">
+                        Selecionado: {formData.server_name}
+                      </p>
+                    )}
                   </div>
                 )}
 

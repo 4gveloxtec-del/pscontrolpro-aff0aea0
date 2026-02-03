@@ -70,6 +70,7 @@ import { ExpirationDaySummary } from '@/components/ExpirationDaySummary';
 import { useResellerApps } from '@/components/ResellerAppsManager';
 import { WelcomeMessagePreview } from '@/components/WelcomeMessagePreview';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ServerSearchSelect } from '@/components/ServerSearchSelect';
 
 // ============= Tipos e constantes importados do módulo centralizado =============
 import {
@@ -1177,19 +1178,16 @@ export default function Clients() {
     }
   };
 
-  const handleServerChange = (serverId: string) => {
-    if (serverId === 'manual') {
+  const handleServerChange = (serverId: string, serverName: string) => {
+    if (!serverId) {
       setFormData({ ...formData, server_id: '', server_name: '' });
       return;
     }
-    const server = servers.find(s => s.id === serverId);
-    if (server) {
-      setFormData({
-        ...formData,
-        server_id: server.id,
-        server_name: server.name,
-      });
-    }
+    setFormData({
+      ...formData,
+      server_id: serverId,
+      server_name: serverName,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2577,26 +2575,21 @@ export default function Clients() {
                   </div>
                 )}
 
-                {/* Server Select - Only for IPTV/SSH/P2P, not for Contas Premium */}
+                {/* Server Search Selector - Only for IPTV/SSH/P2P, not for Contas Premium */}
                 {formData.category !== 'Contas Premium' && (
                   <div className="space-y-2">
                     <Label>Servidor</Label>
-                    <Select
-                      value={formData.server_id || 'manual'}
+                    <ServerSearchSelect
+                      servers={activeServers}
+                      value={formData.server_id}
                       onValueChange={handleServerChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um servidor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="manual">Nenhum</SelectItem>
-                        {activeServers.map((server) => (
-                          <SelectItem key={server.id} value={server.id}>
-                            {server.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Buscar servidor por nome..."
+                    />
+                    {formData.server_name && (
+                      <p className="text-xs text-muted-foreground">
+                        Selecionado: {formData.server_name}
+                      </p>
+                    )}
                   </div>
                 )}
 
