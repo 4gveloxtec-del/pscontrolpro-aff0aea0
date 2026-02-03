@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -18,6 +18,9 @@ export function usePWA() {
   const [isIOS, setIsIOS] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+
+  // When we request an update, reload once the new SW takes control.
+  const refreshingRef = useRef(false);
 
   useEffect(() => {
     // Service worker registration is optional and non-blocking
@@ -99,6 +102,22 @@ export function usePWA() {
     };
   }, []);
 
+  // If a new Service Worker takes control, reload to ensure the UI uses the new build.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const handleControllerChange = () => {
+      if (refreshingRef.current) {
+        window.location.reload();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+    };
+  }, []);
+
   const install = async () => {
     if (!installPrompt) return false;
     
@@ -121,9 +140,22 @@ export function usePWA() {
   }, [registration]);
 
   const applyUpdate = useCallback(() => {
-    if (registration?.waiting) {
+    if (!registration) return;
+
+    // Mark that we want to refresh when the updated SW becomes controller.
+    refreshingRef.current = true;
+
+    // Preferred path: waiting worker exists (update already downloaded).
+    if (registration.waiting) {
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      return;
     }
+
+    // Fallback: ask browser to check for a new SW; user can click again if needed.
+    registration.update().catch(() => {
+      // If update fails, we avoid breaking the app.
+      refreshingRef.current = false;
+    });
   }, [registration]);
 
   // Unregister service worker completely (if user wants to disable PWA features)
