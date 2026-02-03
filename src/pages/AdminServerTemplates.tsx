@@ -27,12 +27,20 @@ export const useAdminServerTemplates = () => {
   return useQuery({
     queryKey: ['admin-server-templates'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('default_server_icons')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data as ServerTemplate[];
+      try {
+        const { data, error } = await supabase
+          .from('default_server_icons')
+          .select('*')
+          .order('name');
+        if (error) {
+          console.error('[AdminServerTemplates] query error:', error.message);
+          return [];
+        }
+        return data as ServerTemplate[];
+      } catch (err) {
+        console.error('[AdminServerTemplates] error:', err);
+        return [];
+      }
     },
   });
 };

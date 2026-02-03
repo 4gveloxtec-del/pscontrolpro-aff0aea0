@@ -128,11 +128,19 @@ export default function Settings() {
   const { data: appSettings } = useQuery({
     queryKey: ['app-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('key, value');
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('key, value');
+        if (error) {
+          console.error('[Settings] appSettings query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[Settings] appSettings error:', err);
+        return [];
+      }
     },
   });
 
