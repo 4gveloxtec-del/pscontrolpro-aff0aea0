@@ -81,15 +81,10 @@ interface SelectContentProps
   usePortal?: boolean;
 }
 
-// Debug counter for tracking select instances
-let selectContentCounter = 0;
-
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   SelectContentProps
 >(({ className, children, position, usePortal, ...props }, ref) => {
-  const instanceIdRef = React.useRef<number>(++selectContentCounter);
-  
   // Auto-detect if inside a Dialog
   const isInsideDialog = useIsInsideDialog();
   
@@ -97,39 +92,19 @@ const SelectContent = React.forwardRef<
   // The popper position has been causing removeChild errors in various scenarios.
   const safePosition = position ?? "item-aligned";
   
-  // CRITICAL FIX: Never use Portal when inside a Dialog to prevent unmount conflicts.
-  // When inside a dialog, the Select content should be part of the same React tree.
-  // This prevents "removeChild" errors during React reconciliation.
-  const shouldUsePortal = isInsideDialog ? false : (usePortal ?? true);
-
-  // DEBUG: Track SelectContent lifecycle and configuration
-  React.useEffect(() => {
-    const id = instanceIdRef.current;
-    console.log(`[SelectContent #${id}] 🟢 MOUNTED`, {
-      timestamp: Date.now(),
-      isInsideDialog,
-      shouldUsePortal,
-      safePosition,
-      requestedPosition: position,
-      requestedUsePortal: usePortal,
-    });
-
-    return () => {
-      console.log(`[SelectContent #${id}] 🔴 UNMOUNTING`, {
-        timestamp: Date.now(),
-        isInsideDialog,
-      });
-    };
-  }, [isInsideDialog, shouldUsePortal, safePosition, position, usePortal]);
+  // FIX: Always use Portal. The removeChild error was happening when we rendered 
+  // Select content directly inside Dialog without portal. Portal ensures the Select
+  // content is in a separate React tree, avoiding reconciliation conflicts.
+  // Use higher z-index when inside dialog to ensure visibility above modal.
+  const shouldUsePortal = usePortal ?? true;
   
   const content = (
     <SelectPrimitive.Content
       ref={ref}
-      data-select-id={instanceIdRef.current}
       className={cn(
         "relative max-h-[70vh] sm:max-h-96 min-w-[8rem] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg",
-        // Use higher z-index when inside dialog to ensure visibility
-        isInsideDialog ? "z-[9999]" : "z-50",
+        // Use very high z-index when inside dialog to appear above modal overlay
+        isInsideDialog ? "z-[10001]" : "z-50",
         // Animations
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
@@ -154,13 +129,11 @@ const SelectContent = React.forwardRef<
     </SelectPrimitive.Content>
   );
 
-  // When not using portal, render directly to avoid conflicts with Dialog portals
+  // Always use portal to avoid React reconciliation conflicts with parent components
   if (!shouldUsePortal) {
-    console.log(`[SelectContent #${instanceIdRef.current}] 📍 Rendering WITHOUT portal (inside dialog)`);
     return content;
   }
 
-  console.log(`[SelectContent #${instanceIdRef.current}] 🚀 Rendering WITH portal`);
   return <SelectPortal>{content}</SelectPortal>;
 });
 SelectContent.displayName = SelectPrimitive.Content.displayName;
@@ -173,27 +146,10 @@ const SelectLabel = React.forwardRef<
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
-// Track item render count for debugging rapid re-renders
-let selectItemRenderCount = 0;
-
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
 >(({ className, children, value, ...props }, ref) => {
-  // DEBUG: Track rapid re-renders which can cause removeChild issues
-  const renderCountRef = React.useRef(0);
-  renderCountRef.current++;
-  
-  React.useEffect(() => {
-    // Only log if this item has re-rendered multiple times (indicates potential issue)
-    if (renderCountRef.current > 2) {
-      console.warn(`[SelectItem] ⚠️ Multiple re-renders detected`, {
-        value,
-        renderCount: renderCountRef.current,
-        timestamp: Date.now(),
-      });
-    }
-  });
 
   return (
     <SelectPrimitive.Item

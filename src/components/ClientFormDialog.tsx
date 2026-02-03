@@ -517,7 +517,7 @@ export function ClientFormDialog({
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Selecione a categoria" />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4}>
+                      <SelectContent>
                         {allCategories.map((cat) => (
                           <SelectItem key={cat} value={cat}>
                             {cat}
@@ -789,20 +789,20 @@ export function ClientFormDialog({
                           <SelectTrigger className="bg-background">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4}>
-                            {isWplayServer ? (
+                          <SelectContent>
+                            {/* Static list of screen options based on server type */}
+                            {isWplayServer && (
                               <>
                                 <SelectItem value="1">1 Tela (IPTV)</SelectItem>
                                 <SelectItem value="2">2 Telas (IPTV)</SelectItem>
                                 <SelectItem value="3">3 Telas (2 IPTV + 1 P2P)</SelectItem>
                               </>
-                            ) : (
-                              Array.from({ length: maxScreens }, (_, i) => i + 1).map((num) => (
-                                <SelectItem key={num} value={num.toString()}>
-                                  {num} {num === 1 ? 'Tela' : 'Telas'}
-                                </SelectItem>
-                              ))
                             )}
+                            {!isWplayServer && Array.from({ length: maxScreens }, (_, i) => i + 1).map((num) => (
+                              <SelectItem key={`screen-${num}`} value={num.toString()}>
+                                {num} {num === 1 ? 'Tela' : 'Telas'}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
