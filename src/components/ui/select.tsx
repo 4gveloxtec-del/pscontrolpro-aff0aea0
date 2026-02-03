@@ -87,14 +87,20 @@ const SelectContent = React.forwardRef<
 >(({ className, children, position, usePortal, ...props }, ref) => {
   // Auto-detect if inside a Dialog - disable portal to avoid conflicts
   const isInsideDialog = useIsInsideDialog();
-  const shouldUsePortal = usePortal ?? !isInsideDialog;
+  // CRITICAL STABILITY: When inside a Dialog/Modal we NEVER portalize.
+  // Some callers force `usePortal={true}` (e.g. legacy code), which can
+  // trigger Radix unmount errors (`removeChild`) and leave scroll locked.
+  const shouldUsePortal = isInsideDialog ? false : (usePortal ?? true);
   
   // Stability fix:
   // Radix Select in "popper" mode has been observed to occasionally crash with
   // `removeChild` during unmount/reconciliation.
   // We default to the more stable "item-aligned" mode everywhere, and only
   // use "popper" when explicitly requested.
-  const safePosition = position ?? "item-aligned";
+  // Additionally, when inside a Dialog/Modal we ALWAYS force the stable mode,
+  // because popper mode has caused unmount errors that can leave the overlay
+  // blocking scroll after closing.
+  const safePosition = isInsideDialog ? "item-aligned" : (position ?? "item-aligned");
   
   const content = (
     <SelectPrimitive.Content
