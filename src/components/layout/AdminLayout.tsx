@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useOnce } from '@/hooks/useOnce';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdminMenuIcons } from '@/hooks/useAdminMenuIcons';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -18,34 +19,39 @@ import {
   MessageSquare,
   GraduationCap,
   HeartPulse,
-  CreditCard
+  CreditCard,
+  Palette
 } from 'lucide-react';
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  menuKey: string; // Chave para buscar ícone customizado
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Vendedores', href: '/admin/sellers', icon: Users },
-  { label: 'ASAAS Cobranças', href: '/admin/asaas', icon: CreditCard },
-  { label: 'Chatbot', href: '/admin/chatbot', icon: MessageSquare },
-  { label: 'Autocura', href: '/admin/system-health', icon: HeartPulse },
-  { label: 'Relatórios', href: '/admin/reports', icon: FileText },
-  { label: 'Backup', href: '/admin/backup', icon: Database },
-  { label: 'Ícones Servidores', href: '/admin/server-icons', icon: Image },
-  { label: 'Templates Servidor', href: '/admin/server-templates', icon: MessageSquare },
-  { label: 'Tutoriais', href: '/admin/tutorials', icon: GraduationCap },
-  { label: 'Configurações', href: '/admin/settings', icon: Settings },
+  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, menuKey: 'dashboard' },
+  { label: 'Vendedores', href: '/admin/sellers', icon: Users, menuKey: 'sellers' },
+  { label: 'ASAAS Cobranças', href: '/admin/asaas', icon: CreditCard, menuKey: 'asaas' },
+  { label: 'Chatbot', href: '/admin/chatbot', icon: MessageSquare, menuKey: 'chatbot' },
+  { label: 'Autocura', href: '/admin/system-health', icon: HeartPulse, menuKey: 'system-health' },
+  { label: 'Relatórios', href: '/admin/reports', icon: FileText, menuKey: 'reports' },
+  { label: 'Backup', href: '/admin/backup', icon: Database, menuKey: 'backup' },
+  { label: 'Ícones Servidores', href: '/admin/server-icons', icon: Image, menuKey: 'server-icons' },
+  { label: 'Templates Servidor', href: '/admin/server-templates', icon: MessageSquare, menuKey: 'server-templates' },
+  { label: 'Tutoriais', href: '/admin/tutorials', icon: GraduationCap, menuKey: 'tutorials' },
+  { label: 'Ícones do Menu', href: '/admin/menu-icons', icon: Palette, menuKey: 'menu-icons' },
+  { label: 'Configurações', href: '/admin/settings', icon: Settings, menuKey: 'settings' },
 ];
 
 export function AdminLayout() {
   const { profile, signOut } = useAuth();
+  const { iconMap } = useAdminMenuIcons();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [iconErrors, setIconErrors] = useState<Record<string, boolean>>({});
 
   // Log de validação - executa apenas uma vez por sessão
   useOnce(() => {
@@ -55,6 +61,10 @@ export function AdminLayout() {
   const handleLogout = async () => {
     await signOut();
     navigate('/admin');
+  };
+
+  const handleIconError = (menuKey: string) => {
+    setIconErrors(prev => ({ ...prev, [menuKey]: true }));
   };
 
   return (
@@ -101,6 +111,10 @@ export function AdminLayout() {
         <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-180px)]">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
+            const customIconUrl = iconMap[item.menuKey];
+            const showCustomIcon = customIconUrl && !iconErrors[item.menuKey];
+            const DefaultIcon = item.icon;
+
             return (
               <Link
                 key={item.href}
@@ -113,7 +127,16 @@ export function AdminLayout() {
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
-                <item.icon className="h-5 w-5" />
+                {showCustomIcon ? (
+                  <img 
+                    src={customIconUrl} 
+                    alt={item.label}
+                    className="h-5 w-5 object-contain"
+                    onError={() => handleIconError(item.menuKey)}
+                  />
+                ) : (
+                  <DefaultIcon className="h-5 w-5" />
+                )}
                 {item.label}
               </Link>
             );
