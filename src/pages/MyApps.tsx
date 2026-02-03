@@ -197,6 +197,10 @@ export default function MyApps() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // IMPORTANT: must match the queryKey used in this page ([key, userId])
+      // so the list updates immediately after create.
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, user?.id] });
+      // Keep broad invalidation for any screens that still use the legacy key shape.
       queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('Aplicativo cadastrado com sucesso!');
       resetForm();
@@ -228,6 +232,10 @@ export default function MyApps() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // IMPORTANT: must match the queryKey used in this page ([key, userId])
+      // so the list updates immediately after update.
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, user?.id] });
+      // Keep broad invalidation for any screens that still use the legacy key shape.
       queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('Aplicativo atualizado com sucesso!');
       resetForm();
@@ -247,6 +255,10 @@ export default function MyApps() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // IMPORTANT: must match the queryKey used in this page ([key, userId])
+      // so the list updates immediately after delete.
+      queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, user?.id] });
+      // Keep broad invalidation for any screens that still use the legacy key shape.
       queryClient.invalidateQueries({ queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY] });
       toast.success('Aplicativo excluído com sucesso!');
     },
