@@ -193,7 +193,7 @@ export function PlanSelector({
               <SelectTrigger className="h-6 sm:h-7 w-auto min-w-[70px] sm:min-w-[90px] text-[10px] sm:text-xs">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
-              <SelectContent className="max-h-[200px]" position="popper" sideOffset={4}>
+              <SelectContent className="max-h-[200px]">
                 <SelectItem value="all">Todas</SelectItem>
                 {allCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>
@@ -211,7 +211,7 @@ export function PlanSelector({
                 <SelectTrigger className="h-6 sm:h-7 w-auto min-w-[60px] sm:min-w-[80px] text-[10px] sm:text-xs">
                   <SelectValue placeholder="Telas" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px]" position="popper" sideOffset={4}>
+                <SelectContent className="max-h-[200px]">
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="1">1 Tela</SelectItem>
                   <SelectItem value="2">2 Telas</SelectItem>

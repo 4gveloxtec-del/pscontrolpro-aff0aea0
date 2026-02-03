@@ -43,9 +43,6 @@ function composeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   };
 }
 
-// Debug ID counter for tracking dialog instances
-let dialogInstanceCounter = 0;
-
 /**
  * DialogContent - fecha via ESC, clique no backdrop ou botão voltar do navegador
  */
@@ -66,24 +63,6 @@ const DialogContent = React.forwardRef<
   ) => {
     const contentRef = React.useRef<React.ElementRef<typeof DialogPrimitive.Content> | null>(null);
     const previouslyFocusedRef = React.useRef<HTMLElement | null>(null);
-    const instanceIdRef = React.useRef<number>(++dialogInstanceCounter);
-
-    // DEBUG: Track dialog lifecycle
-    React.useEffect(() => {
-      const id = instanceIdRef.current;
-      console.log(`[Dialog #${id}] 🟢 MOUNTED`, {
-        timestamp: Date.now(),
-        hasChildren: !!children,
-        childrenType: children ? (Array.isArray(children) ? 'array' : typeof children) : 'none',
-      });
-
-      return () => {
-        console.log(`[Dialog #${id}] 🔴 UNMOUNTING`, {
-          timestamp: Date.now(),
-          contentRefExists: !!contentRef.current,
-        });
-      };
-    }, []);
 
     // Failsafe: if Radix scroll-lock gets stuck after close, unlock it.
     React.useEffect(() => {
