@@ -310,6 +310,9 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
           {localApps.map((app, appIndex) => {
             const appDetails = getAppDetails(app.appId);
             const isMacType = appDetails?.auth_type === 'mac_key';
+            // For reseller apps, if we can't find details but the ID looks like a reseller app, force MAC type
+            const isResellerApp = resellerApps.some(ra => ra.id === app.appId);
+            const shouldShowMacFields = isMacType || isResellerApp;
             const isExpanded = expandedApps.has(appIndex);
             
             return (
@@ -326,8 +329,10 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                         value={app.appId}
                         onValueChange={(value) => {
                           const newApp = availableApps.find(a => a.id === value);
-                          // Auto-add first device for MAC apps so fields appear immediately
-                          const newDevices = newApp?.auth_type === 'mac_key' 
+                          const isNewAppReseller = resellerApps.some(ra => ra.id === value);
+                          // Auto-add first device for MAC apps OR reseller apps so fields appear immediately
+                          const shouldAddDevice = newApp?.auth_type === 'mac_key' || isNewAppReseller;
+                          const newDevices = shouldAddDevice
                             ? (app.devices.length > 0 ? app.devices : [{ name: '', mac: '', device_key: '' }])
                             : app.devices;
                           updateApp(appIndex, { 
@@ -345,8 +350,10 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                         value={app.appId}
                         onValueChange={(value) => {
                           const newApp = availableApps.find(a => a.id === value);
-                          // Auto-add first device for MAC apps so fields appear immediately
-                          const newDevices = newApp?.auth_type === 'mac_key' 
+                          const isNewAppReseller = resellerApps.some(ra => ra.id === value);
+                          // Auto-add first device for MAC apps OR reseller apps so fields appear immediately
+                          const shouldAddDevice = newApp?.auth_type === 'mac_key' || isNewAppReseller;
+                          const newDevices = shouldAddDevice
                             ? (app.devices.length > 0 ? app.devices : [{ name: '', mac: '', device_key: '' }])
                             : app.devices;
                           updateApp(appIndex, { 
@@ -520,8 +527,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                       </div>
                     )}
 
-                    {/* MAC Authentication */}
-                    {isMacType && (
+                    {/* MAC Authentication - Show for MAC type apps OR any reseller app */}
+                    {shouldShowMacFields && (
                       <div className="space-y-2 pt-1">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">Dispositivos ({app.devices.length}/5)</span>
@@ -609,8 +616,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                       </div>
                     )}
 
-                    {/* Email + Password Authentication (for email-based apps) */}
-                    {!isMacType && (
+                    {/* Email + Password Authentication (for email-based apps, NOT reseller apps) */}
+                    {!shouldShowMacFields && (
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <Input
                           type="email"
