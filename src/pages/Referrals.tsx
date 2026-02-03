@@ -25,34 +25,62 @@ interface Referral {
 export default function Referrals() {
   const { user } = useAuth();
 
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [], isError: clientsError } = useQuery({
     queryKey: ['clients-referrals', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, referral_code')
-        .eq('seller_id', user!.id)
-        .eq('is_archived', false)
-        .order('name');
-      if (error) throw error;
-      return data as Client[];
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('id, name, referral_code')
+          .eq('seller_id', user!.id)
+          .eq('is_archived', false)
+          .order('name');
+        if (error) {
+          console.error('[Referrals] clients query error:', error.message);
+          return [];
+        }
+        return data as Client[];
+      } catch (err) {
+        console.error('[Referrals] clients error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
 
-  const { data: referrals = [] } = useQuery({
+  const { data: referrals = [], isError: referralsError } = useQuery({
     queryKey: ['referrals', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('referrals')
-        .select('*')
-        .eq('seller_id', user!.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Referral[];
+      try {
+        const { data, error } = await supabase
+          .from('referrals')
+          .select('*')
+          .eq('seller_id', user!.id)
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.error('[Referrals] referrals query error:', error.message);
+          return [];
+        }
+        return data as Referral[];
+      } catch (err) {
+        console.error('[Referrals] referrals error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
+
+  // Error guard
+  if (clientsError || referralsError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar indicações</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   const getClientName = (id: string) => {
     return clients.find(c => c.id === id)?.name || 'Cliente desconhecido';

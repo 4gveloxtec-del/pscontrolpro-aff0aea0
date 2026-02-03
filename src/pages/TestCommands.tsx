@@ -161,47 +161,71 @@ export default function TestCommands() {
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
 
   // Fetch APIs
-  const { data: apis = [], isLoading: apisLoading } = useQuery({
+  const { data: apis = [], isLoading: apisLoading, isError: apisError } = useQuery({
     queryKey: ['test-apis', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('test_apis')
-        .select('*')
-        .eq('owner_id', user!.id)
-        .order('name');
-      if (error) throw error;
-      return data as TestApi[];
+      try {
+        const { data, error } = await supabase
+          .from('test_apis')
+          .select('*')
+          .eq('owner_id', user!.id)
+          .order('name');
+        if (error) {
+          console.error('[TestCommands] apis query error:', error.message);
+          return [];
+        }
+        return data as TestApi[];
+      } catch (err) {
+        console.error('[TestCommands] apis error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
 
   // Fetch Commands
-  const { data: commands = [], isLoading: commandsLoading } = useQuery({
+  const { data: commands = [], isLoading: commandsLoading, isError: commandsError } = useQuery({
     queryKey: ['whatsapp-commands', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('whatsapp_commands')
-        .select('*, test_apis(name)')
-        .eq('owner_id', user!.id)
-        .order('command');
-      if (error) throw error;
-      return data as WhatsAppCommand[];
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_commands')
+          .select('*, test_apis(name)')
+          .eq('owner_id', user!.id)
+          .order('command');
+        if (error) {
+          console.error('[TestCommands] commands query error:', error.message);
+          return [];
+        }
+        return data as WhatsAppCommand[];
+      } catch (err) {
+        console.error('[TestCommands] commands error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
 
   // Fetch Logs
-  const { data: logs = [], isLoading: logsLoading, refetch: refetchLogs } = useQuery({
+  const { data: logs = [], isLoading: logsLoading, refetch: refetchLogs, isError: logsError } = useQuery({
     queryKey: ['command-logs', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('command_logs')
-        .select('id, command_text, sender_phone, success, error_message, execution_time_ms, created_at')
-        .eq('owner_id', user!.id)
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data as CommandLog[];
+      try {
+        const { data, error } = await supabase
+          .from('command_logs')
+          .select('id, command_text, sender_phone, success, error_message, execution_time_ms, created_at')
+          .eq('owner_id', user!.id)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (error) {
+          console.error('[TestCommands] logs query error:', error.message);
+          return [];
+        }
+        return data as CommandLog[];
+      } catch (err) {
+        console.error('[TestCommands] logs error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -210,17 +234,28 @@ export default function TestCommands() {
   const { data: logsConfig, refetch: refetchLogsConfig } = useQuery({
     queryKey: ['logs-config', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('test_integration_config')
-        .select('id, logs_enabled')
-        .eq('seller_id', user!.id)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('test_integration_config')
+          .select('id, logs_enabled')
+          .eq('seller_id', user!.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (error) {
+          console.error('[TestCommands] logsConfig query error:', error.message);
+          return null;
+        }
+        return data;
+      } catch (err) {
+        console.error('[TestCommands] logsConfig error:', err);
+        return null;
+      }
     },
     enabled: !!user?.id,
   });
+
+  // Combined error state
+  const hasQueryError = apisError || commandsError || logsError;
 
   // Toggle logs mutation
   const toggleLogsMutation = useMutation({
@@ -693,6 +728,18 @@ export default function TestCommands() {
       setDiagnosing(false);
     }
   };
+
+  // Error state guard
+  if (hasQueryError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-2">
+          <p className="text-destructive font-medium">Erro ao carregar dados</p>
+          <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in max-w-full overflow-x-hidden">
