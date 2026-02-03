@@ -1371,3 +1371,132 @@ select:focus {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
+
+/* =============================================================================
+   React Day Picker - Calendar Dark/Light Theme Support
+   Garante visibilidade dos dropdowns e calendário em ambos os temas
+   ============================================================================= */
+
+/* Container do calendário */
+.rdp {
+  --rdp-background-color: hsl(var(--popover));
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-accent-background-color: hsl(var(--primary) / 0.1);
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+/* Dropdowns de mês e ano */
+.rdp-dropdown {
+  appearance: none;
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23888888' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.25rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+}
+
+.rdp-dropdown:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.rdp-dropdown:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Opções dentro dos dropdowns */
+.rdp-dropdown option {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  padding: 0.5rem;
+}
+
+/* Caption (header do calendário) */
+.rdp-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0;
+}
+
+.rdp-caption_label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Dias da semana (cabeçalho) */
+.rdp-head_cell {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Células de dias */
+.rdp-day {
+  color: hsl(var(--foreground));
+}
+
+.rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled) {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.rdp-day_today:not(.rdp-day_selected) {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  font-weight: 600;
+}
+
+.rdp-day_selected {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.rdp-day_outside {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.5;
+}
+
+.rdp-day_disabled {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.4;
+}
+
+/* Navegação (setas) */
+.rdp-nav_button {
+  color: hsl(var(--foreground));
+  background-color: transparent;
+  border: 1px solid hsl(var(--border));
+}
+
+.rdp-nav_button:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* PopoverContent para calendário - garantir z-index alto e background sólido */
+[data-radix-popper-content-wrapper]:has(.rdp) {
+  z-index: 100 !important;
+}
+
+.rdp-vhidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
