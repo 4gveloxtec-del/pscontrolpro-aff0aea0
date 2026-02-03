@@ -15,6 +15,7 @@ import { useClientDialogState, ClientForDialog } from '@/hooks/useClientDialogSt
 import { useClientFormData, ClientFormData } from '@/hooks/useClientFormData';
 import { useClientLookup } from '@/hooks/useClientLookup';
 import { useClientCredentials } from '@/hooks/useClientCredentials';
+import { useClientQueries } from '@/hooks/useClientQueries';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -290,6 +291,8 @@ export default function Clients() {
   }, [dialogCancelExit]);
 
   // Pagination state for database-level pagination
+  // TODO: Substituir por useClientQueries hook após validação
+  // const queriesHook = useClientQueries({ userId: user?.id, debouncedSearch, isViewingArchived });
   const [dbPage, setDbPage] = useState(0);
   const [allLoadedClients, setAllLoadedClients] = useState<Client[]>([]);
   const [hasMoreClients, setHasMoreClients] = useState(true);
