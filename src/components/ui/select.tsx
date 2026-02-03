@@ -38,19 +38,12 @@ const SelectScrollUpButton = React.forwardRef<
   <SelectPrimitive.ScrollUpButton
     ref={ref}
     className={cn(
-      // Keep the control visible when content is constrained (e.g. inside dialogs)
-      "sticky top-0 z-10 flex h-9 cursor-pointer items-center justify-center",
-      // Ensure it's never see-through
-      "bg-popover text-popover-foreground",
-      // Subtle separation from items
-      "border-b border-border",
-      // Improve touch/trackpad interactions
-      "select-none",
+      "flex cursor-default items-center justify-center py-1 bg-popover",
       className,
     )}
     {...props}
   >
-    <ChevronUp className="h-4 w-4" />
+    <ChevronUp className="h-4 w-4 opacity-50" />
   </SelectPrimitive.ScrollUpButton>
 ));
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
@@ -62,15 +55,12 @@ const SelectScrollDownButton = React.forwardRef<
   <SelectPrimitive.ScrollDownButton
     ref={ref}
     className={cn(
-      "sticky bottom-0 z-10 flex h-9 cursor-pointer items-center justify-center",
-      "bg-popover text-popover-foreground",
-      "border-t border-border",
-      "select-none",
+      "flex cursor-default items-center justify-center py-1 bg-popover",
       className,
     )}
     {...props}
   >
-    <ChevronDown className="h-4 w-4" />
+    <ChevronDown className="h-4 w-4 opacity-50" />
   </SelectPrimitive.ScrollDownButton>
 ));
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
