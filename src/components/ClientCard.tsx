@@ -469,33 +469,45 @@ export const ClientCard = memo(function ClientCard({
                   </div>
                 )}
 
-                {/* Additional Servers Credentials - Emerald Color */}
+                {/* Additional Servers Credentials - Different Colors for Each */}
                 {client.additional_servers && Array.isArray(client.additional_servers) && 
                   client.additional_servers.map((server: AdditionalServer, index: number) => {
                     // Check if this additional server has login credentials
                     if (!server.login) return null;
+                    
+                    // Array de cores para servidores adicionais (cada um com cor diferente)
+                    const serverColors = [
+                      { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-600 dark:text-emerald-400', codeBg: 'bg-emerald-500/15', hoverBg: 'hover:bg-emerald-500/20' },
+                      { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-600 dark:text-violet-400', codeBg: 'bg-violet-500/15', hoverBg: 'hover:bg-violet-500/20' },
+                      { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-600 dark:text-rose-400', codeBg: 'bg-rose-500/15', hoverBg: 'hover:bg-rose-500/20' },
+                      { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-600 dark:text-cyan-400', codeBg: 'bg-cyan-500/15', hoverBg: 'hover:bg-cyan-500/20' },
+                      { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-600 dark:text-orange-400', codeBg: 'bg-orange-500/15', hoverBg: 'hover:bg-orange-500/20' },
+                      { bg: 'bg-pink-500/10', border: 'border-pink-500/30', text: 'text-pink-600 dark:text-pink-400', codeBg: 'bg-pink-500/15', hoverBg: 'hover:bg-pink-500/20' },
+                    ];
+                    const colorScheme = serverColors[index % serverColors.length];
+                    
                     return (
-                      <div key={server.server_id || index} className="space-y-1 p-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30">
+                      <div key={server.server_id || index} className={`space-y-1 p-1.5 rounded-md ${colorScheme.bg} ${colorScheme.border}`}>
                         <div className="flex items-center gap-1.5 mb-1">
-                          <Server className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                          <Server className={`h-3 w-3 ${colorScheme.text}`} />
+                          <span className={`text-[10px] font-medium ${colorScheme.text}`}>
                             {server.server_name || `Servidor ${index + 3}`}
                           </span>
                         </div>
                         <div className="flex items-center justify-between group/cred">
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>
                           <div className="flex items-center gap-1.5">
-                            <code className="text-xs font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
+                            <code className={`text-xs font-mono ${colorScheme.codeBg} ${colorScheme.text} px-2 py-0.5 rounded ${colorScheme.border}`}>
                               {maskData(server.login, 'credentials')}
                             </code>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-5 w-5 p-0 opacity-60 hover:opacity-100 hover:bg-emerald-500/20"
+                              className={`h-5 w-5 p-0 opacity-60 hover:opacity-100 ${colorScheme.hoverBg}`}
                               onClick={(e) => handleCopyCredentials(e, server.login!, `Login ${server.server_name}`)}
                               title="Copiar login"
                             >
-                              <Copy className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                              <Copy className={`h-3 w-3 ${colorScheme.text}`} />
                             </Button>
                           </div>
                         </div>
