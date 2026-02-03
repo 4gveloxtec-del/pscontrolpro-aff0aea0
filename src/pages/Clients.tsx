@@ -16,6 +16,7 @@ import { useClientFormData, ClientFormData } from '@/hooks/useClientFormData';
 import { useClientLookup } from '@/hooks/useClientLookup';
 import { useClientCredentials } from '@/hooks/useClientCredentials';
 import { useClientQueries } from '@/hooks/useClientQueries';
+import { useClientActions } from '@/hooks/useClientActions';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -299,6 +300,24 @@ export default function Clients() {
   const [totalClientCount, setTotalClientCount] = useState(0);
   // CLIENTS_PER_PAGE importado de @/types/clients
   // AUTOLOAD_ALL_UP_TO importado de @/types/clients // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
+
+  // ============= Hook de Ações (extraído para melhor manutenibilidade) =============
+  // TODO: Ativar após validação completa - Etapa 2.9
+  // const {
+  //   deleteMutation: actionsDeleteMutation,
+  //   deleteAllMutation: actionsDeleteAllMutation,
+  //   archiveMutation: actionsArchiveMutation,
+  //   restoreMutation: actionsRestoreMutation,
+  // } = useClientActions({
+  //   userId: user?.id,
+  //   isViewingArchived,
+  //   debouncedSearch,
+  //   allLoadedClients,
+  //   setAllLoadedClients,
+  //   setTotalClientCount,
+  //   setDbPage,
+  //   setHasMoreClients,
+  // });
 
   // Get total count of clients for accurate pagination info
   // isViewingArchived agora vem do hook useClientFilters
