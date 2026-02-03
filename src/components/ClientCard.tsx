@@ -338,9 +338,10 @@ export const ClientCard = memo(function ClientCard({
                   : "cursor-default opacity-70"
               )}
               onClick={(e) => handleServerClick(e, client.server_name!)}
-              title={serverHasPanel(client.server_name) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
+              title={serverHasPanel(client.server_name) ? 'Servidor Principal - Clique para abrir o painel' : 'Servidor Principal - Sem link de painel cadastrado'}
             >
               <Server className="h-3 w-3" />
+              <span className="font-semibold opacity-60">#1</span>
               {client.server_name}
               {serverHasPanel(client.server_name) && (
                 <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
@@ -358,9 +359,10 @@ export const ClientCard = memo(function ClientCard({
                   : "cursor-default opacity-70"
               )}
               onClick={(e) => handleServerClick(e, client.server_name_2!)}
-              title={serverHasPanel(client.server_name_2) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
+              title={serverHasPanel(client.server_name_2) ? 'Servidor 2 - Clique para abrir o painel' : 'Servidor 2 - Sem link de painel cadastrado'}
             >
               <Server className="h-3 w-3" />
+              <span className="font-semibold opacity-60">#2</span>
               {client.server_name_2}
               {serverHasPanel(client.server_name_2) && (
                 <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
@@ -368,7 +370,7 @@ export const ClientCard = memo(function ClientCard({
             </Badge>
           )}
 
-        {/* Additional Servers - Com cores distintas para cada um */}
+        {/* Additional Servers - Com cores distintas e indicação clara do número do servidor */}
           {client.additional_servers && Array.isArray(client.additional_servers) && client.additional_servers.length > 0 && (
             client.additional_servers.map((server: AdditionalServer, index: number) => {
               // Cores distintas para cada servidor adicional
@@ -381,6 +383,11 @@ export const ClientCard = memo(function ClientCard({
                 { bg: 'bg-pink-500/10', text: 'text-pink-600 dark:text-pink-400', border: 'border-pink-500/20', hover: 'hover:bg-pink-500/20' },
               ];
               const colorScheme = badgeColors[index % badgeColors.length];
+              const serverNumber = index + 3; // Servidor 3, 4, 5...
+              
+              // Calcula dias até vencimento para este servidor extra (se tiver data própria)
+              const serverExpDate = server.expiration_date ? new Date(server.expiration_date + 'T12:00:00') : null;
+              const serverDaysLeft = serverExpDate ? differenceInDays(serverExpDate, today) : null;
               
               return (
                 <Badge 
@@ -393,10 +400,18 @@ export const ClientCard = memo(function ClientCard({
                       : "cursor-default opacity-70"
                   )}
                   onClick={(e) => handleServerClick(e, server.server_name)}
-                  title={serverHasPanel(server.server_name) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
+                  title={serverHasPanel(server.server_name) 
+                    ? `Servidor ${serverNumber} - Clique para abrir o painel` 
+                    : `Servidor ${serverNumber} - Sem link de painel cadastrado`}
                 >
                   <Server className="h-3 w-3" />
+                  <span className="font-semibold opacity-60">#{serverNumber}</span>
                   {server.server_name}
+                  {serverExpDate && (
+                    <span className="text-[9px] opacity-75 ml-0.5">
+                      ({serverDaysLeft !== null && serverDaysLeft <= 0 ? 'vencido' : `${serverDaysLeft}d`})
+                    </span>
+                  )}
                   {serverHasPanel(server.server_name) && (
                     <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
                   )}
