@@ -139,15 +139,8 @@ export interface ClientFormData {
   screens: string;
 }
 
-// Device options - matching Clients.tsx
-const DEVICE_OPTIONS_LOCAL = [
-  { value: 'TV', icon: '📺' },
-  { value: 'Celular', icon: '📱' },
-  { value: 'TV Box', icon: '📦' },
-  { value: 'Computador', icon: '💻' },
-  { value: 'Tablet', icon: '📲' },
-  { value: 'Outro', icon: '🔌' },
-];
+// Device options imported from component
+import { DeviceSearchSelect } from '@/components/DeviceSearchSelect';
 
 // Default categories
 const DEFAULT_CATEGORIES_LOCAL = ['IPTV', 'P2P', 'SSH', 'Contas Premium', 'Revendedor'];
@@ -643,56 +636,14 @@ export function ClientFormDialog({
                   </div>
                 )}
                 
-                {/* Devices Selection */}
+                {/* Devices Selection - Searchable with multi-select (max 5) */}
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Dispositivos</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-between font-normal"
-                        type="button"
-                      >
-                        {formData.device 
-                          ? formData.device.split(', ').length > 2 
-                            ? `${formData.device.split(', ').slice(0, 2).join(', ')} +${formData.device.split(', ').length - 2}`
-                            : formData.device
-                          : 'Selecione os dispositivos'}
-                        <ChevronDown className="h-4 w-4 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3" align="start">
-                      <div className="space-y-2">
-                        {DEVICE_OPTIONS_LOCAL.map((device) => {
-                          const isSelected = formData.device.split(', ').includes(device.value);
-                          return (
-                            <label
-                              key={device.value}
-                              className="flex items-center gap-3 p-2 rounded-md hover:bg-muted cursor-pointer"
-                            >
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  const currentDevices = formData.device ? formData.device.split(', ').filter(Boolean) : [];
-                                  let newDevices: string[];
-                                  
-                                  if (checked) {
-                                    newDevices = [...currentDevices, device.value];
-                                  } else {
-                                    newDevices = currentDevices.filter(d => d !== device.value);
-                                  }
-                                  
-                                  setFormData({ ...formData, device: newDevices.join(', ') });
-                                }}
-                              />
-                              <span className="text-lg">{device.icon}</span>
-                              <span>{device.value}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <Label>Dispositivos (máx. 5)</Label>
+                  <DeviceSearchSelect
+                    value={formData.device}
+                    onValueChange={(devices) => setFormData({ ...formData, device: devices })}
+                    placeholder="Buscar dispositivo..."
+                  />
                 </div>
 
                 {/* Device Model - Only when device is selected */}

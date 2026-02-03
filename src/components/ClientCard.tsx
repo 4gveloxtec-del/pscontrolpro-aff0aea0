@@ -420,6 +420,20 @@ export const ClientCard = memo(function ClientCard({
             })
           )}
 
+          {/* Device Types - Shows selected devices */}
+          {client.device && (
+            client.device.split(', ').filter(Boolean).map((deviceName, index) => (
+              <Badge 
+                key={`device-${index}`} 
+                variant="outline" 
+                className="text-[10px] gap-1 font-normal bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
+              >
+                <Tv className="h-3 w-3" />
+                {deviceName}
+              </Badge>
+            ))
+          )}
+
           {client.device_model && (
             <Badge variant="outline" className="text-[10px] gap-1 font-normal bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
               <Tv className="h-3 w-3" />
