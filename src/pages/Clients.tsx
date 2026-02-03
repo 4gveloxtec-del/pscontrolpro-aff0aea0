@@ -17,8 +17,6 @@ import { useClientLookup } from '@/hooks/useClientLookup';
 import { useClientCredentials } from '@/hooks/useClientCredentials';
 import { useClientQueries } from '@/hooks/useClientQueries';
 import { useClientActions } from '@/hooks/useClientActions';
-// STEP 2.12: useClientSave encapsulates all save logic - ready for future integration
-// import { useClientSave } from '@/hooks/useClientSave';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
