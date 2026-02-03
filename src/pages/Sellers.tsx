@@ -201,50 +201,58 @@ export default function Sellers() {
   const { data: allUsersData = { sellers: [], pendingUsers: [] }, isLoading, isError: sellersError } = useQuery({
     queryKey: ['sellers', 'pending-users'],
     queryFn: async () => {
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      try {
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.error('[Sellers] profiles query error:', error.message);
+          return { sellers: [], pendingUsers: [] };
+        }
 
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('user_id, role');
 
-      const roleMap: Record<string, string> = {};
-      roles?.forEach(r => {
-        roleMap[r.user_id] = r.role;
-      });
+        const roleMap: Record<string, string> = {};
+        roles?.forEach(r => {
+          roleMap[r.user_id] = r.role;
+        });
 
-      const adminIds = roles?.filter(r => r.role === 'admin').map(r => r.user_id) || [];
-      const sellerIds = roles?.filter(r => r.role === 'seller').map(r => r.user_id) || [];
-      // Use string comparison for 'user' role since DB type might not include it yet
-      const userIds = roles?.filter(r => (r.role as string) === 'user').map(r => r.user_id) || [];
-      
-      // Get client counts for each seller
-      const { data: clientCounts } = await supabase
-        .from('clients')
-        .select('seller_id')
-        .eq('is_archived', false);
+        const adminIds = roles?.filter(r => r.role === 'admin').map(r => r.user_id) || [];
+        const sellerIds = roles?.filter(r => r.role === 'seller').map(r => r.user_id) || [];
+        // Use string comparison for 'user' role since DB type might not include it yet
+        const userIds = roles?.filter(r => (r.role as string) === 'user').map(r => r.user_id) || [];
+        
+        // Get client counts for each seller
+        const { data: clientCounts } = await supabase
+          .from('clients')
+          .select('seller_id')
+          .eq('is_archived', false);
 
-      const countMap: Record<string, number> = {};
-      clientCounts?.forEach(c => {
-        countMap[c.seller_id] = (countMap[c.seller_id] || 0) + 1;
-      });
-      
-      const allProfiles = profiles as Seller[];
-      
-      // Sellers (revendedores ativos)
-      const sellers = allProfiles
-        .filter(p => sellerIds.includes(p.id))
-        .map(p => ({ ...p, client_count: countMap[p.id] || 0, userRole: 'seller' as const }));
-      
-      // Pending users (aguardando aprovação)
-      const pendingUsers = allProfiles
-        .filter(p => userIds.includes(p.id))
-        .map(p => ({ ...p, client_count: 0, userRole: 'user' as const }));
-      
-      return { sellers, pendingUsers };
+        const countMap: Record<string, number> = {};
+        clientCounts?.forEach(c => {
+          countMap[c.seller_id] = (countMap[c.seller_id] || 0) + 1;
+        });
+        
+        const allProfiles = profiles as Seller[];
+        
+        // Sellers (revendedores ativos)
+        const sellers = allProfiles
+          .filter(p => sellerIds.includes(p.id))
+          .map(p => ({ ...p, client_count: countMap[p.id] || 0, userRole: 'seller' as const }));
+        
+        // Pending users (aguardando aprovação)
+        const pendingUsers = allProfiles
+          .filter(p => userIds.includes(p.id))
+          .map(p => ({ ...p, client_count: 0, userRole: 'user' as const }));
+        
+        return { sellers, pendingUsers };
+      } catch (err) {
+        console.error('[Sellers] catch error:', err);
+        return { sellers: [], pendingUsers: [] };
+      }
     },
   });
 
@@ -255,14 +263,22 @@ export default function Sellers() {
     queryKey: ['admin-seller-templates', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return [];
-      const { data, error } = await supabase
-        .from('whatsapp_templates')
-        .select('*')
-        .eq('seller_id', session.user.id)
-        .like('name', 'Vendedor%')
-        .order('name');
-      if (error) throw error;
-      return data as WhatsAppTemplate[];
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_templates')
+          .select('*')
+          .eq('seller_id', session.user.id)
+          .like('name', 'Vendedor%')
+          .order('name');
+        if (error) {
+          console.error('[Sellers] templates query error:', error.message);
+          return [];
+        }
+        return data as WhatsAppTemplate[];
+      } catch (err) {
+        console.error('[Sellers] templates catch error:', err);
+        return [];
+      }
     },
     enabled: !!session?.user?.id,
   });
@@ -322,13 +338,21 @@ export default function Sellers() {
     queryKey: ['admin-profile', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('pix_key, company_name')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (error || !data) throw new Error('Profile not found');
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('pix_key, company_name')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (error || !data) {
+          console.warn('[Sellers] adminProfile query issue:', error?.message || 'No data');
+          return null;
+        }
+        return data;
+      } catch (err) {
+        console.error('[Sellers] adminProfile catch error:', err);
+        return null;
+      }
     },
     enabled: !!session?.user?.id,
   });
