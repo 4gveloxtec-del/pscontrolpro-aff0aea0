@@ -742,7 +742,7 @@ export function ClientFormDialog({
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o servidor" />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4}>
+                      <SelectContent position="popper" sideOffset={4} className="md:max-h-none">
                         {activeServers.map((server) => (
                           <SelectItem key={server.id} value={server.id}>
                             <div className="flex items-center gap-2">
