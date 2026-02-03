@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
+import { scheduleScrollLockCleanup } from "@/lib/overlayScrollLockCleanup";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -18,6 +19,7 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
+    data-lovable-overlay="true"
     className={cn(
       "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
@@ -62,11 +64,19 @@ const DialogContent = React.forwardRef<
     const contentRef = React.useRef<React.ElementRef<typeof DialogPrimitive.Content> | null>(null);
     const previouslyFocusedRef = React.useRef<HTMLElement | null>(null);
 
+    // Failsafe: if Radix scroll-lock gets stuck after close, unlock it.
+    React.useEffect(() => {
+      return () => {
+        scheduleScrollLockCleanup();
+      };
+    }, []);
+
     return (
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={composeRefs(ref, contentRef)}
+          data-lovable-overlay="true"
           tabIndex={tabIndex ?? -1}
           onOpenAutoFocus={(event) => {
             previouslyFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
@@ -175,3 +185,4 @@ export {
   DialogTitle,
   DialogDescription,
 };
+
