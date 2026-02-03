@@ -457,6 +457,7 @@ export default function Servers() {
             </Button>
           </DialogTrigger>
           <DialogContent
+            className="max-w-lg sm:max-w-xl w-[95vw] max-h-[85vh] p-0 flex flex-col overflow-hidden"
             onPointerDownOutside={(e) => {
               if (createMutation.isPending || updateMutation.isPending) {
                 e.preventDefault();
@@ -468,13 +469,18 @@ export default function Servers() {
               }
             }}
           >
-            <DialogHeader>
+            <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0 border-b">
               <DialogTitle>{editingServer ? 'Editar Servidor' : 'Novo Servidor'}</DialogTitle>
               <DialogDescription>
                 {editingServer ? 'Atualize os dados do servidor' : 'Adicione um novo servidor'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {/* Single scroll container - prevents scroll jitter */}
+            <div
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 sm:px-6"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+            <form onSubmit={handleSubmit} data-server-form className="space-y-4 py-4">
               {/* Shared Servers Button - Only show when creating new server */}
               {!editingServer && (
                 <Button
@@ -811,15 +817,26 @@ export default function Servers() {
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 />
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {editingServer ? 'Salvar' : 'Criar Servidor'}
-                </Button>
-              </DialogFooter>
             </form>
+            </div>
+            <div className="flex-shrink-0 border-t px-4 py-3 sm:px-6 sm:py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" className="sm:size-default" onClick={() => setIsDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                size="sm"
+                className="sm:size-default"
+                disabled={createMutation.isPending || updateMutation.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const form = document.querySelector('form[data-server-form]') as HTMLFormElement;
+                  if (form) form.requestSubmit();
+                }}
+              >
+                {editingServer ? 'Salvar' : 'Criar Servidor'}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
         </div>
