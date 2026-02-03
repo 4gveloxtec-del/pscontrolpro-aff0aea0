@@ -744,9 +744,12 @@ export function ClientFormDialog({
                       </SelectTrigger>
                       <SelectContent 
                         position="popper" 
-                        side="top"
+                        side="bottom"
+                        align="start"
                         sideOffset={4}
-                        className="max-h-[50vh] md:max-h-[60vh] overflow-y-auto z-[9999]"
+                        avoidCollisions={true}
+                        collisionPadding={16}
+                        className="max-h-[40vh] md:max-h-[50vh] z-[9999]"
                       >
                         {activeServers.map((server) => (
                           <SelectItem key={server.id} value={server.id} className="md:py-1 md:min-h-0">
