@@ -201,7 +201,23 @@ export function useAtomicClientSave(options?: UseAtomicClientSaveOptions) {
   }, []);
 
   /**
-   * Encrypt main client credentials and generate fingerprint
+   * Helper: Normalize value for search (lowercase, trimmed)
+   */
+  const normalizeForSearch = (value: string | null | undefined): string | null => {
+    if (!value) return null;
+    return value.toLowerCase().trim();
+  };
+
+  /**
+   * Helper: Normalize phone for search (digits only)
+   */
+  const normalizePhone = (value: string | null | undefined): string | null => {
+    if (!value) return null;
+    return value.replace(/\D/g, '');
+  };
+
+  /**
+   * Encrypt main client credentials, generate fingerprint, and populate search columns
    */
   const prepareClientCredentials = useCallback(async (
     clientData: Record<string, unknown>,
@@ -210,6 +226,16 @@ export function useAtomicClientSave(options?: UseAtomicClientSaveOptions) {
     const data = { ...clientData };
     const login = (data.login as string) || '';
     const password = (data.password as string) || '';
+    const login2 = (data.login_2 as string) || '';
+    const paidAppsEmail = (data.paid_apps_email as string) || '';
+    const phone = (data.phone as string) || '';
+    
+    // ============ PASSO 2: Popular colunas de busca normalizadas ============
+    // Essas colunas permitem busca SQL sem descriptografia
+    data.login_search = normalizeForSearch(login);
+    data.login2_search = normalizeForSearch(login2);
+    data.paid_apps_email_search = normalizeForSearch(paidAppsEmail);
+    data.phone_search = normalizePhone(phone);
     
     // If using shared credit, use pre-encrypted credentials
     if (sharedCredit?.encryptedLogin) {
