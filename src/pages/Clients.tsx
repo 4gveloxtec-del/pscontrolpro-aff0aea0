@@ -2590,7 +2590,7 @@ export default function Clients() {
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um servidor" />
                       </SelectTrigger>
-                      <SelectContent usePortal={true} className="max-h-[50vh] overflow-y-auto" position="popper" sideOffset={4} align="start">
+                      <SelectContent usePortal={true} className="max-h-[50vh] md:max-h-[80vh] overflow-y-auto">
                         <SelectItem value="manual">Nenhum</SelectItem>
                         {activeServers.map((server) => (
                           <SelectItem key={server.id} value={server.id}>
