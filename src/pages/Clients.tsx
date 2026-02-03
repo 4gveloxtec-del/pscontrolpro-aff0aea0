@@ -2511,7 +2511,7 @@ export default function Clients() {
                     plans={plans}
                     value={formData.plan_id || ''}
                     onValueChange={handlePlanChange}
-                    placeholder="Selecione um plano (opcional)"
+                    placeholder="Selecionar plano"
                     showFilters={true}
                     defaultCategory={formData.category}
                   />
