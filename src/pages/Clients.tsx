@@ -2320,7 +2320,7 @@ export default function Clients() {
             {/* Single scroll container for the whole form (prevents scroll jitter) */}
             <div
               className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 sm:px-6"
-              style={{ WebkitOverflowScrolling: "touch" }}
+              style={{ WebkitOverflowScrolling: "touch", overflowAnchor: "none" }}
             >
               <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
