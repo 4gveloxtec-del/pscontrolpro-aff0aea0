@@ -742,16 +742,21 @@ export function ClientFormDialog({
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o servidor" />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={4} className="md:max-h-none">
+                      <SelectContent 
+                        position="item-aligned" 
+                        side="bottom" 
+                        align="start"
+                        className="md:max-h-[70vh] md:overflow-y-auto"
+                      >
                         {activeServers.map((server) => (
-                          <SelectItem key={server.id} value={server.id} className="md:py-1.5">
-                            <div className="flex items-center gap-2 md:text-xs">
+                          <SelectItem key={server.id} value={server.id} className="md:py-1 md:min-h-0">
+                            <div className="flex items-center gap-1.5 md:text-[11px]">
                               {server.icon_url && (
-                                <img src={server.icon_url} alt="" className="h-4 w-4 md:h-3 md:w-3 rounded" />
+                                <img src={server.icon_url} alt="" className="h-4 w-4 md:h-2.5 md:w-2.5 rounded" />
                               )}
-                              <span className="truncate">{server.name}</span>
+                              <span className="truncate max-w-[180px]">{server.name}</span>
                               {server.is_credit_based && (
-                                <span className="text-[10px] md:text-[9px] text-muted-foreground">(Créditos)</span>
+                                <span className="text-[10px] md:text-[8px] text-muted-foreground ml-0.5">(Créd)</span>
                               )}
                             </div>
                           </SelectItem>
