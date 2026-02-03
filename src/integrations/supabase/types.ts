@@ -4221,6 +4221,25 @@ export type Database = {
         Returns: string
       }
       normalize_server_name: { Args: { name: string }; Returns: string }
+      search_clients_360: {
+        Args: { p_limit?: number; p_search_term: string; p_seller_id: string }
+        Returns: {
+          category: string
+          created_at: string
+          email: string
+          expiration_date: string
+          id: string
+          is_archived: boolean
+          login: string
+          login_2: string
+          name: string
+          phone: string
+          plan_name: string
+          seller_id: string
+        }[]
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       unblock_seller_instance: {
         Args: { p_seller_id: string }
         Returns: boolean

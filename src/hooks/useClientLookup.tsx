@@ -79,7 +79,7 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     return hasUpperAndLower || hasPadding || hasSpecialBase64;
   }, []);
 
-  // ============= Query: Todos os clientes para busca =============
+  // ============= Query: Todos os clientes para busca (cache inicial) =============
   const { data: lookupAllClients = [], isLoading: isLoadingLookupAllClients } = useQuery({
     queryKey: ['client-lookup-all', userId, isAdmin],
     queryFn: async () => {
@@ -102,6 +102,30 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     },
     enabled: !!userId && showLookupDialog,
     staleTime: 60_000,
+  });
+
+  // ============= Query: Busca server-side otimizada (função SQL) =============
+  const { data: serverSearchResults = [], isLoading: isLoadingServerSearch } = useQuery({
+    queryKey: ['client-lookup-server-search', userId, lookupSearchQuery],
+    queryFn: async () => {
+      if (!userId || !lookupSearchQuery || lookupSearchQuery.length < 2) return [];
+
+      // Usar função RPC para busca otimizada com índices GIN
+      const { data, error } = await supabase.rpc('search_clients_360', {
+        p_seller_id: userId,
+        p_search_term: lookupSearchQuery.trim(),
+        p_limit: 200
+      });
+
+      if (error) {
+        console.warn('[useClientLookup] Server search failed, falling back to client-side:', error);
+        return [];
+      }
+
+      return (data || []) as LookupClientBasic[];
+    },
+    enabled: !!userId && showLookupDialog && !!lookupSearchQuery && lookupSearchQuery.length >= 2 && !isAdmin,
+    staleTime: 30_000,
   });
 
   // ============= Descriptografar logins para busca =============
@@ -153,15 +177,24 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     run();
   }, [showLookupDialog, lookupAllClients, decrypt, lookupDecryptedLogins, isDecryptingLookupLogins, lookupLooksEncrypted]);
 
-  // ============= Resultados de busca filtrados =============
+  // ============= Resultados de busca filtrados (híbrido: server + client) =============
   const lookupSearchResultsRaw = useMemo(() => {
     if (!lookupSearchQuery || lookupSearchQuery.length < 2) return [];
 
     const normalizedQuery = lookupSearchQuery.toLowerCase().trim();
     const normalizedQueryDigits = normalizedQuery.replace(/\D/g, '');
 
-    return lookupAllClients
+    // Se temos resultados do servidor, usá-los como base
+    // Mas ainda fazemos busca client-side para logins descriptografados
+    const serverResults = serverSearchResults.length > 0 ? serverSearchResults : [];
+    const serverIds = new Set(serverResults.map(c => c.id));
+
+    // Busca client-side para complementar (especialmente para logins descriptografados)
+    const clientSideResults = lookupAllClients
       .filter((client) => {
+        // Se já está nos resultados do servidor, pular
+        if (serverIds.has(client.id)) return false;
+
         // Name
         if ((client.name || '').toLowerCase().includes(normalizedQuery)) return true;
 
@@ -180,18 +213,25 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
           if (phoneText.includes(normalizedQuery)) return true;
         }
 
-        // Login (decrypted first, raw fallback)
+        // Login (decrypted first, raw fallback) - principal vantagem do client-side
         const decrypted = lookupDecryptedLogins[client.id];
-        const login = (decrypted?.login ?? client.login ?? '').toLowerCase();
-        const login2 = (decrypted?.login_2 ?? client.login_2 ?? '').toLowerCase();
+        const login = (decrypted?.login ?? '').toLowerCase();
+        const login2 = (decrypted?.login_2 ?? '').toLowerCase();
         if (login.includes(normalizedQuery) || login2.includes(normalizedQuery)) return true;
 
         return false;
-      })
-      .slice(0, 50);
-  }, [lookupSearchQuery, lookupAllClients, lookupDecryptedLogins]);
+      });
 
-  const isLookupSearching = isLoadingLookupAllClients || isDecryptingLookupLogins;
+    // Combinar resultados: servidor primeiro, depois client-side
+    const combined = [...serverResults, ...clientSideResults];
+    
+    // Ordenar por data de expiração e limitar
+    return combined
+      .sort((a, b) => new Date(b.expiration_date).getTime() - new Date(a.expiration_date).getTime())
+      .slice(0, 50);
+  }, [lookupSearchQuery, lookupAllClients, lookupDecryptedLogins, serverSearchResults]);
+
+  const isLookupSearching = isLoadingLookupAllClients || isDecryptingLookupLogins || isLoadingServerSearch;
 
   // ============= Agrupar resultados por telefone =============
   const lookupGroupedResults = useMemo((): LookupPhoneGroup[] => {
