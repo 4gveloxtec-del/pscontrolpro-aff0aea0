@@ -499,15 +499,8 @@ export function ClientFormDialog({
             </DialogDescription>
           </DialogHeader>
           
-          {/* CRITICAL: Single scroll container with strict isolation */}
-          <div 
-            className="flex-1 min-h-0 overflow-y-auto overscroll-none px-4 sm:px-6"
-            style={{ 
-              WebkitOverflowScrolling: "touch",
-              touchAction: "pan-y",
-              willChange: "scroll-position"
-            }}
-          >
+          {/* Scroll container - minimal, native scroll only */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6">
             <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* Category Select with Add Button */}
