@@ -375,8 +375,9 @@ html {
     font-family: 'Inter', system-ui, sans-serif;
     /* Mobile optimizations - allow native scrolling */
     -webkit-overflow-scrolling: touch;
-    /* Allow normal scroll behavior - overflow-x hidden removed to prevent portal clipping */
-    overflow-y: auto;
+    /* CRITICAL: Let browser manage overflow naturally.
+       Radix Dialog/Sheet applies scroll-lock (overflow:hidden) when open.
+       Explicit overflow-y:auto here conflicts with that mechanism. */
     /* Safe area insets for notch/home indicator */
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);
