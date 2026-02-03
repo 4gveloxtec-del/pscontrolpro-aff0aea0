@@ -125,6 +125,8 @@ export default function Backup() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Note: This page is stateful (no queries with isError), so no error guard needed
+
   const handleExportCleanBackup = async () => {
     setIsExporting(true);
     try {

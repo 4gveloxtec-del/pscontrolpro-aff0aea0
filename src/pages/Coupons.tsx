@@ -64,13 +64,21 @@ export default function Coupons() {
   const { data: coupons = [], isLoading, isError } = useQuery({
     queryKey: ['coupons', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('seller_id', user!.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Coupon[];
+      try {
+        const { data, error } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('seller_id', user!.id)
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.error('[Coupons] Query error:', error.message);
+          return [];
+        }
+        return (data || []) as Coupon[];
+      } catch (err) {
+        console.error('[Coupons] Unexpected error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });

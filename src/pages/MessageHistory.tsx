@@ -110,14 +110,22 @@ export default function MessageHistory() {
   const { data: manualMessages = [], isLoading: loadingManual, isError: errorManual, refetch: refetchManual } = useQuery({
     queryKey: ['message-history', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('message_history')
-        .select('*')
-        .eq('seller_id', user!.id)
-        .order('sent_at', { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data as MessageHistoryItem[];
+      try {
+        const { data, error } = await supabase
+          .from('message_history')
+          .select('*')
+          .eq('seller_id', user!.id)
+          .order('sent_at', { ascending: false })
+          .limit(100);
+        if (error) {
+          console.error('[MessageHistory] Query error:', error.message);
+          return [];
+        }
+        return (data || []) as MessageHistoryItem[];
+      } catch (err) {
+        console.error('[MessageHistory] Unexpected error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -128,32 +136,37 @@ export default function MessageHistory() {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const { data, error } = await supabase
-        .from('client_notification_tracking')
-        .select(`
-          id,
-          client_id,
-          seller_id,
-          notification_type,
-          expiration_cycle_date,
-          sent_at,
-          sent_via,
-          service_type,
-          clients (
-            name,
-            phone
-          )
-        `)
-        .eq('seller_id', user.id)
-        .order('sent_at', { ascending: false })
-        .limit(200);
+      try {
+        const { data, error } = await supabase
+          .from('client_notification_tracking')
+          .select(`
+            id,
+            client_id,
+            seller_id,
+            notification_type,
+            expiration_cycle_date,
+            sent_at,
+            sent_via,
+            service_type,
+            clients (
+              name,
+              phone
+            )
+          `)
+          .eq('seller_id', user.id)
+          .order('sent_at', { ascending: false })
+          .limit(200);
 
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        throw error;
+        if (error) {
+          console.error('[MessageHistory] Notifications error:', error.message);
+          return [];
+        }
+
+        return (data || []) as unknown as SentNotification[];
+      } catch (err) {
+        console.error('[MessageHistory] Unexpected notifications error:', err);
+        return [];
       }
-
-      return (data || []) as unknown as SentNotification[];
     },
     enabled: !!user?.id,
     refetchInterval: 60000,
@@ -162,12 +175,20 @@ export default function MessageHistory() {
   const { data: clients = [], isError: errorClients } = useQuery({
     queryKey: ['clients', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name')
-        .eq('seller_id', user!.id);
-      if (error) throw error;
-      return data as Client[];
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('id, name')
+          .eq('seller_id', user!.id);
+        if (error) {
+          console.error('[MessageHistory] Clients error:', error.message);
+          return [];
+        }
+        return (data || []) as Client[];
+      } catch (err) {
+        console.error('[MessageHistory] Unexpected clients error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });

@@ -16,20 +16,28 @@ export function useBotEngineFlows() {
   const queryClient = useQueryClient();
 
   // Listar fluxos
-  const { data: flows = [], isLoading, error } = useQuery({
+  const { data: flows = [], isLoading, error, isError } = useQuery({
     queryKey: [QUERY_KEY, user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
-        .from('bot_engine_flows')
-        .select('*')
-        .eq('seller_id', user.id)
-        .order('priority', { ascending: false })
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as BotFlow[];
+      try {
+        const { data, error } = await supabase
+          .from('bot_engine_flows')
+          .select('*')
+          .eq('seller_id', user.id)
+          .order('priority', { ascending: false })
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('[BotEngine] Fetch flows error:', error.message);
+          return []; // Graceful degradation
+        }
+        return (data || []) as BotFlow[];
+      } catch (err) {
+        console.error('[BotEngine] Unexpected flows error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -239,6 +247,7 @@ export function useBotEngineFlows() {
   return {
     flows,
     isLoading,
+    isError,
     error,
     createFlow: createMutation.mutateAsync,
     updateFlow: updateMutation.mutateAsync,

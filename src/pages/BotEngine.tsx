@@ -75,10 +75,11 @@ import { BotEngineLogs } from '@/components/BotEngineLogs';
 
 export default function BotEngine() {
   const { user } = useAuth();
-  const { config, isLoading: configLoading, upsertConfig, toggleEnabled, activeFlowFirstMessage } = useBotEngineConfig();
+  const { config, isLoading: configLoading, isError: configError, upsertConfig, toggleEnabled, activeFlowFirstMessage } = useBotEngineConfig();
   const { 
     flows, 
     isLoading: flowsLoading, 
+    isError: flowsError,
     createFlow, 
     updateFlow, 
     deleteFlow, 
@@ -463,6 +464,28 @@ export default function BotEngine() {
   };
 
   const isLoading = configLoading || flowsLoading || isInitializingFlows;
+  const hasError = configError || flowsError;
+
+  // Error state guard - graceful degradation
+  if (hasError && !isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-2">
+          <Bot className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold">BotEngine</h1>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <AlertCircle className="h-8 w-8 mx-auto mb-2 text-destructive opacity-50" />
+            <p className="text-muted-foreground mb-4">Erro ao carregar configurações do bot</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              Recarregar Página
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
