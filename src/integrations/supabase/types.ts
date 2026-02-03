@@ -2680,6 +2680,7 @@ export type Database = {
           is_gerencia_app: boolean
           mac_address: string | null
           name: string
+          panel_id: string | null
           seller_id: string
           server_id: string | null
           updated_at: string | null
@@ -2697,6 +2698,7 @@ export type Database = {
           is_gerencia_app?: boolean
           mac_address?: string | null
           name: string
+          panel_id?: string | null
           seller_id: string
           server_id?: string | null
           updated_at?: string | null
@@ -2714,11 +2716,19 @@ export type Database = {
           is_gerencia_app?: boolean
           mac_address?: string | null
           name?: string
+          panel_id?: string | null
           seller_id?: string
           server_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reseller_device_apps_panel_id_fkey"
+            columns: ["panel_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reseller_device_apps_server_id_fkey"
             columns: ["server_id"]
