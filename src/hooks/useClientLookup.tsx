@@ -221,7 +221,7 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     return Array.from(groups.values());
   }, [lookupSearchResultsRaw]);
 
-  // ============= Query: Clientes por telefone selecionado =============
+  // ============= Query: Clientes por telefone selecionado (SEM dados secundários - lazy) =============
   const { data: lookupPhoneClients = [], isLoading: isLoadingLookupPhoneClients } = useQuery({
     queryKey: ['client-lookup-by-phone', selectedLookupPhone, userId],
     queryFn: async () => {
@@ -245,55 +245,100 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
         return normalized === selectedLookupPhone;
       });
 
-      // Fetch related data for each client in parallel
-      const enrichedClients = await Promise.all(
-        filtered.map(async (client) => {
-          const [externalAppsResult, premiumAccountsResult, messageHistoryResult, deviceAppsResult, serverAppsCredsResult] = await Promise.all([
-            supabase
-              .from('client_external_apps')
-              .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
-              .eq('client_id', client.id)
-              .eq('seller_id', userId),
-            supabase
-              .from('client_premium_accounts')
-              .select('id, plan_name, email, password, expiration_date, price, notes')
-              .eq('client_id', client.id)
-              .eq('seller_id', userId),
-            supabase
-              .from('message_history')
-              .select('id, message_type, message_content, sent_at')
-              .eq('client_id', client.id)
-              .eq('seller_id', userId)
-              .order('sent_at', { ascending: false })
-              .limit(5),
-            supabase
-              .from('client_device_apps')
-              .select('id, app:reseller_device_apps(name, icon, download_url)')
-              .eq('client_id', client.id)
-              .eq('seller_id', userId),
-            supabase
-              .from('client_server_app_credentials')
-              .select('id, auth_code, username, password, provider, notes, server_app:server_apps(name, auth_type)')
-              .eq('client_id', client.id)
-              .eq('seller_id', userId),
-          ]);
-
-          return {
-            ...client,
-            external_apps: externalAppsResult.data || [],
-            premium_accounts: premiumAccountsResult.data || [],
-            message_history: messageHistoryResult.data || [],
-            device_apps: deviceAppsResult.data || [],
-            server_app_credentials: serverAppsCredsResult.data || [],
-          };
-        })
-      );
-
-      return enrichedClients;
+      // Retornar clientes SEM dados secundários (lazy-loading)
+      return filtered.map((client) => ({
+        ...client,
+        external_apps: [],
+        premium_accounts: [],
+        message_history: [],
+        device_apps: [],
+        server_app_credentials: [],
+        _secondaryDataLoaded: false,
+      }));
     },
     enabled: !!userId && !!selectedLookupPhone && showLookupDialog,
     staleTime: 30000,
   });
+
+  // ============= Estado para dados secundários carregados sob demanda =============
+  const [expandedClientSecondaryData, setExpandedClientSecondaryData] = useState<Record<string, {
+    external_apps: any[];
+    premium_accounts: any[];
+    message_history: any[];
+    device_apps: any[];
+    server_app_credentials: any[];
+  }>>({});
+  const [loadingSecondaryData, setLoadingSecondaryData] = useState<string | null>(null);
+
+  // ============= Função para carregar dados secundários sob demanda =============
+  const loadSecondaryDataForClient = useCallback(async (clientId: string) => {
+    if (!userId || expandedClientSecondaryData[clientId]) return;
+    
+    setLoadingSecondaryData(clientId);
+    
+    try {
+      const [externalAppsResult, premiumAccountsResult, messageHistoryResult, deviceAppsResult, serverAppsCredsResult] = await Promise.all([
+        supabase
+          .from('client_external_apps')
+          .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
+          .eq('client_id', clientId)
+          .eq('seller_id', userId),
+        supabase
+          .from('client_premium_accounts')
+          .select('id, plan_name, email, password, expiration_date, price, notes')
+          .eq('client_id', clientId)
+          .eq('seller_id', userId),
+        supabase
+          .from('message_history')
+          .select('id, message_type, message_content, sent_at')
+          .eq('client_id', clientId)
+          .eq('seller_id', userId)
+          .order('sent_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('client_device_apps')
+          .select('id, app:reseller_device_apps(name, icon, download_url)')
+          .eq('client_id', clientId)
+          .eq('seller_id', userId),
+        supabase
+          .from('client_server_app_credentials')
+          .select('id, auth_code, username, password, provider, notes, server_app:server_apps(name, auth_type)')
+          .eq('client_id', clientId)
+          .eq('seller_id', userId),
+      ]);
+
+      setExpandedClientSecondaryData(prev => ({
+        ...prev,
+        [clientId]: {
+          external_apps: externalAppsResult.data || [],
+          premium_accounts: premiumAccountsResult.data || [],
+          message_history: messageHistoryResult.data || [],
+          device_apps: deviceAppsResult.data || [],
+          server_app_credentials: serverAppsCredsResult.data || [],
+        }
+      }));
+    } catch (error) {
+      console.error('[useClientLookup] Error loading secondary data:', error);
+    } finally {
+      setLoadingSecondaryData(null);
+    }
+  }, [userId, expandedClientSecondaryData]);
+
+  // ============= Getter para dados do cliente com secundários =============
+  const getClientWithSecondaryData = useCallback((client: any) => {
+    const secondary = expandedClientSecondaryData[client.id];
+    if (!secondary) return client;
+    
+    return {
+      ...client,
+      external_apps: secondary.external_apps,
+      premium_accounts: secondary.premium_accounts,
+      message_history: secondary.message_history,
+      device_apps: secondary.device_apps,
+      server_app_credentials: secondary.server_app_credentials,
+      _secondaryDataLoaded: true,
+    };
+  }, [expandedClientSecondaryData]);
 
   // ============= Query: Cliente individual (legacy) =============
   const { data: lookupClientData, isLoading: isLoadingLookupClient } = useQuery({
@@ -506,6 +551,7 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     setShowLookupPasswords(false);
     setLookupDecryptedCredentials(null);
     setLookupDecryptAttempt(0);
+    setExpandedClientSecondaryData({});
   }, []);
 
   const selectPhone = useCallback((phone: string) => {
@@ -552,9 +598,11 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     isLoadingLookupPhoneClients,
     isLoadingLookupClient,
     isLookupSearching,
+    loadingSecondaryData,
 
     // Helpers
     getLookupStatusBadge,
+    getClientWithSecondaryData,
 
     // Ações
     openLookupDialog,
@@ -562,6 +610,7 @@ export function useClientLookup({ userId, isAdmin, decrypt }: UseClientLookupOpt
     selectPhone,
     selectClient,
     goBackToSearch,
+    loadSecondaryDataForClient,
   };
 }
 
