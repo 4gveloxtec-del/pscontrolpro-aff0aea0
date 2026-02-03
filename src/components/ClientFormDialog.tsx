@@ -505,7 +505,19 @@ export function ClientFormDialog({
                   <div className="flex gap-2">
                     <Select
                       value={formData.category}
-                      onValueChange={(value) => setFormData({ ...formData, category: value })}
+                      onValueChange={(value) => {
+                        // Clear plan fields when switching to Revendedor (manual value only)
+                        if (value === 'Revendedor') {
+                          setFormData({ 
+                            ...formData, 
+                            category: value,
+                            plan_id: '',
+                            plan_name: '',
+                          });
+                        } else {
+                          setFormData({ ...formData, category: value });
+                        }
+                      }}
                     >
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Selecione a categoria" />
@@ -662,23 +674,58 @@ export function ClientFormDialog({
                   </div>
                 )}
 
-                {/* Plan Selector */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Plano</Label>
-                  <PlanSelector
-                    plans={plans}
-                    value={formData.plan_id}
-                    onValueChange={handlePlanChange}
-                    placeholder="Selecione um plano"
-                    showFilters={true}
-                    defaultCategory={formData.category}
-                  />
-                  {formData.plan_price && (
+                {/* Plan Selector - Hidden for Revendedor category (manual value only) */}
+                {formData.category !== 'Revendedor' && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Plano</Label>
+                    <PlanSelector
+                      plans={plans}
+                      value={formData.plan_id}
+                      onValueChange={handlePlanChange}
+                      placeholder="Selecione um plano"
+                      showFilters={true}
+                      defaultCategory={formData.category}
+                    />
+                    {formData.plan_price && (
+                      <p className="text-xs text-muted-foreground">
+                        Valor: R$ {parseFloat(formData.plan_price).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Manual Value Field for Revendedor category */}
+                {formData.category === 'Revendedor' && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="plan_price_reseller" className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                      Valor Revendedor (R$) *
+                    </Label>
+                    <Input
+                      id="plan_price_reseller"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.plan_price}
+                      onChange={(e) => setFormData({ ...formData, plan_price: e.target.value })}
+                      placeholder="Digite o valor (obrigatório)"
+                      className="text-lg"
+                    />
                     <p className="text-xs text-muted-foreground">
-                      Valor: R$ {parseFloat(formData.plan_price).toFixed(2)}
+                      Digite o valor manualmente. Será contabilizado no dashboard.
                     </p>
-                  )}
-                </div>
+                    {formData.plan_price && (
+                      <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Valor Total:</span>
+                          <span className="text-lg font-bold text-primary">
+                            R$ {(parseFloat(formData.plan_price) || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Server Search Selector */}
                 {(formData.category === 'IPTV' || formData.category === 'P2P' || formData.category === 'SSH' || formData.category === 'Revendedor') && (
