@@ -2023,8 +2023,15 @@ export default function Clients() {
       }
 
       // Filter by category
-      if (categoryFilter !== 'all' && client.category !== categoryFilter) {
-        return false;
+      if (categoryFilter !== 'all') {
+        if (categoryFilter === '__uncategorized__') {
+          // Filtra clientes sem categoria ou com categoria não reconhecida
+          if (client.category && allCategories.includes(client.category)) {
+            return false;
+          }
+        } else if (client.category !== categoryFilter) {
+          return false;
+        }
       }
 
       // Filter by server
@@ -3135,28 +3142,50 @@ export default function Clients() {
           <Label className="text-sm text-muted-foreground">Filtrar por Categoria</Label>
           <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
             <div className="flex gap-2 w-max">
-              <Button
-                variant={categoryFilter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCategoryFilter('all')}
-                className="shrink-0"
-              >
-                Todos ({clients.length})
-              </Button>
-              {allCategories.map((cat) => {
-                const count = clients.filter(c => c.category === cat).length;
+              {(() => {
+                // Calcula clientes sem categoria para garantir que o total seja coerente
+                const uncategorizedCount = clients.filter(c => !c.category || !allCategories.includes(c.category)).length;
+                const categorizedTotal = allCategories.reduce((sum, cat) => sum + clients.filter(c => c.category === cat).length, 0);
+                // Total real = soma das categorias + sem categoria
+                const realTotal = categorizedTotal + uncategorizedCount;
+                
                 return (
-                  <Button
-                    key={cat}
-                    variant={categoryFilter === cat ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCategoryFilter(cat)}
-                    className="shrink-0"
-                  >
-                    {cat} ({count})
-                  </Button>
+                  <>
+                    <Button
+                      variant={categoryFilter === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCategoryFilter('all')}
+                      className="shrink-0"
+                    >
+                      Todos ({realTotal})
+                    </Button>
+                    {allCategories.map((cat) => {
+                      const count = clients.filter(c => c.category === cat).length;
+                      return (
+                        <Button
+                          key={cat}
+                          variant={categoryFilter === cat ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setCategoryFilter(cat)}
+                          className="shrink-0"
+                        >
+                          {cat} ({count})
+                        </Button>
+                      );
+                    })}
+                    {uncategorizedCount > 0 && (
+                      <Button
+                        variant={categoryFilter === '__uncategorized__' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setCategoryFilter('__uncategorized__')}
+                        className="shrink-0 text-muted-foreground"
+                      >
+                        Sem categoria ({uncategorizedCount})
+                      </Button>
+                    )}
+                  </>
                 );
-              })}
+              })()}
             </div>
           </div>
         </div>
