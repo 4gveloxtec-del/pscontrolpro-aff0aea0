@@ -39,6 +39,10 @@ export function NotificationSettings() {
   // Push on auto message setting
   const [pushOnAutoMessage, setPushOnAutoMessage] = useState(true);
   const [isSavingPushOnAutoMessage, setIsSavingPushOnAutoMessage] = useState(false);
+  
+  // Push for unnotified clients (clients expiring today that weren't auto-notified)
+  const [pushUnnotifiedClients, setPushUnnotifiedClients] = useState(true);
+  const [isSavingPushUnnotified, setIsSavingPushUnnotified] = useState(false);
 
   // Load notification days preference from database
   useEffect(() => {
@@ -62,6 +66,12 @@ export function NotificationSettings() {
             setPushOnAutoMessage(profile.push_on_auto_message);
           } else {
             setPushOnAutoMessage(true);
+          }
+          // Load push unnotified clients preference (default true)
+          if (profile.push_unnotified_clients !== null && profile.push_unnotified_clients !== undefined) {
+            setPushUnnotifiedClients(profile.push_unnotified_clients);
+          } else {
+            setPushUnnotifiedClients(true);
           }
         }
         setHasLoadedDays(true);
@@ -131,6 +141,35 @@ export function NotificationSettings() {
       toast.error('Erro ao salvar preferência');
     } finally {
       setIsSavingPushOnAutoMessage(false);
+    }
+  };
+
+  // Toggle push for unnotified clients
+  const handlePushUnnotifiedToggle = async (checked: boolean) => {
+    if (!user?.id) return;
+    
+    setIsSavingPushUnnotified(true);
+    setPushUnnotifiedClients(checked);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ push_unnotified_clients: checked } as any)
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      toast.success(checked ? 'Alerta de clientes não notificados ativado!' : 'Alerta desativado', {
+        description: checked 
+          ? 'Você será lembrado de clientes que vencem hoje mas não foram notificados automaticamente.'
+          : 'Você não receberá alertas de clientes não notificados.'
+      });
+    } catch (error) {
+      console.error('Error saving push unnotified clients:', error);
+      setPushUnnotifiedClients(!checked); // Revert on error
+      toast.error('Erro ao salvar preferência');
+    } finally {
+      setIsSavingPushUnnotified(false);
     }
   };
 
@@ -489,6 +528,35 @@ export function NotificationSettings() {
           
           <p className="text-xs text-muted-foreground">
             Inclui boas-vindas, lembretes de vencimento e cobranças automáticas.
+          </p>
+        </div>
+      )}
+
+      {/* Push for Unnotified Clients Toggle */}
+      {isSubscribed && hasLoadedDays && (
+        <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center">
+                <AlertTriangle className="h-4 w-4 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Lembrar Clientes Não Notificados</p>
+                <p className="text-xs text-muted-foreground">
+                  Clientes que vencem hoje mas não foram chamados automaticamente
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={pushUnnotifiedClients}
+              onCheckedChange={handlePushUnnotifiedToggle}
+              disabled={isSavingPushUnnotified}
+            />
+          </div>
+          
+          <p className="text-xs text-muted-foreground">
+            Receba um push listando clientes vencendo HOJE que não receberam mensagem automática, 
+            para que você possa ligar e lembrá-los manualmente.
           </p>
         </div>
       )}
