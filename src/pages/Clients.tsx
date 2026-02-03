@@ -3650,6 +3650,34 @@ export default function Clients() {
                         {/* Additional Servers Badges */}
                         {client.additional_servers && Array.isArray(client.additional_servers) && client.additional_servers.length > 0 && (
                           client.additional_servers.map((addServer, index) => {
+                            const colorSchemes = [
+                              {
+                                bg: 'bg-emerald-500/10',
+                                text: 'text-emerald-600 dark:text-emerald-400',
+                                border: 'border-emerald-500/20',
+                                hover: 'hover:bg-emerald-500/20',
+                              },
+                              {
+                                bg: 'bg-violet-500/10',
+                                text: 'text-violet-600 dark:text-violet-400',
+                                border: 'border-violet-500/20',
+                                hover: 'hover:bg-violet-500/20',
+                              },
+                              {
+                                bg: 'bg-pink-500/10',
+                                text: 'text-pink-600 dark:text-pink-400',
+                                border: 'border-pink-500/20',
+                                hover: 'hover:bg-pink-500/20',
+                              },
+                              {
+                                bg: 'bg-blue-500/10',
+                                text: 'text-blue-600 dark:text-blue-400',
+                                border: 'border-blue-500/20',
+                                hover: 'hover:bg-blue-500/20',
+                              },
+                            ] as const;
+                            const scheme = colorSchemes[index % colorSchemes.length];
+
                             const serverData = serversForBadges.find(s => s.id === addServer.server_id);
                             const hasPanel = !!serverData?.panel_url;
                             const handleAdditionalServerClick = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -3666,7 +3694,7 @@ export default function Clients() {
                                 key={addServer.server_id || index}
                                 role="button"
                                 tabIndex={0}
-                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 ${hasPanel ? 'cursor-pointer hover:bg-emerald-500/20 hover:scale-105 active:scale-95' : 'cursor-default opacity-70'} transition-all select-none`}
+                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${scheme.bg} ${scheme.text} border ${scheme.border} ${hasPanel ? `cursor-pointer ${scheme.hover} hover:scale-105 active:scale-95` : 'cursor-default opacity-70'} transition-all select-none`}
                                 onClick={handleAdditionalServerClick}
                                 onKeyDown={(e) => e.key === 'Enter' && handleAdditionalServerClick(e)}
                                 title={hasPanel ? `Clique para abrir o painel` : 'Sem link de painel cadastrado'}
@@ -3709,7 +3737,7 @@ export default function Clients() {
                     )}
 
                     {/* Login Copy Buttons */}
-                    {(client.login || client.login_2) && (
+                    {(client.login || client.login_2 || (Array.isArray(client.additional_servers) && client.additional_servers.some(s => !!s?.login))) && (
                       <div className="flex gap-1.5 mt-2">
                         {client.login && (
                           <Button
@@ -3761,6 +3789,62 @@ export default function Clients() {
                             Login 2
                           </Button>
                         )}
+
+                        {/* Logins de Servidores Adicionais */}
+                        {Array.isArray(client.additional_servers) &&
+                          client.additional_servers.map((addServer, index) => {
+                            if (!addServer?.login) return null;
+
+                            const colorSchemes = [
+                              {
+                                border: 'border-emerald-500/30',
+                                text: 'text-emerald-600 dark:text-emerald-400',
+                                hover: 'hover:bg-emerald-500/10',
+                              },
+                              {
+                                border: 'border-violet-500/30',
+                                text: 'text-violet-600 dark:text-violet-400',
+                                hover: 'hover:bg-violet-500/10',
+                              },
+                              {
+                                border: 'border-pink-500/30',
+                                text: 'text-pink-600 dark:text-pink-400',
+                                hover: 'hover:bg-pink-500/10',
+                              },
+                              {
+                                border: 'border-blue-500/30',
+                                text: 'text-blue-600 dark:text-blue-400',
+                                hover: 'hover:bg-blue-500/10',
+                              },
+                            ] as const;
+                            const scheme = colorSchemes[index % colorSchemes.length];
+
+                            return (
+                              <Button
+                                key={addServer.server_id || index}
+                                variant="outline"
+                                size="sm"
+                                className={cn('h-8 px-2.5 text-xs gap-1 border-border hover:bg-muted', scheme.border, scheme.text, scheme.hover)}
+                                onClick={async () => {
+                                  let loginToCopy = addServer.login;
+                                  if (loginToCopy) {
+                                    try {
+                                      const decrypted = await decrypt(loginToCopy);
+                                      loginToCopy = decrypted;
+                                    } catch {
+                                      // use raw
+                                    }
+                                    navigator.clipboard.writeText(loginToCopy);
+                                    toast.success(`Login ${index + 3} copiado: ${loginToCopy}`);
+                                  }
+                                }}
+                                title={`Copiar login do servidor ${index + 3}`}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                                Login {index + 3}
+                              </Button>
+                            );
+                          })}
                       </div>
                     )}
 
