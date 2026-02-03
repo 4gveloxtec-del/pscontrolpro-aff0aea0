@@ -107,8 +107,8 @@ export function AdminLayout() {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-180px)]">
+        {/* Navigation - scrollable container with proper height */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto min-h-0">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
             const customIconUrl = iconMap[item.menuKey];
