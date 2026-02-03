@@ -81,10 +81,15 @@ interface SelectContentProps
   usePortal?: boolean;
 }
 
+// Debug counter for tracking select instances
+let selectContentCounter = 0;
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   SelectContentProps
 >(({ className, children, position, usePortal, ...props }, ref) => {
+  const instanceIdRef = React.useRef<number>(++selectContentCounter);
+  
   // Auto-detect if inside a Dialog
   const isInsideDialog = useIsInsideDialog();
   
@@ -96,10 +101,31 @@ const SelectContent = React.forwardRef<
   // When inside a dialog, the Select content should be part of the same React tree.
   // This prevents "removeChild" errors during React reconciliation.
   const shouldUsePortal = isInsideDialog ? false : (usePortal ?? true);
+
+  // DEBUG: Track SelectContent lifecycle and configuration
+  React.useEffect(() => {
+    const id = instanceIdRef.current;
+    console.log(`[SelectContent #${id}] 🟢 MOUNTED`, {
+      timestamp: Date.now(),
+      isInsideDialog,
+      shouldUsePortal,
+      safePosition,
+      requestedPosition: position,
+      requestedUsePortal: usePortal,
+    });
+
+    return () => {
+      console.log(`[SelectContent #${id}] 🔴 UNMOUNTING`, {
+        timestamp: Date.now(),
+        isInsideDialog,
+      });
+    };
+  }, [isInsideDialog, shouldUsePortal, safePosition, position, usePortal]);
   
   const content = (
     <SelectPrimitive.Content
       ref={ref}
+      data-select-id={instanceIdRef.current}
       className={cn(
         "relative max-h-[70vh] sm:max-h-96 min-w-[8rem] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg",
         // Use higher z-index when inside dialog to ensure visibility
@@ -130,9 +156,11 @@ const SelectContent = React.forwardRef<
 
   // When not using portal, render directly to avoid conflicts with Dialog portals
   if (!shouldUsePortal) {
+    console.log(`[SelectContent #${instanceIdRef.current}] 📍 Rendering WITHOUT portal (inside dialog)`);
     return content;
   }
 
+  console.log(`[SelectContent #${instanceIdRef.current}] 🚀 Rendering WITH portal`);
   return <SelectPortal>{content}</SelectPortal>;
 });
 SelectContent.displayName = SelectPrimitive.Content.displayName;
@@ -145,36 +173,57 @@ const SelectLabel = React.forwardRef<
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
+// Track item render count for debugging rapid re-renders
+let selectItemRenderCount = 0;
+
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Item
-    ref={ref}
-    className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-2.5 sm:py-1.5 pl-8 pr-2 text-base sm:text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground active:bg-accent/80",
-      className,
-    )}
-    {...props}
-  >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </SelectPrimitive.ItemIndicator>
-    </span>
+>(({ className, children, value, ...props }, ref) => {
+  // DEBUG: Track rapid re-renders which can cause removeChild issues
+  const renderCountRef = React.useRef(0);
+  renderCountRef.current++;
+  
+  React.useEffect(() => {
+    // Only log if this item has re-rendered multiple times (indicates potential issue)
+    if (renderCountRef.current > 2) {
+      console.warn(`[SelectItem] ⚠️ Multiple re-renders detected`, {
+        value,
+        renderCount: renderCountRef.current,
+        timestamp: Date.now(),
+      });
+    }
+  });
 
-    {/* 
-      CRITICAL FIX for Chrome/Safari translation crash (Radix UI issue #2578):
-      Wrap children in <span> to isolate text nodes from React reconciliation.
-      When browser translation extensions modify text nodes directly in the DOM,
-      React's removeChild fails because the node structure changed.
-      Wrapping in <span> creates a stable element boundary.
-    */}
-    <SelectPrimitive.ItemText>
-      <span>{children}</span>
-    </SelectPrimitive.ItemText>
-  </SelectPrimitive.Item>
-));
+  return (
+    <SelectPrimitive.Item
+      ref={ref}
+      className={cn(
+        "relative flex w-full cursor-default select-none items-center rounded-sm py-2.5 sm:py-1.5 pl-8 pr-2 text-base sm:text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground active:bg-accent/80",
+        className,
+      )}
+      value={value}
+      {...props}
+    >
+      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+        <SelectPrimitive.ItemIndicator>
+          <Check className="h-4 w-4" />
+        </SelectPrimitive.ItemIndicator>
+      </span>
+
+      {/* 
+        CRITICAL FIX for Chrome/Safari translation crash (Radix UI issue #2578):
+        Wrap children in <span> to isolate text nodes from React reconciliation.
+        When browser translation extensions modify text nodes directly in the DOM,
+        React's removeChild fails because the node structure changed.
+        Wrapping in <span> creates a stable element boundary.
+      */}
+      <SelectPrimitive.ItemText>
+        <span>{children}</span>
+      </SelectPrimitive.ItemText>
+    </SelectPrimitive.Item>
+  );
+});
 SelectItem.displayName = SelectPrimitive.Item.displayName;
 
 const SelectSeparator = React.forwardRef<
