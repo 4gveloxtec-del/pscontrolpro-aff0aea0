@@ -744,7 +744,11 @@ export function ClientFormDialog({
                       </SelectTrigger>
                       <SelectContent
                         usePortal={true}
-                        className="max-h-[50vh] md:max-h-[80vh]"
+                        position="popper"
+                        side="top"
+                        align="start"
+                        sideOffset={4}
+                        className="max-h-[50vh] md:max-h-[80vh] z-[9999]"
                       >
                         {activeServers.map((server) => (
                           <SelectItem key={server.id} value={server.id} className="md:py-1 md:min-h-0">
