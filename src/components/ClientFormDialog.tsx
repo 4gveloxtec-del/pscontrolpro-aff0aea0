@@ -489,7 +489,7 @@ export function ClientFormDialog({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
         
-        <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[85vh] sm:max-h-[85vh] p-0 flex flex-col overflow-hidden">
+        <DialogContent className="max-w-lg sm:max-w-2xl w-[95vw] max-h-[80vh] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-3 flex-shrink-0 border-b">
             <DialogTitle className="text-base sm:text-lg">
               {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
@@ -499,11 +499,8 @@ export function ClientFormDialog({
             </DialogDescription>
           </DialogHeader>
           
-          {/* Single scroll container for the whole form (prevents scroll jitter) */}
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 sm:px-6"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
+          {/* Single scroll container - NO nested scrollable elements allowed */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6">
             <form onSubmit={handleSubmit} className="client-form-mobile space-y-3 sm:space-y-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* Category Select with Add Button */}
@@ -740,23 +737,16 @@ export function ClientFormDialog({
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o servidor" />
                       </SelectTrigger>
-                      <SelectContent
-                        usePortal={true}
-                        position="popper"
-                        side="top"
-                        align="start"
-                        sideOffset={4}
-                        className="max-h-[50vh] md:max-h-[80vh] z-[9999]"
-                      >
+                      <SelectContent className="max-h-[40vh]">
                         {activeServers.map((server) => (
-                          <SelectItem key={server.id} value={server.id} className="md:py-1 md:min-h-0">
-                            <div className="flex items-center gap-1.5 md:text-[11px]">
+                          <SelectItem key={server.id} value={server.id}>
+                            <div className="flex items-center gap-1.5">
                               {server.icon_url && (
-                                <img src={server.icon_url} alt="" className="h-4 w-4 md:h-2.5 md:w-2.5 rounded" />
+                                <img src={server.icon_url} alt="" className="h-4 w-4 rounded" />
                               )}
                               <span className="truncate max-w-[180px]">{server.name}</span>
                               {server.is_credit_based && (
-                                <span className="text-[10px] md:text-[8px] text-muted-foreground ml-0.5">(Créd)</span>
+                                <span className="text-[10px] text-muted-foreground ml-0.5">(Créd)</span>
                               )}
                             </div>
                           </SelectItem>
