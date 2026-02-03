@@ -52,39 +52,47 @@ export function useBotEngineConfig() {
   const queryClient = useQueryClient();
 
   // Buscar configuração - se não existir, criar automaticamente com defaults
-  const { data: config, isLoading, error } = useQuery({
+  const { data: config, isLoading, error, isError } = useQuery({
     queryKey: [QUERY_KEY, user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data: existing, error: fetchError } = await supabase
-        .from('bot_engine_config')
-        .select('*')
-        .eq('seller_id', user.id)
-        .maybeSingle();
-      
-      if (fetchError) throw fetchError;
-      
-      // Se já existe, retornar
-      if (existing) return existing as BotEngineConfig;
-      
-      // Se não existe, criar configuração padrão automaticamente
-      console.log('[BotEngine] Creating default config for new user');
-      const { data: newConfig, error: insertError } = await supabase
-        .from('bot_engine_config')
-        .insert({
-          seller_id: user.id,
-          ...DEFAULT_CONFIG,
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        console.error('[BotEngine] Failed to create default config:', insertError);
-        throw insertError;
+      try {
+        const { data: existing, error: fetchError } = await supabase
+          .from('bot_engine_config')
+          .select('*')
+          .eq('seller_id', user.id)
+          .maybeSingle();
+        
+        if (fetchError) {
+          console.error('[BotEngine] Fetch config error:', fetchError.message);
+          return null; // Graceful degradation
+        }
+        
+        // Se já existe, retornar
+        if (existing) return existing as BotEngineConfig;
+        
+        // Se não existe, criar configuração padrão automaticamente
+        console.log('[BotEngine] Creating default config for new user');
+        const { data: newConfig, error: insertError } = await supabase
+          .from('bot_engine_config')
+          .insert({
+            seller_id: user.id,
+            ...DEFAULT_CONFIG,
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error('[BotEngine] Failed to create default config:', insertError);
+          return null; // Graceful degradation
+        }
+        
+        return newConfig as BotEngineConfig;
+      } catch (err) {
+        console.error('[BotEngine] Unexpected config error:', err);
+        return null;
       }
-      
-      return newConfig as BotEngineConfig;
     },
     enabled: !!user?.id,
   });
@@ -229,6 +237,7 @@ export function useBotEngineConfig() {
     config,
     isLoading,
     error,
+    isError: !!error,
     upsertConfig: upsertMutation.mutateAsync,
     toggleEnabled,
     isUpdating: upsertMutation.isPending,

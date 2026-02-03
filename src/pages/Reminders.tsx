@@ -218,20 +218,28 @@ export default function Reminders() {
   }, [sellerProfile]);
 
   // Fetch reminders
-  const { data: reminders = [], isLoading: loadingReminders } = useQuery({
+  const { data: reminders = [], isLoading: loadingReminders, isError: remindersError } = useQuery({
     queryKey: ['billing-reminders', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('billing_reminders')
-        .select(`
-          *,
-          clients:client_id (id, name, phone, expiration_date, plan_name, plan_price, billing_mode)
-        `)
-        .eq('seller_id', user!.id)
-        .order('scheduled_date', { ascending: true })
-        .order('scheduled_time', { ascending: true });
-      if (error) throw error;
-      return (data || []) as BillingReminder[];
+      try {
+        const { data, error } = await supabase
+          .from('billing_reminders')
+          .select(`
+            *,
+            clients:client_id (id, name, phone, expiration_date, plan_name, plan_price, billing_mode)
+          `)
+          .eq('seller_id', user!.id)
+          .order('scheduled_date', { ascending: true })
+          .order('scheduled_time', { ascending: true });
+        if (error) {
+          console.error('[Reminders] Fetch error:', error.message);
+          return [];
+        }
+        return (data || []) as BillingReminder[];
+      } catch (err) {
+        console.error('[Reminders] Unexpected error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id && !isAdmin,
   });
@@ -508,6 +516,26 @@ export default function Reminders() {
         return null;
     }
   };
+
+  // Error state guard
+  if (remindersError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Lembretes de Cobrança</h1>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive opacity-50" />
+            <p className="text-muted-foreground mb-4">Erro ao carregar lembretes</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              Recarregar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loadingReminders) {
     return (

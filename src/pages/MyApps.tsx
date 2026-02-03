@@ -126,16 +126,24 @@ export default function MyApps() {
   const { data: apps = [], isLoading, isError } = useQuery({
     queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reseller_device_apps' as any)
-        .select('*, servers(name)')
-        .eq('seller_id', user!.id)
-        .order('name');
-      if (error) throw error;
-      return (data || []).map((app: any) => ({
-        ...app,
-        device_types: app.device_types || [],
-      })) as ResellerDeviceApp[];
+      try {
+        const { data, error } = await supabase
+          .from('reseller_device_apps' as any)
+          .select('*, servers(name)')
+          .eq('seller_id', user!.id)
+          .order('name');
+        if (error) {
+          console.error('[MyApps] Query error:', error.message);
+          return [];
+        }
+        return ((data || []) as any[]).map((app: any) => ({
+          ...app,
+          device_types: app.device_types || [],
+        })) as ResellerDeviceApp[];
+      } catch (err) {
+        console.error('[MyApps] Unexpected error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -144,14 +152,22 @@ export default function MyApps() {
   const { data: servers = [], isError: serversError } = useQuery({
     queryKey: ['servers-for-apps', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('servers')
-        .select('id, name')
-        .eq('seller_id', user!.id)
-        .eq('is_active', true)
-        .order('name');
-      if (error) throw error;
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('servers')
+          .select('id, name')
+          .eq('seller_id', user!.id)
+          .eq('is_active', true)
+          .order('name');
+        if (error) {
+          console.error('[MyApps] Servers error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[MyApps] Unexpected servers error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });

@@ -106,20 +106,28 @@ export default function PanelResellers() {
   const { data: resellers = [], isLoading, isError: resellersError } = useQuery({
     queryKey: ['panel-resellers', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('panel_resellers' as any)
-        .select(`
-          *,
-          servers:server_id (name)
-        `)
-        .eq('seller_id', user!.id)
-        .eq('is_active', true)
-        .order('expiration_date', { ascending: true });
-      if (error) throw error;
-      return (data || []).map((r: any) => ({
-        ...r,
-        server_name: r.servers?.name || 'Servidor desconhecido'
-      })) as PanelReseller[];
+      try {
+        const { data, error } = await supabase
+          .from('panel_resellers' as any)
+          .select(`
+            *,
+            servers:server_id (name)
+          `)
+          .eq('seller_id', user!.id)
+          .eq('is_active', true)
+          .order('expiration_date', { ascending: true });
+        if (error) {
+          console.error('[PanelResellers] Query error:', error.message);
+          return [];
+        }
+        return ((data || []) as any[]).map((r: any) => ({
+          ...r,
+          server_name: r.servers?.name || 'Servidor desconhecido'
+        })) as PanelReseller[];
+      } catch (err) {
+        console.error('[PanelResellers] Unexpected error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -128,14 +136,22 @@ export default function PanelResellers() {
   const { data: servers = [], isError: serversError } = useQuery({
     queryKey: ['servers-active', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('servers')
-        .select('id, name, is_active, icon_url')
-        .eq('seller_id', user!.id)
-        .eq('is_active', true)
-        .order('name');
-      if (error) throw error;
-      return data as ServerData[];
+      try {
+        const { data, error } = await supabase
+          .from('servers')
+          .select('id, name, is_active, icon_url')
+          .eq('seller_id', user!.id)
+          .eq('is_active', true)
+          .order('name');
+        if (error) {
+          console.error('[PanelResellers] Servers error:', error.message);
+          return [];
+        }
+        return (data || []) as ServerData[];
+      } catch (err) {
+        console.error('[PanelResellers] Unexpected servers error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -144,24 +160,32 @@ export default function PanelResellers() {
   const { data: templates = [], isError: templatesError } = useQuery({
     queryKey: ['panel-reseller-templates', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('whatsapp_templates')
-        .select('id, name, type, message')
-        .eq('seller_id', user!.id)
-        .like('type', 'panel_reseller%')
-        .order('name');
-      if (error) throw error;
-      const list = (data as WhatsAppTemplate[] | null) || [];
-      const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
-      const seen = new Set<string>();
-      const deduped: WhatsAppTemplate[] = [];
-      for (const t of list) {
-        const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(t);
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_templates')
+          .select('id, name, type, message')
+          .eq('seller_id', user!.id)
+          .like('type', 'panel_reseller%')
+          .order('name');
+        if (error) {
+          console.error('[PanelResellers] Templates error:', error.message);
+          return [];
+        }
+        const list = (data as WhatsAppTemplate[] | null) || [];
+        const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+        const seen = new Set<string>();
+        const deduped: WhatsAppTemplate[] = [];
+        for (const t of list) {
+          const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(t);
+        }
+        return deduped;
+      } catch (err) {
+        console.error('[PanelResellers] Unexpected templates error:', err);
+        return [];
       }
-      return deduped;
     },
     enabled: !!user?.id,
   });
@@ -170,13 +194,21 @@ export default function PanelResellers() {
   const { data: profile, isError: profileError } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('pix_key, company_name')
-        .eq('id', user!.id)
-        .maybeSingle();
-      if (error || !data) throw new Error('Profile not found');
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('pix_key, company_name')
+          .eq('id', user!.id)
+          .maybeSingle();
+        if (error || !data) {
+          console.error('[PanelResellers] Profile error:', error?.message || 'No data');
+          return null;
+        }
+        return data;
+      } catch (err) {
+        console.error('[PanelResellers] Unexpected profile error:', err);
+        return null;
+      }
     },
     enabled: !!user?.id,
   });

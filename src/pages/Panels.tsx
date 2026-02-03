@@ -30,16 +30,24 @@ const Panels = forwardRef<HTMLDivElement>((_, ref) => {
     queryKey: ['server-panels', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('servers')
-        .select('id, name, panel_url, icon_url, is_active, is_credit_based, total_credits, used_credits')
-        .eq('seller_id', user.id)
-        .eq('is_active', true)
-        .not('panel_url', 'is', null)
-        .order('name');
-      
-      if (error) throw error;
-      return (data || []).filter(s => s.panel_url && s.panel_url.trim() !== '') as ServerPanel[];
+      try {
+        const { data, error } = await supabase
+          .from('servers')
+          .select('id, name, panel_url, icon_url, is_active, is_credit_based, total_credits, used_credits')
+          .eq('seller_id', user.id)
+          .eq('is_active', true)
+          .not('panel_url', 'is', null)
+          .order('name');
+        
+        if (error) {
+          console.error('[Panels] Query error:', error.message);
+          return [];
+        }
+        return ((data || []) as any[]).filter(s => s.panel_url && s.panel_url.trim() !== '') as ServerPanel[];
+      } catch (err) {
+        console.error('[Panels] Unexpected error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -48,24 +56,32 @@ const Panels = forwardRef<HTMLDivElement>((_, ref) => {
   const { data: gerenciaAppSettings, isError: settingsError } = useQuery({
     queryKey: ['gerencia-app-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('key, value')
-        .in('key', ['gerencia_app_panel_url', 'gerencia_app_register_url']);
-      
-      if (error) throw error;
-      
-      const settings: { panelUrl: string; registerUrl: string } = {
-        panelUrl: '',
-        registerUrl: ''
-      };
-      
-      data?.forEach(item => {
-        if (item.key === 'gerencia_app_panel_url') settings.panelUrl = item.value;
-        if (item.key === 'gerencia_app_register_url') settings.registerUrl = item.value;
-      });
-      
-      return settings;
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', ['gerencia_app_panel_url', 'gerencia_app_register_url']);
+        
+        if (error) {
+          console.error('[Panels] Settings error:', error.message);
+          return { panelUrl: '', registerUrl: '' };
+        }
+        
+        const settings: { panelUrl: string; registerUrl: string } = {
+          panelUrl: '',
+          registerUrl: ''
+        };
+        
+        data?.forEach(item => {
+          if (item.key === 'gerencia_app_panel_url') settings.panelUrl = item.value;
+          if (item.key === 'gerencia_app_register_url') settings.registerUrl = item.value;
+        });
+        
+        return settings;
+      } catch (err) {
+        console.error('[Panels] Unexpected settings error:', err);
+        return { panelUrl: '', registerUrl: '' };
+      }
     },
   });
 

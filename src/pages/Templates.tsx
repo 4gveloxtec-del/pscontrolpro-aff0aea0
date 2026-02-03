@@ -140,25 +140,33 @@ export default function Templates() {
   const { data: templates = [], isLoading, isError } = useQuery({
     queryKey: ['templates', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('whatsapp_templates')
-        .select('*')
-        .eq('seller_id', user!.id)
-        .order('name');
-      if (error) throw error;
-      const list = (data as Template[] | null) || [];
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_templates')
+          .select('*')
+          .eq('seller_id', user!.id)
+          .order('name');
+        if (error) {
+          console.error('[Templates] Query error:', error.message);
+          return [];
+        }
+        const list = (data as Template[] | null) || [];
 
-      // Etapa 4 (UI): não exibir templates duplicados (mesmo owner + nome + tipo)
-      const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
-      const seen = new Set<string>();
-      const deduped: Template[] = [];
-      for (const t of list) {
-        const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        deduped.push(t);
+        // Etapa 4 (UI): não exibir templates duplicados (mesmo owner + nome + tipo)
+        const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+        const seen = new Set<string>();
+        const deduped: Template[] = [];
+        for (const t of list) {
+          const key = `${user!.id}:${t.type}:${normalizeName(t.name)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(t);
+        }
+        return deduped;
+      } catch (err) {
+        console.error('[Templates] Unexpected error:', err);
+        return [];
       }
-      return deduped;
     },
     enabled: !!user?.id,
   });
@@ -166,13 +174,21 @@ export default function Templates() {
   const { data: customCategories = [], isError: categoriesError } = useQuery({
     queryKey: ['template-categories', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('client_categories')
-        .select('*')
-        .eq('seller_id', user!.id)
-        .order('name');
-      if (error) throw error;
-      return data as TemplateCategory[];
+      try {
+        const { data, error } = await supabase
+          .from('client_categories')
+          .select('*')
+          .eq('seller_id', user!.id)
+          .order('name');
+        if (error) {
+          console.error('[Templates] Categories error:', error.message);
+          return [];
+        }
+        return (data || []) as TemplateCategory[];
+      } catch (err) {
+        console.error('[Templates] Unexpected categories error:', err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
