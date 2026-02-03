@@ -14,6 +14,7 @@ import { useClientFilters, ClientFilterType } from '@/hooks/useClientFilters';
 import { useClientDialogState, ClientForDialog } from '@/hooks/useClientDialogState';
 import { useClientFormData, ClientFormData } from '@/hooks/useClientFormData';
 import { useClientLookup } from '@/hooks/useClientLookup';
+import { useClientCredentials } from '@/hooks/useClientCredentials';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -208,16 +209,29 @@ export default function Clients() {
   const [renewCustomDate, setRenewCustomDate] = useState<Date | undefined>(undefined);
   const [renewUseCustomDate, setRenewUseCustomDate] = useState(false);
   const [renewExpirationPopoverOpen, setRenewExpirationPopoverOpen] = useState(false);
-  const [decryptedCredentials, setDecryptedCredentials] = useState<DecryptedCredentials>({});
-  const [decrypting, setDecrypting] = useState<string | null>(null);
-  const [isDecryptingAll, setIsDecryptingAll] = useState(false);
-  const [allCredentialsDecrypted, setAllCredentialsDecrypted] = useState(false);
   
-  // ============= Busca por login criptografado =============
-  // Armazena logins descriptografados de TODOS os clientes para busca local
-  const [searchDecryptedLogins, setSearchDecryptedLogins] = useState<Record<string, { login: string; login_2: string }>>({});
-  const [isDecryptingSearchLogins, setIsDecryptingSearchLogins] = useState(false);
-  const searchDecryptInitializedRef = useRef(false);
+  // ============= Hook de Credenciais (extraído para melhor manutenibilidade) =============
+  const {
+    decryptedCredentials,
+    decrypting,
+    isDecryptingAll,
+    allCredentialsDecrypted,
+    searchDecryptedLogins,
+    isDecryptingSearchLogins,
+    encryptCredentials,
+    decryptCredentialsForClient,
+    decryptAllCredentials,
+    checkNeedsDecryption,
+    findExistingClientWithCredentials,
+    decryptSearchLogins,
+    clearClientCredentials,
+    looksEncrypted: looksEncryptedForSearch,
+  } = useClientCredentials({
+    userId: user?.id,
+    encrypt,
+    decrypt,
+    generateFingerprint,
+  });
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -577,70 +591,12 @@ export default function Clients() {
     refetchOnWindowFocus: false,
   });
 
-  // Heurística para detectar se valor está criptografado
-  const looksEncryptedForSearch = useCallback((value: string) => {
-    if (value.length < 20) return false;
-    const base64Regex = /^[A-Za-z0-9+/]+=*$/;
-    if (!base64Regex.test(value)) return false;
-    // Logins puramente numéricos não são criptografados
-    if (!/[A-Za-z]/.test(value)) return false;
-    const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
-    const hasPadding = value.endsWith('=');
-    const hasSpecialBase64 = /[+/]/.test(value);
-    return hasUpperAndLower || hasPadding || hasSpecialBase64;
-  }, []);
-
-  // Descriptografar logins de todos os clientes para busca
+  // ============= Descriptografar logins para busca (delegado ao hook useClientCredentials) =============
   useEffect(() => {
-    if (!user?.id) return;
-    if (allClientsForSearch.length === 0) return;
-    if (isDecryptingSearchLogins) return;
-    if (searchDecryptInitializedRef.current) return;
-    
-    // Verificar se já temos todos descriptografados
-    const missing = allClientsForSearch.filter((c: { id: string; login: string | null; login_2: string | null }) => !searchDecryptedLogins[c.id]);
-    if (missing.length === 0) return;
-    
-    searchDecryptInitializedRef.current = true;
-    
-    const run = async () => {
-      setIsDecryptingSearchLogins(true);
-      const next: Record<string, { login: string; login_2: string }> = { ...searchDecryptedLogins };
-      
-      const safeDecrypt = async (value: string | null): Promise<string> => {
-        if (!value) return '';
-        if (!looksEncryptedForSearch(value)) return value;
-        try {
-          const decrypted = await decrypt(value);
-          if (decrypted === value) return value;
-          if (looksEncryptedForSearch(decrypted)) return value;
-          return decrypted;
-        } catch {
-          return value;
-        }
-      };
-      
-      // Descriptografar em batches para evitar throttling
-      const batchSize = 30;
-      for (let i = 0; i < missing.length; i += batchSize) {
-        const batch = missing.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (client: { id: string; login: string | null; login_2: string | null }) => {
-            const [login, login_2] = await Promise.all([
-              safeDecrypt(client.login ?? null),
-              safeDecrypt(client.login_2 ?? null),
-            ]);
-            next[client.id] = { login, login_2 };
-          })
-        );
-      }
-      
-      setSearchDecryptedLogins(next);
-      setIsDecryptingSearchLogins(false);
-    };
-    
-    run();
-  }, [user?.id, allClientsForSearch, decrypt, searchDecryptedLogins, isDecryptingSearchLogins, looksEncryptedForSearch]);
+    if (allClientsForSearch.length > 0) {
+      decryptSearchLogins(allClientsForSearch);
+    }
+  }, [allClientsForSearch, decryptSearchLogins]);
 
   // Identificar IDs de clientes que batem pela busca de login descriptografado
   const loginMatchingClientIds = useMemo(() => {
@@ -929,213 +885,23 @@ export default function Clients() {
     }
   }, []);
 
-  // Encrypt credentials before saving
-  const encryptCredentials = async (login: string | null, password: string | null) => {
-    try {
-      const encryptedLogin = login ? await encrypt(login) : null;
-      const encryptedPassword = password ? await encrypt(password) : null;
-      return { login: encryptedLogin, password: encryptedPassword };
-    } catch (error) {
-      console.error('Encryption error:', error);
-      // Fallback to plain text if encryption fails
-      return { login, password };
-    }
-  };
-
-  // Decrypt credentials for display
-  const decryptCredentialsForClient = useCallback(async (clientId: string, encryptedLogin: string | null, encryptedPassword: string | null) => {
-    if (decryptedCredentials[clientId]) {
-      return decryptedCredentials[clientId];
-    }
-
-    setDecrypting(clientId);
-    try {
-      const decryptedLogin = encryptedLogin ? await decrypt(encryptedLogin) : '';
-      const decryptedPassword = encryptedPassword ? await decrypt(encryptedPassword) : '';
-      
-      const result = { login: decryptedLogin, password: decryptedPassword };
-      setDecryptedCredentials(prev => ({ ...prev, [clientId]: result }));
-      return result;
-    } catch (error) {
-      console.error('Decryption error:', error);
-      // If decryption fails, it might be plain text (old data)
-      return { login: encryptedLogin || '', password: encryptedPassword || '' };
-    } finally {
-      setDecrypting(null);
-    }
-  }, [decrypt, decryptedCredentials]);
-
-  // Decrypt all credentials in batch for search functionality
-  const decryptAllCredentials = useCallback(async () => {
-    if (allCredentialsDecrypted || isDecryptingAll || !clients.length) return;
-
-    setIsDecryptingAll(true);
-
-    const clientsWithCredentials = clients.filter((c) => {
-      const hasAnyCredentials = Boolean(c.login || c.password || c.login_2 || c.password_2);
-      if (!hasAnyCredentials) return false;
-
-      const existing = decryptedCredentials[c.id];
-      if (!existing) return true;
-
-      // If server 2 credentials exist but weren't decrypted yet, we still need to process this client
-      const needsSecondServerCredentials =
-        Boolean(c.login_2 || c.password_2) &&
-        existing.login_2 === undefined &&
-        existing.password_2 === undefined;
-
-      return needsSecondServerCredentials;
-    });
-
-    if (clientsWithCredentials.length === 0) {
-      setAllCredentialsDecrypted(true);
-      setIsDecryptingAll(false);
-      return;
-    }
-
-    // Helper to check if value looks encrypted (base64 with special chars, long enough)
-    // Must contain at least one letter AND have base64 padding or special base64 chars
-    const looksEncrypted = (value: string) => {
-      // Must be long enough
-      if (value.length < 20) return false;
-      // Must match base64 pattern
-      const base64Regex = /^[A-Za-z0-9+/]+=*$/;
-      if (!base64Regex.test(value)) return false;
-      // Must contain at least one letter (pure numbers aren't encrypted)
-      if (!/[A-Za-z]/.test(value)) return false;
-      // Must have mix of upper/lower or have = padding (encrypted data usually has these)
-      const hasUpperAndLower = /[A-Z]/.test(value) && /[a-z]/.test(value);
-      const hasPadding = value.endsWith('=');
-      const hasSpecialBase64 = /[+/]/.test(value);
-      return hasUpperAndLower || hasPadding || hasSpecialBase64;
-    };
-
-    const safeDecrypt = async (value: string | null) => {
-      if (!value) return '';
-      // If it doesn't look encrypted, return as-is (plain text data)
-      if (!looksEncrypted(value)) return value;
-      try {
-        const result = await decrypt(value);
-        // If decryption failed (returned same value or still looks encrypted), return original
-        // This handles edge cases where data might be wrongly identified as encrypted
-        if (result === value) {
-          return value; // Decryption didn't change anything, use original
-        }
-        // If result still looks encrypted, decryption failed
-        if (looksEncrypted(result)) {
-          return value; // Return original value as fallback
-        }
-        return result;
-      } catch {
-        // Decryption failed - return original value (might be readable plain text)
-        return value;
-      }
-    };
-
-    // Decrypt in batches to avoid overwhelming the API
-    const batchSize = 10;
-    const newDecrypted: DecryptedCredentials = { ...decryptedCredentials };
-
-    for (let i = 0; i < clientsWithCredentials.length; i += batchSize) {
-      const batch = clientsWithCredentials.slice(i, i + batchSize);
-
-      await Promise.all(
-        batch.map(async (client) => {
-          const previous = newDecrypted[client.id] ?? { login: '', password: '' };
-
-          const decryptedLogin = client.login ? await safeDecrypt(client.login) : previous.login;
-          const decryptedPassword = client.password ? await safeDecrypt(client.password) : previous.password;
-          const decryptedLogin2 = client.login_2 ? await safeDecrypt(client.login_2) : (previous.login_2 ?? '');
-          const decryptedPassword2 = client.password_2 ? await safeDecrypt(client.password_2) : (previous.password_2 ?? '');
-
-          newDecrypted[client.id] = {
-            ...previous,
-            login: decryptedLogin || '',
-            password: decryptedPassword || '',
-            login_2: decryptedLogin2 || '',
-            password_2: decryptedPassword2 || '',
-          };
-        })
-      );
-    }
-
-    setDecryptedCredentials(newDecrypted);
-    setAllCredentialsDecrypted(true);
-    setIsDecryptingAll(false);
-  }, [clients, decrypt, decryptedCredentials, allCredentialsDecrypted, isDecryptingAll]);
+  // ============= Funções de criptografia agora vêm do hook useClientCredentials =============
+  // encryptCredentials, decryptCredentialsForClient, decryptAllCredentials, findExistingClientWithCredentials
+  // foram movidos para src/hooks/useClientCredentials.tsx
 
   // Auto-decrypt all credentials when clients load (enables instant search by login)
   useEffect(() => {
-    // Start decryption as soon as clients are loaded, not just when user starts searching
-    // This ensures login search works immediately without waiting
     if (clients.length > 0 && !allCredentialsDecrypted && !isDecryptingAll) {
-      decryptAllCredentials();
+      decryptAllCredentials(clients);
     }
-  }, [clients.length, allCredentialsDecrypted, isDecryptingAll, decryptAllCredentials]);
+  }, [clients.length, allCredentialsDecrypted, isDecryptingAll, decryptAllCredentials, clients]);
 
   // Reset decrypted state when clients change (refetch)
   useEffect(() => {
     if (clients.length > 0) {
-      // Check if there are clients that still need decryption (including server 2 credentials)
-      const hasClientsNeedingDecryption = clients.some((c) => {
-        const hasAnyCredentials = Boolean(c.login || c.password || c.login_2 || c.password_2);
-        if (!hasAnyCredentials) return false;
-
-        const existing = decryptedCredentials[c.id];
-        if (!existing) return true;
-
-        const needsSecondServerCredentials =
-          Boolean(c.login_2 || c.password_2) &&
-          existing.login_2 === undefined &&
-          existing.password_2 === undefined;
-
-        return needsSecondServerCredentials;
-      });
-
-      if (hasClientsNeedingDecryption && allCredentialsDecrypted) {
-        setAllCredentialsDecrypted(false);
-      }
+      checkNeedsDecryption(clients);
     }
-  }, [clients, decryptedCredentials, allCredentialsDecrypted]);
-
-  // Helper function to find existing client with same credentials on same server using fingerprint
-  const findExistingClientWithCredentials = async (
-    serverId: string,
-    plainLogin: string,
-    plainPassword: string
-  ): Promise<{ encryptedLogin: string; encryptedPassword: string; clientCount: number; fingerprint: string } | null> => {
-    if (!serverId || !plainLogin) return null;
-
-    // Generate fingerprint for the credentials
-    const fingerprint = await generateFingerprint(plainLogin, plainPassword);
-
-    // Query directly by fingerprint - no decryption needed!
-    const { data: matchingClients, error } = await supabase
-      .from('clients')
-      .select('id, login, password, credentials_fingerprint')
-      .eq('seller_id', user!.id)
-      .eq('server_id', serverId)
-      .eq('is_archived', false)
-      .eq('credentials_fingerprint', fingerprint);
-
-    if (error) {
-      console.error('Error checking credentials:', error);
-      return null;
-    }
-
-    if (matchingClients && matchingClients.length > 0) {
-      // Found existing clients with same fingerprint
-      const firstMatch = matchingClients[0];
-      return {
-        encryptedLogin: firstMatch.login || '',
-        encryptedPassword: firstMatch.password || '',
-        clientCount: matchingClients.length,
-        fingerprint,
-      };
-    }
-
-    return null;
-  };
+  }, [clients, checkNeedsDecryption]);
 
   // MAX_CLIENTS_PER_CREDENTIAL agora é importado de @/types/clients
 
@@ -1707,11 +1473,7 @@ export default function Clients() {
       }
 
       // Clear cached decrypted credentials for this client
-      setDecryptedCredentials(prev => {
-        const newState = { ...prev };
-        delete newState[id];
-        return newState;
-      });
+      clearClientCredentials(id);
       
       return { id, data: updateData };
     },
