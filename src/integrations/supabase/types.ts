@@ -1599,16 +1599,20 @@ export type Database = {
           is_test: boolean | null
           login: string | null
           login_2: string | null
+          login_search: string | null
+          login2_search: string | null
           name: string
           notes: string | null
           paid_apps_duration: string | null
           paid_apps_email: string | null
+          paid_apps_email_search: string | null
           paid_apps_expiration: string | null
           paid_apps_password: string | null
           password: string | null
           password_2: string | null
           pending_amount: number | null
           phone: string | null
+          phone_search: string | null
           plan_id: string | null
           plan_name: string | null
           plan_price: number | null
@@ -1654,16 +1658,20 @@ export type Database = {
           is_test?: boolean | null
           login?: string | null
           login_2?: string | null
+          login_search?: string | null
+          login2_search?: string | null
           name: string
           notes?: string | null
           paid_apps_duration?: string | null
           paid_apps_email?: string | null
+          paid_apps_email_search?: string | null
           paid_apps_expiration?: string | null
           paid_apps_password?: string | null
           password?: string | null
           password_2?: string | null
           pending_amount?: number | null
           phone?: string | null
+          phone_search?: string | null
           plan_id?: string | null
           plan_name?: string | null
           plan_price?: number | null
@@ -1709,16 +1717,20 @@ export type Database = {
           is_test?: boolean | null
           login?: string | null
           login_2?: string | null
+          login_search?: string | null
+          login2_search?: string | null
           name?: string
           notes?: string | null
           paid_apps_duration?: string | null
           paid_apps_email?: string | null
+          paid_apps_email_search?: string | null
           paid_apps_expiration?: string | null
           paid_apps_password?: string | null
           password?: string | null
           password_2?: string | null
           pending_amount?: number | null
           phone?: string | null
+          phone_search?: string | null
           plan_id?: string | null
           plan_name?: string | null
           plan_price?: number | null
@@ -4222,6 +4234,23 @@ export type Database = {
       }
       normalize_server_name: { Args: { name: string }; Returns: string }
       search_clients_360: {
+        Args: { p_limit?: number; p_search_term: string; p_seller_id: string }
+        Returns: {
+          category: string
+          created_at: string
+          email: string
+          expiration_date: string
+          id: string
+          is_archived: boolean
+          login: string
+          login_2: string
+          name: string
+          phone: string
+          plan_name: string
+          seller_id: string
+        }[]
+      }
+      search_clients_360_v2: {
         Args: { p_limit?: number; p_search_term: string; p_seller_id: string }
         Returns: {
           category: string

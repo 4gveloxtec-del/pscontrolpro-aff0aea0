@@ -355,12 +355,9 @@ export default function Clients() {
   // - clients-login-matched, archived-clients-count, clients-with-external-apps
   // Efeitos de paginação, reset e loadMore também foram migrados.
   
-  // Decrypt logins para busca (usa dados do hook)
-  useEffect(() => {
-    if (allClientsForSearch.length > 0) {
-      decryptSearchLogins(allClientsForSearch);
-    }
-  }, [allClientsForSearch, decryptSearchLogins]);
+  // REMOVIDO: Descriptografia em massa para busca
+  // A Busca 360 agora usa colunas normalizadas (*_search) no banco de dados
+  // Não é mais necessário descriptografar logins para busca
 
   // Get fresh client data from the clients array to ensure we always have the latest values
   const renewClient = useMemo(() => {
