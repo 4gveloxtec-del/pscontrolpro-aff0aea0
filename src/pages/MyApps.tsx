@@ -131,6 +131,8 @@ export default function MyApps() {
           .from('reseller_device_apps' as any)
           .select('*, servers(name)')
           .eq('seller_id', user!.id)
+          // IMPORTANT: only fetch active apps (consistent with other screens)
+          .eq('is_active', true)
           .order('name');
         if (error) {
           console.error('[MyApps] Query error:', error.message);
@@ -139,6 +141,8 @@ export default function MyApps() {
         return ((data || []) as any[]).map((app: any) => ({
           ...app,
           device_types: app.device_types || [],
+          // IMPORTANT: treat NULL as false for backward-compatibility (older rows)
+          is_gerencia_app: app.is_gerencia_app ?? false,
         })) as ResellerDeviceApp[];
       } catch (err) {
         console.error('[MyApps] Unexpected error:', err);
