@@ -85,6 +85,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
   });
 
   // Fetch reseller apps from reseller_device_apps table (UNIFIED source)
+  // IMPORTANTE: Todos os apps do revendedor agora sempre mostram campos MAC
   const { data: resellerApps = [] } = useQuery({
     queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
@@ -96,13 +97,14 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         .eq('is_active', true)
         .order('created_at');
       if (error) throw error;
-      // Map to ExternalApp format
+      // Map to ExternalApp format - TODOS os apps do revendedor terão auth_type 'mac_key'
+      // Isso garante que os campos MAC apareçam sempre para apps do revendedor
       return ((data || []) as any[]).map(item => ({
         id: item.id,
         name: item.name,
         website_url: null,
         download_url: item.download_url,
-        auth_type: 'mac_key' as const,
+        auth_type: 'mac_key' as const, // Sempre mac_key para mostrar campos MAC
         is_active: true,
         seller_id: item.seller_id,
         price: 0,
@@ -110,6 +112,7 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         // Keep extra fields for display
         icon: item.icon,
         downloader_code: item.downloader_code,
+        mac_address: item.mac_address, // Incluir MAC address se já existir no app
       })) as ExternalApp[];
     },
     enabled: !!sellerId,
