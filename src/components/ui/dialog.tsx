@@ -109,7 +109,7 @@ const DialogContent = React.forwardRef<
             }
           }}
           className={cn(
-            "fixed z-50 grid gap-3 sm:gap-4 border bg-background shadow-lg duration-200",
+            "fixed z-50 flex flex-col border bg-background shadow-lg duration-200",
             "inset-x-0 bottom-0 top-auto w-full rounded-t-2xl sm:rounded-xl",
             "sm:left-[50%] sm:top-[50%] sm:bottom-auto sm:translate-x-[-50%] sm:translate-y-[-50%]",
             "sm:w-[calc(100%-2rem)] sm:max-w-lg",
@@ -121,8 +121,9 @@ const DialogContent = React.forwardRef<
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
             "sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:slide-in-from-bottom-0",
             "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
-            // Default overflow - can be overridden by className
-            !className?.includes("overflow-") && "overflow-y-auto",
+            // CRITICAL: Default to overflow-hidden to prevent nested scroll conflicts.
+            // Content inside should create its own single scroll container.
+            "overflow-hidden",
             className,
           )}
           {...props}
