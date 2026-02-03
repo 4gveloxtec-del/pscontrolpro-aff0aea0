@@ -368,28 +368,41 @@ export const ClientCard = memo(function ClientCard({
             </Badge>
           )}
 
-          {/* Additional Servers */}
+        {/* Additional Servers - Com cores distintas para cada um */}
           {client.additional_servers && Array.isArray(client.additional_servers) && client.additional_servers.length > 0 && (
-            client.additional_servers.map((server: AdditionalServer, index: number) => (
-              <Badge 
-                key={server.server_id || index} 
-                variant="outline" 
-                className={cn(
-                  "text-[10px] gap-1 font-normal bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 transition-colors group/server",
-                  serverHasPanel(server.server_name) 
-                    ? "cursor-pointer hover:bg-emerald-500/20" 
-                    : "cursor-default opacity-70"
-                )}
-                onClick={(e) => handleServerClick(e, server.server_name)}
-                title={serverHasPanel(server.server_name) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
-              >
-                <Server className="h-3 w-3" />
-                {server.server_name}
-                {serverHasPanel(server.server_name) && (
-                  <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
-                )}
-              </Badge>
-            ))
+            client.additional_servers.map((server: AdditionalServer, index: number) => {
+              // Cores distintas para cada servidor adicional
+              const badgeColors = [
+                { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/20', hover: 'hover:bg-emerald-500/20' },
+                { bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-500/20', hover: 'hover:bg-violet-500/20' },
+                { bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-500/20', hover: 'hover:bg-rose-500/20' },
+                { bg: 'bg-cyan-500/10', text: 'text-cyan-600 dark:text-cyan-400', border: 'border-cyan-500/20', hover: 'hover:bg-cyan-500/20' },
+                { bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400', border: 'border-orange-500/20', hover: 'hover:bg-orange-500/20' },
+                { bg: 'bg-pink-500/10', text: 'text-pink-600 dark:text-pink-400', border: 'border-pink-500/20', hover: 'hover:bg-pink-500/20' },
+              ];
+              const colorScheme = badgeColors[index % badgeColors.length];
+              
+              return (
+                <Badge 
+                  key={server.server_id || index} 
+                  variant="outline" 
+                  className={cn(
+                    `text-[10px] gap-1 font-normal ${colorScheme.bg} ${colorScheme.text} ${colorScheme.border} transition-colors group/server`,
+                    serverHasPanel(server.server_name) 
+                      ? `cursor-pointer ${colorScheme.hover}` 
+                      : "cursor-default opacity-70"
+                  )}
+                  onClick={(e) => handleServerClick(e, server.server_name)}
+                  title={serverHasPanel(server.server_name) ? 'Clique para abrir o painel' : 'Sem link de painel cadastrado'}
+                >
+                  <Server className="h-3 w-3" />
+                  {server.server_name}
+                  {serverHasPanel(server.server_name) && (
+                    <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover/server:opacity-100 transition-opacity" />
+                  )}
+                </Badge>
+              );
+            })
           )}
 
           {client.device_model && (
@@ -525,23 +538,97 @@ export const ClientCard = memo(function ClientCard({
                 }
               </div>
             ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full h-7 text-xs gap-1.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDecrypt(client);
-                }}
-                disabled={isDecrypting}
-              >
-                {isDecrypting ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Lock className="h-3 w-3" />
-                )}
-                {isDecrypting ? 'Descriptografando...' : 'Ver credenciais'}
-              </Button>
+              <div className="space-y-2">
+                {/* Botões de Login para cada servidor SEMPRE VISÍVEIS */}
+                <div className="flex flex-wrap gap-1.5">
+                  {/* Login 1 */}
+                  {client.login && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 bg-accent/30 border-accent/50 hover:bg-primary/20"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDecrypt(client);
+                      }}
+                      disabled={isDecrypting}
+                    >
+                      {isDecrypting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+                      Login 1
+                    </Button>
+                  )}
+                  
+                  {/* Login 2 */}
+                  {client.login_2 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5 bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDecrypt(client);
+                      }}
+                      disabled={isDecrypting}
+                    >
+                      {isDecrypting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+                      Login 2
+                    </Button>
+                  )}
+                  
+                  {/* Logins dos Servidores Adicionais - SEMPRE VISÍVEIS */}
+                  {client.additional_servers && Array.isArray(client.additional_servers) && 
+                    client.additional_servers.map((server: AdditionalServer, index: number) => {
+                      if (!server.login) return null;
+                      
+                      const buttonColors = [
+                        { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-600 dark:text-emerald-400', hover: 'hover:bg-emerald-500/20' },
+                        { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-600 dark:text-violet-400', hover: 'hover:bg-violet-500/20' },
+                        { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-600 dark:text-rose-400', hover: 'hover:bg-rose-500/20' },
+                        { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-600 dark:text-cyan-400', hover: 'hover:bg-cyan-500/20' },
+                        { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-600 dark:text-orange-400', hover: 'hover:bg-orange-500/20' },
+                        { bg: 'bg-pink-500/10', border: 'border-pink-500/30', text: 'text-pink-600 dark:text-pink-400', hover: 'hover:bg-pink-500/20' },
+                      ];
+                      const colorScheme = buttonColors[index % buttonColors.length];
+                      
+                      return (
+                        <Button
+                          key={server.server_id || index}
+                          variant="outline"
+                          size="sm"
+                          className={`h-7 text-xs gap-1.5 ${colorScheme.bg} ${colorScheme.border} ${colorScheme.text} ${colorScheme.hover}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDecrypt(client);
+                          }}
+                          disabled={isDecrypting}
+                        >
+                          {isDecrypting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+                          Login {index + 3}
+                        </Button>
+                      );
+                    })
+                  }
+                </div>
+                
+                {/* Fallback para clicar e ver todas */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-6 text-[10px] gap-1 text-muted-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDecrypt(client);
+                  }}
+                  disabled={isDecrypting}
+                >
+                  {isDecrypting ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Lock className="h-3 w-3" />
+                  )}
+                  {isDecrypting ? 'Descriptografando...' : 'Ver todas as credenciais'}
+                </Button>
+              </div>
             )}
           </div>
         )}
