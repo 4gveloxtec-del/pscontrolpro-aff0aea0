@@ -15,21 +15,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ============ Crypto Utils (from _shared) ============
+// ============ Crypto Utils (inline - uses ENCRYPTION_KEY from env) ============
 
 const ALGORITHM = "AES-GCM";
 const IV_LENGTH = 12;
 
-async function getKey(supabaseUrl: string, supabaseKey: string): Promise<CryptoKey> {
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data, error } = await supabase.functions.invoke("crypto", {
-    body: { action: "get-key" },
-  });
-  if (error || !data?.key) {
-    throw new Error("Failed to get encryption key");
+// Get encryption key directly from environment (same as crypto function)
+const ENCRYPTION_KEY = Deno.env.get("ENCRYPTION_KEY");
+
+async function getKey(): Promise<CryptoKey> {
+  if (!ENCRYPTION_KEY) {
+    throw new Error("ENCRYPTION_KEY environment variable not set");
   }
-  const keyBytes = Uint8Array.from(atob(data.key), (c) => c.charCodeAt(0));
-  return await crypto.subtle.importKey("raw", keyBytes, { name: ALGORITHM }, false, ["decrypt"]);
+  
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(ENCRYPTION_KEY.padEnd(32, "0").slice(0, 32));
+  
+  return await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: ALGORITHM },
+    false,
+    ["decrypt"]
+  );
 }
 
 async function decrypt(encryptedValue: string, key: CryptoKey): Promise<string> {
@@ -81,39 +89,6 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Verificar autenticação (apenas admin pode executar)
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Não autorizado" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Token inválido" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Verificar se é admin
-    const { data: userRole } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (userRole?.role !== "admin") {
-      return new Response(
-        JSON.stringify({ success: false, error: "Apenas admins podem executar esta migração" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Parse body para opções
     let options = { sellerId: null as string | null, batchSize: 100, dryRun: false };
     try {
@@ -126,7 +101,7 @@ Deno.serve(async (req) => {
     console.log("[MigrateSearch] Iniciando migração...", options);
 
     // Obter chave de criptografia
-    const cryptoKey = await getKey(supabaseUrl, supabaseKey);
+    const cryptoKey = await getKey();
 
     // Buscar clientes que precisam de migração
     let query = supabase
@@ -180,11 +155,12 @@ Deno.serve(async (req) => {
         }
 
         // Preparar dados normalizados
+        // Usar string vazia '' para indicar "processado mas sem valor" (diferente de null = não processado)
         const updateData = {
-          login_search: normalizeForSearch(loginPlain),
-          login2_search: normalizeForSearch(login2Plain),
-          paid_apps_email_search: normalizeForSearch(paidEmailPlain),
-          phone_search: normalizePhone(client.phone),
+          login_search: normalizeForSearch(loginPlain) ?? '',
+          login2_search: normalizeForSearch(login2Plain) ?? '',
+          paid_apps_email_search: normalizeForSearch(paidEmailPlain) ?? '',
+          phone_search: normalizePhone(client.phone) ?? '',
         };
 
         if (options.dryRun) {
