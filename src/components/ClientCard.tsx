@@ -18,6 +18,7 @@ interface AdditionalServer {
   server_name: string;
   login?: string;
   password?: string;
+  expiration_date?: string | null;
 }
 
 interface Client {
@@ -488,11 +489,18 @@ export const ClientCard = memo(function ClientCard({
                     
                     return (
                       <div key={server.server_id || index} className={`space-y-1 p-1.5 rounded-md ${colorScheme.bg} ${colorScheme.border}`}>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Server className={`h-3 w-3 ${colorScheme.text}`} />
-                          <span className={`text-[10px] font-medium ${colorScheme.text}`}>
-                            {server.server_name || `Servidor ${index + 3}`}
-                          </span>
+                        <div className="flex items-center justify-between gap-1.5 mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <Server className={`h-3 w-3 ${colorScheme.text}`} />
+                            <span className={`text-[10px] font-medium ${colorScheme.text}`}>
+                              {server.server_name || `Servidor ${index + 3}`}
+                            </span>
+                          </div>
+                          {server.expiration_date && (
+                            <span className={`text-[9px] ${colorScheme.text} opacity-80`}>
+                              Vence: {new Date(server.expiration_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center justify-between group/cred">
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>

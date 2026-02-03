@@ -3,13 +3,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, X, Server, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+import { Plus, X, Server, Lock, Calendar, CalendarDays } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface ServerData {
   server_id: string;
   server_name: string;
   login: string;
   password: string;
+  expiration_date?: string | null; // Data de expiração individual
 }
 
 interface AdditionalServersSectionProps {
@@ -43,7 +49,7 @@ export function AdditionalServersSection({
   }, [additionalServers.length, legacyServer2?.server_id_2]);
 
   const handleAddServer = () => {
-    onChange([...additionalServers, { server_id: '', server_name: '', login: '', password: '' }]);
+    onChange([...additionalServers, { server_id: '', server_name: '', login: '', password: '', expiration_date: null }]);
   };
 
   const handleRemoveServer = (index: number) => {
@@ -62,7 +68,7 @@ export function AdditionalServersSection({
     onChange(updated);
   };
 
-  const handleFieldChange = (index: number, field: 'login' | 'password', value: string) => {
+  const handleFieldChange = (index: number, field: 'login' | 'password' | 'expiration_date', value: string | null) => {
     const updated = [...additionalServers];
     updated[index] = { ...updated[index], [field]: value };
     onChange(updated);
@@ -246,7 +252,7 @@ export function AdditionalServersSection({
               </Button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Servidor</Label>
                 <Select
@@ -290,6 +296,53 @@ export function AdditionalServersSection({
                       value={server.password}
                       onChange={(e) => handleFieldChange(index, 'password', e.target.value)}
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs flex items-center gap-1">
+                      Vencimento
+                      <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "h-9 w-full justify-start text-left font-normal",
+                            !server.expiration_date && "text-muted-foreground"
+                          )}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {server.expiration_date 
+                            ? format(new Date(server.expiration_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })
+                            : 'Usar data principal'
+                          }
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-2 border-b">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-xs"
+                            onClick={() => handleFieldChange(index, 'expiration_date', null)}
+                          >
+                            Usar data principal do cliente
+                          </Button>
+                        </div>
+                        <CalendarPicker
+                          mode="single"
+                          selected={server.expiration_date ? new Date(server.expiration_date + 'T12:00:00') : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              const dateStr = format(date, 'yyyy-MM-dd');
+                              handleFieldChange(index, 'expiration_date', dateStr);
+                            }
+                          }}
+                          initialFocus
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </>
               )}

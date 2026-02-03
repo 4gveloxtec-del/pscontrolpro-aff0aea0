@@ -35,6 +35,13 @@ interface ExpiringClient {
   seller_id: string;
   phone: string | null;
   plan_name: string | null;
+  additional_servers?: AdditionalServerExpiration[] | null;
+}
+
+interface AdditionalServerExpiration {
+  server_id: string;
+  server_name: string;
+  expiration_date?: string | null;
 }
 
 interface Bill {
@@ -89,6 +96,55 @@ function formatExpirationMessage(client: ExpiringClient, today: Date): { title: 
   return {
     title: `${emoji} ${client.name}`,
     body: `${timeText}${planInfo} • ${expDateFormatted}`,
+    urgency
+  };
+}
+
+function formatAdditionalServerExpirationMessage(
+  clientName: string, 
+  serverName: string, 
+  expirationDate: string, 
+  today: Date
+): { title: string; body: string; urgency: string } {
+  const expDate = new Date(expirationDate + 'T00:00:00');
+  const todayStart = new Date(today);
+  todayStart.setHours(0, 0, 0, 0);
+  
+  const diffTime = expDate.getTime() - todayStart.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  const expDateFormatted = expDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  
+  let urgency: string;
+  let emoji: string;
+  let timeText: string;
+  
+  if (diffDays < 0) {
+    urgency = 'expired';
+    emoji = '🔴';
+    const daysOverdue = Math.abs(diffDays);
+    timeText = daysOverdue === 1 ? 'Vencido há 1 dia!' : `Vencido há ${daysOverdue} dias!`;
+  } else if (diffDays === 0) {
+    urgency = 'critical';
+    emoji = '🟠';
+    timeText = 'Vence HOJE!';
+  } else if (diffDays === 1) {
+    urgency = 'warning';
+    emoji = '🟡';
+    timeText = 'Vence amanhã!';
+  } else if (diffDays === 2) {
+    urgency = 'info';
+    emoji = '🔵';
+    timeText = 'Vence em 2 dias';
+  } else {
+    urgency = 'info';
+    emoji = '🔵';
+    timeText = `Vence em ${diffDays} dias`;
+  }
+  
+  return {
+    title: `${emoji} ${clientName} • ${serverName}`,
+    body: `${timeText} • Servidor: ${serverName} • ${expDateFormatted}`,
     urgency
   };
 }
@@ -318,14 +374,21 @@ Deno.serve(async (req: Request) => {
     }
 
     // ========== CHECK CLIENT EXPIRATIONS ==========
-    // Get all expiring clients
+    // Get all expiring clients (include additional_servers for checking individual server dates)
     const { data: expiringClients, error: clientsError } = await supabase
       .from('clients')
-      .select('id, name, expiration_date, seller_id, phone, plan_name')
+      .select('id, name, expiration_date, seller_id, phone, plan_name, additional_servers')
       .gte('expiration_date', todayStr)
       .lte('expiration_date', maxDaysStr)
       .eq('is_archived', false)
       .order('expiration_date');
+    
+    // Also get clients with additional servers that may have different expiration dates
+    const { data: clientsWithAdditionalServers, error: additionalServersError } = await supabase
+      .from('clients')
+      .select('id, name, expiration_date, seller_id, phone, plan_name, additional_servers')
+      .not('additional_servers', 'is', null)
+      .eq('is_archived', false);
 
     if (clientsError) {
       throw new Error(`Error fetching clients: ${clientsError.message}`);
@@ -446,6 +509,85 @@ Deno.serve(async (req: Request) => {
       results.push({ sellerId, clientsNotified, totalClients: clients.length });
     }
 
+    // ========== CHECK ADDITIONAL SERVERS WITH INDIVIDUAL EXPIRATION DATES ==========
+    console.log('[check-expirations] Checking additional servers with individual expiration dates...');
+    
+    let additionalServerNotificationsSent = 0;
+    
+    if (clientsWithAdditionalServers && clientsWithAdditionalServers.length > 0) {
+      for (const client of clientsWithAdditionalServers) {
+        const additionalServers = client.additional_servers as AdditionalServerExpiration[] | null;
+        
+        if (!additionalServers || !Array.isArray(additionalServers)) continue;
+        
+        for (const server of additionalServers) {
+          // Skip servers without individual expiration date (they use client's main date)
+          if (!server.expiration_date) continue;
+          
+          const serverExpDate = new Date(server.expiration_date + 'T00:00:00');
+          const diffDays = Math.ceil((serverExpDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          const sellerDays = notificationDaysMap[client.seller_id] ?? 3;
+          
+          // Check if this server's expiration is within notification range
+          if (diffDays < 0 || diffDays > sellerDays) continue;
+          
+          // Check if seller has push subscription
+          const hasSubscription = subscriptions?.some(s => s.user_id === client.seller_id);
+          if (!hasSubscription) continue;
+          
+          const { title, body, urgency } = formatAdditionalServerExpirationMessage(
+            client.name,
+            server.server_name,
+            server.expiration_date,
+            today
+          );
+          
+          try {
+            const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/send-push-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                userId: client.seller_id,
+                title,
+                body,
+                tag: `client-${client.id}-server-${server.server_id}`,
+                data: { 
+                  type: 'additional-server-expiration', 
+                  clientId: client.id,
+                  clientName: client.name,
+                  serverName: server.server_name,
+                  expirationDate: server.expiration_date,
+                  urgency
+                }
+              }),
+            });
+
+            const result = await response.json();
+            
+            if (result.sent > 0) {
+              additionalServerNotificationsSent++;
+              console.log(`[check-expirations] ✓ Notified: ${client.name} - Server ${server.server_name} (${urgency})`);
+            }
+          } catch (error: any) {
+            if (error.name === 'AbortError') {
+              console.error(`[check-expirations] Timeout notifying about ${client.name} - ${server.server_name}`);
+            } else {
+              console.error(`[check-expirations] Error notifying about ${client.name} - ${server.server_name}:`, error);
+            }
+          }
+          
+          // Small delay between notifications
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    }
+    
+    console.log('[check-expirations] Additional server notifications sent:', additionalServerNotificationsSent);
+
     // ========== CHECK BILLS TO PAY ==========
     console.log('[check-expirations] Checking bills to pay...');
 
@@ -550,7 +692,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log('[check-expirations] Completed. Client notifications:', notificationsSent, 'Seller notifications:', sellerNotificationsSent, 'Bills notifications:', billsNotificationsSent);
+    console.log('[check-expirations] Completed. Client notifications:', notificationsSent, 'Seller notifications:', sellerNotificationsSent, 'Bills notifications:', billsNotificationsSent, 'Additional server notifications:', additionalServerNotificationsSent);
 
     return new Response(JSON.stringify({ 
       message: 'Expiration check completed',
@@ -561,6 +703,7 @@ Deno.serve(async (req: Request) => {
       clientNotificationsSent: notificationsSent,
       sellerNotificationsSent,
       billsNotificationsSent,
+      additionalServerNotificationsSent,
       results
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

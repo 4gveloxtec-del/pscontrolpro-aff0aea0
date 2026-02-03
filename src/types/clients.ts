@@ -18,6 +18,7 @@ export interface AdditionalServer {
   server_name: string;
   login?: string | null;
   password?: string | null;
+  expiration_date?: string | null; // Data de expiração individual do servidor adicional
 }
 
 // ============= Interface principal de Cliente =============
