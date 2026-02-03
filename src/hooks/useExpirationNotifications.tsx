@@ -1,10 +1,12 @@
 import { useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { differenceInDays, startOfToday } from 'date-fns';
+import { differenceInDays, startOfToday, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { useOnce } from '@/hooks/useOnce';
 
 const LAST_CHECK_KEY = 'last_expiration_notification_check';
+const LAST_UNNOTIFIED_CHECK_KEY = 'last_unnotified_clients_check';
 const NOTIFICATION_PREF_KEY = 'push_notifications_enabled';
 
 interface Client {
@@ -12,6 +14,7 @@ interface Client {
   name: string;
   expiration_date: string;
   billing_mode?: string | null;
+  phone?: string | null;
 }
 
 export function useExpirationNotifications() {
@@ -137,6 +140,106 @@ export function useExpirationNotifications() {
     }
   }, [user?.id, isSeller, isNotificationsEnabled, showExpirationNotification]);
 
+  // Check for clients expiring today that were NOT automatically notified
+  const checkUnnotifiedClients = useCallback(async () => {
+    if (!user?.id || !isSeller) return;
+    if (!isNotificationsEnabled()) return;
+
+    // Check if preference is enabled
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('push_unnotified_clients')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      // If preference is explicitly false, skip
+      if (profile && (profile as any).push_unnotified_clients === false) {
+        return;
+      }
+    } catch (e) {
+      console.warn('[useExpirationNotifications] Could not check preference:', e);
+    }
+
+    // Check if already checked today
+    let lastCheck: string | null = null;
+    try {
+      lastCheck = localStorage.getItem(LAST_UNNOTIFIED_CHECK_KEY);
+    } catch (e) {
+      console.warn('[useExpirationNotifications] localStorage unavailable');
+    }
+    const today = startOfToday().toISOString().split('T')[0];
+    if (lastCheck === today) return;
+
+    try {
+      // 1. Get clients expiring today
+      const { data: clients, error: clientsError } = await supabase
+        .from('clients')
+        .select('id, name, expiration_date, phone, billing_mode')
+        .eq('seller_id', user.id)
+        .eq('is_archived', false)
+        .eq('expiration_date', today);
+
+      if (clientsError) throw clientsError;
+      if (!clients || clients.length === 0) return;
+
+      // 2. Check which ones were already notified via automation (iptv_vencimento type)
+      const clientIds = clients.map(c => c.id);
+      const { data: tracking, error: trackingError } = await supabase
+        .from('client_notification_tracking')
+        .select('client_id')
+        .eq('seller_id', user.id)
+        .eq('notification_type', 'iptv_vencimento')
+        .eq('expiration_cycle_date', today)
+        .in('client_id', clientIds);
+
+      if (trackingError) throw trackingError;
+
+      const notifiedIds = new Set((tracking || []).map(t => t.client_id));
+      
+      // 3. Filter clients that were NOT notified
+      const unnotifiedClients = clients.filter(c => !notifiedIds.has(c.id));
+
+      if (unnotifiedClients.length === 0) {
+        console.log('[useExpirationNotifications] All clients expiring today were auto-notified');
+        try {
+          localStorage.setItem(LAST_UNNOTIFIED_CHECK_KEY, today);
+        } catch (e) {}
+        return;
+      }
+
+      // 4. Send push notification about unnotified clients
+      const names = unnotifiedClients.slice(0, 5).map(c => c.name).join(', ');
+      const extra = unnotifiedClients.length > 5 ? ` +${unnotifiedClients.length - 5}` : '';
+      
+      const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: user.id,
+          title: `📞 ${unnotifiedClients.length} cliente(s) para ligar`,
+          body: `Vencem HOJE sem notificação automática: ${names}${extra}`,
+          tag: `unnotified-${today}`,
+          requireInteraction: true,
+          data: { 
+            type: 'unnotified-clients',
+            clientIds: unnotifiedClients.map(c => c.id)
+          }
+        }
+      });
+
+      if (pushError) {
+        console.error('[useExpirationNotifications] Push notification error:', pushError);
+      } else {
+        console.log(`[useExpirationNotifications] Notified about ${unnotifiedClients.length} unnotified clients`);
+      }
+
+      try {
+        localStorage.setItem(LAST_UNNOTIFIED_CHECK_KEY, today);
+      } catch (e) {}
+    } catch (error) {
+      console.error('Error checking unnotified clients:', error);
+    }
+  }, [user?.id, isSeller, isNotificationsEnabled]);
+
   // Check on mount - runs only once per session
   const initRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -154,6 +257,12 @@ export function useExpirationNotifications() {
     timeoutRef.current = setTimeout(() => {
       if (isMountedRef.current) {
         checkExpirations();
+        // Check unnotified clients 5 seconds after
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            checkUnnotifiedClients();
+          }
+        }, 5000);
       }
     }, 3000);
 
@@ -164,6 +273,8 @@ export function useExpirationNotifications() {
         return;
       }
       checkExpirations();
+      // Also check unnotified clients every hour
+      checkUnnotifiedClients();
     }, 60 * 60 * 1000);
 
     return () => {
@@ -183,6 +294,7 @@ export function useExpirationNotifications() {
 
   return {
     checkExpirations,
+    checkUnnotifiedClients,
     isNotificationsEnabled: isNotificationsEnabled(),
   };
 }

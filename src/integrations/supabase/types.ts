@@ -2532,6 +2532,7 @@ export type Database = {
           plan_price: number | null
           plan_type: string | null
           push_on_auto_message: boolean | null
+          push_unnotified_clients: boolean | null
           subscription_expires_at: string | null
           tutorial_visto: boolean | null
           updated_at: string | null
@@ -2555,6 +2556,7 @@ export type Database = {
           plan_price?: number | null
           plan_type?: string | null
           push_on_auto_message?: boolean | null
+          push_unnotified_clients?: boolean | null
           subscription_expires_at?: string | null
           tutorial_visto?: boolean | null
           updated_at?: string | null
@@ -2578,6 +2580,7 @@ export type Database = {
           plan_price?: number | null
           plan_type?: string | null
           push_on_auto_message?: boolean | null
+          push_unnotified_clients?: boolean | null
           subscription_expires_at?: string | null
           tutorial_visto?: boolean | null
           updated_at?: string | null
