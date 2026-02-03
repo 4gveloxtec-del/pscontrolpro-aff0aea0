@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 import { DialogContextProvider } from "@/contexts/DialogContext";
+import { scheduleScrollLockCleanup } from "@/lib/overlayScrollLockCleanup";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -18,6 +19,7 @@ const SheetOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
+    data-lovable-overlay="true"
     className={cn(
       "fixed inset-0 z-50 bg-black/80",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
@@ -55,11 +57,19 @@ const sheetVariants = cva(
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>, 
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & VariantProps<typeof sheetVariants>
->(({ side = "right", className, children, ...props }, ref) => (
+>(({ side = "right", className, children, ...props }, ref) => {
+  React.useEffect(() => {
+    return () => {
+      scheduleScrollLockCleanup();
+    };
+  }, []);
+
+  return (
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content 
       ref={ref}
+      data-lovable-overlay="true"
       className={cn(sheetVariants({ side }), className)} 
       {...props}
     >
@@ -72,7 +82,8 @@ const SheetContent = React.forwardRef<
       />
     </SheetPrimitive.Content>
   </SheetPortal>
-));
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -113,3 +124,4 @@ export {
   SheetTitle,
   SheetTrigger,
 };
+
