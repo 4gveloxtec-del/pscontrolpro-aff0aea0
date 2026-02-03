@@ -12,7 +12,7 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useAtomicClientSave } from '@/hooks/useAtomicClientSave';
 import { useClientFilters, ClientFilterType } from '@/hooks/useClientFilters';
 import { useClientDialogState, ClientForDialog } from '@/hooks/useClientDialogState';
-import { useClientFormData, ClientFormData, MacDevice as FormMacDevice } from '@/hooks/useClientFormData';
+import { useClientFormData, ClientFormData } from '@/hooks/useClientFormData';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -67,112 +67,28 @@ import { useResellerApps } from '@/components/ResellerAppsManager';
 import { WelcomeMessagePreview } from '@/components/WelcomeMessagePreview';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
-// MacDevice is now imported from useClientFormData as FormMacDevice
-type MacDevice = FormMacDevice;
+// ============= Tipos e constantes importados do módulo centralizado =============
+import {
+  Client,
+  ClientCategory,
+  DecryptedCredentials,
+  Plan,
+  ServerData,
+  AdditionalServer,
+  MacDevice,
+  DEFAULT_CATEGORIES,
+  DEVICE_OPTIONS,
+  CLIENTS_PER_PAGE,
+  SEARCH_PAGE_SIZE,
+  AUTOLOAD_ALL_UP_TO,
+  MAX_CLIENTS_PER_CREDENTIAL,
+} from '@/types/clients';
 
-// Interface for additional servers
-interface AdditionalServer {
-  server_id: string;
-  server_name: string;
-  login?: string | null;
-  password?: string | null;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  device: string | null;
-  dns: string | null;
-  expiration_date: string;
-  expiration_datetime: string | null; // Precise datetime for short-duration tests
-  plan_id: string | null;
-  plan_name: string | null;
-  plan_price: number | null;
-  premium_price: number | null;
-  server_id: string | null;
-  server_name: string | null;
-  login: string | null;
-  password: string | null;
-  // Second server fields
-  server_id_2: string | null;
-  server_name_2: string | null;
-  login_2: string | null;
-  password_2: string | null;
-  premium_password: string | null;
-  category: string | null;
-  is_paid: boolean;
-  pending_amount: number | null;
-  notes: string | null;
-  has_paid_apps: boolean | null;
-  paid_apps_duration: string | null;
-  paid_apps_expiration: string | null;
-  telegram: string | null;
-  is_archived: boolean | null;
-  archived_at: string | null;
-  created_at: string | null;
-  renewed_at: string | null;
-  updated_at?: string | null;
-  gerencia_app_mac: string | null;
-  gerencia_app_devices: MacDevice[] | null;
-  // App type fields
-  app_name: string | null;
-  app_type: string | null;
-  device_model: string | null;
-  // Additional servers
-  additional_servers?: AdditionalServer[] | null;
-  // Test client fields
-  is_test: boolean | null;
-  is_integrated: boolean | null;
-}
-
-interface ClientCategory {
-  id: string;
-  name: string;
-  seller_id: string;
-}
-
-interface DecryptedCredentials {
-  [clientId: string]: { login: string; password: string; login_2?: string; password_2?: string };
-}
-
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  duration_days: number;
-  is_active: boolean;
-  category: string;
-}
-
-interface ServerData {
-  id: string;
-  name: string;
-  is_active: boolean;
-  is_credit_based: boolean;
-  panel_url: string | null;
-  icon_url: string | null;
-  iptv_per_credit: number;
-  p2p_per_credit: number;
-  total_screens_per_credit: number;
-}
+// Re-export para compatibilidade (usado em outros componentes)
+export type { Client, AdditionalServer, MacDevice };
 
 // FilterType agora é importado de useClientFilters como ClientFilterType
 type FilterType = ClientFilterType;
-const DEFAULT_CATEGORIES = ['IPTV', 'P2P', 'Contas Premium', 'SSH', 'Revendedor'] as const;
-
-const DEVICE_OPTIONS = [
-  { value: 'Smart TV', label: 'Smart TV', icon: Tv },
-  { value: 'TV Android', label: 'TV Android', icon: Tv },
-  { value: 'Celular', label: 'Celular', icon: Smartphone },
-  { value: 'TV Box', label: 'TV Box', icon: Monitor },
-  { value: 'Video Game', label: 'Video Game', icon: Gamepad2 },
-  { value: 'PC', label: 'PC', icon: Monitor },
-  { value: 'Notebook', label: 'Notebook', icon: Laptop },
-  { value: 'Fire Stick', label: 'Fire Stick', icon: Flame },
-  { value: 'Projetor Android', label: 'Projetor Android', icon: Monitor },
-] as const;
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -342,8 +258,8 @@ export default function Clients() {
   const [allLoadedClients, setAllLoadedClients] = useState<Client[]>([]);
   const [hasMoreClients, setHasMoreClients] = useState(true);
   const [totalClientCount, setTotalClientCount] = useState(0);
-  const CLIENTS_PER_PAGE = 50;
-  const AUTOLOAD_ALL_UP_TO = 250; // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
+  // CLIENTS_PER_PAGE importado de @/types/clients
+  // AUTOLOAD_ALL_UP_TO importado de @/types/clients // auto-carrega tudo quando o total é pequeno (evita “sumir” clientes)
 
   // Get total count of clients for accurate pagination info
   // isViewingArchived agora vem do hook useClientFilters
@@ -1648,8 +1564,7 @@ export default function Clients() {
     return null;
   };
 
-  // Maximum clients per shared credential (global limit)
-  const MAX_CLIENTS_PER_CREDENTIAL = 3;
+  // MAX_CLIENTS_PER_CREDENTIAL agora é importado de @/types/clients
 
   // Enhanced validation with preventive system
   const validateAndCorrectClientData = useCallback((
