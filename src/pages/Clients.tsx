@@ -12,6 +12,7 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useAtomicClientSave } from '@/hooks/useAtomicClientSave';
 import { useClientFilters, ClientFilterType } from '@/hooks/useClientFilters';
 import { useClientDialogState, ClientForDialog } from '@/hooks/useClientDialogState';
+import { useClientFormData, ClientFormData, MacDevice as FormMacDevice } from '@/hooks/useClientFormData';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Feature flag for atomic save - enable after testing
@@ -66,11 +67,8 @@ import { useResellerApps } from '@/components/ResellerAppsManager';
 import { WelcomeMessagePreview } from '@/components/WelcomeMessagePreview';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
-// Interface for MAC devices
-interface MacDevice {
-  name: string;
-  mac: string;
-}
+// MacDevice is now imported from useClientFormData as FormMacDevice
+type MacDevice = FormMacDevice;
 
 // Interface for additional servers
 interface AdditionalServer {
@@ -188,6 +186,43 @@ export default function Clients() {
   const { dialogProps, confirm } = useConfirmDialog();
   const queryClient = useQueryClient();
   
+  // ============= Estados de arrays (declarados antes do useAtomicClientSave para uso no resetForm) =============
+  const [selectedSharedCredit, setSelectedSharedCredit] = useState<SharedCreditSelection | null>(null);
+  const [externalApps, setExternalApps] = useState<{ appId: string; devices: { name: string; mac: string; device_key?: string }[]; email: string; password: string; expirationDate: string }[]>([]);
+  const [premiumAccounts, setPremiumAccounts] = useState<PremiumAccount[]>([]);
+  const [additionalServers, setAdditionalServers] = useState<{ server_id: string; server_name: string; login: string; password: string }[]>([]);
+  const [serverAppsConfig, setServerAppsConfig] = useState<{ serverId: string; serverName: string; apps: { serverAppId: string; authCode?: string; username?: string; password?: string; provider?: string }[] }[]>([]);
+
+  // ============= Hook de formulário (extraído para melhor manutenibilidade) =============
+  const {
+    formData,
+    setFormData,
+    resetForm: resetFormData,
+    updateFormData,
+    setFormDataFromClient,
+    hasBasicFormChanges,
+  } = useClientFormData();
+
+  // Full reset that includes form data AND related arrays
+  const resetForm = useCallback(() => {
+    resetFormData();
+    setSelectedSharedCredit(null);
+    setExternalApps([]);
+    setPremiumAccounts([]);
+    setAdditionalServers([]);
+    setServerAppsConfig([]);
+  }, [resetFormData]);
+
+  // Helper to check if form has unsaved changes (includes arrays managed locally)
+  const hasFormChanges = useCallback(() => {
+    return (
+      hasBasicFormChanges() ||
+      externalApps.length > 0 ||
+      premiumAccounts.length > 0 ||
+      additionalServers.length > 0
+    );
+  }, [hasBasicFormChanges, externalApps.length, premiumAccounts.length, additionalServers.length]);
+
   // Atomic save hook for transactional client operations
   const { 
     saveClient: atomicSaveClient, 
@@ -269,17 +304,10 @@ export default function Clients() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [selectedSharedCredit, setSelectedSharedCredit] = useState<SharedCreditSelection | null>(null);
-  const [externalApps, setExternalApps] = useState<{ appId: string; devices: { name: string; mac: string; device_key?: string }[]; email: string; password: string; expirationDate: string }[]>([]);
-  const [premiumAccounts, setPremiumAccounts] = useState<PremiumAccount[]>([]);
   // Bulk message queue for expired not called clients
   const [bulkMessageQueue, setBulkMessageQueue] = useState<Client[]>([]);
   const [bulkMessageIndex, setBulkMessageIndex] = useState(0);
   const isBulkMessaging = bulkMessageQueue.length > 0;
-  // State for additional servers (dynamic)
-  const [additionalServers, setAdditionalServers] = useState<{ server_id: string; server_name: string; login: string; password: string }[]>([]);
-  // State for server partner apps (apps from servers that require authentication)
-  const [serverAppsConfig, setServerAppsConfig] = useState<{ serverId: string; serverName: string; apps: { serverAppId: string; authCode?: string; username?: string; password?: string; provider?: string }[] }[]>([]);
   // State for welcome message preview
   const [showWelcomePreview, setShowWelcomePreview] = useState(false);
   const [pendingClientData, setPendingClientData] = useState<{ data: Record<string, unknown>; screens: string } | null>(null);
@@ -297,62 +325,6 @@ export default function Clients() {
   const lookupRetryTimeoutRef = useRef<number | null>(null);
   // State for unified phone view decrypted credentials (keyed by client id)
   const [lookupPhoneDecryptedCreds, setLookupPhoneDecryptedCreds] = useState<Record<string, { login: string; password: string; login_2?: string; password_2?: string }>>({});
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    telegram: '',
-    email: '',
-    device: '',
-    dns: '',
-    expiration_date: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-    plan_id: '',
-    plan_name: '',
-    plan_price: '',
-    premium_price: '',
-    server_id: '',
-    server_name: '',
-    login: '',
-    password: '',
-    // Second server fields
-    server_id_2: '',
-    server_name_2: '',
-    login_2: '',
-    password_2: '',
-    premium_password: '',
-    category: 'IPTV',
-    is_paid: true,
-    pending_amount: '',
-    expected_payment_date: '', // Data prevista de pagamento para clientes não pagos
-    notes: '',
-    has_paid_apps: false,
-    paid_apps_duration: '',
-    paid_apps_expiration: '',
-    paid_apps_email: '', // Email ou MAC do app pago
-    paid_apps_password: '', // Senha ou código do app pago
-    screens: '1', // Número de telas selecionadas
-    gerencia_app_mac: '', // MAC do GerenciaApp (campo legado)
-    gerencia_app_devices: [] as MacDevice[], // Múltiplos dispositivos MAC
-    app_name: '', // Nome do aplicativo usado pelo cliente
-    app_type: 'server' as 'server' | 'own', // Tipo de app: servidor ou próprio
-    device_model: '', // Modelo/identificação do dispositivo (ex: "Samsung 55 Sala")
-    has_adult_content: false, // Conteúdo adulto (+18)
-  });
-
-  // Helper to check if form has unsaved changes
-  const hasFormChanges = useCallback(() => {
-    // Check if any meaningful field has data
-    return (
-      formData.name.trim() !== '' ||
-      formData.phone.trim() !== '' ||
-      formData.login.trim() !== '' ||
-      formData.password.trim() !== '' ||
-      externalApps.length > 0 ||
-      premiumAccounts.length > 0 ||
-      additionalServers.length > 0
-    );
-  }, [formData.name, formData.phone, formData.login, formData.password, externalApps.length, premiumAccounts.length, additionalServers.length]);
 
   // Confirm exit without saving - uses hook + resets form
   const confirmExitWithoutSaving = useCallback(() => {
@@ -2524,53 +2496,7 @@ export default function Clients() {
   });
 
   // renewMutation is now replaced by useRenewalMutation hook
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      phone: '',
-      telegram: '',
-      email: '',
-      device: '',
-      dns: '',
-      expiration_date: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-      plan_id: '',
-      plan_name: '',
-      plan_price: '',
-      premium_price: '',
-      server_id: '',
-      server_name: '',
-      login: '',
-      password: '',
-      server_id_2: '',
-      server_name_2: '',
-      login_2: '',
-      password_2: '',
-      premium_password: '',
-      category: 'IPTV',
-      is_paid: true,
-      pending_amount: '',
-      expected_payment_date: '',
-      notes: '',
-      has_paid_apps: false,
-      paid_apps_duration: '',
-      paid_apps_expiration: '',
-      paid_apps_email: '',
-      paid_apps_password: '',
-      screens: '1',
-      gerencia_app_mac: '',
-      gerencia_app_devices: [],
-      app_name: '',
-      app_type: 'server',
-      device_model: '',
-      has_adult_content: false,
-    });
-    setSelectedSharedCredit(null);
-    setExternalApps([]);
-    setPremiumAccounts([]);
-    setAdditionalServers([]);
-    setServerAppsConfig([]);
-  };
+  // resetForm is now provided by useClientFormData hook
 
   const handlePlanChange = (planId: string) => {
     const plan = plans.find(p => p.id === planId);
