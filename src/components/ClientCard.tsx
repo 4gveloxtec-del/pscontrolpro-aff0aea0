@@ -406,47 +406,103 @@ export const ClientCard = memo(function ClientCard({
           )}
         </div>
 
-        {/* Credentials Section */}
+        {/* Credentials Section - Grouped by Server with Colors */}
         {hasCredentials && (
           <div className="p-2 sm:p-2.5 rounded-lg bg-muted/40 border border-border/50 mb-2 sm:mb-3">
             {isDecrypted && decryptedCredentials ? (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
+                {/* Server 1 Credentials - Primary Color (Blue/Accent) */}
                 {decryptedCredentials.login && (
-                  <div className="flex items-center justify-between group/cred">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>
-                    <div className="flex items-center gap-1.5">
-                      <code className="text-xs font-mono bg-background/80 px-2 py-0.5 rounded">
-                        {maskData(decryptedCredentials.login, 'credentials')}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 opacity-0 group-hover/cred:opacity-100"
-                        onClick={(e) => handleCopyCredentials(e, decryptedCredentials.login, 'Login')}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
+                  <div className="space-y-1 p-1.5 rounded-md bg-accent/30 border border-accent/50">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Server className="h-3 w-3 text-primary" />
+                      <span className="text-[10px] font-medium text-primary">
+                        {client.server_name || 'Servidor 1'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between group/cred">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>
+                      <div className="flex items-center gap-1.5">
+                        <code className="text-xs font-mono bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                          {maskData(decryptedCredentials.login, 'credentials')}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 opacity-60 hover:opacity-100 hover:bg-primary/20"
+                          onClick={(e) => handleCopyCredentials(e, decryptedCredentials.login, 'Login')}
+                          title="Copiar login"
+                        >
+                          <Copy className="h-3 w-3 text-primary" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
-                {decryptedCredentials.password && (
-                  <div className="flex items-center justify-between group/cred">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Senha</span>
-                    <div className="flex items-center gap-1.5">
-                      <code className="text-xs font-mono bg-background/80 px-2 py-0.5 rounded">
-                        {maskData(decryptedCredentials.password, 'credentials')}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 opacity-0 group-hover/cred:opacity-100"
-                        onClick={(e) => handleCopyCredentials(e, decryptedCredentials.password, 'Senha')}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
+
+                {/* Server 2 Credentials - Amber Color */}
+                {decryptedCredentials.login_2 && (
+                  <div className="space-y-1 p-1.5 rounded-md bg-amber-500/10 border border-amber-500/30">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Server className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                      <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                        {client.server_name_2 || 'Servidor 2'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between group/cred">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>
+                      <div className="flex items-center gap-1.5">
+                        <code className="text-xs font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-500/30">
+                          {maskData(decryptedCredentials.login_2, 'credentials')}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 opacity-60 hover:opacity-100 hover:bg-amber-500/20"
+                          onClick={(e) => handleCopyCredentials(e, decryptedCredentials.login_2!, 'Login Servidor 2')}
+                          title="Copiar login"
+                        >
+                          <Copy className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
+
+                {/* Additional Servers Credentials - Emerald Color */}
+                {client.additional_servers && Array.isArray(client.additional_servers) && 
+                  client.additional_servers.map((server: AdditionalServer, index: number) => {
+                    // Check if this additional server has login credentials
+                    if (!server.login) return null;
+                    return (
+                      <div key={server.server_id || index} className="space-y-1 p-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Server className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                            {server.server_name || `Servidor ${index + 3}`}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between group/cred">
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Login</span>
+                          <div className="flex items-center gap-1.5">
+                            <code className="text-xs font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
+                              {maskData(server.login, 'credentials')}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 w-5 p-0 opacity-60 hover:opacity-100 hover:bg-emerald-500/20"
+                              onClick={(e) => handleCopyCredentials(e, server.login!, `Login ${server.server_name}`)}
+                              title="Copiar login"
+                            >
+                              <Copy className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
               </div>
             ) : (
               <Button
