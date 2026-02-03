@@ -202,25 +202,33 @@ function ClientLookup() {
   }, []);
   
   // Fetch all clients for client-side search (credentials are encrypted, so server-side search won't work for login fields)
-  const { data: allClients = [], isLoading: isLoadingAllClients } = useQuery({
+  const { data: allClients = [], isLoading: isLoadingAllClients, isError: allClientsError } = useQuery({
     queryKey: ['client-lookup-all', user?.id, isAdmin],
     queryFn: async () => {
       if (!user?.id) return [];
 
-      let query = supabase
-        .from('clients')
-        .select('id, seller_id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived')
-        .order('expiration_date', { ascending: false });
+      try {
+        let query = supabase
+          .from('clients')
+          .select('id, seller_id, name, phone, email, login, login_2, expiration_date, plan_name, is_archived')
+          .order('expiration_date', { ascending: false });
 
-      // Resellers see only their own clients; admins can search across all resellers.
-      if (!isAdmin) {
-        query = query.eq('seller_id', user.id);
+        // Resellers see only their own clients; admins can search across all resellers.
+        if (!isAdmin) {
+          query = query.eq('seller_id', user.id);
+        }
+
+        const { data, error } = await query;
+          
+        if (error) {
+          console.error('[ClientLookup] allClients query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[ClientLookup] allClients catch error:', err);
+        return [];
       }
-
-      const { data, error } = await query;
-        
-      if (error) throw error;
-      return data || [];
     },
     enabled: !!user?.id,
     staleTime: 60000,
@@ -314,82 +322,93 @@ function ClientLookup() {
 
   
   // Fetch full client data when selected
-  const { data: clientFullData, isLoading: isLoadingClient } = useQuery({
+  const { data: clientFullData, isLoading: isLoadingClient, isError: clientFullError } = useQuery({
     queryKey: ['client-full-data', selectedClientId, user?.id],
     queryFn: async () => {
       if (!user?.id || !selectedClientId) return null;
       
-      // Fetch client with all related data
-      let clientQuery = supabase
-        .from('clients')
-        .select(`
-          *,
-          plan:plans(name, price, duration_days, category),
-          server:servers(name, icon_url)
-        `)
-        .eq('id', selectedClientId);
+      try {
+        // Fetch client with all related data
+        let clientQuery = supabase
+          .from('clients')
+          .select(`
+            *,
+            plan:plans(name, price, duration_days, category),
+            server:servers(name, icon_url)
+          `)
+          .eq('id', selectedClientId);
 
-      if (!isAdmin) {
-        clientQuery = clientQuery.eq('seller_id', user.id);
-      }
+        if (!isAdmin) {
+          clientQuery = clientQuery.eq('seller_id', user.id);
+        }
 
-      const { data: client, error: clientError } = await clientQuery.maybeSingle();
+        const { data: client, error: clientError } = await clientQuery.maybeSingle();
+          
+        if (clientError) {
+          console.error('[ClientLookup] client query error:', clientError.message);
+          return null;
+        }
+        if (!client) {
+          console.warn('[ClientLookup] client not found:', selectedClientId);
+          return null;
+        }
         
-      if (clientError) throw clientError;
-      if (!client) throw new Error('Client not found');
-      
-      // Fetch related data in parallel
-      let externalAppsQuery = supabase
-        .from('client_external_apps')
-        .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
-        .eq('client_id', selectedClientId);
+        // Fetch related data in parallel
+        let externalAppsQuery = supabase
+          .from('client_external_apps')
+          .select('id, email, password, expiration_date, devices, notes, fixed_app_name, external_app:external_apps(name, download_url)')
+          .eq('client_id', selectedClientId);
 
-      let premiumAccountsQuery = supabase
-        .from('client_premium_accounts')
-        .select('id, plan_name, email, password, expiration_date, price, notes')
-        .eq('client_id', selectedClientId);
+        let premiumAccountsQuery = supabase
+          .from('client_premium_accounts')
+          .select('id, plan_name, email, password, expiration_date, price, notes')
+          .eq('client_id', selectedClientId);
 
-      let deviceAppsQuery = supabase
-        .from('client_device_apps')
-        .select('id, app:reseller_device_apps(name, icon, download_url)')
-        .eq('client_id', selectedClientId);
+        let deviceAppsQuery = supabase
+          .from('client_device_apps')
+          .select('id, app:reseller_device_apps(name, icon, download_url)')
+          .eq('client_id', selectedClientId);
 
-      let messageHistoryQuery = supabase
-        .from('message_history')
-        .select('id, message_type, message_content, sent_at')
-        .eq('client_id', selectedClientId)
-        .order('sent_at', { ascending: false })
-        .limit(10);
+        let messageHistoryQuery = supabase
+          .from('message_history')
+          .select('id, message_type, message_content, sent_at')
+          .eq('client_id', selectedClientId)
+          .order('sent_at', { ascending: false })
+          .limit(10);
 
-      let panelClientsQuery = supabase
-        .from('panel_clients')
-        .select('id, slot_type, server:servers(name)')
-        .eq('client_id', selectedClientId);
+        let panelClientsQuery = supabase
+          .from('panel_clients')
+          .select('id, slot_type, server:servers(name)')
+          .eq('client_id', selectedClientId);
 
-      if (!isAdmin) {
-        externalAppsQuery = externalAppsQuery.eq('seller_id', user.id);
-        premiumAccountsQuery = premiumAccountsQuery.eq('seller_id', user.id);
-        deviceAppsQuery = deviceAppsQuery.eq('seller_id', user.id);
-        messageHistoryQuery = messageHistoryQuery.eq('seller_id', user.id);
-        panelClientsQuery = panelClientsQuery.eq('seller_id', user.id);
+        if (!isAdmin) {
+          externalAppsQuery = externalAppsQuery.eq('seller_id', user.id);
+          premiumAccountsQuery = premiumAccountsQuery.eq('seller_id', user.id);
+          deviceAppsQuery = deviceAppsQuery.eq('seller_id', user.id);
+          messageHistoryQuery = messageHistoryQuery.eq('seller_id', user.id);
+          panelClientsQuery = panelClientsQuery.eq('seller_id', user.id);
+        }
+
+        const [externalAppsResult, premiumAccountsResult, deviceAppsResult, messageHistoryResult, panelClientsResult] = await Promise.all([
+          externalAppsQuery,
+          premiumAccountsQuery,
+          deviceAppsQuery,
+          messageHistoryQuery,
+          panelClientsQuery,
+        ]);
+        
+        return {
+          ...client,
+          external_apps: externalAppsResult.data || [],
+          premium_accounts: premiumAccountsResult.data || [],
+          device_apps: deviceAppsResult.data || [],
+          message_history: messageHistoryResult.data || [],
+          panel_clients: panelClientsResult.data || [],
+        } as ClientFullData;
+      } catch (err) {
+        console.error('[ClientLookup] clientFullData catch error:', err);
+        return null;
       }
-
-      const [externalAppsResult, premiumAccountsResult, deviceAppsResult, messageHistoryResult, panelClientsResult] = await Promise.all([
-        externalAppsQuery,
-        premiumAccountsQuery,
-        deviceAppsQuery,
-        messageHistoryQuery,
-        panelClientsQuery,
-      ]);
-      
-      return {
-        ...client,
-        external_apps: externalAppsResult.data || [],
-        premium_accounts: premiumAccountsResult.data || [],
-        device_apps: deviceAppsResult.data || [],
-        message_history: messageHistoryResult.data || [],
-        panel_clients: panelClientsResult.data || [],
-      } as ClientFullData;
     },
     enabled: !!user?.id && !!selectedClientId,
     staleTime: 60000,
@@ -625,6 +644,24 @@ function ClientLookup() {
       </div>
     );
   };
+
+  // Error guard for client data
+  if (allClientsError) {
+    return (
+      <div className="container mx-auto p-3 sm:p-4 md:p-6 max-w-6xl">
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex flex-col items-center justify-center py-8 gap-3">
+            <AlertCircle className="h-8 w-8 text-destructive" />
+            <p className="text-destructive font-medium">Erro ao carregar clientes</p>
+            <p className="text-muted-foreground text-sm">Tente recarregar a página</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              Recarregar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-3 sm:p-4 md:p-6 max-w-6xl space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">

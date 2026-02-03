@@ -17,39 +17,53 @@ export default function AdminDashboard() {
   const [billingModeOpen, setBillingModeOpen] = useState(false);
 
   // Buscar estatísticas gerais
-  const { data: stats } = useQuery({
+  const { data: stats, isError: statsError } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      const [sellersResult, clientsResult, serversResult] = await Promise.all([
-        supabase.from('profiles').select('id, is_active, subscription_expires_at', { count: 'exact' }),
-        supabase.from('clients').select('id', { count: 'exact' }),
-        supabase.from('servers').select('id', { count: 'exact' })
-      ]);
+      try {
+        const [sellersResult, clientsResult, serversResult] = await Promise.all([
+          supabase.from('profiles').select('id, is_active, subscription_expires_at', { count: 'exact' }),
+          supabase.from('clients').select('id', { count: 'exact' }),
+          supabase.from('servers').select('id', { count: 'exact' })
+        ]);
 
-      const totalSellers = sellersResult.count || 0;
-      const activeSellers = sellersResult.data?.filter(p => p.is_active !== false).length || 0;
-      const totalClients = clientsResult.count || 0;
-      const totalServers = serversResult.count || 0;
+        const totalSellers = sellersResult.count || 0;
+        const activeSellers = sellersResult.data?.filter(p => p.is_active !== false).length || 0;
+        const totalClients = clientsResult.count || 0;
+        const totalServers = serversResult.count || 0;
 
-      return {
-        totalSellers,
-        activeSellers,
-        totalClients,
-        totalServers
-      };
+        return {
+          totalSellers,
+          activeSellers,
+          totalClients,
+          totalServers
+        };
+      } catch (err) {
+        console.error('[AdminDashboard] stats query error:', err);
+        return { totalSellers: 0, activeSellers: 0, totalClients: 0, totalServers: 0 };
+      }
     }
   });
 
   // Buscar vendedores recentes
-  const { data: recentSellers = [] } = useQuery({
+  const { data: recentSellers = [], isError: recentSellersError } = useQuery({
     queryKey: ['admin-recent-sellers'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, created_at, is_active, subscription_expires_at')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, created_at, is_active, subscription_expires_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        if (error) {
+          console.error('[AdminDashboard] recentSellers query error:', error.message);
+          return [];
+        }
+        return data || [];
+      } catch (err) {
+        console.error('[AdminDashboard] recentSellers catch error:', err);
+        return [];
+      }
     }
   });
 
