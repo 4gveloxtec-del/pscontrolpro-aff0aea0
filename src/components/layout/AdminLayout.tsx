@@ -163,16 +163,22 @@ export function AdminLayout() {
                           : "text-slate-300 hover:bg-slate-700 hover:text-white"
                       )}
                     >
-                      {showCustomIcon ? (
-                        <img 
-                          src={customIconUrl} 
-                          alt={item.label}
-                          className="h-5 w-5 object-contain"
-                          onError={() => handleIconError(item.menuKey)}
-                        />
-                      ) : (
-                        <DefaultIcon className="h-5 w-5" />
-                      )}
+                      <span className="inline-flex h-5 w-5 items-center justify-center shrink-0">
+                        {showCustomIcon ? (
+                          <img
+                            src={customIconUrl}
+                            alt={item.label}
+                            className="h-5 w-5 object-contain block"
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                            crossOrigin="anonymous"
+                            onError={() => handleIconError(item.menuKey)}
+                          />
+                        ) : (
+                          <DefaultIcon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                        )}
+                      </span>
                       {item.label}
                     </Link>
                   );
