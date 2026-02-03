@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Plus, X, Server, Lock, Calendar, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ServerSearchSelect } from '@/components/ServerSearchSelect';
 
 interface ServerData {
   server_id: string;
@@ -57,13 +57,12 @@ export function AdditionalServersSection({
     onChange(updated);
   };
 
-  const handleServerChange = (index: number, serverId: string) => {
-    const server = servers.find(s => s.id === serverId);
+  const handleServerChange = (index: number, serverId: string, serverName: string) => {
     const updated = [...additionalServers];
     updated[index] = {
       ...updated[index],
       server_id: serverId,
-      server_name: server?.name || '',
+      server_name: serverName,
     };
     onChange(updated);
   };
@@ -75,22 +74,19 @@ export function AdditionalServersSection({
   };
 
   // Handle legacy server 2 changes
-  const handleLegacyServer2Change = (serverId: string) => {
+  const handleLegacyServer2Change = (serverId: string, serverName: string) => {
     if (!onLegacyServer2Change) return;
     
-    if (serverId === 'none') {
+    if (!serverId) {
       onLegacyServer2Change({ server_id_2: '', server_name_2: '', login_2: '', password_2: '' });
       return;
     }
     
-    const server = servers.find(s => s.id === serverId);
-    if (server) {
-      onLegacyServer2Change({
-        ...legacyServer2!,
-        server_id_2: server.id,
-        server_name_2: server.name,
-      });
-    }
+    onLegacyServer2Change({
+      ...legacyServer2!,
+      server_id_2: serverId,
+      server_name_2: serverName,
+    });
   };
 
   const handleLegacyFieldChange = (field: 'login_2' | 'password_2', value: string) => {
@@ -186,22 +182,12 @@ export function AdditionalServersSection({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Servidor</Label>
-                <Select
-                  value={legacyServer2.server_id_2 || 'none'}
+                <ServerSearchSelect
+                  servers={servers}
+                  value={legacyServer2.server_id_2}
                   onValueChange={handleLegacyServer2Change}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[40vh]">
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {servers.map((server) => (
-                      <SelectItem key={server.id} value={server.id}>
-                        {server.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Buscar servidor..."
+                />
               </div>
               
               {legacyServer2.server_id_2 && (
@@ -255,22 +241,12 @@ export function AdditionalServersSection({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Servidor</Label>
-                <Select
-                  value={server.server_id || 'none'}
-                  onValueChange={(value) => handleServerChange(index, value === 'none' ? '' : value)}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[40vh]">
-                    <SelectItem value="none">Selecione...</SelectItem>
-                    {servers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ServerSearchSelect
+                  servers={servers}
+                  value={server.server_id}
+                  onValueChange={(serverId, serverName) => handleServerChange(index, serverId, serverName)}
+                  placeholder="Buscar servidor..."
+                />
               </div>
               
               {server.server_id && (
