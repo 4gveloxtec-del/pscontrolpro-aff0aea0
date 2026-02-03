@@ -6,9 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { Crown } from 'lucide-react';
+import { Crown, Check, ChevronDown } from 'lucide-react';
 import { sortPlansForDisplay } from '@/lib/planStandardization';
 
 export interface Plan {
@@ -28,10 +27,10 @@ interface PlanSelectorProps {
   className?: string;
   showFilters?: boolean;
   compact?: boolean;
-  defaultCategory?: string | null; // Pre-select category filter based on client's category
+  defaultCategory?: string | null;
 }
 
-type DurationFilter = 'all' | '30' | '90' | '180' | '365';
+type DurationFilter = '30' | '90' | '180' | '365';
 type CategoryFilter = 'all' | 'IPTV' | 'P2P' | 'SSH' | 'Premium' | string;
 type ScreensFilter = 'all' | '1' | '2' | '3';
 
@@ -59,6 +58,14 @@ const getDurationBg = (days: number) => {
   return 'bg-muted/50';
 };
 
+const getDurationBorder = (days: number) => {
+  if (days === 30) return 'border-blue-500/30';
+  if (days === 90) return 'border-emerald-500/30';
+  if (days === 180) return 'border-amber-500/30';
+  if (days === 365) return 'border-purple-500/30';
+  return 'border-muted';
+};
+
 export function PlanSelector({ 
   plans, 
   value, 
@@ -72,6 +79,7 @@ export function PlanSelector({
   const [durationFilter, setDurationFilter] = useState<DurationFilter>('30');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [screensFilter, setScreensFilter] = useState<ScreensFilter>('all');
+  const [isListOpen, setIsListOpen] = useState<boolean>(!value); // Lista aberta se não tem plano selecionado
 
   // Update category filter when defaultCategory changes
   useEffect(() => {
@@ -96,7 +104,7 @@ export function PlanSelector({
 
   const filteredPlans = useMemo(() => {
     return sortedPlans.filter(plan => {
-      const matchesDuration = durationFilter === 'all' || plan.duration_days === Number(durationFilter);
+      const matchesDuration = plan.duration_days === Number(durationFilter);
       const matchesCategory = categoryFilter === 'all' || plan.category === categoryFilter;
       const matchesScreens = screensFilter === 'all' || (plan.screens || 1) === Number(screensFilter);
       return matchesDuration && matchesCategory && matchesScreens;
@@ -106,6 +114,23 @@ export function PlanSelector({
   // Check if we have screens info
   const hasScreens = plans.some(p => p.screens && p.screens > 1);
 
+  // Find selected plan for display
+  const selectedPlan = useMemo(() => {
+    return plans.find(p => p.id === value);
+  }, [plans, value]);
+
+  // Handle plan selection
+  const handleSelectPlan = (planId: string) => {
+    onValueChange(planId);
+    setIsListOpen(false); // Fecha a lista após selecionar
+  };
+
+  // Handle filter click - opens the list
+  const handleFilterClick = (filter: DurationFilter) => {
+    setDurationFilter(filter);
+    setIsListOpen(true); // Abre a lista ao clicar em filtro
+  };
+
   return (
     <div className={cn("space-y-2", className)}>
       {showFilters && (
@@ -114,7 +139,7 @@ export function PlanSelector({
           <div className="flex gap-0.5 sm:gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
             <button
               type="button"
-              onClick={() => setDurationFilter('30')}
+              onClick={() => handleFilterClick('30')}
               className={cn(
                 "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '30' 
@@ -126,7 +151,7 @@ export function PlanSelector({
             </button>
             <button
               type="button"
-              onClick={() => setDurationFilter('90')}
+              onClick={() => handleFilterClick('90')}
               className={cn(
                 "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '90' 
@@ -138,7 +163,7 @@ export function PlanSelector({
             </button>
             <button
               type="button"
-              onClick={() => setDurationFilter('180')}
+              onClick={() => handleFilterClick('180')}
               className={cn(
                 "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '180' 
@@ -150,7 +175,7 @@ export function PlanSelector({
             </button>
             <button
               type="button"
-              onClick={() => setDurationFilter('365')}
+              onClick={() => handleFilterClick('365')}
               className={cn(
                 "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
                 durationFilter === '365' 
@@ -198,28 +223,60 @@ export function PlanSelector({
         </div>
       )}
 
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className={cn("min-h-[36px]", compact && "h-9")}>
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent 
-          className="max-h-[50vh] sm:max-h-[350px] overflow-y-auto" 
-          position="popper" 
-          sideOffset={4}
-          align="start"
+      {/* Selected Plan Display (when list is closed and has selection) */}
+      {!isListOpen && selectedPlan && (
+        <button
+          type="button"
+          onClick={() => setIsListOpen(true)}
+          className={cn(
+            "w-full flex items-center justify-between p-2.5 rounded-lg border-2 transition-colors",
+            getDurationBg(selectedPlan.duration_days),
+            getDurationBorder(selectedPlan.duration_days),
+            "hover:opacity-80"
+          )}
         >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={cn(
+              "inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-medium min-w-[50px] flex-shrink-0",
+              getDurationBg(selectedPlan.duration_days),
+              getDurationColor(selectedPlan.duration_days)
+            )}>
+              {getDurationLabel(selectedPlan.duration_days)}
+            </span>
+            <span className="truncate text-sm font-medium">{selectedPlan.name}</span>
+            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-xs text-muted-foreground">
+              R$ {selectedPlan.price.toFixed(2)}
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </div>
+        </button>
+      )}
+
+      {/* Plans List (when open or no selection) */}
+      {isListOpen && (
+        <div className="border rounded-lg overflow-hidden bg-background">
           {filteredPlans.length === 0 ? (
-            <div className="p-2 text-sm text-muted-foreground text-center">
+            <div className="p-3 text-sm text-muted-foreground text-center">
               Nenhum plano encontrado
             </div>
           ) : (
-            filteredPlans.map((plan) => (
-              <SelectItem 
-                key={plan.id} 
-                value={plan.id}
-                className={cn("flex items-center py-1.5", getDurationBg(plan.duration_days))}
-              >
-                <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
+            <div className="max-h-[200px] sm:max-h-[250px] overflow-y-auto">
+              {filteredPlans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => handleSelectPlan(plan.id)}
+                  className={cn(
+                    "w-full flex items-center gap-2 p-2 text-left transition-colors border-b last:border-b-0",
+                    getDurationBg(plan.duration_days),
+                    value === plan.id 
+                      ? "ring-2 ring-inset ring-primary" 
+                      : "hover:brightness-95"
+                  )}
+                >
                   <span className={cn(
                     "inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-medium min-w-[40px] sm:min-w-[50px] flex-shrink-0",
                     getDurationBg(plan.duration_days),
@@ -228,15 +285,30 @@ export function PlanSelector({
                     {getDurationLabel(plan.duration_days)}
                   </span>
                   <span className="truncate flex-1 text-xs sm:text-sm">{plan.name}</span>
+                  {value === plan.id && (
+                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  )}
                   <span className="text-muted-foreground text-[10px] sm:text-xs flex-shrink-0">
                     R$ {plan.price.toFixed(2)}
                   </span>
-                </div>
-              </SelectItem>
-            ))
+                </button>
+              ))}
+            </div>
           )}
-        </SelectContent>
-      </Select>
+        </div>
+      )}
+
+      {/* Placeholder when no selection and list closed (edge case) */}
+      {!isListOpen && !selectedPlan && (
+        <button
+          type="button"
+          onClick={() => setIsListOpen(true)}
+          className="w-full flex items-center justify-between p-2.5 rounded-lg border border-input bg-background text-muted-foreground hover:bg-muted/50 transition-colors"
+        >
+          <span className="text-sm">{placeholder}</span>
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }
