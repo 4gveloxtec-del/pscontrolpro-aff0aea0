@@ -203,7 +203,7 @@ export function useClientQueries({
         }
 
         const { data, error } = await query
-          .order(isViewingArchived ? 'archived_at' : 'expiration_date', { ascending: !isViewingArchived })
+          .order(isViewingArchived ? 'archived_at' : 'created_at', { ascending: false })
           .range(from, to);
         
         if (error) {
@@ -218,8 +218,8 @@ export function useClientQueries({
       }
     },
     enabled: !!userId,
-    staleTime: 1000 * 30,
-    gcTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    gcTime: 1000 * 60 * 10,
     refetchOnWindowFocus: true,
     refetchOnMount: 'always',
   });
@@ -404,7 +404,7 @@ export function useClientQueries({
 
     const t = window.setTimeout(() => {
       setDbPage(prev => prev + 1);
-    }, 150);
+    }, 50);
     return () => window.clearTimeout(t);
   }, [userId, debouncedSearch, totalClientCount, hasMoreClients, isFetching, isLoading, allLoadedClients.length]);
 
