@@ -549,6 +549,32 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
                     {/* MAC Authentication - Show for MAC type apps OR any reseller app */}
                     {shouldShowMacFields && (
                       <div className="space-y-2 pt-1">
+                        {/* Panel Link - Show for reseller apps with panel linked */}
+                        {isResellerApp && (appDetails as any)?.panel_url && (
+                          <div className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                            <Server className="h-4 w-4 text-blue-600 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs text-muted-foreground block">Painel vinculado:</span>
+                              <span className="text-sm font-medium text-blue-600 truncate block">
+                                {(appDetails as any)?.panel_name || 'Servidor'}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open((appDetails as any).panel_url, '_blank');
+                              }}
+                              className="h-7 text-xs gap-1 shrink-0 border-blue-500/50 text-blue-600 hover:bg-blue-500/10"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Abrir Painel
+                            </Button>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">Dispositivos ({app.devices.length}/5)</span>
                           {app.devices.length < 5 && (
