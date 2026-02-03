@@ -39,10 +39,12 @@ export interface Client {
   server_name: string | null;
   login: string | null;
   password: string | null;
+  login_search: string | null; // Login em texto plano para busca/exibição rápida
   server_id_2: string | null;
   server_name_2: string | null;
   login_2: string | null;
   password_2: string | null;
+  login2_search: string | null; // Login 2 em texto plano para busca/exibição rápida
   premium_password: string | null;
   category: string | null;
   is_paid: boolean;
