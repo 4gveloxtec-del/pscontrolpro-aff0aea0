@@ -110,7 +110,7 @@ export default function Clients() {
   const [selectedSharedCredit, setSelectedSharedCredit] = useState<SharedCreditSelection | null>(null);
   const [externalApps, setExternalApps] = useState<{ appId: string; devices: { name: string; mac: string; device_key?: string }[]; email: string; password: string; expirationDate: string }[]>([]);
   const [premiumAccounts, setPremiumAccounts] = useState<PremiumAccount[]>([]);
-  const [additionalServers, setAdditionalServers] = useState<{ server_id: string; server_name: string; login: string; password: string }[]>([]);
+  const [additionalServers, setAdditionalServers] = useState<{ server_id: string; server_name: string; login: string; password: string; expiration_date?: string | null }[]>([]);
   const [serverAppsConfig, setServerAppsConfig] = useState<{ serverId: string; serverName: string; apps: { serverAppId: string; authCode?: string; username?: string; password?: string; provider?: string }[] }[]>([]);
 
   // ============= Hook de formulário (extraído para melhor manutenibilidade) =============
@@ -1235,7 +1235,13 @@ export default function Clients() {
               server.login ? encrypt(server.login).catch(() => server.login) : Promise.resolve(null),
               server.password ? encrypt(server.password).catch(() => server.password) : Promise.resolve(null),
             ]);
-            return { server_id: server.server_id, server_name: server.server_name, login, password };
+            return { 
+              server_id: server.server_id, 
+              server_name: server.server_name, 
+              login, 
+              password,
+              expiration_date: server.expiration_date || null 
+            };
           })
       );
 
@@ -1692,15 +1698,27 @@ export default function Clients() {
       const clientAdditionalServers = (client as any).additional_servers || [];
       if (Array.isArray(clientAdditionalServers) && clientAdditionalServers.length > 0) {
         const decryptedServers = await Promise.all(
-          clientAdditionalServers.map(async (server: { server_id: string; server_name: string; login: string | null; password: string | null }) => {
+          clientAdditionalServers.map(async (server: { server_id: string; server_name: string; login: string | null; password: string | null; expiration_date?: string | null }) => {
             try {
               const [decLogin, decPassword] = await Promise.all([
                 server.login ? decrypt(server.login) : Promise.resolve(''),
                 server.password ? decrypt(server.password) : Promise.resolve(''),
               ]);
-              return { server_id: server.server_id, server_name: server.server_name, login: decLogin, password: decPassword };
+              return { 
+                server_id: server.server_id, 
+                server_name: server.server_name, 
+                login: decLogin, 
+                password: decPassword,
+                expiration_date: server.expiration_date || null
+              };
             } catch {
-              return { server_id: server.server_id, server_name: server.server_name, login: server.login || '', password: server.password || '' };
+              return { 
+                server_id: server.server_id, 
+                server_name: server.server_name, 
+                login: server.login || '', 
+                password: server.password || '',
+                expiration_date: server.expiration_date || null
+              };
             }
           })
         );

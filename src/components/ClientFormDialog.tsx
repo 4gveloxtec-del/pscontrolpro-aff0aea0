@@ -210,7 +210,7 @@ export function ClientFormDialog({
   const { dialogProps, confirm } = useConfirmDialog();
   
   // Local type matching AdditionalServersSection internal interface
-  type LocalAdditionalServer = { server_id: string; server_name: string; login: string; password: string };
+  type LocalAdditionalServer = { server_id: string; server_name: string; login: string; password: string; expiration_date?: string | null };
   
   // ============= Form State =============
   const [formData, setFormData] = useState<ClientFormData>(INITIAL_FORM_STATE);
@@ -367,6 +367,7 @@ export function ClientFormDialog({
             server_name: s.server_name,
             login: s.login || '',
             password: s.password || '',
+            expiration_date: s.expiration_date || null,
           }))
         );
       }
