@@ -4265,7 +4265,7 @@ export default function Clients() {
           setRenewExpirationPopoverOpen(false);
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Renovar Cliente</DialogTitle>
             <DialogDescription>
@@ -4273,6 +4273,151 @@ export default function Clients() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* === SEÇÃO DE SERVIDORES E CREDENCIAIS === */}
+            {renewClient && (
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Server className="h-4 w-4" />
+                  Acesso Rápido - Servidores
+                </div>
+                
+                {/* Servidor Principal (#1) */}
+                {renewClient.server_id && (
+                  <div className="flex items-center justify-between gap-2 p-2 bg-background rounded border">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Badge variant="outline" className="shrink-0 bg-blue-500/10 text-blue-600 border-blue-500/30">#1</Badge>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground truncate">{renewClient.server_name || 'Servidor Principal'}</span>
+                        {(() => {
+                          const creds = decryptedCredentials[renewClient.id];
+                          const displayLogin = creds?.login || renewClient.login;
+                          return displayLogin ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-mono truncate">{isPrivacyMode ? '••••••' : displayLogin}</span>
+                              {!isPrivacyMode && (
+                                <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => copyToClipboard(displayLogin, 'Login')}>
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+                    {(() => {
+                      const panelUrl = serversForBadges.find(s => s.id === renewClient.server_id)?.panel_url;
+                      return panelUrl ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 gap-1"
+                          onClick={() => window.open(panelUrl, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Painel
+                        </Button>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+                
+                {/* Servidor Secundário (#2) - Legacy */}
+                {renewClient.server_id_2 && (
+                  <div className="flex items-center justify-between gap-2 p-2 bg-background rounded border">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Badge variant="outline" className="shrink-0 bg-amber-500/10 text-amber-600 border-amber-500/30">#2</Badge>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground truncate">{renewClient.server_name_2 || 'Servidor 2'}</span>
+                        {(() => {
+                          const creds = decryptedCredentials[renewClient.id];
+                          const displayLogin = creds?.login_2 || renewClient.login_2;
+                          return displayLogin ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-mono truncate">{isPrivacyMode ? '••••••' : displayLogin}</span>
+                              {!isPrivacyMode && (
+                                <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => copyToClipboard(displayLogin, 'Login #2')}>
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+                    {(() => {
+                      const panelUrl = serversForBadges.find(s => s.id === renewClient.server_id_2)?.panel_url;
+                      return panelUrl ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 gap-1"
+                          onClick={() => window.open(panelUrl, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Painel
+                        </Button>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+                
+                {/* Servidores Adicionais (#3, #4, #5, #6, #7...) */}
+                {renewClient.additional_servers && Array.isArray(renewClient.additional_servers) && renewClient.additional_servers.length > 0 && (
+                  <>
+                    {(renewClient.additional_servers as AdditionalServer[]).map((addServer, idx) => {
+                      const serverNum = 3 + idx;
+                      const colors = [
+                        'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+                        'bg-violet-500/10 text-violet-600 border-violet-500/30',
+                        'bg-pink-500/10 text-pink-600 border-pink-500/30',
+                        'bg-cyan-500/10 text-cyan-600 border-cyan-500/30',
+                        'bg-orange-500/10 text-orange-600 border-orange-500/30',
+                      ];
+                      const colorClass = colors[(idx) % colors.length];
+                      const panelUrl = serversForBadges.find(s => s.id === addServer.server_id)?.panel_url;
+                      
+                      return (
+                        <div key={addServer.server_id} className="flex items-center justify-between gap-2 p-2 bg-background rounded border">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <Badge variant="outline" className={cn("shrink-0", colorClass)}>#{serverNum}</Badge>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-xs text-muted-foreground truncate">{addServer.server_name || `Servidor ${serverNum}`}</span>
+                              {addServer.login && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm font-mono truncate">{isPrivacyMode ? '••••••' : addServer.login}</span>
+                                  {!isPrivacyMode && (
+                                    <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => copyToClipboard(addServer.login!, `Login #${serverNum}`)}>
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {panelUrl && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0 gap-1"
+                              onClick={() => window.open(panelUrl, '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Painel
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                
+                {/* Mensagem se não houver servidores */}
+                {!renewClient.server_id && !renewClient.server_id_2 && (!renewClient.additional_servers || (renewClient.additional_servers as AdditionalServer[]).length === 0) && (
+                  <p className="text-xs text-muted-foreground text-center py-2">Nenhum servidor vinculado</p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Plano</Label>
               <PlanSelector
