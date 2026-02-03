@@ -743,10 +743,10 @@ export function ClientFormDialog({
                         <SelectValue placeholder="Selecione o servidor" />
                       </SelectTrigger>
                       <SelectContent 
-                        position="item-aligned" 
-                        side="bottom" 
-                        align="start"
-                        className="md:max-h-[70vh] md:overflow-y-auto"
+                        position="popper" 
+                        side="top"
+                        sideOffset={4}
+                        className="max-h-[50vh] md:max-h-[60vh] overflow-y-auto z-[9999]"
                       >
                         {activeServers.map((server) => (
                           <SelectItem key={server.id} value={server.id} className="md:py-1 md:min-h-0">
