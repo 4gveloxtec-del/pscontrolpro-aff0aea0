@@ -93,7 +93,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         .from('reseller_device_apps' as any)
         .select('*')
         .eq('seller_id', sellerId)
-        .eq('is_gerencia_app', false)
+        // IMPORTANT: treat NULL as false for backward-compatibility (older rows)
+        .or('is_gerencia_app.eq.false,is_gerencia_app.is.null')
         .eq('is_active', true)
         .order('created_at');
       if (error) throw error;
