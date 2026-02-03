@@ -4310,8 +4310,8 @@ export default function Clients() {
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs text-muted-foreground truncate">{renewClient.server_name || 'Servidor Principal'}</span>
                         {(() => {
-                          const creds = decryptedCredentials[renewClient.id];
-                          const displayLogin = creds?.login || renewClient.login;
+                          // Usar login_search (texto plano) para exibição rápida
+                          const displayLogin = renewClient.login_search || '';
                           return displayLogin ? (
                             <div className="flex items-center gap-1">
                               <span className="text-sm font-mono truncate">{isPrivacyMode ? '••••••' : displayLogin}</span>
@@ -4350,8 +4350,8 @@ export default function Clients() {
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs text-muted-foreground truncate">{renewClient.server_name_2 || 'Servidor 2'}</span>
                         {(() => {
-                          const creds = decryptedCredentials[renewClient.id];
-                          const displayLogin = creds?.login_2 || renewClient.login_2;
+                          // Usar login2_search (texto plano) para exibição rápida
+                          const displayLogin = renewClient.login2_search || '';
                           return displayLogin ? (
                             <div className="flex items-center gap-1">
                               <span className="text-sm font-mono truncate">{isPrivacyMode ? '••••••' : displayLogin}</span>

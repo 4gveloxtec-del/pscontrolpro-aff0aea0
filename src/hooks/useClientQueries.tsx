@@ -179,8 +179,8 @@ export function useClientQueries({
           .select(`
             id, name, phone, email, device, dns, expiration_date, expiration_datetime,
             plan_id, plan_name, plan_price, premium_price,
-            server_id, server_name, login, password,
-            server_id_2, server_name_2, login_2, password_2,
+            server_id, server_name, login, password, login_search,
+            server_id_2, server_name_2, login_2, password_2, login2_search,
             premium_password, category, is_paid, pending_amount, notes,
             has_paid_apps, paid_apps_duration, paid_apps_expiration,
             telegram, is_archived, archived_at, created_at, renewed_at,
@@ -277,8 +277,8 @@ export function useClientQueries({
         .select(`
           id, name, phone, email, device, dns, expiration_date, expiration_datetime,
           plan_id, plan_name, plan_price, premium_price,
-          server_id, server_name, login, password,
-          server_id_2, server_name_2, login_2, password_2,
+          server_id, server_name, login, password, login_search,
+          server_id_2, server_name_2, login_2, password_2, login2_search,
           premium_password, category, is_paid, pending_amount, notes,
           has_paid_apps, paid_apps_duration, paid_apps_expiration,
           telegram, is_archived, archived_at, created_at, renewed_at,
