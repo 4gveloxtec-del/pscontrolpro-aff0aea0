@@ -69,7 +69,7 @@ export function PlanSelector({
   compact = false,
   defaultCategory = null
 }: PlanSelectorProps) {
-  const [durationFilter, setDurationFilter] = useState<DurationFilter>('all');
+  const [durationFilter, setDurationFilter] = useState<DurationFilter>('30');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [screensFilter, setScreensFilter] = useState<ScreensFilter>('all');
 
@@ -112,18 +112,6 @@ export function PlanSelector({
         <div className="space-y-1.5 sm:space-y-2">
           {/* Duration Filter - horizontal scroll on mobile */}
           <div className="flex gap-0.5 sm:gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-            <button
-              type="button"
-              onClick={() => setDurationFilter('all')}
-              className={cn(
-                "px-2 py-1 text-[10px] sm:text-xs rounded-md transition-colors whitespace-nowrap flex-shrink-0",
-                durationFilter === 'all' 
-                  ? "bg-primary text-primary-foreground" 
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
-              )}
-            >
-              Todos
-            </button>
             <button
               type="button"
               onClick={() => setDurationFilter('30')}
