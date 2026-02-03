@@ -53,15 +53,30 @@ export function useResellerDeviceApps(sellerId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
-        .select('*, panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)')
+        .select('*')
         .eq('seller_id', sellerId!)
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
+      
+      // Collect panel IDs for a second query if needed
+      const panelIds = [...new Set((data || []).map((app: any) => app.panel_id).filter(Boolean))];
+      let panelMap: Record<string, { id: string; name: string; panel_url: string | null }> = {};
+      
+      if (panelIds.length > 0) {
+        const { data: panels } = await supabase
+          .from('servers')
+          .select('id, name, panel_url')
+          .in('id', panelIds);
+        if (panels) {
+          panelMap = Object.fromEntries(panels.map(p => [p.id, { id: p.id, name: p.name, panel_url: p.panel_url }]));
+        }
+      }
+      
       return (data || []).map((app: any) => ({
         ...app,
         device_types: app.device_types || [],
-        panel: app.panel || null,
+        panel: panelMap[app.panel_id] || null,
       })) as ResellerDeviceApp[];
     },
     enabled: !!sellerId,

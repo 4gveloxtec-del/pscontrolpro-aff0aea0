@@ -91,12 +91,27 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
-        .select('*, panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)')
+        .select('*')
         .eq('seller_id', sellerId)
         .eq('is_gerencia_app', false)
         .eq('is_active', true)
         .order('created_at');
       if (error) throw error;
+      
+      // Collect panel IDs for a second query if needed
+      const panelIds = [...new Set((data || []).map((item: any) => item.panel_id).filter(Boolean))];
+      let panelMap: Record<string, { name: string; panel_url: string | null }> = {};
+      
+      if (panelIds.length > 0) {
+        const { data: panels } = await supabase
+          .from('servers')
+          .select('id, name, panel_url')
+          .in('id', panelIds);
+        if (panels) {
+          panelMap = Object.fromEntries(panels.map(p => [p.id, { name: p.name, panel_url: p.panel_url }]));
+        }
+      }
+      
       // Map to ExternalApp format - TODOS os apps do revendedor terão auth_type 'mac_key'
       // Isso garante que os campos MAC apareçam sempre para apps do revendedor
       return ((data || []) as any[]).map(item => ({
@@ -115,8 +130,8 @@ export function ClientExternalApps({ clientId, sellerId, onChange, initialApps =
         mac_address: item.mac_address, // Incluir MAC address se já existir no app
         // Panel info for display
         panel_id: item.panel_id,
-        panel_name: item.panel?.name || null,
-        panel_url: item.panel?.panel_url || null,
+        panel_name: panelMap[item.panel_id]?.name || null,
+        panel_url: panelMap[item.panel_id]?.panel_url || null,
       })) as (ExternalApp & { panel_id?: string; panel_name?: string; panel_url?: string })[];
     },
     enabled: !!sellerId,
@@ -775,26 +790,41 @@ export function ClientExternalAppsDisplay({ clientId, sellerId }: ClientExternal
         .from('client_device_apps')
         .select(`
           id,
-          app:reseller_device_apps(
-            id, name, icon, download_url, mac_address,
-            panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)
-          )
+          app_id,
+          app:reseller_device_apps(id, name, icon, download_url, mac_address, panel_id)
         `)
         .eq('client_id', clientId);
       if (error) throw error;
       
+      // Collect panel IDs for a second query if needed
+      const panelIds = [...new Set((data || []).map((item: any) => item.app?.panel_id).filter(Boolean))];
+      let panelMap: Record<string, { id: string; name: string; panel_url: string | null }> = {};
+      
+      if (panelIds.length > 0) {
+        const { data: panels } = await supabase
+          .from('servers')
+          .select('id, name, panel_url')
+          .in('id', panelIds);
+        if (panels) {
+          panelMap = Object.fromEntries(panels.map(p => [p.id, { id: p.id, name: p.name, panel_url: p.panel_url }]));
+        }
+      }
+      
       // Transform data to include panel info
-      return ((data || []) as any[]).map(item => ({
-        id: item.id,
-        appId: item.app?.id,
-        name: item.app?.name || 'App',
-        icon: item.app?.icon || '📱',
-        download_url: item.app?.download_url || null,
-        mac_address: item.app?.mac_address || null,
-        panel_id: item.app?.panel?.id || null,
-        panel_name: item.app?.panel?.name || null,
-        panel_url: item.app?.panel?.panel_url || null,
-      })) as (ResellerDeviceAppWithPanel & { id: string; appId: string })[];
+      return ((data || []) as any[]).map(item => {
+        const panel = panelMap[item.app?.panel_id] || null;
+        return {
+          id: item.id,
+          appId: item.app?.id,
+          name: item.app?.name || 'App',
+          icon: item.app?.icon || '📱',
+          download_url: item.app?.download_url || null,
+          mac_address: item.app?.mac_address || null,
+          panel_id: panel?.id || null,
+          panel_name: panel?.name || null,
+          panel_url: panel?.panel_url || null,
+        };
+      }) as (ResellerDeviceAppWithPanel & { id: string; appId: string })[];
     },
     enabled: !!clientId,
     staleTime: 60000,
