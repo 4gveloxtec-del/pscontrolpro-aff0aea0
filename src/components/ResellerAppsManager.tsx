@@ -53,19 +53,39 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
     return parts.join(':');
   };
 
-  // Fetch reseller apps - now using unified reseller_device_apps table with panel info
+  // Fetch reseller apps - using Two-Step Fetch to avoid silent join failures
   const { data: resellerApps = [], isLoading, isError } = useQuery({
     queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, sellerId],
     queryFn: async () => {
+      // Step 1: Fetch apps without join
       const { data, error } = await supabase
         .from('reseller_device_apps' as any)
-        .select('*, panel:servers!reseller_device_apps_panel_id_fkey(id, name, panel_url)')
+        .select('*')
         .eq('seller_id', sellerId)
         // IMPORTANT: treat NULL as false for backward-compatibility (older rows)
         .or('is_gerencia_app.eq.false,is_gerencia_app.is.null') // Regular reseller apps, not gerencia apps
         .eq('is_active', true)
         .order('created_at');
-      if (error) throw error;
+      
+      if (error) {
+        console.error('[ResellerAppsManager] Query error:', error.message);
+        throw error;
+      }
+      
+      // Step 2: Fetch panel info separately if needed
+      const panelIds = [...new Set((data || []).map((app: any) => app.panel_id).filter(Boolean))];
+      let panelMap: Record<string, { name: string; panel_url: string | null }> = {};
+      
+      if (panelIds.length > 0) {
+        const { data: panels } = await supabase
+          .from('servers')
+          .select('id, name, panel_url')
+          .in('id', panelIds);
+        if (panels) {
+          panelMap = Object.fromEntries(panels.map(p => [p.id, { name: p.name, panel_url: p.panel_url }]));
+        }
+      }
+      
       return (data || []).map((item: any) => ({
         id: item.id,
         name: item.name,
@@ -75,8 +95,8 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
         seller_id: item.seller_id,
         is_active: item.is_active,
         panel_id: item.panel_id,
-        panel_name: item.panel?.name || null,
-        panel_url: item.panel?.panel_url || null,
+        panel_name: panelMap[item.panel_id]?.name || null,
+        panel_url: panelMap[item.panel_id]?.panel_url || null,
       })) as ResellerAppDisplay[];
     },
     enabled: !!sellerId,
