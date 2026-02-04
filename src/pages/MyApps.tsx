@@ -122,27 +122,47 @@ export default function MyApps() {
   const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [activeTab, setActiveTab] = useState<'all' | 'gerencia'>('all');
 
-  // Fetch apps - uses unified query key
+  // Fetch apps - uses Two-Step Fetch to avoid ambiguous FK join errors (PGRST201)
+  // The table has two FKs to servers: server_id and panel_id - we avoid join conflicts
   const { data: apps = [], isLoading, isError } = useQuery({
     queryKey: [RESELLER_DEVICE_APPS_QUERY_KEY, user?.id],
     queryFn: async () => {
       try {
+        // Step 1: Fetch apps without join (avoids PGRST201 error)
         const { data, error } = await supabase
           .from('reseller_device_apps' as any)
-          .select('*, servers(name)')
+          .select('*')
           .eq('seller_id', user!.id)
           // IMPORTANT: only fetch active apps (consistent with other screens)
           .eq('is_active', true)
           .order('name');
+        
         if (error) {
           console.error('[MyApps] Query error:', error.message);
           return [];
         }
+        
+        // Step 2: Fetch server names separately if needed
+        const serverIds = [...new Set((data || []).map((app: any) => app.server_id).filter(Boolean))];
+        let serverMap: Record<string, string> = {};
+        
+        if (serverIds.length > 0) {
+          const { data: servers } = await supabase
+            .from('servers')
+            .select('id, name')
+            .in('id', serverIds);
+          if (servers) {
+            serverMap = Object.fromEntries(servers.map(s => [s.id, s.name]));
+          }
+        }
+        
         return ((data || []) as any[]).map((app: any) => ({
           ...app,
           device_types: app.device_types || [],
           // IMPORTANT: treat NULL as false for backward-compatibility (older rows)
           is_gerencia_app: app.is_gerencia_app ?? false,
+          // Map server name from the second query
+          servers: app.server_id && serverMap[app.server_id] ? { name: serverMap[app.server_id] } : null,
         })) as ResellerDeviceApp[];
       } catch (err) {
         console.error('[MyApps] Unexpected error:', err);
