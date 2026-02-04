@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ServerSearchSelect, ServerOption } from '@/components/ServerSearchSelect';
 import { toast } from 'sonner';
 import { 
   Plus, 
@@ -590,23 +591,13 @@ export default function MyApps() {
               {/* Server Association - Only show if not Gerencia App */}
               {!formData.is_gerencia_app && servers.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="server_id">Servidor Associado (opcional)</Label>
-                  <Select
+                  <Label>Servidor Associado (opcional)</Label>
+                  <ServerSearchSelect
+                    servers={servers as ServerOption[]}
                     value={formData.server_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, server_id: value === 'none' ? '' : value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Nenhum servidor específico" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum servidor específico</SelectItem>
-                      {servers.map((server) => (
-                        <SelectItem key={server.id} value={server.id}>
-                          {server.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(serverId) => setFormData(prev => ({ ...prev, server_id: serverId }))}
+                    placeholder="Buscar servidor por nome..."
+                  />
                 </div>
               )}
 
