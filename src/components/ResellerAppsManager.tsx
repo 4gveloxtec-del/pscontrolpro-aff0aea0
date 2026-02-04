@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ServerSearchSelect, ServerOption } from '@/components/ServerSearchSelect';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit, Smartphone, Save, Download, Hash, Loader2, ExternalLink, Server } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -381,28 +381,15 @@ export function ResellerAppsManager({ sellerId }: ResellerAppsManagerProps) {
                       </p>
                     </div>
 
-                    {/* Panel Selection - Optional */}
+                    {/* Panel Selection - Optional - Uses search component like in Clients form */}
                     <div className="space-y-2">
-                      <Label htmlFor="panel_id">Vincular Painel (Opcional)</Label>
-                      <Select
+                      <Label>Vincular Painel (Opcional)</Label>
+                      <ServerSearchSelect
+                        servers={serversWithPanel as ServerOption[]}
                         value={formData.panel_id}
-                        onValueChange={(value) => setFormData({ ...formData, panel_id: value === '_none' ? '' : value })}
-                      >
-                        <SelectTrigger id="panel_id">
-                          <SelectValue placeholder="Selecione um painel..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="_none">Nenhum painel</SelectItem>
-                          {serversWithPanel.map((server) => (
-                            <SelectItem key={server.id} value={server.id}>
-                              <div className="flex items-center gap-2">
-                                <Server className="h-3 w-3 text-blue-500" />
-                                {server.name}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onValueChange={(serverId) => setFormData({ ...formData, panel_id: serverId })}
+                        placeholder="Buscar servidor/painel..."
+                      />
                       <p className="text-xs text-muted-foreground">
                         🔗 Quando vinculado, o nome do painel será exibido clicável na listagem de clientes
                       </p>
